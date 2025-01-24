@@ -155,8 +155,22 @@ class CallSiteMaker(Analysis):
                             oident=vvar_def.oident,
                             **vvar_def.tags,
                         )
-                        # we may need to narrow the value
+
+                        if offset > vvar_def.reg_offset:
+                            # we need to shift the value
+                            vvar_use = Expr.BinaryOp(
+                                self._ail_manager.next_atom(),
+                                "Shr",
+                                [
+                                    vvar_use,
+                                    Expr.Const(
+                                        self._ail_manager.next_atom(), None, (offset - vvar_def.reg_offset) * 8, 8
+                                    ),
+                                ],
+                                **vvar_use.tags,
+                            )
                         if vvar_def.size > arg_loc.size:
+                            # we need to narrow the value
                             vvar_use = Expr.Convert(
                                 self._ail_manager.next_atom(),
                                 vvar_use.bits,

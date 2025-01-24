@@ -18,8 +18,7 @@ from angr.calling_conventions import (
     SimCCSystemVAMD64,
 )
 from angr.analyses.complete_calling_conventions import CallingConventionAnalysisMode
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom
-
+from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom, SimTypeFloat
 from tests.common import bin_location, requires_binaries_private
 
 
@@ -282,6 +281,23 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cca.cc is not None
         assert isinstance(cca.prototype, SimTypeFunction)
         assert len(cca.prototype.args) == 2
+
+    def test_armhf_thumb_floats(self):
+        binary_path = os.path.join(test_location, "armhf", "float_int_conversion.elf")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        _ = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions()
+
+        assert proj.kb.functions["float_to_int"].prototype.args == (SimTypeFloat(),)
+        assert proj.kb.functions["float_to_int"].prototype.returnty == SimTypeInt()
+        assert proj.kb.functions["int_to_float"].prototype.args == (SimTypeInt(),)
+        assert proj.kb.functions["int_to_float"].prototype.returnty == SimTypeFloat()
+        assert proj.kb.functions["increment_float"].prototype.args == (SimTypeFloat(), SimTypeFloat())
+        assert proj.kb.functions["increment_float"].prototype.returnty == SimTypeFloat()
+        assert proj.kb.functions["float_to_rounded_float"].prototype.args == (SimTypeFloat(),)
+        assert proj.kb.functions["float_to_rounded_float"].prototype.returnty == SimTypeFloat()
+        assert set(proj.kb.functions["compare_floats"].prototype.args) == {SimTypeFloat(), SimTypeFloat(), SimTypeInt()}
+        assert proj.kb.functions["compare_floats"].prototype.returnty == SimTypeInt()
 
     @cca_mode("fast,variables")
     def manual_test_workers(self, mode=None):

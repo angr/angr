@@ -247,6 +247,9 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
                         equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
+                    elif isinstance(stmt.fp_ret_expr, (VirtualVariable, Load)):
+                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        equivalence.add(Equivalence(codeloc, stmt.fp_ret_expr, stmt))
                 elif (
                     isinstance(stmt, Store)
                     and isinstance(stmt.size, int)

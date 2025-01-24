@@ -1828,7 +1828,7 @@ class Clinic(Analysis):
                 expr.variable = var
                 expr.variable_offset = offset
 
-        elif isinstance(expr, ailment.Expr.Const):
+        elif isinstance(expr, ailment.Expr.Const) and expr.is_int:
             # custom string?
             if hasattr(expr, "custom_string") and expr.custom_string is True:
                 s = self.kb.custom_strings[expr.value]

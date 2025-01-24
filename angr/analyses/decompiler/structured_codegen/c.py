@@ -3521,8 +3521,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     expr.value
                 ]
                 inline_string = True
-            elif isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
-                # char*
+            elif isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, (SimTypeChar, SimTypeBottom)):
+                # char* or void*
                 # Try to get a string
                 if (
                     self._cfg is not None
