@@ -150,7 +150,12 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
                 # x * 1 => x
                 return expr.operands[0]
-            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+            if (
+                isinstance(expr.operands[0], Const)
+                and expr.operands[0].is_int
+                and isinstance(expr.operands[1], Const)
+                and expr.operands[1].is_int
+            ):
                 # constant multiplication
                 mask = (1 << expr.bits) - 1
                 return Const(
@@ -290,6 +295,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     def _optimize_convert(expr: Convert):
         if (
             isinstance(expr.operand, Const)
+            and expr.operand.is_int
             and expr.from_type == Convert.TYPE_INT
             and expr.to_type == Convert.TYPE_INT
             and expr.from_bits > expr.to_bits
@@ -300,6 +306,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             return Const(expr.idx, expr.operand.variable, v, expr.to_bits, **expr.operand.tags)
         if (
             isinstance(expr.operand, Const)
+            and expr.operand.is_int
             and expr.from_type == Convert.TYPE_INT
             and expr.to_type == Convert.TYPE_INT
             and expr.from_bits <= expr.to_bits

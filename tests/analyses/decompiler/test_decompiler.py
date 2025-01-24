@@ -4062,6 +4062,23 @@ class TestDecompiler(unittest.TestCase):
         for i in range(6, 100):
             assert f"v{i}" not in d.codegen.text
 
+    def test_decompiling_armhf_float_int_conversion(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "armhf", "float_int_conversion.elf")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert '"current_angle_int: %d\\n"' in d.codegen.text
+        assert "10.0" in d.codegen.text
+        assert re.search(r"int_to_float\(v\d+\)", d.codegen.text) is not None
+        assert re.search(r"increment_float\(current_angle, 10.0\)", d.codegen.text) is not None
+        assert re.search(r"increment_float\(prev_angle, 8.0\)", d.codegen.text) is not None
+        assert "if (!compare_floats(30, current_angle, prev_angle))" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

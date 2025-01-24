@@ -18,8 +18,7 @@ from angr.calling_conventions import (
     SimCCSystemVAMD64,
 )
 from angr.analyses.complete_calling_conventions import CallingConventionAnalysisMode
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom
-
+from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom, SimTypeFloat
 from tests.common import bin_location, requires_binaries_private
 
 
@@ -52,7 +51,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             authenticate = cfg.functions[func_name]
             _ = fauxware.analyses.VariableRecoveryFast(authenticate)
 
-            cc_analysis = fauxware.analyses.CallingConvention(authenticate, cfg=cfg, analyze_callsites=True)
+            cc_analysis = fauxware.analyses.CallingConvention(authenticate, cfg=cfg.model, analyze_callsites=True)
             cc = cc_analysis.cc
 
             assert cc == expected_cc
@@ -118,7 +117,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         return func.calling_convention.arg_locs(func.prototype)
 
     @cca_mode("fast,variables")
-    def test_x8664_dir_gcc_O0(self, mode=None):
+    def test_x8664_dir_gcc_O0(self, *, mode):
         binary_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
 
@@ -147,7 +146,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             self.check_args(func_name, self._a(funcs, func_name), args)
 
     @cca_mode("fast,variables")
-    def test_armel_fauxware(self, mode=None):
+    def test_armel_fauxware(self, *, mode):
         binary_path = os.path.join(test_location, "armel", "fauxware")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
 
@@ -173,7 +172,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             self.check_args(func_name, self._a(funcs, func_name), args)
 
     @cca_mode("fast,variables")
-    def test_x8664_void(self, mode=None):
+    def test_x8664_void(self, *, mode):
         binary_path = os.path.join(test_location, "x86_64", "types", "void")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
 
@@ -226,6 +225,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             "Calling convention analysis failed to determine the calling convention of function " "0x80494f0."
         )
         assert isinstance(cc, SimCCCdecl)
+        assert prototype is not None
         assert len(prototype.args) == 3
         arg_locs = cc.arg_locs(prototype)
         assert arg_locs[0] == SimStackArg(4, 4)
@@ -244,6 +244,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             "Calling convention analysis failed to determine the calling convention of function " "0x804a1a9."
         )
         assert isinstance(cc, SimCCCdecl)
+        assert prototype is not None
         assert len(prototype.args) == 1
         assert cc.arg_locs(prototype)[0] == SimStackArg(4, 4)
 
@@ -255,8 +256,10 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         cfg = proj.analyses.CFG(data_references=True, normalize=True)
 
         func = cfg.functions.function(name="mosquitto_publish", plt=True)
+        assert func is not None
         proj.analyses.VariableRecoveryFast(func)
         cca = proj.analyses.CallingConvention(func, analyze_callsites=True)
+        assert cca.prototype is not None
         assert len(cca.prototype.args) == 6
 
     def test_x64_return_value_used(self):
@@ -265,7 +268,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True, force_complete_scan=False)
         func = proj.kb.functions.get_by_addr(0x4046E0)
         proj.analyses.VariableRecoveryFast(func)
-        cca = proj.analyses.CallingConvention(func=func, cfg=cfg, analyze_callsites=True)
+        cca = proj.analyses.CallingConvention(func=func, cfg=cfg.model, analyze_callsites=True)
 
         assert cca.prototype is not None
         assert cca.prototype.returnty is not None
@@ -283,8 +286,30 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert isinstance(cca.prototype, SimTypeFunction)
         assert len(cca.prototype.args) == 2
 
+    def test_armhf_thumb_floats(self):
+        binary_path = os.path.join(test_location, "armhf", "float_int_conversion.elf")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        _ = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions()
+
+        assert proj.kb.functions["float_to_int"].prototype is not None
+        assert proj.kb.functions["float_to_int"].prototype.args == (SimTypeFloat(),)
+        assert proj.kb.functions["float_to_int"].prototype.returnty == SimTypeInt()
+        assert proj.kb.functions["int_to_float"].prototype is not None
+        assert proj.kb.functions["int_to_float"].prototype.args == (SimTypeInt(),)
+        assert proj.kb.functions["int_to_float"].prototype.returnty == SimTypeFloat()
+        assert proj.kb.functions["increment_float"].prototype is not None
+        assert proj.kb.functions["increment_float"].prototype.args == (SimTypeFloat(), SimTypeFloat())
+        assert proj.kb.functions["increment_float"].prototype.returnty == SimTypeFloat()
+        assert proj.kb.functions["float_to_rounded_float"].prototype is not None
+        assert proj.kb.functions["float_to_rounded_float"].prototype.args == (SimTypeFloat(),)
+        assert proj.kb.functions["float_to_rounded_float"].prototype.returnty == SimTypeFloat()
+        assert proj.kb.functions["compare_floats"].prototype is not None
+        assert set(proj.kb.functions["compare_floats"].prototype.args) == {SimTypeFloat(), SimTypeFloat(), SimTypeInt()}
+        assert proj.kb.functions["compare_floats"].prototype.returnty == SimTypeInt()
+
     @cca_mode("fast,variables")
-    def manual_test_workers(self, mode=None):
+    def manual_test_workers(self, *, mode):
         binary_path = os.path.join(test_location, "x86_64", "1after909")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
 
@@ -298,7 +323,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert func.is_prototype_guessed is True
 
     @cca_mode("fast,variables")
-    def test_tail_calls(self, mode=None):
+    def test_tail_calls(self, *, mode):
         for opt_level in (1, 2):
             binary_path = os.path.join(test_location, "x86_64", f"tailcall-O{opt_level}")
             proj = angr.Project(binary_path, auto_load_libs=False)
@@ -310,6 +335,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                 # expected prototype: (int) -> long long
                 # technically should be (int) -> int, but the compiler loads all 64 bits and then truncates
                 proto = proj.kb.functions[func].prototype
+                assert proto is not None
                 assert len(proto.args) == 1
                 assert isinstance(proto.args[0], SimTypeInt)
                 assert isinstance(proto.returnty, SimTypeLongLong)
@@ -322,10 +348,11 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         proj.analyses.VariableRecoveryFast(proj.kb.functions["timespec_cmp"])
         cca = proj.analyses.CallingConvention(proj.kb.functions["timespec_cmp"])
 
+        assert cca.prototype is not None
         assert len(cca.prototype.args) == 4
 
     @cca_mode("fast,variables")
-    def test_run_multiple_times(self, mode=None):
+    def test_run_multiple_times(self, *, mode):
         binary_path = os.path.join(test_location, "x86_64", "fauxware")
         proj = angr.Project(binary_path, auto_load_libs=False)
 
@@ -341,17 +368,21 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert proj.kb.functions["main"].prototype == expected_prototype
 
     @cca_mode("fast,variables")
-    def test_test_three_arguments(self, mode=None):
+    def test_test_three_arguments(self, *, mode):
         binary_path = os.path.join(test_location, "x86_64", "test.o")
         proj = angr.Project(binary_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFG(normalize=True)
         # the node 0x401226 must be in its own function
-        assert cfg.model.get_any_node(0x401226).function_address == 0x401226
+        node = cfg.model.get_any_node(0x401226)
+        assert node is not None
+        assert node.function_address == 0x401226
 
         proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
 
+        assert proj.kb.functions["test_syntax_error"].prototype is not None
         assert proj.kb.functions["test_syntax_error"].prototype.variadic is True
+        assert proj.kb.functions["expr"].prototype is not None
         assert len(proj.kb.functions["expr"].prototype.args) == 0
 
     def test_windows_partial_input_variable_overwrite(self):
@@ -378,7 +409,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert len(cc.prototype.args) == 6
 
     @cca_mode("fast,variables")
-    def test_cdecl_nonconsecutive_stack_args(self, mode=None):
+    def test_cdecl_nonconsecutive_stack_args(self, *, mode):
         binary_path = os.path.join(test_location, "i386", "calling_convention_0.o")
         proj = angr.Project(binary_path, auto_load_libs=False)
 
