@@ -2081,8 +2081,10 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         # expected: if (*(v4) || *((char *)*((long long *)a1)) != (char)a3 || a0 == *((long long *)a1) || (v5 & -0x100))
-        assert d.codegen.text.count("||") == 3
-        assert d.codegen.text.count("&&") == 0
+        # also acceptable: if (!v3 && *(a1)->field_0 == a3 && a0 != *(a1) && !(v2 & 0xffffffffffffff00))
+        and_count = d.codegen.text.count("&&")
+        or_count = d.codegen.text.count("||")
+        assert (or_count == 3 and and_count == 0) or (and_count == 3 and or_count == 0)
 
     @for_all_structuring_algos
     def test_decompiling_base32_basenc_do_decode(self, decompiler_options=None):
