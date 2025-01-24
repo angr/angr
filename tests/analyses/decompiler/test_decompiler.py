@@ -4079,6 +4079,23 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r"increment_float\(prev_angle, 8.0\)", d.codegen.text) is not None
         assert "if (!compare_floats(30, current_angle, prev_angle))" in d.codegen.text
 
+    def test_decompiling_msvcrt_IsExceptionObjectToBeDestroyed(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        # IsExceptionObjectToBeDestroyed
+        f = proj.kb.functions[0x140015BC4]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "for (" in d.codegen.text
+        assert "return 1;" in d.codegen.text  # ConditionConstantPropagation must run
+        assert "return 0;" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
