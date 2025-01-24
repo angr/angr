@@ -111,12 +111,15 @@ class OptimizationPass(BaseOptimizationPass):
     The base class for any function-level graph optimization pass.
     """
 
+    _graph: networkx.DiGraph
+
     def __init__(
         self,
         func,
+        *,
+        graph,
         blocks_by_addr=None,
         blocks_by_addr_and_idx=None,
-        graph=None,
         variable_kb=None,
         region_identifier=None,
         reaching_definitions=None,
@@ -132,7 +135,7 @@ class OptimizationPass(BaseOptimizationPass):
         # self._blocks is just a cache
         self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr or {}
         self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx or {}
-        self._graph: networkx.DiGraph = graph
+        self._graph = graph
         self._variable_kb = variable_kb
         self._ri = region_identifier
         self._rd = reaching_definitions
