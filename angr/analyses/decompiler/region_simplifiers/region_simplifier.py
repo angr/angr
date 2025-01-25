@@ -88,6 +88,10 @@ class RegionSimplifier(Analysis):
     #
 
     def _fold_oneuse_expressions(self, region):
+        # Disabled until https://github.com/angr/angr/issues/5110 and related folding issues fixed
+        return region
+
+        # pylint:disable=unreachable
         variable_manager = self.variable_kb.variables[self.func.addr]
         expr_counter = ExpressionCounter(region, variable_manager)
 

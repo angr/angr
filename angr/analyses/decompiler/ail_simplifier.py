@@ -1118,7 +1118,10 @@ class AILSimplifier(Analysis):
         than once after simplification and graph structuring where conditions might be duplicated (e.g., in Dream).
         In such cases, the one-use expression folder in RegionSimplifier will perform this transformation.
         """
+        # Disabled until https://github.com/angr/angr/issues/5112 and related folding issues are fixed
+        return False
 
+        # pylint:disable=unreachable
         simplified = False
 
         equivalence = self._compute_equivalence()
