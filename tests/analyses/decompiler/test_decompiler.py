@@ -2081,8 +2081,10 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         # expected: if (*(v4) || *((char *)*((long long *)a1)) != (char)a3 || a0 == *((long long *)a1) || (v5 & -0x100))
-        assert d.codegen.text.count("||") == 3
-        assert d.codegen.text.count("&&") == 0
+        # also acceptable: if (!v3 && *(a1)->field_0 == a3 && a0 != *(a1) && !(v2 & 0xffffffffffffff00))
+        and_count = d.codegen.text.count("&&")
+        or_count = d.codegen.text.count("||")
+        assert (or_count == 3 and and_count == 0) or (and_count == 3 and or_count == 0)
 
     @for_all_structuring_algos
     def test_decompiling_base32_basenc_do_decode(self, decompiler_options=None):
@@ -4078,6 +4080,23 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r"increment_float\(current_angle, 10.0\)", d.codegen.text) is not None
         assert re.search(r"increment_float\(prev_angle, 8.0\)", d.codegen.text) is not None
         assert "if (!compare_floats(30, current_angle, prev_angle))" in d.codegen.text
+
+    def test_decompiling_msvcrt_IsExceptionObjectToBeDestroyed(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        # IsExceptionObjectToBeDestroyed
+        f = proj.kb.functions[0x140015BC4]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        assert "for (" in d.codegen.text
+        assert "return 1;" in d.codegen.text  # ConditionConstantPropagation must run
+        assert "return 0;" in d.codegen.text
 
 
 if __name__ == "__main__":

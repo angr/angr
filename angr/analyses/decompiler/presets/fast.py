@@ -21,6 +21,7 @@ from angr.analyses.decompiler.optimization_passes import (
     CallStatementRewriter,
     DeadblockRemover,
     SwitchReusedEntryRewriter,
+    ConditionConstantPropagation,
 )
 
 
@@ -47,6 +48,7 @@ preset_fast = DecompilationPreset(
         FlipBooleanCmp,
         InlinedStringTransformationSimplifier,
         CallStatementRewriter,
+        ConditionConstantPropagation,
     ],
 )
 

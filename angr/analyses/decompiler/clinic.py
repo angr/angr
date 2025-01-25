@@ -1149,8 +1149,9 @@ class Clinic(Analysis):
 
         cached_rd, cached_prop = None, None
         cache_item = None
+        cache_key = ail_block.addr, ail_block.idx
         if cache:
-            cache_item = cache.get(ail_block, None)
+            cache_item = cache.get(cache_key, None)
             if cache_item:
                 # cache hit
                 cached_rd = cache_item.rd
@@ -1169,8 +1170,8 @@ class Clinic(Analysis):
         # update the cache
         if cache is not None:
             if cache_item:
-                del cache[ail_block]
-            cache[simp.result_block] = BlockCache(simp._reaching_definitions, simp._propagator)
+                del cache[cache_key]
+            cache[cache_key] = BlockCache(simp._reaching_definitions, simp._propagator)
         return simp.result_block
 
     @timethis

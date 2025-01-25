@@ -426,6 +426,8 @@ class PhoenixStructurer(StructurerBase):
             return False, None, None
 
         loop_cond = None
+        successor_node = None
+        succ_node_is_true_node = None
         if (
             isinstance(node, SequenceNode)
             and node.nodes
@@ -436,21 +438,27 @@ class PhoenixStructurer(StructurerBase):
             and node.nodes[-1].true_node is not None
             and node.nodes[-1].false_node is not None
         ):
-            successor_node = node.nodes[-1].true_node
-            # test if the successor_node returns or not
-            # FIXME: It might be too strict
-            try:
-                last_stmt = self.cond_proc.get_last_statement(successor_node)
-            except EmptyBlockNotice:
-                last_stmt = None
-            if last_stmt is not None and isinstance(last_stmt, Return):
+            # try both true node and false node; pick the first node with only Returns as last statements as the
+            # successor.
+            if self._cyclic_while_with_single_successor_must_return(node.nodes[-1].true_node):
+                succ_node_is_true_node = True
+                successor_node = node.nodes[-1].true_node
                 loop_cond = claripy.Not(node.nodes[-1].condition)
+            elif self._cyclic_while_with_single_successor_must_return(node.nodes[-1].false_node):
+                succ_node_is_true_node = False
+                successor_node = node.nodes[-1].false_node
+                loop_cond = node.nodes[-1].condition
+            else:
+                loop_cond = None
 
         if loop_cond is None:
             return False, None, None
 
         node_copy = node.copy()
-        node_copy.nodes[-1] = node_copy.nodes[-1].false_node  # replace the last node with the false node
+        # replace the last node with the intended successor node
+        node_copy.nodes[-1] = (
+            node_copy.nodes[-1].false_node if succ_node_is_true_node else node_copy.nodes[-1].true_node
+        )
         # check if there is a cycle that starts with node and ends with node
         next_node = node
         seq_node = SequenceNode(node.addr, nodes=[node_copy])
@@ -486,6 +494,15 @@ class PhoenixStructurer(StructurerBase):
         full_graph.add_edge(loop_node, successor_node)
 
         return True, loop_node, successor_node
+
+    def _cyclic_while_with_single_successor_must_return(self, successor_node: SequenceNode) -> bool:
+        try:
+            last_stmts = self.cond_proc.get_last_statements(successor_node)
+        except EmptyBlockNotice:
+            return False
+        if not last_stmts:
+            return False
+        return all(isinstance(stmt, Return) for stmt in last_stmts)
 
     def _match_cyclic_dowhile(self, node, head, graph, full_graph) -> tuple[bool, LoopNode | None, BaseNode | None]:
         preds = list(full_graph.predecessors(node))
@@ -1719,6 +1736,8 @@ class PhoenixStructurer(StructurerBase):
         succs = list(full_graph.successors(start_node))
         if len(succs) == 2:
             left, right = succs
+            if left.addr > right.addr:
+                left, right = right, left
             if self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(
                 full_graph, left
             ) or self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, right):

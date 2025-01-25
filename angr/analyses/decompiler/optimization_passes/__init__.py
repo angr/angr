@@ -32,6 +32,7 @@ from .const_prop_reverter import ConstPropOptReverter
 from .call_stmt_rewriter import CallStatementRewriter
 from .duplication_reverter import DuplicationReverter
 from .switch_reused_entry_rewriter import SwitchReusedEntryRewriter
+from .condition_constprop import ConditionConstantPropagation
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -66,6 +67,7 @@ ALL_OPTIMIZATION_PASSES = [
     InlinedStringTransformationSimplifier,
     CallStatementRewriter,
     TagSlicer,
+    ConditionConstantPropagation,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -113,6 +115,7 @@ __all__ = (
     "BasePointerSaveSimplifier",
     "CallStatementRewriter",
     "CodeMotionOptimization",
+    "ConditionConstantPropagation",
     "ConstPropOptReverter",
     "ConstantDereferencesSimplifier",
     "CrossJumpReverter",

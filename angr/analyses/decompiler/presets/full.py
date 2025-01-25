@@ -26,6 +26,7 @@ from angr.analyses.decompiler.optimization_passes import (
     InlinedStringTransformationSimplifier,
     CallStatementRewriter,
     SwitchReusedEntryRewriter,
+    ConditionConstantPropagation,
 )
 
 
@@ -57,6 +58,7 @@ preset_full = DecompilationPreset(
         InlinedStringTransformationSimplifier,
         CallStatementRewriter,
         SwitchReusedEntryRewriter,
+        ConditionConstantPropagation,
     ],
 )
 

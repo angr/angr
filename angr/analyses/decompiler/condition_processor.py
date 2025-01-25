@@ -18,7 +18,7 @@ from angr.utils import is_pyinstaller
 from angr.utils.graph import dominates, inverted_idoms
 from angr.block import Block, BlockNode
 from angr.errors import AngrRuntimeError
-from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions
+from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
 from .structuring.structurer_nodes import (
     MultiNode,
     EmptyBlockNotice,
@@ -231,7 +231,7 @@ class ConditionProcessor:
         self._ast2annotations = {}
 
         self._peephole_expr_optimizations = [
-            cls(None, None, None) for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions]
+            cls(None, None, None) for cls in [InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots]
         ]
 
     def clear(self):
