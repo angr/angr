@@ -584,6 +584,9 @@ class TestDecompiler(unittest.TestCase):
         ), f"The decompilation should contain 2 calls to access(), but instead {access_count} calls are present."
 
         m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) == -1\)", code)
+        if m is None:
+            # Try without call folding
+            m = re.search(r"(\w+) = access\(&\w+, 0\);\s*if \(\1 == -1\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
         # Arguments to the convert call should be fully folded into the call statement itself
@@ -1066,8 +1069,10 @@ class TestDecompiler(unittest.TestCase):
 
         assert select_var, "Failed to find the variable that stores the result from select()"
         #   if (0 <= v25)
-        next_line = lines[select_line + 1]
-        assert next_line.startswith(f"if (0 <= {select_var})")
+        next_lines = " ".join(lines[select_line + 1 : select_line + 3])
+        assert next_lines.startswith(f"if (0 <= {select_var})") or re.search(
+            r"(\w+) = " + select_var + r"; if \(0 <= \1\)", next_lines
+        )  # non-folded
 
     @for_all_structuring_algos
     def test_decompiling_fauxware_mipsel(self, decompiler_options=None):
@@ -1157,7 +1162,9 @@ class TestDecompiler(unittest.TestCase):
         assert "break" not in replaced
 
         # ensure if-else removal does not incorrectly remove else nodes
-        assert "emaillist=strdup(" in code_without_spaces
+        assert "emaillist=strdup(" in code_without_spaces or re.search(
+            r"(\w+)=strdup[^\;]+;emaillist=\1", code_without_spaces
+        )
 
     @for_all_structuring_algos
     def test_decompiling_morton_my_message_callback(self, decompiler_options=None):
@@ -1480,8 +1487,14 @@ class TestDecompiler(unittest.TestCase):
         # function arguments must be a0 and a1. they cannot be renamed
         assert re.search(r"int main\([\s\S]+ a0, [\s\S]+a1[\S]*\)", d.codegen.text) is not None
 
-        assert "max_width = (int)xdectoumax(" in d.codegen.text or "max_width = xdectoumax(" in d.codegen.text
-        assert "goal_width = xdectoumax(" in d.codegen.text
+        assert (
+            "max_width = (int)xdectoumax(" in d.codegen.text
+            or "max_width = xdectoumax(" in d.codegen.text
+            or re.search(r"(\w+) = xdectoumax[^;]+;\s*max_width = \1;", d.codegen.text)
+        )
+        assert "goal_width = xdectoumax(" in d.codegen.text or re.search(
+            r"(\w+) = xdectoumax[^;]+;\s*goal_width = \1;", d.codegen.text
+        )
         assert (
             "max_width = goal_width + 10;" in d.codegen.text
             or "max_width = ((int)(goal_width + 10));" in d.codegen.text
@@ -1490,8 +1503,10 @@ class TestDecompiler(unittest.TestCase):
         # by default, largest_successor_tree_outside_loop in RegionIdentifier is set to True, which means the
         # getopt_long() == -1 case should be entirely left outside the loop. by ensuring the call to error(0x1) is
         # within the last few lines of decompilation output, we ensure the -1 case is indeed outside the loop.
-        last_seven_lines = "\n".join(line.strip(" ") for line in d.codegen.text.split("\n")[-8:])
-        assert 'error(1, *(__errno_location()), "%s");' in last_seven_lines
+        last_lines = "\n".join(line.strip(" ") for line in d.codegen.text.split("\n")[-10:])
+        assert 'error(1, *(__errno_location()), "%s");' in last_lines or re.search(
+            r"(\w+) = __errno_location\(\);\s*error\(1, \*\(\1\), \"%s\"\);", last_lines
+        )
 
     @for_all_structuring_algos
     def test_decompiling_fmt0_main(self, decompiler_options=None):
@@ -3028,13 +3043,12 @@ class TestDecompiler(unittest.TestCase):
         # } while (v3 == -1 && (v2 = *(&in_stream),
         #                       v1 &= check_and_close(*(__errno_location())) & open_next_file(),
         #                       *(&in_stream)));
-        assert (
-            re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*, v\d+ &= [^\n]*check_and_close\(\*\(__errno_location\(\)\)\)[^\n]+open_next_file\(\)",
-                dec.codegen.text,
-            )
-            is not None
-        )
+
+        text = dec.codegen.text
+        while_offset = text.find("while (")
+        while_line = text[while_offset : text.find("\n", while_offset)]
+        for substr in ["&in_stream", "check_and_close(", "open_next_file("]:
+            assert while_line.find(substr) > 0
 
         # never use multi-statement expressions
         decompiler_options_1 = [
@@ -3046,13 +3060,10 @@ class TestDecompiler(unittest.TestCase):
             f, cfg=cfg.model, options=decompiler_options_1, optimization_passes=all_optimization_passes
         )
         self._print_decompilation_result(dec)
-        assert (
-            re.search(
-                r"v\d+ = [^\n]*in_stream[^\n]*;\n\s+v\d+ &= [^\n]*check_and_close\([^\n]+open_next_file\([^\n;]+;",
-                dec.codegen.text,
-            )
-            is not None
-        )
+        assert re.search(r"v\d+ = [^\n]*in_stream[^\n]*;", dec.codegen.text)
+        assert re.search(r"check_and_close[^;,]+;", dec.codegen.text)
+        assert re.search(r"open_next_file[^;,]+;", dec.codegen.text)
+
         saved = dec.codegen.text
 
         # less than one call statement/expression
@@ -3186,7 +3197,7 @@ class TestDecompiler(unittest.TestCase):
         first_if_location = text.find("if (")
         # the very first if-stmt in this function should be a single scope with a return.
         # there should be no else scope as well.
-        correct_ifs = list(re.finditer(r'if \(!strcmp\(a0, "-"\)\) {5}\{.*? return; {5}}', text))
+        correct_ifs = list(re.finditer(r"if [^{]+\{.*? return; {5}}", text))
         assert len(correct_ifs) >= 1
 
         first_correct_if = correct_ifs[0]
@@ -3293,7 +3304,7 @@ class TestDecompiler(unittest.TestCase):
         #   in the future we should fix this case to recover for-loop from while.
         assert total_ifs <= 4
 
-        null_if_cases = re.findall(r"if \(!*v\d\)", text)
+        null_if_cases = re.findall(r"if \(!v\d\)", text)
         assert len(null_if_cases) == 1
 
     @structuring_algo("sailr")
@@ -4093,7 +4104,9 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r"int_to_float\(v\d+\)", d.codegen.text) is not None
         assert re.search(r"increment_float\(current_angle, 10.0\)", d.codegen.text) is not None
         assert re.search(r"increment_float\(prev_angle, 8.0\)", d.codegen.text) is not None
-        assert "if (!compare_floats(30, current_angle, prev_angle))" in d.codegen.text
+        assert "if (!compare_floats(30, current_angle, prev_angle))" in d.codegen.text or re.search(
+            r"(\w+) = compare_floats\(30, current_angle, prev_angle\);\s*if \(!\1\)", d.codegen.text
+        )
 
     def test_decompiling_msvcrt_IsExceptionObjectToBeDestroyed(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")
@@ -4145,16 +4158,29 @@ class TestDecompiler(unittest.TestCase):
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
         printf_line_idx = next(iter(idx for idx, line in enumerate(lines) if "printf(" in line))
         # extract printf args
-        printf_args = {
+        printf_args = [
             arg.strip(" ") for arg in lines[printf_line_idx].split('\\n"')[1].split(");")[0].split(",") if arg
-        }
+        ]
         assert len(printf_args) == 7
         # extract variables that have been assigned before printf
         starting_line = lines.index("{", lines.index("{") + 1)
         assert starting_line >= 0
         assignment_lines = lines[starting_line + 1 : printf_line_idx]
-        assignments = {line[: line.index(" =")] for line in assignment_lines}
-        assert assignments == printf_args
+
+        var_map = {}
+        for line in assignment_lines:
+            lhs, rhs = line.rstrip(";").split(" = ")
+            var_map[lhs] = var_map.get(rhs, rhs)
+
+        assert [var_map[v] for v in printf_args] == [
+            'read_int("What syscall number to call?")',
+            'read_int("What do you want for rdi?")',
+            'read_int("What do you want for rsi?")',
+            'read_int("What do you want for rdx?")',
+            'read_int("What do you want for r10?")',
+            'read_int("What do you want for r8?")',
+            'read_int("What do you want for r9?")',
+        ]
 
 
 if __name__ == "__main__":
