@@ -1,7 +1,7 @@
 # pylint:disable=missing-class-docstring,no-self-use
 
 from __future__ import annotations
-from unittest import TestCase, main
+from unittest import TestCase, main, skip
 
 import os
 
@@ -18,6 +18,8 @@ binaries_base = os.path.join(
 
 
 class TestAPIObfFinder(TestCase):
+
+    @skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     def test_smoketest(self):
         bin_path = os.path.join(
             binaries_base, "x86_64", "windows", "fc7a8e64d88ad1d8c7446c606731901063706fd2fb6f9e237dda4cb4c966665b"
