@@ -4115,6 +4115,33 @@ class TestDecompiler(unittest.TestCase):
         # ReturnDuplicatorHigh must run before the last run of function simplification for proper constant propagation
         assert "return -1;" in d.codegen.text or "return 4294967295;" in d.codegen.text
 
+    def test_decompiling_livectf_dc30_shell_me_maybe_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "livectf-dc30-shell-me-maybe")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # printf has eight arguments, and the last seven are assigned to before the call
+        lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
+        printf_line_idx = next(iter(idx for idx, line in enumerate(lines) if "printf(" in line))
+        # extract printf args
+        printf_args = {
+            arg.strip(" ") for arg in lines[printf_line_idx].split('\\n"')[1].split(");")[0].split(",") if arg
+        }
+        assert len(printf_args) == 7
+        # extract variables that have been assigned before printf
+        starting_line = lines.index("{", lines.index("{") + 1)
+        assert starting_line >= 0
+        assignment_lines = lines[starting_line + 1 : printf_line_idx]
+        assignments = {line[: line.index(" =")] for line in assignment_lines}
+        assert assignments == printf_args
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,7 @@ from angr.sim_type import (
     SimTypeFloat,
     dereference_simtype,
     SimTypeFunction,
+    SimTypeLongLong,
 )
 from angr.calling_conventions import SimRegArg, SimStackArg, SimCC, SimStructArg, SimComboArg
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
@@ -136,8 +137,9 @@ class CallSiteMaker(Analysis):
                     if variadic_args:
                         callsite_ty = copy.copy(prototype)
                         callsite_args = list(callsite_ty.args)
+                        base_type = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
                         for _ in range(variadic_args):
-                            callsite_args.append(SimTypeInt().with_arch(self.project.arch))
+                            callsite_args.append(base_type().with_arch(self.project.arch))
                         callsite_ty.args = tuple(callsite_args)
                         arg_locs = cc.arg_locs(callsite_ty)
 
@@ -394,6 +396,7 @@ class CallSiteMaker(Analysis):
                     sp_offset, size, self.block.addr, self.block.idx, len(self.block.statements) - 1, OP_BEFORE
                 )
                 if vvar is not None:
+                    # FIXME: vvar may be larger than that we ask; we may need to chop the correct value of vvar
                     value = view.get_vvar_value(vvar)
                     if value is not None and not isinstance(value, Expr.Phi):
                         return None, value

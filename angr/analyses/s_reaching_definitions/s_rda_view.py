@@ -79,8 +79,8 @@ class StackVVarPredicate:
             isinstance(stmt, Assignment)
             and isinstance(stmt.dst, VirtualVariable)
             and stmt.dst.was_stack
-            and stmt.dst.stack_offset == self.stack_offset
-            and stmt.dst.size == self.size
+            and stmt.dst.stack_offset <= self.stack_offset < stmt.dst.stack_offset + stmt.dst.size
+            and stmt.dst.stack_offset <= self.stack_offset + self.size <= stmt.dst.stack_offset + stmt.dst.size
         ):
             self.vvars.add(stmt.dst)
             return True
