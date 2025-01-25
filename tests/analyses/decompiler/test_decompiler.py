@@ -54,6 +54,13 @@ WORKER = is_testing or bool(
 )  # this variable controls whether we print the decompilation code or not
 
 
+def normalize_whitespace(s: str) -> str:
+    """
+    Strips whitespace from start/end of lines, and replace newlines with space.
+    """
+    return " ".join(s.strip() for s in s.splitlines())
+
+
 def set_decompiler_option(decompiler_options: list[tuple], params: list[tuple]) -> list[tuple]:
     if decompiler_options is None:
         decompiler_options = []
@@ -4181,6 +4188,126 @@ class TestDecompiler(unittest.TestCase):
             'read_int("What do you want for r8?")',
             'read_int("What do you want for r9?")',
         ]
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_call_order(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_call_order.o")
+
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        p.analyses.CompleteCallingConventions(recover_variables=True)
+        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
+        text = dec.codegen.text
+
+        # Ensure f1 is called before f2
+        expected = """
+            v1 = f1();
+            v2 = f2();
+        """
+        assert normalize_whitespace(expected) in normalize_whitespace(text)
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_load_order(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_load_order.o")
+
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        p.analyses.CompleteCallingConventions(recover_variables=True)
+        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
+        text = dec.codegen.text
+
+        # Ensure call is made before global is read
+        expected = """
+            g_12345678 = 1;
+            v1 = f1();
+            if (!g_12345678)
+        """
+        assert normalize_whitespace(expected) in normalize_whitespace(text)
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_store_order(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_store_order.o")
+
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        p.analyses.CompleteCallingConventions(recover_variables=True)
+        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
+        text = dec.codegen.text
+
+        # Ensure store 0 happens before call happens before store 1
+        expected = """
+            g_12345678 = 0;
+            v1 = f1();
+            g_12345678 = 1;
+        """
+        assert normalize_whitespace(expected) in normalize_whitespace(text)
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_call_loop(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_call_loop.o")
+
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        p.analyses.CompleteCallingConventions(recover_variables=True)
+        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
+        text = dec.codegen.text
+
+        # Ensure call to f1 is not moved out of loop
+        expected = """
+            for (v1 = 0; v1 < 3; v1 += 1)
+            {
+                v2 = f1();
+            }
+            return v2;
+        """
+
+        assert normalize_whitespace(expected) in normalize_whitespace(text)
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_call_before_cond(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_call_before_cond.o")
+
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        p.analyses.CompleteCallingConventions(recover_variables=True)
+        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
+        text = dec.codegen.text
+
+        # Ensure call to f2 is not moved beyond the condition
+        expected = """
+            v1 = (unsigned long long)f2();
+            if (v2 != 3)
+                return 0;
+            return v1;
+        """
+
+        assert normalize_whitespace(expected) in normalize_whitespace(text)
+
+    @for_all_structuring_algos
+    def test_call_expr_folding_cond_call(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_cond_call.o")
+
+        p = angr.Project(bin_path, auto_load_libs=False)
+        cfg = p.analyses.CFGFast(normalize=True)
+        p.analyses.CompleteCallingConventions(recover_variables=True)
+        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
+        text = dec.codegen.text
+
+        # Ensure call to f2 is not moved outside the condition
+        expected = """
+            if (a0 == 3)
+                v1 = (unsigned long long)f2();
+            return
+        """
+        # FIXME: Should return v1, but there is a bug in unification
+
+        assert normalize_whitespace(expected) in normalize_whitespace(text)
 
 
 if __name__ == "__main__":
