@@ -4098,6 +4098,23 @@ class TestDecompiler(unittest.TestCase):
         assert "return 1;" in d.codegen.text  # ConditionConstantPropagation must run
         assert "return 0;" in d.codegen.text
 
+    def test_decompiling_msvcrt_fclose_nolock_internal(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        # fclose_nolock_internal
+        f = proj.kb.functions[0x14001D9A8]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # x | 0xffff_ffff   ==>   0xffff_ffff
+        # ReturnDuplicatorHigh must run before the last run of function simplification for proper constant propagation
+        assert "return -1;" in d.codegen.text or "return 4294967295;" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
