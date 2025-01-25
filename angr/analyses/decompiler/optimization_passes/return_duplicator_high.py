@@ -4,9 +4,9 @@ from typing import Any
 
 import networkx
 
+from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 
 _l = logging.getLogger(name=__name__)
 
@@ -28,26 +28,22 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
         self,
         func,
         # settings
+        *,
+        vvar_id_start: int,
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
-        region_identifier=None,
-        vvar_id_start: int | None = None,
         scratch: dict[str, Any] | None = None,
         **kwargs,
     ):
-        OptimizationPass.__init__(
-            self, func, vvar_id_start=vvar_id_start, scratch=scratch, region_identifier=region_identifier, **kwargs
-        )
+        OptimizationPass.__init__(self, func, vvar_id_start=vvar_id_start, scratch=scratch, **kwargs)
         ReturnDuplicatorBase.__init__(
             self,
             func,
             max_calls_in_regions=max_calls_in_regions,
             minimize_copies_for_regions=minimize_copies_for_regions,
-            ri=region_identifier,
             vvar_id_start=vvar_id_start,
             scratch=scratch,
         )
-        self._ri = None
 
         self.analyze()
 

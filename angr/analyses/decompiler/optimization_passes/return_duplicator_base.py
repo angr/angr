@@ -44,7 +44,9 @@ class FreshVirtualVariableRewriter(AILBlockWalker):
 
         return new_stmt
 
-    def _handle_VirtualVariable(self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None):
+    def _handle_VirtualVariable(  # type:ignore
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
+    ) -> VirtualVariable | None:
         if expr.varid in self.vvar_mapping:
             return VirtualVariable(
                 expr.idx,
@@ -58,7 +60,7 @@ class FreshVirtualVariableRewriter(AILBlockWalker):
             )
         return None
 
-    def _handle_stmt(self, stmt_idx: int, stmt, block: Block):
+    def _handle_stmt(self, stmt_idx: int, stmt, block: Block):  # type:ignore
         r = super()._handle_stmt(stmt_idx, stmt, block)
         if r is not None:
             # replace the original statement
@@ -77,10 +79,11 @@ class ReturnDuplicatorBase:
     def __init__(
         self,
         func,
+        *,
+        vvar_id_start: int,
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
         ri: RegionIdentifier | None = None,
-        vvar_id_start: int | None = None,
         scratch: dict[str, Any] | None = None,
     ):
         self._max_calls_in_region = max_calls_in_regions
@@ -286,6 +289,8 @@ class ReturnDuplicatorBase:
         self, endnode_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
     ):
         updated_regions = endnode_regions.copy()
+        assert self._ri is not None
+        assert isinstance(self._ri.region, GraphRegion)
         all_region_block_addrs = list(self._find_block_sets_in_all_regions(self._ri.region).values())
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)
@@ -355,7 +360,7 @@ class ReturnDuplicatorBase:
             return False
 
         # check if the graph is a single successor chain
-        if not all(labeless_graph.out_degree(n) <= 1 for n in nodes):
+        if not all(labeless_graph.out_degree[n] <= 1 for n in nodes):
             return False
 
         # collect the statements from the top node, make sure one exists
