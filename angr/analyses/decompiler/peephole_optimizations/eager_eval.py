@@ -241,6 +241,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return expr.operands[1]
             if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
                 return expr.operands[0]
+            if isinstance(expr.operands[0], Const) and expr.operands[0].value == (1 << expr.operands[0].bits) - 1:
+                return expr.operands[0]
+            if isinstance(expr.operands[1], Const) and expr.operands[1].value == (1 << expr.operands[1].bits) - 1:
+                return expr.operands[1]
             if expr.operands[0].likes(expr.operands[1]):
                 return expr.operands[0]
 

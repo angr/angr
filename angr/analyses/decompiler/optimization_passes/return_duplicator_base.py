@@ -257,8 +257,7 @@ class ReturnDuplicatorBase:
                     # not used in this branch. drop this statement
                     continue
                 else:
-                    phi_var = Phi(stmt.src.idx, stmt.src.bits, [((pred.addr, pred.idx), vvar_src)], **stmt.src.tags)
-                    new_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
+                    new_stmt = Assignment(stmt.idx, stmt.dst, vvar_src, **stmt.tags)
                     stmts.append(new_stmt)
                     continue
             stmts.append(stmt)

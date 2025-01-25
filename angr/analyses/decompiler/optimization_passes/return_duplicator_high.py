@@ -19,7 +19,7 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
 
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Duplicate return-only blocks (high)"
     DESCRIPTION = __doc__
     STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
