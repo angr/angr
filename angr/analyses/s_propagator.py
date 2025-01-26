@@ -495,7 +495,8 @@ class SPropagatorAnalysis(Analysis):
 
         :param uselocs: The use locations of the virtual variable.
         :param blocks:  All blocks of the current function.
-        :return: True if the virtual variable is used for loading an address in a switch-case construct, False otherwise.
+        :return:        True if the virtual variable is used for loading an address in a switch-case construct, False
+                        otherwise.
         """
 
         if len(uselocs) != 2:
