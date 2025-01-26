@@ -241,6 +241,7 @@ class PhoenixStructurer(StructurerBase):
     def _match_cyclic_schemas(self, node, head, graph, full_graph) -> bool:
         matched, loop_node, successor_node = self._match_cyclic_while(node, head, graph, full_graph)
         if matched:
+            assert loop_node is not None and successor_node is not None
             # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
             self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
@@ -249,6 +250,7 @@ class PhoenixStructurer(StructurerBase):
 
         matched, loop_node, successor_node = self._match_cyclic_dowhile(node, head, graph, full_graph)
         if matched:
+            assert loop_node is not None and successor_node is not None
             # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
             self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
             # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
@@ -260,6 +262,7 @@ class PhoenixStructurer(StructurerBase):
                 node, head, graph, full_graph
             )
             if matched:
+                assert loop_node is not None and successor_node is not None
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(loop_node.sequence_node, [successor_node.addr])
                 # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
@@ -268,6 +271,7 @@ class PhoenixStructurer(StructurerBase):
 
         matched, loop_node = self._match_cyclic_natural_loop(node, head, graph, full_graph)
         if matched:
+            assert loop_node is not None
             if self._region.successors is not None and len(self._region.successors) == 1:
                 # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
                 self._rewrite_conditional_jumps_to_breaks(
@@ -318,7 +322,7 @@ class PhoenixStructurer(StructurerBase):
                     # otherwise it's a do-while loop
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
-                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                         # c = !c
                         if head_block_idx == 0:
                             self._remove_first_statement_if_jump(head_block)
@@ -346,7 +350,7 @@ class PhoenixStructurer(StructurerBase):
                 if head_block is not None:
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
-                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                         # c = !c
                         if PhoenixStructurer._is_single_statement_block(node):
                             # the single-statement-block check is to ensure we don't execute any code before the
@@ -366,6 +370,7 @@ class PhoenixStructurer(StructurerBase):
                             return True, loop_node, right
                         # we generate a while-true loop instead
                         last_stmt = self._remove_last_statement_if_jump(head_block)
+                        assert last_stmt is not None
                         cond_jump = Jump(
                             None,
                             Const(None, None, right.addr, self.project.arch.bits),
@@ -394,7 +399,7 @@ class PhoenixStructurer(StructurerBase):
                     if head_block is not None:
                         edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, head_block, left)
                         edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, head_block, right)
-                        if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                        if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                             # c = !c
                             self._remove_last_statement_if_jump(head_block)
                             cond_break = ConditionalBreakNode(node.addr, edge_cond_right, right.addr)
@@ -521,7 +526,7 @@ class PhoenixStructurer(StructurerBase):
                     if succ_block is not None:
                         edge_cond_succhead = self.cond_proc.recover_edge_condition(full_graph, succ_block, node)
                         edge_cond_succout = self.cond_proc.recover_edge_condition(full_graph, succ_block, out_node)
-                        if claripy.is_true(claripy.Not(edge_cond_succhead) == edge_cond_succout):
+                        if claripy.is_true(claripy.Not(edge_cond_succhead) == edge_cond_succout):  # type: ignore
                             # c = !c
                             self._remove_last_statement_if_jump(succ)
                             drop_succ = False
@@ -560,7 +565,7 @@ class PhoenixStructurer(StructurerBase):
                 # possible candidate
                 edge_cond_head = self.cond_proc.recover_edge_condition(full_graph, node, node)
                 edge_cond_head_succ = self.cond_proc.recover_edge_condition(full_graph, node, succ)
-                if claripy.is_true(claripy.Not(edge_cond_head) == edge_cond_head_succ):
+                if claripy.is_true(claripy.Not(edge_cond_head) == edge_cond_head_succ):  # type: ignore
                     # c = !c
                     self._remove_last_statement_if_jump(node)
                     seq_node = SequenceNode(node.addr, nodes=[node]) if not isinstance(node, SequenceNode) else node
@@ -634,9 +639,11 @@ class PhoenixStructurer(StructurerBase):
 
     def _refine_cyclic_core(self, loop_head) -> bool:
         graph: networkx.DiGraph = self._region.graph
-        fullgraph: networkx.DiGraph = self._region.graph_with_successors
-        if fullgraph is None:
-            fullgraph = networkx.DiGraph(self._region.graph)
+        fullgraph: networkx.DiGraph = (
+            self._region.graph_with_successors
+            if self._region.graph_with_successors is not None
+            else networkx.DiGraph(self._region.graph)
+        )
 
         # check if there is an out-going edge from the loop head
         head_succs = list(fullgraph.successors(loop_head))
@@ -655,6 +662,7 @@ class PhoenixStructurer(StructurerBase):
         # for now, we handle the most common case: both successors exist in the graph of the parent region, and
         # one successor has a path to the other successor
         if is_while and is_dowhile and self._parent_region is not None:
+            assert result_while is not None and result_dowhile is not None
             succ_while = result_while[-1]
             succ_dowhile = result_dowhile[-1]
             if succ_while in self._parent_region.graph and succ_dowhile in self._parent_region.graph:
@@ -668,9 +676,11 @@ class PhoenixStructurer(StructurerBase):
                     is_while = False
 
         if is_while:
+            assert result_while is not None
             loop_type = "while"
             continue_edges, outgoing_edges, continue_node, successor = result_while
         elif is_dowhile:
+            assert result_dowhile is not None
             loop_type = "do-while"
             continue_edges, outgoing_edges, continue_node, successor = result_dowhile
 
@@ -753,6 +763,7 @@ class PhoenixStructurer(StructurerBase):
                         # unwanted results, e.g., inserting a break (that's intended to break out of the loop) inside a
                         # switch-case that is nested within a loop.
                         last_src_stmt = self.cond_proc.get_last_statement(src_block)
+                        assert last_src_stmt is not None
                         break_cond = self.cond_proc.recover_edge_condition(fullgraph, src_block, dst)
                         if claripy.is_true(break_cond):
                             break_stmt = Jump(
@@ -778,7 +789,9 @@ class PhoenixStructurer(StructurerBase):
                             )
                         new_node = SequenceNode(src_block.addr, nodes=[src_block, break_node])
                         if has_continue:
-                            if self.is_a_jump_target(last_src_stmt, continue_node.addr):
+                            if continue_node.addr is not None and self.is_a_jump_target(
+                                last_src_stmt, continue_node.addr
+                            ):
                                 # instead of a conditional break node, we should insert a condition node instead
                                 break_stmt = Jump(
                                     None,
@@ -834,7 +847,7 @@ class PhoenixStructurer(StructurerBase):
                     if fullgraph.in_degree[dst] == 0:
                         # drop this node
                         fullgraph.remove_node(dst)
-                        if dst in self._region.successors:
+                        if self._region.successors and dst in self._region.successors:
                             self._region.successors.remove(dst)
 
         if len(continue_edges) > 1:
@@ -1091,7 +1104,7 @@ class PhoenixStructurer(StructurerBase):
 
         # make a fake jumptable
         node_default_addr = None
-        case_entries: dict[int, tuple[int, int | None]] = {}
+        case_entries: dict[int, int | tuple[int, int | None]] = {}
         for _, case_value, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             if isinstance(case_value, str):
                 if case_value == "default":
@@ -1153,6 +1166,9 @@ class PhoenixStructurer(StructurerBase):
         try:
             last_stmt = self.cond_proc.get_last_statement(node)
         except EmptyBlockNotice:
+            return False
+
+        if last_stmt is None:
             return False
 
         successor_addrs = extract_jump_targets(last_stmt)
@@ -1454,7 +1470,7 @@ class PhoenixStructurer(StructurerBase):
         graph,
         full_graph,
     ) -> tuple[OrderedDict, Any, set[Any]]:
-        cases: OrderedDict[int | tuple[int], SequenceNode] = OrderedDict()
+        cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
 
         # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
@@ -1772,7 +1788,7 @@ class PhoenixStructurer(StructurerBase):
                 ):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                         # c = !c
                         last_if_jump = self._remove_last_statement_if_jump(start_node)
                         new_cond_node = ConditionNode(
@@ -1814,7 +1830,7 @@ class PhoenixStructurer(StructurerBase):
                 ) and not self._is_node_unstructured_switch_case_head(right):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                    if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                         # c = !c
                         last_if_jump = self._remove_last_statement_if_jump(start_node)
                         new_cond_node = ConditionNode(
@@ -1847,7 +1863,7 @@ class PhoenixStructurer(StructurerBase):
             ):
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                     # c = !c
                     last_if_jump = self._remove_last_statement_if_jump(start_node)
                     new_cond_node = ConditionNode(
@@ -1882,7 +1898,7 @@ class PhoenixStructurer(StructurerBase):
             ):
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                     # c = !c
                     try:
                         last_stmt = self.cond_proc.get_last_statement(start_node)
@@ -1901,7 +1917,7 @@ class PhoenixStructurer(StructurerBase):
                         self._remove_last_statement_if_jump(start_node)
                         # add a goto node at the end
                         new_jump_node = Block(
-                            new_cond_node.addr,
+                            new_cond_node.addr if new_cond_node.addr is not None else 0x7EFF_FFFF,
                             0,
                             statements=[
                                 Jump(
@@ -2187,7 +2203,7 @@ class PhoenixStructurer(StructurerBase):
             ):
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                     # c0 = !c0
                     left_succs = list(full_graph.successors(left))
                     if len(left_succs) == 2 and right in left_succs:
@@ -2196,7 +2212,9 @@ class PhoenixStructurer(StructurerBase):
                             # there must be an edge between right and other_succ
                             edge_cond_left_right = self.cond_proc.recover_edge_condition(full_graph, left, right)
                             edge_cond_left_other = self.cond_proc.recover_edge_condition(full_graph, left, other_succ)
-                            if claripy.is_true(claripy.Not(edge_cond_left_right) == edge_cond_left_other):
+                            if claripy.is_true(
+                                claripy.Not(edge_cond_left_right) == edge_cond_left_other  # type: ignore
+                            ):
                                 # c1 = !c1
                                 return left, edge_cond_left, right, edge_cond_left_right, other_succ
         return None
@@ -2236,7 +2254,7 @@ class PhoenixStructurer(StructurerBase):
             ):
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                 edge_cond_right = self.cond_proc.recover_edge_condition(full_graph, start_node, right)
-                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):
+                if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                     # c0 = !c0
                     right_succs = list(full_graph.successors(right))
                     left_succs = list(full_graph.successors(left))
@@ -2245,7 +2263,9 @@ class PhoenixStructurer(StructurerBase):
                         if len([succ for succ in left_succs if succ is not else_node]) == 1:
                             edge_cond_right_left = self.cond_proc.recover_edge_condition(full_graph, right, left)
                             edge_cond_right_else = self.cond_proc.recover_edge_condition(full_graph, right, else_node)
-                            if claripy.is_true(claripy.Not(edge_cond_right_left) == edge_cond_right_else):
+                            if claripy.is_true(
+                                claripy.Not(edge_cond_right_left) == edge_cond_right_else  # type: ignore
+                            ):
                                 # c1 = !c1
                                 return left, edge_cond_left, right, edge_cond_right_left, else_node
         return None
@@ -2341,7 +2361,7 @@ class PhoenixStructurer(StructurerBase):
                             return left, edge_cond_left, right, edge_cond_left_right, else_node
         return None
 
-    def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: networkx.DiGraph | None) -> bool:
+    def _last_resort_refinement(self, head, graph: networkx.DiGraph, full_graph: networkx.DiGraph) -> bool:
         if self._improve_algorithm:
             while self._edge_virtualization_hints:
                 src, dst = self._edge_virtualization_hints.pop(0)
@@ -2486,7 +2506,7 @@ class PhoenixStructurer(StructurerBase):
 
     @staticmethod
     def _find_node_going_to_dst(
-        node: SequenceNode,
+        node: BaseNode,
         dst: Block | BaseNode,
         last=True,
         condjump_only=False,
@@ -2501,6 +2521,14 @@ class PhoenixStructurer(StructurerBase):
 
         dst_addr = dst.addr
         dst_idx = dst.idx if isinstance(dst, Block) else ...
+
+        class _Holder:
+            """
+            Holds parent_and_block and is accessible from within the handlers.
+            """
+
+            parent_and_block: list[tuple[int, Any, Block | MultiNode | BreakNode]] = []
+            block_id: int = -1
 
         def _check(last_stmt):
             return (
@@ -2537,34 +2565,34 @@ class PhoenixStructurer(StructurerBase):
                 first_stmt = first_nonlabel_nonphi_statement(block)
                 if first_stmt is not None:
                     # this block has content. increment the block ID counter
-                    walker.block_id += 1
+                    _Holder.block_id += 1
 
                 if _check(first_stmt):
-                    walker.parent_and_block.append((walker.block_id, parent, block))
+                    _Holder.parent_and_block.append((_Holder.block_id, parent, block))
                 elif len(block.statements) > 1:
                     last_stmt = block.statements[-1]
                     if _check(last_stmt) or (
                         not isinstance(last_stmt, (Jump, ConditionalJump))
                         and block.addr + block.original_size == dst_addr
                     ):
-                        walker.parent_and_block.append((walker.block_id, parent, block))
+                        _Holder.parent_and_block.append((_Holder.block_id, parent, block))
 
         def _handle_MultiNode(block: MultiNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             if block.nodes and isinstance(block.nodes[-1], Block) and block.nodes[-1].statements:
                 first_stmt = first_nonlabel_nonphi_statement(block)
                 if first_stmt is not None:
                     # this block has content. increment the block ID counter
-                    walker.block_id += 1
+                    _Holder.block_id += 1
                 if _check(block.nodes[-1].statements[-1]):
-                    walker.parent_and_block.append((walker.block_id, parent, block))
+                    _Holder.parent_and_block.append((_Holder.block_id, parent, block))
 
         def _handle_BreakNode(break_node: BreakNode, parent=None, **kwargs):  # pylint:disable=unused-argument
-            walker.block_id += 1
+            _Holder.block_id += 1
             if break_node.target == dst_addr or (
                 isinstance(break_node.target, Const) and break_node.target.value == dst_addr
             ):
                 # FIXME: idx is ignored
-                walker.parent_and_block.append((walker.block_id, parent, break_node))
+                _Holder.parent_and_block.append((_Holder.block_id, parent, break_node))
 
         walker = SequenceWalker(
             handlers={
@@ -2575,14 +2603,13 @@ class PhoenixStructurer(StructurerBase):
             update_seqnode_in_place=False,
             force_forward_scan=True,
         )
-        walker.parent_and_block: list[tuple[int, Any, Block | MultiNode]] = []
-        walker.block_id = -1
+        _Holder.block_id = -1
         walker.walk(node)
-        if not walker.parent_and_block:
+        if not _Holder.parent_and_block:
             return None, None, None
         if last:
-            return walker.parent_and_block[-1]
-        return walker.parent_and_block[0]
+            return _Holder.parent_and_block[-1]
+        return _Holder.parent_and_block[0]
 
     @staticmethod
     def _unpack_sequencenode_head(graph: networkx.DiGraph, seq: SequenceNode, new_seq=None):

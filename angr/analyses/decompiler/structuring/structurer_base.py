@@ -134,7 +134,7 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def _switch_find_switch_end_addr(
-        cases: dict[int, SequenceNode], default: SequenceNode | None, region_node_addrs: set[int]
+        cases: dict[int, BaseNode], default: BaseNode | ailment.Block | None, region_node_addrs: set[int]
     ) -> int | None:
         goto_addrs = defaultdict(int)
 
@@ -165,7 +165,7 @@ class StructurerBase(Analysis):
             goto_addrs = {a for a in goto_addrs if a in region_node_addrs}
         return sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
 
-    def _switch_handle_gotos(self, cases: dict[int, SequenceNode], default, switch_end_addr: int) -> None:
+    def _switch_handle_gotos(self, cases: dict[int, BaseNode], default, switch_end_addr: int) -> None:
         """
         For each case, convert the goto that goes outside of the switch-case to a break statement.
 
