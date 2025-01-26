@@ -1144,7 +1144,9 @@ class PhoenixStructurer(StructurerBase):
                     if self._region.graph_with_successors is not None:
                         self._region.graph_with_successors.remove_node(o)
 
-        self._switch_handle_gotos(cases, node_default, None)
+        switch_end_addr = self._switch_find_switch_end_addr(cases, node_default, {nn.addr for nn in self._region.graph})
+        if switch_end_addr is not None:
+            self._switch_handle_gotos(cases, node_default, switch_end_addr)
         return True
 
     def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph, full_graph, jump_tables) -> bool:
@@ -1239,7 +1241,9 @@ class PhoenixStructurer(StructurerBase):
             switch_end_addr = node_b_addr
         else:
             # we don't know what the end address of this switch-case structure is. let's figure it out
-            switch_end_addr = None
+            switch_end_addr = self._switch_find_switch_end_addr(
+                cases, node_default, {nn.addr for nn in self._region.graph}
+            )
             to_remove.add(node_default)
 
         to_remove.add(node_a)  # add node_a
@@ -1260,7 +1264,8 @@ class PhoenixStructurer(StructurerBase):
 
         # fully structured into a switch-case. remove node from switch_case_known_heads
         self.switch_case_known_heads.remove(node)
-        self._switch_handle_gotos(cases, node_default, switch_end_addr)
+        if switch_end_addr is not None:
+            self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
         return True
 
@@ -1328,7 +1333,7 @@ class PhoenixStructurer(StructurerBase):
         )
 
         assert node_default is None
-        switch_end_addr = None
+        switch_end_addr = self._switch_find_switch_end_addr(cases, node_default, {nn.addr for nn in self._region.graph})
 
         r = self._make_switch_cases_core(
             node,
@@ -1347,7 +1352,8 @@ class PhoenixStructurer(StructurerBase):
 
         # fully structured into a switch-case. remove node from switch_case_known_heads
         self.switch_case_known_heads.remove(node)
-        self._switch_handle_gotos(cases, node_default, switch_end_addr)
+        if switch_end_addr is not None:
+            self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
         return True
 

@@ -567,8 +567,13 @@ class DreamStructurer(StructurerBase):
             seq, cmp_lb, jump_table.jumptable_entries, i, node_b_addr, addr2nodes
         )
         # if we don't know what the end address of this switch-case structure is, let's figure it out
-        switch_end_addr = node_b_addr if node_default is None else None
-        self._switch_handle_gotos(cases, node_default, switch_end_addr)
+        switch_end_addr = (
+            node_b_addr
+            if node_default is None
+            else self._switch_find_switch_end_addr(cases, node_default, {nn.addr for nn in self._region.graph})
+        )
+        if switch_end_addr is not None:
+            self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
         self._make_switch_cases_core(
             seq,

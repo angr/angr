@@ -132,16 +132,9 @@ class StructurerBase(Analysis):
         return seq
 
     @staticmethod
-    def _switch_handle_gotos(cases, default, switch_end_addr):
-        """
-        For each case, convert the goto that goes outside of the switch-case to a break statement.
-
-        :param dict cases:              A dict of switch-cases.
-        :param default:                 The default node.
-        :param int|None node_b_addr:    Address of the end of the switch.
-        :return:                        None
-        """
-
+    def _switch_find_switch_end_addr(
+        cases: dict[int, SequenceNode], default: SequenceNode | None, region_node_addrs: set[int]
+    ) -> int | None:
         goto_addrs = defaultdict(int)
 
         def _find_gotos(block, **kwargs):
@@ -155,20 +148,53 @@ class StructurerBase(Analysis):
                             continue
                         goto_addrs[t] += 1
 
-        if switch_end_addr is None:
-            # we need to figure this out
-            handlers = {ailment.Block: _find_gotos}
+        # we need to figure this out
+        handlers = {ailment.Block: _find_gotos}
 
-            walker = SequenceWalker(handlers=handlers)
-            for case_node in cases.values():
-                walker.walk(case_node)
-            if default is not None:
-                walker.walk(default)
+        walker = SequenceWalker(handlers=handlers)
+        for case_node in cases.values():
+            walker.walk(case_node)
+        if default is not None:
+            walker.walk(default)
 
-            if not goto_addrs:
-                # there is no Goto statement - perfect
-                return
-            switch_end_addr = sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
+        if not goto_addrs:
+            # there is no Goto statement - perfect, we don't need a switch-end node
+            return None
+        if len(goto_addrs) > 1 and any(a in region_node_addrs for a in goto_addrs):
+            goto_addrs = {a for a in goto_addrs if a in region_node_addrs}
+        return sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
+
+    def _switch_handle_gotos(self, cases: dict[int, SequenceNode], default, switch_end_addr: int) -> None:
+        """
+        For each case, convert the goto that goes outside of the switch-case to a break statement.
+
+        :param cases:              A dict of switch-cases.
+        :param default:                 The default node.
+        :param node_b_addr:    Address of the end of the switch.
+        :return:                        None
+        """
+
+        # ensure every case node ends with a control-flow transition statement
+        # FIXME: The following logic only handles one case. are there other cases?
+        for case_addr in cases:
+            case_node = cases[case_addr]
+            if (
+                isinstance(case_node, SequenceNode)
+                and case_node.nodes
+                and isinstance(case_node.nodes[-1], ConditionNode)
+            ):
+                cond_node = case_node.nodes[-1]
+                if (cond_node.true_node is None and cond_node.false_node is not None) or (
+                    cond_node.false_node is None and cond_node.true_node is not None
+                ):
+                    # the last node is a condition node and only has one branch - we need a goto statement to ensure it does not fall through to the next branch
+                    goto_stmt = ailment.Stmt.Jump(
+                        None,
+                        ailment.Expr.Const(None, None, switch_end_addr, self.project.arch.bits),
+                        target_idx=None,
+                        ins_addr=cond_node.addr,
+                    )
+                    case_node.nodes.append(ailment.Block(cond_node.addr, 0, statements=[goto_stmt], idx=None))
 
         # rewrite all _goto switch_end_addr_ to _break_
 
