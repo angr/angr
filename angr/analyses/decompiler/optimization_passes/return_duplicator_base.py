@@ -402,7 +402,11 @@ class ReturnDuplicatorBase:
         if ret_exprs and len(ret_exprs) > 1:
             return False
 
-        ret_expr = ReturnDuplicatorBase.unwrap_conv(ret_exprs[0]) if ret_exprs and len(ret_exprs) == 1 else None
+        if not ret_exprs:
+            # a simple return statement that does not carry any value or variable to return
+            return True
+
+        ret_expr = ReturnDuplicatorBase.unwrap_conv(ret_exprs[0])
         # check if ret_expr is a virtual variable or not
         if not isinstance(ret_expr, (VirtualVariable, Const)):
             return False
