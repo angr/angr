@@ -1546,7 +1546,7 @@ class AILSimplifier(Analysis):
             if bail:
                 continue
 
-            if all(varid in phi_and_dirty_vvar_ids for varid in scc):
+            if all(varid in phi_and_dirty_vvar_ids or rd.varid_to_vvar[varid].was_reg for varid in scc):
                 cyclic_dependent_phi_varids |= set(scc)
 
         return cyclic_dependent_phi_varids
