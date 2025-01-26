@@ -61,7 +61,7 @@ def normalize_whitespace(s: str) -> str:
     return " ".join(s.strip() for s in s.splitlines())
 
 
-def set_decompiler_option(decompiler_options: list[tuple], params: list[tuple]) -> list[tuple]:
+def set_decompiler_option(decompiler_options: list[tuple] | None, params: list[tuple]) -> list[tuple]:
     if decompiler_options is None:
         decompiler_options = []
 
@@ -73,7 +73,7 @@ def set_decompiler_option(decompiler_options: list[tuple], params: list[tuple]) 
     return decompiler_options
 
 
-def options_to_structuring_algo(decompiler_options: list[tuple]) -> str | None:
+def options_to_structuring_algo(decompiler_options: list[tuple] | None) -> str | None:
     """
     Locates and returns the structuring algorithm specified in the decompiler options.
     If no structuring algorithm is specified, returns None.
@@ -1076,6 +1076,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert select_var, "Failed to find the variable that stores the result from select()"
         #   if (0 <= v25)
+        assert select_line is not None
         next_lines = " ".join(lines[select_line + 1 : select_line + 3])
         assert next_lines.startswith(f"if (0 <= {select_var})") or re.search(
             r"(\w+) = " + select_var + r"; if \(0 <= \1\)", next_lines
@@ -1263,6 +1264,7 @@ class TestDecompiler(unittest.TestCase):
         d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
         assert d.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(d)
+        assert d.codegen.cfunc is not None
         dw = d.codegen.cfunc.statements.statements[1]
         assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
         stmts = dw.body.statements
@@ -1282,7 +1284,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = p.kb.functions["usage"]
         d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
-        assert d.codegen is not None, f"Failed to decompile function {f!r}."
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
         self._print_decompilation_result(d)
 
         assert '"Usage: %s [OPTION]... [FILE]...\\n"' in d.codegen.text
@@ -1302,7 +1304,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses.CFGFast(normalize=True, show_progressbar=not WORKER)
 
         f = p.kb.functions["main"]
-        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options, show_progressbar=not WORKER)
+        d = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(f, cfg=cfg.model, options=decompiler_options)
         assert d.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(d)
 
@@ -1360,7 +1362,9 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses.CFGFast(normalize=True, show_progressbar=not WORKER)
 
         f = p.kb.functions["main"]
-        d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options, show_progressbar=not WORKER)
+        d = p.analyses[Decompiler].prep(show_progressbar=not WORKER)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         self._print_decompilation_result(d)
 
         assert "(False)" not in d.codegen.text
@@ -1375,6 +1379,8 @@ class TestDecompiler(unittest.TestCase):
 
         f = p.kb.functions["set_globals"]
         d = p.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
 
         assert "extern unsigned int a;" in d.codegen.text
@@ -1395,6 +1401,8 @@ class TestDecompiler(unittest.TestCase):
         f.calling_convention = cca.cc
 
         d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         self._print_decompilation_result(d)
 
         # make sure the types of extern variables are correct
@@ -1443,6 +1451,8 @@ class TestDecompiler(unittest.TestCase):
         f.calling_convention = cca.cc
 
         d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         self._print_decompilation_result(d)
 
         # bitshifts should be properly simplified into signed divisions
@@ -1464,6 +1474,8 @@ class TestDecompiler(unittest.TestCase):
         f.calling_convention = cca.cc
 
         d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         self._print_decompilation_result(d)
 
         assert "break" in d.codegen.text
@@ -1478,6 +1490,7 @@ class TestDecompiler(unittest.TestCase):
         xdectoumax = proj.kb.functions[0x406010]
         proj.analyses.VariableRecoveryFast(xdectoumax)
         cca = proj.analyses.CallingConvention(xdectoumax)
+        assert cca.prototype is not None
         xdectoumax.prototype = cca.prototype
         xdectoumax.calling_convention = cca.cc
         assert isinstance(xdectoumax.prototype.returnty, SimTypeInt)
@@ -1489,6 +1502,8 @@ class TestDecompiler(unittest.TestCase):
         f.calling_convention = cca.cc
 
         d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         self._print_decompilation_result(d)
 
         # function arguments must be a0 and a1. they cannot be renamed
@@ -1543,6 +1558,8 @@ class TestDecompiler(unittest.TestCase):
 
         proj.analyses.CFGFast(normalize=True)
         d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str) and d.codegen.map_pos_to_node is not None
+
         assert "..." in d.codegen.text, "codegen should have a too-deep expression replaced with '...'"
         collapsed = d.codegen.map_pos_to_node.get_node(d.codegen.text.find("..."))
         assert collapsed is not None, "collapsed node should appear in map"
@@ -1581,6 +1598,8 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses.Decompiler(
             proj.kb.functions["division3"], optimization_passes=all_optimization_passes, options=decompiler_options
         )
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         self._print_decompilation_result(d)
 
         # get the returned expression from the return statement
@@ -1616,6 +1635,8 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CFGFast(normalize=True)
 
         d = proj.analyses.Decompiler(proj.kb.functions["encrypt"], options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         self._print_decompilation_result(d)
 
         assert "% 61" in d.codegen.text, "Modulo simplification failed."
@@ -1627,7 +1648,7 @@ class TestDecompiler(unittest.TestCase):
 
         proj.analyses.CFGFast(normalize=True)
 
-        typedefs = angr.sim_type.parse_file(
+        typedefs = angr.types.parse_file(
             """
         struct A {
             int a1;
@@ -1650,6 +1671,8 @@ class TestDecompiler(unittest.TestCase):
         )
 
         d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options)
+        assert d.cache is not None and d.cache.clinic is not None and d.cache.clinic.variable_kb is not None
+
         vmi: VariableManagerInternal = d.cache.clinic.variable_kb.variables["main"]
         vmi.set_variable_type(
             next(iter(vmi.find_variables_by_stack_offset(-0x148))),
@@ -1658,6 +1681,7 @@ class TestDecompiler(unittest.TestCase):
             mark_manual=True,
         )
         unified = vmi.unified_variable(next(iter(vmi.find_variables_by_stack_offset(-0x148))))
+        assert unified is not None
         unified.name = "c_ptr"
         unified.renamed = True
 
@@ -1668,6 +1692,7 @@ class TestDecompiler(unittest.TestCase):
             mark_manual=True,
         )
         unified = vmi.unified_variable(next(iter(vmi.find_variables_by_stack_offset(-0x140))))
+        assert unified is not None
         unified.name = "b_ptr"
         unified.renamed = True
 
@@ -1678,11 +1703,14 @@ class TestDecompiler(unittest.TestCase):
             next(iter(vmi.find_variables_by_register("rdi"))), SimTypeInt(), all_unified=True, mark_manual=True
         )
         unified = vmi.unified_variable(next(iter(vmi.find_variables_by_register("rdi"))))
+        assert unified is not None
         unified.name = "argc"
         unified.renamed = True
         d = proj.analyses.Decompiler(
             proj.kb.functions["main"], variable_kb=d.cache.clinic.variable_kb, options=decompiler_options
         )
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
         self._print_decompilation_result(d)
 
         # TODO c_val
@@ -1702,6 +1730,8 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
         dec = proj.analyses.Decompiler(proj.kb.functions["print_long_format"], options=decompiler_options)
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
+
         self._print_decompilation_result(dec)
 
         assert "if (timespec_cmp(" in dec.codegen.text or "if ((int)timespec_cmp(" in dec.codegen.text
@@ -1722,6 +1752,7 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(
             proj.kb.functions["foo"], cfg=cfg, options=decompiler_options, optimization_passes=all_optimization_passes
         )
+        assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         self._print_decompilation_result(dec)
         assert dec.codegen.text.count("goto") == 1  # should have only one goto
 
@@ -1856,7 +1887,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert f.prototype.returnty is not None and f.prototype.returnty.size == 8
+        assert f.prototype is not None and f.prototype.returnty is not None and f.prototype.returnty.size == 8
         assert "a0 - 65 < 26;" in d.codegen.text
 
     @for_all_structuring_algos
@@ -2306,6 +2337,7 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
         f = proj.kb.functions["print_filename"]
         # force the return type to void to avoid an over-aggressive region-to-ITE conversion
+        assert f.prototype is not None
         f.prototype.returnty = SimTypeBottom("void")
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
@@ -3035,7 +3067,7 @@ class TestDecompiler(unittest.TestCase):
 
         # always use multi-statement expressions
         decompiler_options_0 = [
-            *decompiler_options,
+            *(decompiler_options or []),
             (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.ALWAYS),
             (PARAM_TO_OPTION["show_casts"], False),
         ]
@@ -3059,7 +3091,7 @@ class TestDecompiler(unittest.TestCase):
 
         # never use multi-statement expressions
         decompiler_options_1 = [
-            *decompiler_options,
+            *(decompiler_options or []),
             (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.NEVER),
             (PARAM_TO_OPTION["show_casts"], False),
         ]
@@ -3075,7 +3107,7 @@ class TestDecompiler(unittest.TestCase):
 
         # less than one call statement/expression
         decompiler_options_2 = [
-            *decompiler_options,
+            *(decompiler_options or []),
             (PARAM_TO_OPTION["use_multistmtexprs"], MultiStmtExprMode.MAX_ONE_CALL),
             (PARAM_TO_OPTION["show_casts"], False),
         ]
@@ -3742,6 +3774,7 @@ class TestDecompiler(unittest.TestCase):
             function.normalize()
             # re-create decompilation
             decomp = proj.analyses.Decompiler(func=function, cfg=cfg, options=[(PARAM_TO_OPTION["show_casts"], False)])
+            assert decomp.codegen is not None
             if first is None:
                 first = decomp.codegen.text
             else:
