@@ -92,7 +92,7 @@ class Clinic(Analysis):
     def __init__(
         self,
         func,
-        remove_dead_memdefs=False,
+        remove_dead_memdefs=True,
         exception_edges=False,
         sp_tracker_track_memory=True,
         fold_callexprs_into_conditions=False,
@@ -471,7 +471,7 @@ class Clinic(Analysis):
         self._update_progress(36.0, text="Constant propagation")
         self._simplify_function(
             ail_graph,
-            remove_dead_memdefs=False,
+            remove_dead_memdefs=True,
             unify_variables=False,
             narrow_expressions=False,
             only_consts=True,
@@ -490,9 +490,7 @@ class Clinic(Analysis):
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
         self._update_progress(38.0, text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(
-            ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
-        )
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, cache=block_simplification_cache)
         self._rewrite_alloca(ail_graph)
 
         # Run simplification passes
@@ -515,9 +513,7 @@ class Clinic(Analysis):
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
         self._update_progress(48.0, text="Simplifying blocks 2")
-        ail_graph = self._simplify_blocks(
-            ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
-        )
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, cache=block_simplification_cache)
 
         # rewrite (qualified) stack variables into SSA form
         ail_graph = self._transform_to_ssa_level1(ail_graph, func_args)
@@ -557,7 +553,6 @@ class Clinic(Analysis):
         self._update_progress(60.0, text="Simplifying blocks 3")
         ail_graph = self._simplify_blocks(
             ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
             stack_pointer_tracker=spt,
             cache=block_simplification_cache,
         )
@@ -581,7 +576,6 @@ class Clinic(Analysis):
         self._update_progress(75.0, text="Simplifying blocks 4")
         ail_graph = self._simplify_blocks(
             ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
             stack_pointer_tracker=spt,
             cache=block_simplification_cache,
         )
@@ -1101,7 +1095,6 @@ class Clinic(Analysis):
     def _simplify_blocks(
         self,
         ail_graph: networkx.DiGraph,
-        remove_dead_memdefs=False,
         stack_pointer_tracker=None,
         cache: dict[ailment.Block, NamedTuple] | None = None,
     ):
@@ -1120,7 +1113,6 @@ class Clinic(Analysis):
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(
                 ail_block,
-                remove_dead_memdefs=remove_dead_memdefs,
                 stack_pointer_tracker=stack_pointer_tracker,
                 cache=cache,
             )
@@ -1138,7 +1130,7 @@ class Clinic(Analysis):
 
         return ail_graph
 
-    def _simplify_block(self, ail_block, remove_dead_memdefs=False, stack_pointer_tracker=None, cache=None):
+    def _simplify_block(self, ail_block, stack_pointer_tracker=None, cache=None):
         """
         Simplify a single AIL block.
 
@@ -1161,7 +1153,6 @@ class Clinic(Analysis):
             ail_block,
             self.function.addr,
             fail_fast=self._fail_fast,
-            remove_dead_memdefs=remove_dead_memdefs,
             stack_pointer_tracker=stack_pointer_tracker,
             peephole_optimizations=self.peephole_optimizations,
             cached_reaching_definitions=cached_rd,

@@ -58,7 +58,6 @@ class BlockSimplifier(Analysis):
         self,
         block: Block | None,
         func_addr: int | None = None,
-        remove_dead_memdefs=False,
         stack_pointer_tracker=None,
         peephole_optimizations: None | (
             Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
@@ -74,7 +73,6 @@ class BlockSimplifier(Analysis):
         self.block = block
         self.func_addr = func_addr
 
-        self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_pointer_tracker = stack_pointer_tracker
 
         if peephole_optimizations is None:
