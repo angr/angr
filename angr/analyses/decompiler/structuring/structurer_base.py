@@ -19,6 +19,7 @@ from angr.analyses.decompiler.utils import (
     has_nonlabel_nonphi_statements,
 )
 from angr.analyses.decompiler.label_collector import LabelCollector
+from angr.errors import AngrDecompilationError
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,
@@ -49,7 +50,7 @@ class StructurerBase(Analysis):
     longer exist due to empty node removal during structuring or prior steps.
     """
 
-    NAME: str = None
+    NAME: str = "StructurerBase"
 
     def __init__(
         self,
@@ -132,16 +133,9 @@ class StructurerBase(Analysis):
         return seq
 
     @staticmethod
-    def _switch_handle_gotos(cases, default, switch_end_addr):
-        """
-        For each case, convert the goto that goes outside of the switch-case to a break statement.
-
-        :param dict cases:              A dict of switch-cases.
-        :param default:                 The default node.
-        :param int|None node_b_addr:    Address of the end of the switch.
-        :return:                        None
-        """
-
+    def _switch_find_switch_end_addr(
+        cases: dict[int, BaseNode], default: BaseNode | ailment.Block | None, region_node_addrs: set[int]
+    ) -> int | None:
         goto_addrs = defaultdict(int)
 
         def _find_gotos(block, **kwargs):
@@ -155,20 +149,54 @@ class StructurerBase(Analysis):
                             continue
                         goto_addrs[t] += 1
 
-        if switch_end_addr is None:
-            # we need to figure this out
-            handlers = {ailment.Block: _find_gotos}
+        # we need to figure this out
+        handlers = {ailment.Block: _find_gotos}
 
-            walker = SequenceWalker(handlers=handlers)
-            for case_node in cases.values():
-                walker.walk(case_node)
-            if default is not None:
-                walker.walk(default)
+        walker = SequenceWalker(handlers=handlers)
+        for case_node in cases.values():
+            walker.walk(case_node)
+        if default is not None:
+            walker.walk(default)
 
-            if not goto_addrs:
-                # there is no Goto statement - perfect
-                return
-            switch_end_addr = sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
+        if not goto_addrs:
+            # there is no Goto statement - perfect, we don't need a switch-end node
+            return None
+        if len(goto_addrs) > 1 and any(a in region_node_addrs for a in goto_addrs):
+            goto_addrs = {a: times for a, times in goto_addrs.items() if a in region_node_addrs}
+        return sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
+
+    def _switch_handle_gotos(self, cases: dict[int, BaseNode], default, switch_end_addr: int) -> None:
+        """
+        For each case, convert the goto that goes outside of the switch-case to a break statement.
+
+        :param cases:              A dict of switch-cases.
+        :param default:                 The default node.
+        :param node_b_addr:    Address of the end of the switch.
+        :return:                        None
+        """
+
+        # ensure every case node ends with a control-flow transition statement
+        # FIXME: The following logic only handles one case. are there other cases?
+        for case_addr in cases:
+            case_node = cases[case_addr]
+            if (
+                isinstance(case_node, SequenceNode)
+                and case_node.nodes
+                and isinstance(case_node.nodes[-1], ConditionNode)
+            ):
+                cond_node = case_node.nodes[-1]
+                if (cond_node.true_node is None and cond_node.false_node is not None) or (
+                    cond_node.false_node is None and cond_node.true_node is not None
+                ):
+                    # the last node is a condition node and only has one branch - we need a goto statement to ensure it
+                    # does not fall through to the next branch
+                    goto_stmt = ailment.Stmt.Jump(
+                        None,
+                        ailment.Expr.Const(None, None, switch_end_addr, self.project.arch.bits),
+                        target_idx=None,
+                        ins_addr=cond_node.addr,
+                    )
+                    case_node.nodes.append(ailment.Block(cond_node.addr, 0, statements=[goto_stmt], idx=None))
 
         # rewrite all _goto switch_end_addr_ to _break_
 
@@ -262,7 +290,7 @@ class StructurerBase(Analysis):
                         and this_node.statements
                         and isinstance(this_node.statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump))
                     ):
-                        jump_stmt = this_node.statements[-1]
+                        jump_stmt = this_node.statements[-1]  # type: ignore
                     elif (
                         isinstance(this_node, MultiNode)
                         and this_node.nodes
@@ -273,7 +301,7 @@ class StructurerBase(Analysis):
                         )
                     ):
                         this_node = this_node.nodes[-1]
-                        jump_stmt = this_node.statements[-1]
+                        jump_stmt = this_node.statements[-1]  # type: ignore
 
                     if isinstance(jump_stmt, ailment.Stmt.Jump):
                         next_node = node.nodes[i + 1]
@@ -387,7 +415,7 @@ class StructurerBase(Analysis):
         return seq
 
     def _rewrite_conditional_jumps_to_breaks(self, loop_node, successor_addrs):
-        def _rewrite_conditional_jump_to_break(node: ailment.Block, parent=None, index=None, label=None, **kwargs):
+        def _rewrite_conditional_jump_to_break(node: ailment.Block, *, parent, index: int, label=None, **kwargs):
             if not node.statements:
                 return
 
@@ -481,7 +509,7 @@ class StructurerBase(Analysis):
         ):
             continue_node_addr = loop_node.condition.ins_addr
 
-        def _rewrite_jump_to_continue(node, parent=None, index=None, label=None, **kwargs):
+        def _rewrite_jump_to_continue(node, *, parent, index: int, label=None, **kwargs):
             if not node.statements:
                 return
             stmt = node.statements[-1]
@@ -593,6 +621,7 @@ class StructurerBase(Analysis):
             if (true_target_value is not None and true_target_value in loop_successor_addrs) and (
                 false_target_value is None or false_target_value not in loop_successor_addrs
             ):
+                assert last_stmt.true_target is not None
                 cond = last_stmt.condition
                 target = last_stmt.true_target.value
                 new_node = ConditionalBreakNode(
@@ -601,6 +630,7 @@ class StructurerBase(Analysis):
             elif (false_target_value is not None and false_target_value in loop_successor_addrs) and (
                 true_target_value is None or true_target_value not in loop_successor_addrs
             ):
+                assert last_stmt.false_target is not None
                 cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, "Not", last_stmt.condition)
                 target = last_stmt.false_target.value
                 new_node = ConditionalBreakNode(
@@ -611,16 +641,24 @@ class StructurerBase(Analysis):
             ):
                 # both targets are pointing outside the loop
                 # we should use just add a break node
+                assert last_stmt.false_target is not None
                 new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
             else:
                 _l.warning("None of the branches is jumping to outside of the loop")
-                raise Exception
+                raise AngrDecompilationError("Unexpected: None of the branches is jumping to outside of the loop")
 
         return new_node
 
     @staticmethod
     def _merge_conditional_breaks(seq):
         # Find consecutive ConditionalBreakNodes and merge their conditions
+
+        class _Holder:
+            """
+            Holds values so that handlers can access them directly.
+            """
+
+            merged = False
 
         def _handle_SequenceNode(seq_node, parent=None, index=0, label=None):
             new_nodes = []
@@ -642,7 +680,7 @@ class StructurerBase(Analysis):
                             claripy.Or(node.condition, prev_node.condition)
                         )
                         new_node = ConditionalBreakNode(node.addr, merged_condition, node.target)
-                        walker.merged = True
+                        _Holder.merged = True
                 else:
                     walker._handle(node, parent=seq_node, index=i)
 
@@ -659,12 +697,19 @@ class StructurerBase(Analysis):
         }
 
         walker = SequenceWalker(handlers=handlers)
-        walker.merged = False  # this is just a hack
+        _Holder.merged = False  # this is just a hack
         walker.walk(seq)
-        return walker.merged, seq
+        return _Holder.merged, seq
 
     def _merge_nesting_conditionals(self, seq):
         # find if(A) { if(B) { ... ] } and simplify them to if( A && B ) { ... }
+
+        class _Holder:
+            """
+            Holds values so that handlers can access them directly.
+            """
+
+            merged = False
 
         def _condnode_truenode_only(node):
             if type(node) is CodeNode:
@@ -693,9 +738,11 @@ class StructurerBase(Analysis):
                 node = seq_node.nodes[i]
                 r, cond_node = _condnode_truenode_only(node)
                 if r:
+                    assert cond_node is not None
                     r, cond_node_inner = _condnode_truenode_only(cond_node.true_node)
                     if r:
                         # amazing!
+                        assert cond_node_inner is not None
                         merged_cond = ConditionProcessor.simplify_condition(
                             claripy.And(
                                 self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
@@ -704,13 +751,14 @@ class StructurerBase(Analysis):
                         )
                         new_node = ConditionNode(cond_node.addr, None, merged_cond, cond_node_inner.true_node, None)
                         seq_node.nodes[i] = new_node
-                        walker.merged = True
+                        _Holder.merged = True
                         i += 1
                         continue
                     # else:
                     r, condbreak_node = _condbreaknode(cond_node.true_node)
                     if r:
                         # amazing!
+                        assert condbreak_node is not None
                         merged_cond = ConditionProcessor.simplify_condition(
                             claripy.And(
                                 self.cond_proc.claripy_ast_from_ail_condition(cond_node.condition),
@@ -719,7 +767,7 @@ class StructurerBase(Analysis):
                         )
                         new_node = ConditionalBreakNode(condbreak_node.addr, merged_cond, condbreak_node.target)
                         seq_node.nodes[i] = new_node
-                        walker.merged = True
+                        _Holder.merged = True
                         i += 1
                         continue
 
@@ -732,10 +780,10 @@ class StructurerBase(Analysis):
         }
 
         walker = SequenceWalker(handlers=handlers)
-        walker.merged = False  # this is just a hack
+        _Holder.merged = False  # this is just a hack
         walker.walk(seq)
 
-        return walker.merged, seq
+        return _Holder.merged, seq
 
     #
     # Util methods
@@ -747,10 +795,11 @@ class StructurerBase(Analysis):
         new_cases = OrderedDict()
 
         caseid2gotoaddrs = {}
-        addr2caseids: dict[int, list[int, tuple[int, ...]]] = defaultdict(list)
+        addr2caseids: dict[int, list[int | tuple[int, ...]]] = defaultdict(list)
 
         # collect goto locations
         for idx, case_node in cases.items():
+            assert case_node.addr is not None
             addr2caseids[case_node.addr].append(idx)
             try:
                 last_stmt = self.cond_proc.get_last_statement(case_node)
