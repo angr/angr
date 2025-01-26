@@ -215,7 +215,11 @@ class SPropagatorAnalysis(Analysis):
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
-                if (vvar.was_reg or vvar.was_stack) and len(vvar_uselocs[vvar.varid]) == 2:
+                if (
+                    (vvar.was_reg or vvar.was_stack)
+                    and len(vvar_uselocs[vvar.varid]) == 2
+                    and not is_phi_assignment(stmt)
+                ):
                     # a special case: in a typical switch-case construct, a variable may be used once for comparison
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
