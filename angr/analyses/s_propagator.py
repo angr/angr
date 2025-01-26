@@ -140,7 +140,6 @@ class SPropagatorAnalysis(Analysis):
                 continue
 
             vvarid_to_vvar[vvar.varid] = vvar
-            defloc = vvar_deflocs[vvar]
             if isinstance(defloc, ExternalCodeLocation):
                 continue
 
@@ -185,8 +184,6 @@ class SPropagatorAnalysis(Analysis):
                     continue
                 if vvar.varid in const_vvars:
                     continue
-
-                defloc = vvar_deflocs[vvar]
                 if isinstance(defloc, ExternalCodeLocation):
                     continue
 
