@@ -19,6 +19,7 @@ from angr.analyses.decompiler.utils import (
     has_nonlabel_nonphi_statements,
 )
 from angr.analyses.decompiler.label_collector import LabelCollector
+from angr.errors import AngrDecompilationError
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,
@@ -187,7 +188,8 @@ class StructurerBase(Analysis):
                 if (cond_node.true_node is None and cond_node.false_node is not None) or (
                     cond_node.false_node is None and cond_node.true_node is not None
                 ):
-                    # the last node is a condition node and only has one branch - we need a goto statement to ensure it does not fall through to the next branch
+                    # the last node is a condition node and only has one branch - we need a goto statement to ensure it
+                    # does not fall through to the next branch
                     goto_stmt = ailment.Stmt.Jump(
                         None,
                         ailment.Expr.Const(None, None, switch_end_addr, self.project.arch.bits),
@@ -640,7 +642,7 @@ class StructurerBase(Analysis):
                 new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
             else:
                 _l.warning("None of the branches is jumping to outside of the loop")
-                raise Exception
+                raise AngrDecompilationError("Unexpected: None of the branches is jumping to outside of the loop")
 
         return new_node
 
