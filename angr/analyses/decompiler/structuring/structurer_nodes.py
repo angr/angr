@@ -230,7 +230,9 @@ class CascadingConditionNode(BaseNode):
         "else_node",
     )
 
-    def __init__(self, addr, condition_and_nodes: list[tuple[Any, BaseNode]], else_node: BaseNode = None):
+    def __init__(
+        self, addr, condition_and_nodes: list[tuple[Any, BaseNode | ailment.Block]], else_node: BaseNode = None
+    ):
         self.addr = addr
         self.condition_and_nodes = condition_and_nodes
         self.else_node = else_node
