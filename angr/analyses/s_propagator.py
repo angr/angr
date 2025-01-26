@@ -182,7 +182,9 @@ class SPropagatorAnalysis(Analysis):
         if self.mode == "function":
             for vvar, defloc in vvar_deflocs.items():
                 if vvar.varid not in vvar_uselocs:
-                    break
+                    continue
+                if vvar.varid in const_vvars:
+                    continue
 
                 defloc = vvar_deflocs[vvar]
                 if isinstance(defloc, ExternalCodeLocation):
