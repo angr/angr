@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from ailment.manager import Manager
-from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement
+from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement, Jump
 from ailment.expression import (
     Expression,
     Register,
@@ -182,6 +182,12 @@ class SimEngineSSARewriting(
                 **stmt.tags,
             )
 
+        return None
+
+    def _handle_stmt_Jump(self, stmt: Jump) -> Jump | None:
+        new_target = self._expr(stmt.target)
+        if new_target is not None:
+            return Jump(stmt.idx, new_target, stmt.target_idx, **stmt.tags)
         return None
 
     def _handle_stmt_ConditionalJump(self, stmt: ConditionalJump) -> ConditionalJump | None:

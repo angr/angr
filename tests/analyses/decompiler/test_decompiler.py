@@ -4342,6 +4342,41 @@ class TestDecompiler(unittest.TestCase):
 
         assert normalize_whitespace(expected) in normalize_whitespace(text)
 
+    def test_decompiling_livectf_dc30_open_to_interpretation(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "livectf-dc30-open-to-interpretation")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+
+        f = proj.kb.functions[0x4012F0]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # the function is a void function
+        assert "void " in d.codegen.text
+        # the function has a for loop
+        assert "for (" in d.codegen.text
+        # return is duplicated and appears five times
+        assert d.codegen.text.count("return;\n") == 5
+        # the puts statement is duplicated as well
+        assert d.codegen.text.count('puts("Out of bounds");\n') == 2
+        # there are five break statements
+        assert d.codegen.text.count("break;\n") == 5
+        # all cases
+        case_numbers = [
+            63,
+            97,
+            100,
+            115,
+            119,
+            120,
+        ]
+        for case_number in case_numbers:
+            assert f"case {case_number}:" in d.codegen.text
+        assert "default:" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

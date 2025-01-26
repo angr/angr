@@ -16,7 +16,7 @@ from ailment.expression import (
     Convert,
     Expression,
 )
-from ailment.statement import Assignment, Store, Return, Jump
+from ailment.statement import Assignment, Store, Return, Jump, ConditionalJump
 
 from angr.knowledge_plugins.functions import Function
 from angr.code_location import CodeLocation, ExternalCodeLocation
@@ -132,7 +132,7 @@ class SPropagatorAnalysis(Analysis):
 
         replacements = defaultdict(dict)
 
-        # find constant assignments
+        # find constant and other propagatable assignments
         vvarid_to_vvar = {}
         const_vvars: dict[int, Const] = {}
         for vvar, defloc in vvar_deflocs.items():
@@ -178,8 +178,27 @@ class SPropagatorAnalysis(Analysis):
                         for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                             replacements[useloc][vvar_at_use] = const_value
 
-            if self.mode == "function" and vvar.varid in vvar_uselocs:
-                if len(vvar_uselocs[vvar.varid]) <= 2 and isinstance(stmt, Assignment) and isinstance(stmt.src, Load):
+        # function mode only
+        if self.mode == "function":
+            for vvar, defloc in vvar_deflocs.items():
+                if vvar.varid not in vvar_uselocs:
+                    break
+
+                defloc = vvar_deflocs[vvar]
+                if isinstance(defloc, ExternalCodeLocation):
+                    continue
+
+                assert defloc.block_addr is not None
+                assert defloc.stmt_idx is not None
+
+                block = blocks[(defloc.block_addr, defloc.block_idx)]
+                stmt = block.statements[defloc.stmt_idx]
+                if (
+                    (vvar.was_reg or vvar.was_parameter)
+                    and len(vvar_uselocs[vvar.varid]) <= 2
+                    and isinstance(stmt, Assignment)
+                    and isinstance(stmt.src, Load)
+                ):
                     # do we want to propagate this Load expression if it's used for less than twice?
                     # it's often seen in the following pattern, where propagation will be beneficial:
                     #    v0 = Load(...)
@@ -197,63 +216,74 @@ class SPropagatorAnalysis(Analysis):
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
-                if len(vvar_uselocs[vvar.varid]) == 1:
-                    vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
-                    if is_const_vvar_load_assignment(stmt) and not self.has_store_stmt_in_between(
-                        blocks, defloc, vvar_useloc
-                    ):
-                        # we can propagate this load because there is no store between its def and use
-                        replacements[vvar_useloc][vvar_used] = stmt.src
-                        continue
-
-                    if is_const_and_vvar_assignment(stmt):
-                        # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
-                        # variable
-                        assert vvar_useloc.block_addr is not None
-                        assert vvar_useloc.stmt_idx is not None
-                        useloc_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
-                            vvar_useloc.stmt_idx
-                        ]
-                        if is_phi_assignment(useloc_stmt):
-                            if (
-                                isinstance(stmt.src, VirtualVariable)
-                                and stmt.src.oident == useloc_stmt.dst.oident
-                                and stmt.src.category == useloc_stmt.dst.category
-                            ):
-                                replacements[vvar_useloc][vvar_used] = stmt.src
-                        else:
+                if (vvar.was_reg or vvar.was_stack) and len(vvar_uselocs[vvar.varid]) == 2:
+                    # a special case: in a typical switch-case construct, a variable may be used once for comparison
+                    # for the default case and then used again for constructing the jump target. we can propagate this
+                    # variable for such cases.
+                    uselocs = {loc for _, loc in vvar_uselocs[vvar.varid]}
+                    if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks):
+                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
-                else:
-                    non_exitsite_uselocs = [
-                        loc
-                        for _, loc in vvar_uselocs[vvar.varid]
-                        if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in (retsites | jumpsites)
-                    ]
-                    if is_const_and_vvar_assignment(stmt):
-                        if len(non_exitsite_uselocs) == 1:
-                            # this vvar is used once if we exclude its uses at ret sites or jump sites. we can
-                            # propagate it
-                            for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                if vvar.was_reg or vvar.was_parameter:
+                    if len(vvar_uselocs[vvar.varid]) == 1:
+                        vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
+                        if is_const_vvar_load_assignment(stmt) and not self.has_store_stmt_in_between(
+                            blocks, defloc, vvar_useloc
+                        ):
+                            # we can propagate this load because there is no store between its def and use
+                            replacements[vvar_useloc][vvar_used] = stmt.src
+                            continue
+
+                        if is_const_and_vvar_assignment(stmt):
+                            # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
+                            # variable
+                            assert vvar_useloc.block_addr is not None
+                            assert vvar_useloc.stmt_idx is not None
+                            useloc_stmt = blocks[(vvar_useloc.block_addr, vvar_useloc.block_idx)].statements[
+                                vvar_useloc.stmt_idx
+                            ]
+                            if is_phi_assignment(useloc_stmt):
+                                if (
+                                    isinstance(stmt.src, VirtualVariable)
+                                    and stmt.src.oident == useloc_stmt.dst.oident
+                                    and stmt.src.category == useloc_stmt.dst.category
+                                ):
+                                    replacements[vvar_useloc][vvar_used] = stmt.src
+                            else:
                                 replacements[vvar_useloc][vvar_used] = stmt.src
                             continue
 
-                        if len(set(non_exitsite_uselocs)) == 1 and not has_ite_expr(stmt.src):
-                            useloc = non_exitsite_uselocs[0]
-                            assert useloc.block_addr is not None
-                            assert useloc.stmt_idx is not None
-                            useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
-                            if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
-                                # remove duplicate use locs (e.g., if the variable is used multiple times by the same
-                                # statement) - but ensure stmt is simple enough
+                    else:
+                        non_exitsite_uselocs = [
+                            loc
+                            for _, loc in vvar_uselocs[vvar.varid]
+                            if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in (retsites | jumpsites)
+                        ]
+                        if is_const_and_vvar_assignment(stmt):
+                            if len(non_exitsite_uselocs) == 1:
+                                # this vvar is used once if we exclude its uses at ret sites or jump sites. we can
+                                # propagate it
                                 for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
                                     replacements[vvar_useloc][vvar_used] = stmt.src
                                 continue
 
+                            if len(set(non_exitsite_uselocs)) == 1 and not has_ite_expr(stmt.src):
+                                useloc = non_exitsite_uselocs[0]
+                                assert useloc.block_addr is not None
+                                assert useloc.stmt_idx is not None
+                                useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
+                                if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
+                                    # remove duplicate use locs (e.g., if the variable is used multiple times by the
+                                    # same statement) - but ensure stmt is simple enough
+                                    for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                                        replacements[vvar_useloc][vvar_used] = stmt.src
+                                    continue
+
                 # special logic for global variables: if it's used once or multiple times, and the variable is never
                 # updated before it's used, we will propagate the load
-                if isinstance(stmt, Assignment):
+                if (vvar.was_reg or vvar.was_parameter) and isinstance(stmt, Assignment):
                     stmt_src = stmt.src
                     # unpack conversions
                     while isinstance(stmt_src, Convert):
@@ -457,6 +487,40 @@ class SPropagatorAnalysis(Analysis):
                     queue.append(pred)
 
         return False
+
+    @staticmethod
+    def is_vvar_used_for_addr_loading_switch_case(uselocs: set[CodeLocation], blocks) -> bool:
+        """
+        Check if a virtual variable is used for loading an address in a switch-case construct.
+
+        :param uselocs: The use locations of the virtual variable.
+        :param blocks:  All blocks of the current function.
+        :return: True if the virtual variable is used for loading an address in a switch-case construct, False otherwise.
+        """
+
+        if len(uselocs) != 2:
+            return False
+
+        useloc_0, useloc_1 = list(uselocs)
+        block_0 = blocks[(useloc_0.block_addr, useloc_0.block_idx)]
+        stmt_0 = block_0.statements[useloc_0.stmt_idx]
+        block_1 = blocks[(useloc_1.block_addr, useloc_1.block_idx)]
+        stmt_1 = block_1.statements[useloc_1.stmt_idx]
+
+        if isinstance(stmt_0, Jump):
+            stmt_0, stmt_1 = stmt_1, stmt_0
+            block_0, block_1 = block_1, block_0
+        if not isinstance(stmt_0, ConditionalJump) or not isinstance(stmt_1, Jump):
+            return False
+
+        # check if stmt_0 jumps to block_1
+        if not isinstance(stmt_0.true_target, Const) or not isinstance(stmt_0.false_target, Const):
+            return False
+        stmt_0_targets = {
+            (stmt_0.true_target.value, stmt_0.true_target_idx),
+            (stmt_0.false_target.value, stmt_0.false_target_idx),
+        }
+        return (block_1.addr, block_1.idx) in stmt_0_targets
 
 
 register_analysis(SPropagatorAnalysis, "SPropagator")
