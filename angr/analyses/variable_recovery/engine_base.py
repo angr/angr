@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, Generic, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast
 import contextlib
 import logging
 
@@ -16,8 +16,6 @@ from angr.code_location import CodeLocation
 from angr.analyses.typehoon import typevars, typeconsts
 from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
 
-if TYPE_CHECKING:
-    from angr.knowledge_plugins.variables.variable_manager import VariableManager
 
 #
 # The base engine used in VariableRecoveryFast
@@ -72,8 +70,6 @@ class SimEngineVRBase(
     and storing data.
     """
 
-    variable_manager: VariableManager
-
     def __init__(self, project, kb):
         super().__init__(project)
 
@@ -126,9 +122,9 @@ class SimEngineVRBase(
                 if abs_offset.op == "__lshift__" and cast(claripy.ast.BV, abs_offset.args[1]).concrete:
                     offset = cast(claripy.ast.BV, abs_offset.args[0])
                     elem_size = 2 ** cast(claripy.ast.BV, abs_offset.args[1]).concrete_value
-                elif abs_offset.op == "__mul__" and abs_offset.args[1].concrete:
-                    offset = abs_offset.args[0]
-                    elem_size = abs_offset.args[1].concrete_value
+                elif abs_offset.op == "__mul__" and cast(claripy.ast.BV, abs_offset.args[1]).concrete:
+                    offset = cast(claripy.ast.BV, abs_offset.args[0])
+                    elem_size = cast(claripy.ast.BV, abs_offset.args[1]).concrete_value
 
             if base_addr is not None and offset is not None and elem_size is not None:
                 return base_addr, offset, elem_size
