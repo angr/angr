@@ -1,4 +1,3 @@
-# " pylint:disable=wrong-import-position
 from __future__ import annotations
 
 from .analysis import Analysis, AnalysesHub, register_analysis

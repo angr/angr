@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-# pylint:disable=missing-class-docstring,no-self-use,wrong-import-order
+# pylint:disable=missing-class-docstring
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.cfg"  # pylint:disable=redefined-builtin
 
-import os
 import logging
+import os
 import unittest
 
 import archinfo
-import angr
-from angr.utils.segment_list import SegmentList
-from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
-from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 
+import angr
+from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
+from angr.knowledge_plugins.cfg import CFGModel, CFGNode, MemoryDataSort
+from angr.utils.segment_list import SegmentList
 from tests.common import bin_location, slow_test
 
 l = logging.getLogger("angr.tests.test_cfgfast")

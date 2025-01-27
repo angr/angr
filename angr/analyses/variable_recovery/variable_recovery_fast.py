@@ -1,31 +1,30 @@
-# pylint:disable=wrong-import-position,wrong-import-order
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
+import contextlib
 import logging
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
-import networkx
-
-import claripy
-import pyvex
 import ailment
+import claripy
+import networkx
+import pyvex
 from ailment.expression import VirtualVariable
 
 import angr.errors
-from angr.analyses import AnalysesHub
-from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from angr.analyses import AnalysesHub, ForwardAnalysis, visitors
+from angr.analyses.typehoon.typeconsts import Int
+from angr.analyses.typehoon.typevars import DerivedTypeVariable, Equivalence, Subtype, TypeVariable, TypeVariables
 from angr.block import Block
+from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.errors import AngrVariableRecoveryError, SimEngineError
 from angr.knowledge_plugins import Function
-from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
-from angr.engines.vex.claripy.irop import vexop_to_simop
-from angr.analyses import ForwardAnalysis, visitors
-from angr.analyses.typehoon.typevars import Equivalence, TypeVariable, TypeVariables, Subtype, DerivedTypeVariable
-from angr.analyses.typehoon.typeconsts import Int
-from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
-from .engine_vex import SimEngineVRVEX
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+
 from .engine_ail import SimEngineVRAIL
-import contextlib
+from .engine_vex import SimEngineVRVEX
+from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
