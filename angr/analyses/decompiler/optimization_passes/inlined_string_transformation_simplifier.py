@@ -136,7 +136,7 @@ class InlinedStringTransformationAILEngine(
                 # jumped to a node that we do not know about
                 break
             block = self.nodes[self.pc]
-            self._process(state, block=block, whitelist=None)
+            self.process(state, block=block, whitelist=None)
             if self.pc is None:
                 # not sure where to jump...
                 break

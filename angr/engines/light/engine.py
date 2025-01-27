@@ -64,13 +64,8 @@ class SimEngineLight(Generic[StateType, DataType_co, BlockType, ResultType], Sim
         self.l = logger or logging.getLogger(self.__module__ + "." + self.__class__.__name__)
         super().__init__(project)
 
-    # there's two of these to support the mixin pattern - mixins can override process while there must be some base
-    # class that provides _process
-    def process(self, state: StateType, *, block: BlockType | None = None, **kwargs) -> ResultType:
-        return self._process(state, block=block, **kwargs)
-
     @abstractmethod
-    def _process(self, state: StateType, *, block: BlockType | None = None, **kwargs) -> ResultType: ...
+    def process(self, state: StateType, *, block: BlockType | None = None, **kwargs) -> ResultType: ...
 
     def lift(self, state: StateType) -> BlockType:
         raise TypeError(f"{type(self)} requires `block` to be passed to `process`")
@@ -267,7 +262,7 @@ class SimEngineLightVEX(
             if name.startswith("_handle_dirty_")
         }
 
-    def _process(
+    def process(
         self, state: StateType, *, block: Block | None = None, whitelist: set[int] | None = None, **kwargs
     ) -> ResultType:
         # initialize local variables
@@ -640,7 +635,7 @@ class SimEngineLightAIL(
         }
         super().__init__(*args, **kwargs)
 
-    def _process(
+    def process(
         self, state: StateType, *, block: ailment.Block | None = None, whitelist: set[int] | None = None, **kwargs
     ) -> ResultType:
         self.tmps = {}

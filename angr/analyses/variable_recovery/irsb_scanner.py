@@ -39,12 +39,12 @@ class VEXIRSBScanner(SimEngineLightVEX[None, None, None, None]):
     def _is_top(self, expr) -> bool:
         return True
 
-    def _process(self, state, *, block=None, whitelist=None, **kwargs):
+    def process(self, state, *, block=None, whitelist=None, **kwargs):
         self.tmps_with_64bit_regs = set()
         self.tmps_assignment_stmtidx = {}
         self.tmps_converted_to_32bit = set()
 
-        super()._process(state, block=block, whitelist=whitelist, **kwargs)
+        super().process(state, block=block, whitelist=whitelist, **kwargs)
 
         self.stmts_to_lower = {self.tmps_assignment_stmtidx[i] for i in self.tmps_converted_to_32bit}
 
