@@ -84,7 +84,7 @@ class SimEngineVRAIL(
                     if vvar is not None:
                         r = self._read_from_vvar(vvar, expr=stmt.src, vvar_id=self._mapped_vvarid(vvar.varid))
                         if r.variable is not None:
-                            pv = self.variable_manager[self.func_addr]._phi_variables
+                            pv = self.state.variable_manager[self.func_addr]._phi_variables
                             if variable not in pv:
                                 pv[variable] = set()
                             pv[variable].add(r.variable)
