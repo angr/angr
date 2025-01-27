@@ -4,7 +4,7 @@ import logging
 import claripy
 from claripy.ast.bv import BV
 
-from angr.engines.engine import SimEngineBase
+from angr.engines.engine import SimEngine
 from angr.utils.constants import DEFAULT_STATEMENT
 from .lifter import IRSB
 from .behavior import OpBehavior
@@ -19,7 +19,7 @@ with contextlib.suppress(ImportError):
 l = logging.getLogger(__name__)
 
 
-class PcodeEmulatorMixin(SimEngineBase):
+class PcodeEmulatorMixin(SimEngine):
     """
     Mixin for p-code execution.
     """

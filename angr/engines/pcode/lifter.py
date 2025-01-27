@@ -20,7 +20,7 @@ from cachetools import LRUCache
 from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
 
 from .behavior import BehaviorFactory
-from angr.engines.engine import SimEngineBase
+from angr.engines.engine import SimEngine
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.sim_state import SimState
 from angr.misc.ux import once
@@ -981,7 +981,7 @@ class PcodeLifter(Lifter):
             raise LiftingException(f"pypcode: could not decode any instructions @ 0x{self.addr:x}")
 
 
-class PcodeLifterEngineMixin(SimEngineBase):
+class PcodeLifterEngineMixin(SimEngine):
     """
     Lifter mixin to lift from machine code to P-Code.
     """

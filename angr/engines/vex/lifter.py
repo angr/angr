@@ -8,7 +8,7 @@ import cle
 from archinfo import ArchARM
 import claripy
 
-from angr.engines.engine import SimEngineBase
+from angr.engines.engine import SimEngine
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from angr.misc.ux import once
 from angr.errors import SimEngineError, SimTranslationError, SimError
@@ -20,7 +20,7 @@ VEX_IRSB_MAX_SIZE = 400
 VEX_IRSB_MAX_INST = 99
 
 
-class VEXLifter(SimEngineBase):
+class VEXLifter(SimEngine):
     """
     Implements the VEX lifter engine mixin.
     """

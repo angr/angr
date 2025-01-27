@@ -3,7 +3,7 @@ import logging
 
 import pyvex
 
-from angr.engines.engine import SimEngineBase
+from angr.engines.engine import SimEngine
 from angr.utils.constants import DEFAULT_STATEMENT
 
 l = logging.getLogger(name=__name__)
@@ -11,7 +11,7 @@ l = logging.getLogger(name=__name__)
 # pylint:disable=arguments-differ,unused-argument,no-self-use
 
 
-class VEXMixin(SimEngineBase):
+class VEXMixin(SimEngine):
     def __init__(self, project, **kwargs):
         super().__init__(project, **kwargs)
         self._vex_expr_handlers = []
