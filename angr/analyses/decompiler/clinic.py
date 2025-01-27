@@ -109,7 +109,7 @@ class Clinic(Analysis):
         cache: DecompilationCache | None = None,
         mode: ClinicMode = ClinicMode.DECOMPILE,
         sp_shift: int = 0,
-        inline_functions: set[Function] | None = frozenset(),
+        inline_functions: set[Function] | None = None,
         inlined_counts: dict[int, int] | None = None,
         inlining_parents: set[int] | None = None,
         vvar_id_start: int = 0,
@@ -131,7 +131,7 @@ class Clinic(Analysis):
         self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimRegArg]] | None = None
         self.variable_kb = variable_kb
         self.externs: set[SimMemoryVariable] = set()
-        self.data_refs: dict[int, int] = {}  # data address to instruction address
+        self.data_refs: dict[int, list[DataRefDesc]] = {}  # data address to data reference description
         self.optimization_scratch = optimization_scratch if optimization_scratch is not None else {}
 
         self._func_graph: networkx.DiGraph | None = None
@@ -159,7 +159,7 @@ class Clinic(Analysis):
         # inlining help
         self._sp_shift = sp_shift
         self._max_stack_depth = 0
-        self._inline_functions = inline_functions
+        self._inline_functions = inline_functions if inline_functions else set()
         self._inlined_counts = {} if inlined_counts is None else inlined_counts
         self._inlining_parents = inlining_parents or ()
         self._desired_variables = desired_variables
@@ -200,7 +200,7 @@ class Clinic(Analysis):
         """
 
         try:
-            return self._blocks_by_addr_and_size[(addr, size)]
+            return self._blocks_by_addr_and_size[(addr, size)] if self._blocks_by_addr_and_size is not None else None
         except KeyError:
             return None
 
@@ -688,9 +688,7 @@ class Clinic(Analysis):
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
         self._update_progress(35.0, text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(
-            ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False, cache=block_simplification_cache
-        )
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, cache=block_simplification_cache)
 
         # Simplify the entire function for the first time
         self._update_progress(45.0, text="Simplifying function 1")
@@ -1865,6 +1863,7 @@ class Clinic(Analysis):
     def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
         if blocks_by_addr_and_size is None:
             blocks_by_addr_and_size = self._blocks_by_addr_and_size
+        assert blocks_by_addr_and_size is not None
 
         graph = networkx.DiGraph()
 
@@ -1939,8 +1938,9 @@ class Clinic(Analysis):
                 break
         if ite_expr_stmt_idx is None:
             return None
+        assert ite_expr_stmt is not None
 
-        ite_expr: ailment.Expr.ITE = ite_expr_stmt.src
+        ite_expr: ailment.Expr.ITE = ite_expr_stmt.src  # type: ignore
         new_head_ail.statements = new_head_ail.statements[:ite_expr_stmt_idx]
         # build the conditional jump
         true_block_addr = ite_ins_addr + 1
@@ -1968,6 +1968,7 @@ class Clinic(Analysis):
                 break
         if ite_expr_stmt_idx is None:
             return None
+        assert ite_expr_stmt is not None
 
         true_block_ail.statements[ite_expr_stmt_idx] = ailment.Stmt.Assignment(
             ite_expr_stmt.idx, ite_expr_stmt.dst, ite_expr_stmt.src.iftrue, **ite_expr_stmt.tags
@@ -1987,6 +1988,7 @@ class Clinic(Analysis):
                 break
         if ite_expr_stmt_idx is None:
             return None
+        assert ite_expr_stmt is not None
 
         false_block_ail.statements[ite_expr_stmt_idx] = ailment.Stmt.Assignment(
             ite_expr_stmt.idx, ite_expr_stmt.dst, ite_expr_stmt.src.iffalse, **ite_expr_stmt.tags
@@ -2458,7 +2460,7 @@ class Clinic(Analysis):
             expr_idx: int,
             expr: ailment.expression.Expression,
             stmt_idx: int,
-            stmt: ailment.statement.Statement,
+            stmt: ailment.statement.Statement | None,
             block: ailment.Block | None,
         ):
             if expr is None:
@@ -2492,7 +2494,7 @@ class Clinic(Analysis):
             expr: ailment.expression.Const,
             stmt_idx: int,
             stmt: ailment.statement.Statement,
-            block: ailment.Block | None,
+            block: ailment.Block,
         ):
             if isinstance(expr.value, int) and hasattr(expr, "ins_addr"):
                 data_refs[block.addr].append(
@@ -2510,7 +2512,7 @@ class Clinic(Analysis):
             expr: ailment.expression.Load,
             stmt_idx: int,
             stmt: ailment.statement.Statement,
-            block: ailment.Block | None,
+            block: ailment.Block,
         ):
             if isinstance(expr.addr, ailment.expression.Const):
                 addr = expr.addr
@@ -2540,7 +2542,7 @@ class Clinic(Analysis):
 
             return ailment.AILBlockWalker._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
 
-        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
+        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block):
             if isinstance(stmt.addr, ailment.expression.Const):
                 addr = stmt.addr
                 if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
