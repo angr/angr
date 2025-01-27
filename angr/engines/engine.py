@@ -24,10 +24,9 @@ DataType_co = TypeVar("DataType_co", covariant=True)
 HeavyState = SimState[int | SootAddressDescriptor, claripy.ast.BV | SootAddressDescriptor]
 
 
-class SimEngineBase(Generic[StateType]):
+class SimEngine(Generic[StateType, ResultType], metaclass=abc.ABCMeta):
     """
-    Even more basey of a base class for SimEngine. Used as a base by mixins which want access to the project but for
-    which having method `process` (contained in `SimEngine`) doesn't make sense
+    A SimEngine is a type which understands how to perform execution on a state.
     """
 
     state: StateType
@@ -41,21 +40,6 @@ class SimEngineBase(Generic[StateType]):
 
     def __setstate__(self, state):
         self.project = state[0]
-
-
-class SimEngine(Generic[StateType, ResultType], SimEngineBase[StateType], metaclass=abc.ABCMeta):
-    """
-    A SimEngine is a class which understands how to perform execution on a state. This is a base class.
-    """
-
-    @abc.abstractmethod
-    def process(self, state: StateType, **kwargs) -> ResultType:
-        """
-        The main entry point for an engine. Should take a state and return a result.
-
-        :param state:   The state to proceed from
-        :return:        The result. Whatever you want ;)
-        """
 
 
 class SuccessorsMixin(SimEngine[HeavyState, SimSuccessors]):
