@@ -7,6 +7,7 @@ import claripy
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 from angr import sim_options as o
+from angr.calling_conventions import SYSCALL_CC
 from angr.errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
 from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
 from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
@@ -542,7 +543,3 @@ class SimSuccessors:
         addrs = state.solver.eval_upto(ip, limit)
 
         return [(ip == addr, addr) for addr in addrs]
-
-
-# pylint: disable=wrong-import-position
-from angr.calling_conventions import SYSCALL_CC

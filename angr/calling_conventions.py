@@ -11,6 +11,7 @@ import archinfo
 from archinfo import RegisterName
 from unique_log_filter import UniqueLogFilter
 
+import angr
 from .errors import AngrTypeError
 from .sim_type import (
     SimType,
@@ -33,7 +34,6 @@ from .sim_type import (
     SimTypeReference,
 )
 from .state_plugins.sim_action_object import SimActionObject
-from .engines.soot.engine import SootMixin
 
 l = logging.getLogger(name=__name__)
 l.addFilter(UniqueLogFilter())
@@ -2179,7 +2179,7 @@ class SimCCSoot(SimCC):
     ARG_REGS = []
 
     def setup_callsite(self, state, ret_addr, args, prototype, stack_base=None, alloc_base=None, grow_like_stack=True):
-        SootMixin.setup_callsite(state, args, ret_addr)
+        angr.engines.SootMixin.setup_callsite(state, args, ret_addr)
 
     @staticmethod
     def guess_prototype(args, prototype=None):
