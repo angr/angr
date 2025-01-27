@@ -936,7 +936,7 @@ class TestDecompiler(unittest.TestCase):
 
         code = code.replace(" ", "").replace("\n", "")
         # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
-        assert "}v4+=1;}" in code or "}v4+=0x1;}" in code
+        assert "}v2+=1;}" in code or "}v2+=0x1;}" in code
 
     @for_all_structuring_algos
     def test_decompilation_excessive_goto_removal(self, decompiler_options=None):
@@ -4354,6 +4354,9 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
+        # there are only three variables (two when _fold_call_exprs is fixed re-enabled)
+        all_vars = set(re.findall(r"v\d+", d.codegen.text))
+        assert len(all_vars) == 3
         # the function is a void function
         assert "void " in d.codegen.text
         # the function has a for loop

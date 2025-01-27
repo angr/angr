@@ -102,7 +102,7 @@ class AILSimplifier(Analysis):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions: SRDAModel | None = None
-        self._propagator = None
+        self._propagator: SPropagatorAnalysis | None = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_arg_offsets = stack_arg_offsets
@@ -117,6 +117,7 @@ class AILSimplifier(Analysis):
         self._removed_vvar_ids = removed_vvar_ids if removed_vvar_ids is not None else set()
         self._arg_vvars = arg_vvars
         self._avoid_vvar_ids = avoid_vvar_ids
+        self._propagator_dead_vvar_ids: set[int] = set()
 
         self._calls_to_remove: set[CodeLocation] = set()
         self._assignments_to_remove: set[CodeLocation] = set()
@@ -231,6 +232,7 @@ class AILSimplifier(Analysis):
             only_consts=self._only_consts,
         )
         self._propagator = prop
+        self._propagator_dead_vvar_ids = prop.dead_vvar_ids
         return prop
 
     def _compute_equivalence(self) -> set[Equivalence]:
@@ -1332,7 +1334,10 @@ class AILSimplifier(Analysis):
             if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(def_.atom.addr, int):
                 continue
             if isinstance(def_.atom, atoms.VirtualVariable):
-                if def_.atom.was_stack:
+                if def_.atom.varid in self._propagator_dead_vvar_ids:
+                    # we are definitely removing this variable if it has no uses
+                    uses = rd.get_vvar_uses(def_.atom)
+                elif def_.atom.was_stack:
                     if not self._remove_dead_memdefs:
                         if rd.is_phi_vvar_id(def_.atom.varid):
                             # we always remove unused phi variables
