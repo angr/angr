@@ -45,6 +45,8 @@ class SPropagatorModel:
 
     def __init__(self):
         self.replacements: Mapping[CodeLocation, Mapping[Expression, Expression]] = {}
+        # store vvars that are definitely dead (but usually not removed by default because they are stack variables)
+        self.dead_vvar_ids: set[int] = set()
 
 
 class SPropagatorAnalysis(Analysis):
@@ -90,6 +92,7 @@ class SPropagatorAnalysis(Analysis):
             bp_as_gpr = the_func.info.get("bp_as_gpr", False)
         self._bp_as_gpr = bp_as_gpr
 
+        # output
         self.model = SPropagatorModel()
 
         self._analyze()
@@ -97,6 +100,10 @@ class SPropagatorAnalysis(Analysis):
     @property
     def replacements(self):
         return self.model.replacements
+
+    @property
+    def dead_vvar_ids(self):
+        return self.model.dead_vvar_ids
 
     def _analyze(self):
         blocks: dict[tuple[int, int | None], Block]
@@ -227,6 +234,8 @@ class SPropagatorAnalysis(Analysis):
                     if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks):
                         for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
                             replacements[vvar_useloc][vvar_used] = stmt.src
+                        # mark the vvar as dead and should be removed
+                        self.model.dead_vvar_ids.add(vvar.varid)
                         continue
 
                 if vvar.was_reg or vvar.was_parameter:
@@ -475,7 +484,7 @@ class SPropagatorAnalysis(Analysis):
             if block is def_block:
                 starting_stmt_idx = defloc.stmt_idx + 1
             if block is use_block:
-                ending_stmt_idx = useloc.stmt_idx + 1
+                ending_stmt_idx = useloc.stmt_idx
 
             for i in range(starting_stmt_idx, ending_stmt_idx):
                 if isinstance(block.statements[i], Store):

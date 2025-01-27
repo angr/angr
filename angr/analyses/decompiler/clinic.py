@@ -92,7 +92,7 @@ class Clinic(Analysis):
     def __init__(
         self,
         func,
-        remove_dead_memdefs=True,
+        remove_dead_memdefs=False,
         exception_edges=False,
         sp_tracker_track_memory=True,
         fold_callexprs_into_conditions=False,
@@ -471,7 +471,7 @@ class Clinic(Analysis):
         self._update_progress(36.0, text="Constant propagation")
         self._simplify_function(
             ail_graph,
-            remove_dead_memdefs=True,
+            remove_dead_memdefs=False,
             unify_variables=False,
             narrow_expressions=False,
             only_consts=True,

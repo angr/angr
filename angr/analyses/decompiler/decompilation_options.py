@@ -55,7 +55,7 @@ options = [
         "clinic",
         "remove_dead_memdefs",
         category="Data flows",
-        default_value=True,
+        default_value=False,
     ),
     O(
         "Display exception edges (experimental)",
