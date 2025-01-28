@@ -14,6 +14,8 @@ on:
         required: false
 
 env:
+  ANALYZE_SNAPSHOT_RETRIES: 3  # The number of times to try updating a snapshot.
+                               # take.
   CORPUS_GITHUB_BRANCH: "main"
   CORPUS_GITHUB_OWNER: "angr"
   # NB: The full corpus can be invoked with: path=cgc-challenges
@@ -29,6 +31,8 @@ jobs:
     name: "Check that the dependent repositories exist and are operable."
     runs-on: ubuntu-latest
 
+    outputs:
+      ready: ${{ steps.is_ready.outputs.is_ready }}
     steps:
       - name: Checkout current repository
         uses: actions/checkout@v4
@@ -46,10 +50,23 @@ jobs:
           && sudo apt update \
           && sudo apt install gh -y
 
-      - name:
-        env:
+      - env:
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+        id: is_ready
         run: |
+          set +e
+          set -uo pipefail
+
+          # Check if any of the commits in the PR have '[corpus test]' in them.
+          if gh pr view --json commits -q '.commits[].messageHeadline' ${{ github.event.pull_request.number }} | grep -q '[corpus test]'; then
+            echo "is_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          set -e
+
           # Check that the corpus repo is available.
           gh repo list \
             --json 'name' \
@@ -63,10 +80,13 @@ jobs:
           gh pr list \
             --limit 1 \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}"
+          # Get the current API usage rate limit values.
+          gh api rate_limit | jq
 
   build:
     name: "Download dependencies to a cached virtual environment."
     needs: [precondition]
+    if: ${{ needs.precondition.outputs.ready == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout current repository
@@ -141,8 +161,10 @@ jobs:
       - name: Fetch metadata for binaries
         id: fetch_metadata_for_binaries
         env:
-          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
+          set -euo pipefail
+
           # Gather the individual paths from the CORPUS_GITHUB_PATH.
           corpus_path="${{ inputs.corpus_github_path }}"
           if [[ -z "$corpus_path" ]]; then
@@ -158,16 +180,20 @@ jobs:
           echo "Number of separate paths: ${#all_paths[@]}"
 
           declare -a all_files
+          all_files=()
           mapfile -t all_files < <(
             ./corpus_tests/scripts/gh_ls.sh \
               -R "${CORPUS_GITHUB_OWNER}/${CORPUS_GITHUB_REPO}" \
               -b "${CORPUS_GITHUB_BRANCH}" \
-              ${all_paths[@]} -t "${GITHUB_TOKEN}"
+              ${all_paths[@]} -t "${GH_TOKEN}"
           )
 
           # Count the number of files
           files_count="${#all_files[@]}"
           echo "Total number of files: $files_count"
+          if [[ $files_count -eq 0 ]]; then
+            exit 1
+          fi
 
           # Calculate the number of files each job should handle (max 256 jobs)
           MAX_MATRIX_JOBS=256
@@ -176,6 +202,7 @@ jobs:
 
           # Set environment variables for each chunk
           chunks=()
+          count=0
           current_chunk=""
 
           for file in "${all_files[@]}"; do
@@ -204,6 +231,7 @@ jobs:
   analyze_binaries:
     needs: [build, fetch_metadata_for_binaries]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     strategy:
       matrix:
@@ -239,9 +267,11 @@ jobs:
 
       - name: Fetch binary files and run analysis
         env:
-          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
+          GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
           NIGHTLY: inputs.nightly
         run: |
+          set -euo pipefail
+
           source .venv/bin/activate
 
           # Determine the environment variable name for the current chunk
@@ -266,7 +296,7 @@ jobs:
               owner_repo_branch="$CORPUS_GITHUB_OWNER/$CORPUS_GITHUB_REPO/$CORPUS_GITHUB_BRANCH"
               binary_url="https://raw.githubusercontent.com/${owner_repo_branch}/$file"
               echo "Retrieving binary from '${binary_url}'."
-              curl -L -H "Authorization: token $GITHUB_TOKEN" -o "binaries/$file" "${binary_url}"
+              curl -L -H "Authorization: token $GH_TOKEN" -o "binaries/$file" "${binary_url}"
 
               echo -e "Downloaded binary:\n$(ls -l "binaries/$file")"
 
@@ -283,9 +313,9 @@ jobs:
               snapshot_url="https://raw.githubusercontent.com/${owner_repo_branch}/snapshots/${snapshot_repo_file}"
 
               echo "Retrieving snapshot from '${snapshot_url}'."
-              curl -L -H "Authorization: token $GITHUB_TOKEN" -o "${pytest_insta_snapshot_file}" "${snapshot_url}"
+              curl -L -H "Authorization: token $GH_TOKEN" -o "${pytest_insta_snapshot_file}" "${snapshot_url}"
 
-              if [ ! -e "${pytest_insta_snapshot_file}" ]; then
+              if [[ ! -e "${pytest_insta_snapshot_file}" ]]; then
                 echo "*** Failed to download snapshot at '${snapshot_url}'."
                 exit 1
               fi
@@ -329,6 +359,7 @@ jobs:
       - name: Push snapshots to snapshot repo
         env:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          SNAPSHOT_BASE_BRANCH: main
           SNAPSHOT_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         if: ${{ ! inputs.nightly }}
         run: |
@@ -338,22 +369,40 @@ jobs:
           ./scripts/gh_create_branch.sh \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             -H "${snapshot_branch}" \
+            -b "${SNAPSHOT_BASE_BRANCH}" \
             -t "${SNAPSHOT_TOKEN}"
+
+          # Allow scripts to fail to check exit codes.
+          set +e
 
           echo "Pushing all .json.txt files up to the branch."
           for file in $(find snapshots/ -type f -name '*.json.txt' | grep -v "corpus__decompilation__"); do
             # Second arg is the file path in the snapshots repo.
             n=0
-            while ! ./scripts/gh_push_file.sh \
+            while true; do
+              ./scripts/gh_push_file.sh \
                 -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
                 -H "${snapshot_branch}" \
                 -t "${SNAPSHOT_TOKEN}" \
                 "${file}" \
-                "${file}"; do
-              n=$((n+1))
-              if [ $n -ge $tries ]; then
+                "${file}"
+              exit_code=$?
+
+              if [[ $exit_code -eq 0 ]]; then
+                echo "successfully uploaded $file"
+                break
+              elif [[ $exit_code -ne 75 ]]; then
+                # Failure that is not safe to retry.
+                echo "failed to upload $file"
                 break
               fi
+
+              n=$((n+1))
+              if [[ $n -ge $ANALYZE_SNAPSHOT_RETRIES ]]; then
+                echo "exceeded retries for $file"
+                break
+              fi
+
               wait_time="$(printf '%u.%03u' $((RANDOM % 4)) $((RANDOM % 1000)))"
               echo "Pushing file failed; waiting ${wait_time}s to try again."
               sleep "${wait_time}"
@@ -388,15 +437,20 @@ jobs:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
+          set +e
+          set -uo pipefail
+
           title="Decompilation snapshots: ${ANGR_BRANCH} -> ${SNAPSHOT_GITHUB_BRANCH}"
           gh api -X POST "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" \
             -f base="${SNAPSHOT_GITHUB_BRANCH}" \
             -f body="" \
             -f head="${ANGR_BRANCH}" \
-            -f title="${title}"
+            -f title="${title}" \
+            --silent
           success="$?"
 
-          # XXX: Does the api pre-sort responses descending by order?
+          # NB: The API defaults to sorted by the attribute `created` in
+          #     descending order.
           url="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
                  jq --arg title "$title" '.[] | select(.title == $title) | .html_url' | head -n 1)"
           number="$(gh api "/repos/${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}/pulls" | \
@@ -404,7 +458,7 @@ jobs:
           if [[ -z "$url" ]]; then
             echo "Error: failed to create pull request in snapshots repository."
             exit 1
-          elif [[ "$success" -eq "0" ]]; then
+          elif [[ $success -eq 0 ]]; then
             echo "Created new snapshot pull request."
           else
             echo "Updating existing snapshot pull request."
@@ -416,8 +470,9 @@ jobs:
         env:
           ANGR_BRANCH: ${{ github.event.pull_request.head.ref }}
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
-          GITHUB_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
+          set -euo pipefail
+
           ./corpus_tests/scripts/snapshot_diff.sh \
             -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}" \
             -H "${ANGR_BRANCH}" \
@@ -431,6 +486,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ANGR_PR_PAT }}
         run: |
+          set -euo pipefail
+
           gh pr comment ${{ github.event.pull_request.number }} \
             -b "View changed de-compilation outputs here: ${{ steps.snapshot-pr.outputs.url }}"
 
@@ -439,7 +496,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SNAPSHOTS_PAT }}
         run: |
-          if [ -n "${number}" ]; then
+          set -eo pipefail
+
+          if [[ -n "${number}" ]]; then
             gh pr merge --squash "${number}" \
               -R "${SNAPSHOT_GITHUB_OWNER}/${SNAPSHOT_GITHUB_REPO}"
           fi
