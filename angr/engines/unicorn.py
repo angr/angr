@@ -8,7 +8,7 @@ import claripy
 
 import angr
 from angr.errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
-from .engine import SuccessorsMixin
+from .successors import SuccessorsEngine
 from .vex.heavy.heavy import VEXEarlyExit
 from angr import sim_options as o
 from angr.misc.ux import once
@@ -21,7 +21,7 @@ from angr.utils.constants import DEFAULT_STATEMENT
 l = logging.getLogger(name=__name__)
 
 
-class SimEngineUnicorn(SuccessorsMixin):
+class SimEngineUnicorn(SuccessorsEngine):
     """
     Concrete execution in the Unicorn Engine, a fork of qemu.
 

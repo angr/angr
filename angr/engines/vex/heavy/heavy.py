@@ -3,7 +3,7 @@ import logging
 import claripy
 import pyvex
 
-from angr.engines.engine import SuccessorsMixin
+from angr.engines.successors import SuccessorsEngine
 from angr.engines.vex.light import VEXMixin
 from angr.engines.vex.lifter import VEXLifter
 from angr.engines.vex.claripy.datalayer import ClaripyDataMixin, symbol
@@ -57,7 +57,7 @@ class SimStateStorageMixin(VEXMixin):
 
 
 # pylint:disable=arguments-differ
-class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
+class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
     """
     Execution engine based on VEX, Valgrind's IR.
 

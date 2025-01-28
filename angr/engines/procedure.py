@@ -4,7 +4,7 @@ import logging
 from angr import sim_options as o
 from angr import errors
 from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-from .engine import SuccessorsMixin
+from .successors import SuccessorsEngine
 
 
 l = logging.getLogger(name=__name__)
@@ -58,7 +58,7 @@ class ProcedureMixin:
         successors.processed = True
 
 
-class ProcedureEngine(ProcedureMixin, SuccessorsMixin):
+class ProcedureEngine(ProcedureMixin, SuccessorsEngine):
     """
     A SimEngine that you may use if you only care about processing SimProcedures. *Requires* the procedure
     kwarg to be passed to process.

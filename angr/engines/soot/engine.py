@@ -15,7 +15,7 @@ from angr.errors import SimEngineError, SimTranslationError
 from cle import CLEError
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.sim_type import SimTypeFunction, parse_type
-from angr.engines.engine import SuccessorsMixin
+from angr.engines.successors import SuccessorsEngine
 from angr.engines.procedure import ProcedureMixin
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
 from .statements import SimSootStmt_Return, SimSootStmt_ReturnVoid, translate_stmt
@@ -26,7 +26,7 @@ l = logging.getLogger("angr.engines.soot.engine")
 # pylint: disable=arguments-differ
 
 
-class SootMixin(SuccessorsMixin, ProcedureMixin):
+class SootMixin(SuccessorsEngine, ProcedureMixin):
     """
     Execution engine based on Soot.
     """

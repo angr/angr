@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from .successors import SimSuccessors
-from .engine import SimEngine, SuccessorsMixin
-
-from .vex import HeavyVEXMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
-from .procedure import ProcedureMixin, ProcedureEngine
-from .unicorn import SimEngineUnicorn
+from .engine import SimEngine
 from .failure import SimEngineFailure
-from .syscall import SimEngineSyscall
 from .hook import HooksMixin
+from .procedure import ProcedureEngine, ProcedureMixin
 from .soot import SootMixin
+from .successors import SimSuccessors, SuccessorsEngine
+from .syscall import SimEngineSyscall
+from .unicorn import SimEngineUnicorn
+from .vex import HeavyResilienceMixin, HeavyVEXMixin, SimInspectMixin, SuperFastpathMixin, TrackActionsMixin
 
 
 class UberEngine(
@@ -47,7 +46,7 @@ __all__ = [
     "SimInspectMixin",
     "SimSuccessors",
     "SootMixin",
-    "SuccessorsMixin",
+    "SuccessorsEngine",
     "SuperFastpathMixin",
     "TrackActionsMixin",
     "UberEngine",
