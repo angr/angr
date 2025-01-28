@@ -67,10 +67,6 @@ class SimSuccessors:
         self.sort: str | None = None
         self.artifacts = {}
 
-    @classmethod
-    def failure(cls):
-        return cls(None, None)
-
     def __repr__(self):
         if self.processed:
             successor_strings = []
