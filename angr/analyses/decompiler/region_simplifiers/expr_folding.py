@@ -235,7 +235,7 @@ class ExpressionCounter(SequenceWalker):
         super().__init__(handlers)
         self.walk(node)
 
-    def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: ailment.Block | LoopNode):
+    def _handle_Statement(self, idx: int, stmt: Statement, node: ailment.Block | LoopNode):
         if isinstance(stmt, ailment.Stmt.Assignment):
             if is_phi_assignment(stmt):
                 return
@@ -287,13 +287,16 @@ class ExpressionCounter(SequenceWalker):
                 self.uses[varid] = set()
             self.uses[varid] |= content
 
-    def _collect_assignments(self, expr: ailment.Expr, node) -> None:
+    def _collect_assignments(self, expr: Expression, node) -> None:
         finder = MultiStatementExpressionAssignmentFinder(self._handle_Statement)
         finder.walk_expression(expr, None, None, node)
 
-    def _collect_uses(self, expr: Expression, loc: LocationBase):
+    def _collect_uses(self, expr: Expression | Statement, loc: LocationBase):
         use_finder = ExpressionUseFinder()
-        use_finder.walk_expression(expr, stmt_idx=-1)
+        if isinstance(expr, Statement):
+            use_finder.walk_statement(expr)
+        else:
+            use_finder.walk_expression(expr, stmt_idx=-1)
 
         for varid, uses in use_finder.uses.items():
             for use in uses:
@@ -472,11 +475,11 @@ class InterferenceChecker(SequenceWalker):
 
         # iterator
         if node.iterator is not None:
-            spotter.walk_expression(node.iterator)
+            spotter.walk_statement(node.iterator)
 
         # initializer
         if node.initializer is not None:
-            spotter.walk_expression(node.initializer)
+            spotter.walk_statement(node.initializer)
 
         # condition
         if node.condition is not None:
@@ -499,9 +502,9 @@ class ExpressionReplacer(AILBlockWalker):
         self._assignments = assignments
         self._uses = uses
 
-    def _handle_MultiStatementExpression(
+    def _handle_MultiStatementExpression(  # type: ignore
         self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
-    ):
+    ) -> Expression | None:
         changed = False
         new_statements = []
         for idx, stmt_ in enumerate(expr.stmts):
@@ -534,7 +537,7 @@ class ExpressionReplacer(AILBlockWalker):
         if changed:
             if not new_statements:
                 # it is no longer a multi-statement expression
-                return new_expr
+                return new_expr  # type: ignore
             expr_ = expr.copy()
             expr_.expr = new_expr
             expr_.stmts = new_statements
@@ -648,13 +651,13 @@ class ExpressionFolder(SequenceWalker):
 
         # iterator
         if node.iterator is not None:
-            r = replacer.walk_expression(node.iterator)
+            r = replacer.walk_statement(node.iterator)
             if r is not None and r is not node.iterator:
                 node.iterator = r
 
         # initializer
         if node.initializer is not None:
-            r = replacer.walk_expression(node.initializer)
+            r = replacer.walk_statement(node.initializer)
             if r is not None and r is not node.initializer:
                 node.initializer = r
 
