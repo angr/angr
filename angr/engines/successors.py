@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 import claripy
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
@@ -23,9 +22,6 @@ from angr.state_plugins.callstack import CallStack
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.state_plugins.sim_action_object import _raw_ast
 from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
-
-if TYPE_CHECKING:
-    from angr import SimState
 
 
 l = logging.getLogger(name=__name__)
@@ -308,7 +304,7 @@ class SimSuccessors:
             else:
                 # The architecture doesn't have an ip_at_syscall register.
                 # Nothing to do but hope vigorously.
-                l.warning(f"Handling syscall on arch {state.arch.name:s} without ip_at_syscall register")
+                l.warning("Handling syscall on arch %s without ip_at_syscall register", state.arch.name)
 
             try:
                 symbolic_syscall_num, concrete_syscall_nums = self._resolve_syscall(state)
