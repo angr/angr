@@ -401,8 +401,20 @@ class InterferenceChecker(SequenceWalker):
         for stmt in node.statements:
 
             # deal with uses
-
             spotter = ExpressionSpotter()
+            # special case: we process the call arguments first, then the call itself. this is to allow more expression
+            # folding opportunities.
+            the_call = None
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, ailment.Stmt.Call):
+                the_call = stmt.src
+            elif isinstance(stmt, ailment.Stmt.Call):
+                the_call = stmt
+            if the_call is not None:
+                spotter.walk_expression(the_call.target)
+                if the_call.args:
+                    for arg in the_call.args:
+                        spotter.walk_expression(arg)
+                self._after_spotting(the_call, spotter)
             spotter.walk_statement(stmt)
             self._after_spotting(stmt, spotter)
 

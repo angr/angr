@@ -2843,6 +2843,16 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
+
+        # note that this test case will not fold the ternary expression into the call when it's like the following:
+        #      fputs_unlocked(v3, *((long long *)&stdout));
+        # this is to preserve the original execution order between calls and the load of stdout (we do not know if the
+        # calls will alter stdout or not).
+        # as such, we must alter the function prototype of fputs_unlocked to get rid of the second argument for this
+        # test case to work.
+        fputs = proj.kb.functions["fputs_unlocked"]
+        fputs.prototype.args = (fputs.prototype.args[0],)
+
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )

@@ -287,19 +287,27 @@ class ITERegionConverter(OptimizationPass):
                     ((region_head.addr, region_head.idx), original_vvars[0] if original_vvars else None)
                 )
 
-            new_phi = Phi(
-                stmt.src.idx,
-                stmt.src.bits,
-                new_src_and_vvars,
-                **stmt.src.tags,
-            )
-            new_phi_assignment = Assignment(
-                stmt.idx,
-                stmt.dst,
-                new_phi,
-                **stmt.tags,
-            )
-            stmts.append(new_phi_assignment)
+            if len(new_src_and_vvars) == 1:
+                new_assignment = Assignment(
+                    stmt.idx,
+                    stmt.dst,
+                    new_src_and_vvars[0][1],
+                    **stmt.tags,
+                )
+            else:
+                new_phi = Phi(
+                    stmt.src.idx,
+                    stmt.src.bits,
+                    new_src_and_vvars,
+                    **stmt.src.tags,
+                )
+                new_assignment = Assignment(
+                    stmt.idx,
+                    stmt.dst,
+                    new_phi,
+                    **stmt.tags,
+                )
+            stmts.append(new_assignment)
         new_region_tail = Block(region_tail.addr, region_tail.original_size, statements=stmts, idx=region_tail.idx)
 
         #
