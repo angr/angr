@@ -236,6 +236,8 @@ class Block(Serializable):
                 else:
                     self._vex = vex
 
+        self.size = size
+
         if skip_stmts:
             self._parse_vex_info(self._vex_nostmt)
         else:
