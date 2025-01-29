@@ -187,6 +187,8 @@ class SPropagatorAnalysis(Analysis):
 
         # function mode only
         if self.mode == "function":
+            assert self.func_graph is not None
+
             for vvar, defloc in vvar_deflocs.items():
                 if vvar.varid not in vvar_uselocs:
                     continue
