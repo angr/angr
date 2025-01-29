@@ -157,6 +157,8 @@ class Decompiler(Analysis):
                             self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
+        if self._cache_parameters is None or cache.parameters is None:
+            return False
         a, b = self._cache_parameters, cache.parameters
         id_checks = {"cfg", "variable_kb"}
         return all(a[k] is b[k] if k in id_checks else a[k] == b[k] for k in self._cache_parameters)
@@ -201,7 +203,7 @@ class Decompiler(Analysis):
 
         variable_kb = self._variable_kb
         # fall back to old codegen
-        if variable_kb is None and old_codegen is not None:
+        if variable_kb is None and old_codegen is not None and isinstance(old_codegen, CStructuredCodeGenerator):
             variable_kb = old_codegen._variable_kb
 
         if variable_kb is None:
@@ -223,7 +225,8 @@ class Decompiler(Analysis):
             fold_callexprs_into_conditions = True
 
         cache = DecompilationCache(self.func.addr)
-        cache.parameters = self._cache_parameters
+        if self._cache_parameters is not None:
+            cache.parameters = self._cache_parameters
         cache.ite_exprs = ite_exprs
         cache.binop_operators = binop_operators
 
