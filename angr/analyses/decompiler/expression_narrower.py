@@ -38,7 +38,7 @@ class ExprNarrowingInfo:
         narrowable: bool,
         to_size: int | None = None,
         use_exprs: list[tuple[atoms.VirtualVariable, CodeLocation, tuple[str, tuple[Expression, ...]]]] | None = None,
-        phi_vars: set[atoms.VirtualVariable] | None = None,
+        phi_vars: set[VirtualVariable] | None = None,
     ):
         self.narrowable = narrowable
         self.to_size = to_size
