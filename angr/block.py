@@ -159,7 +159,6 @@ class Block(Serializable):
         size=None,
         max_size=None,
         byte_string=None,
-        vex=None,
         thumb=False,
         backup_state=None,
         extra_stop_points=None,
@@ -206,11 +205,12 @@ class Block(Serializable):
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
 
+        self._vex = None
+        self._vex_nostmt = None
+
         if size is None:
             if byte_string is not None:
                 size = len(byte_string)
-            elif vex is not None:
-                size = vex.size
             else:
                 if self._initial_regs:
                     self.set_initial_regs()
@@ -243,12 +243,11 @@ class Block(Serializable):
                     self.reset_initial_regs()
                 size = vex.size
 
-        if skip_stmts:
-            self._vex = None
-            self._vex_nostmt = vex
-        else:
-            self._vex = vex
-            self._vex_nostmt = None
+                if skip_stmts:
+                    self._vex_nostmt = vex
+                else:
+                    self._vex = vex
+
         self._disassembly = None
         self._capstone = None
         self.size = size
