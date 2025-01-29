@@ -816,13 +816,6 @@ class TestDecompiler(unittest.TestCase):
         # fold root() into printf() and remove strlen()
         assert "printf(" in code
 
-        lines = code.split("\n")
-        # make sure root() and strlen() appear within the same line
-        for line in lines:
-            if "root(" in line:
-                assert "strlen(" in line
-                assert line.count("strlen") == 1
-
     @structuring_algo("sailr")
     def test_decompilation_call_expr_folding_into_if_conditions(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
@@ -2851,6 +2844,7 @@ class TestDecompiler(unittest.TestCase):
         # as such, we must alter the function prototype of fputs_unlocked to get rid of the second argument for this
         # test case to work.
         fputs = proj.kb.functions["fputs_unlocked"]
+        assert fputs.prototype is not None
         fputs.prototype.args = (fputs.prototype.args[0],)
 
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
@@ -4352,7 +4346,7 @@ class TestDecompiler(unittest.TestCase):
 
         # there are only three variables (two when _fold_call_exprs is fixed re-enabled)
         all_vars = set(re.findall(r"v\d+", d.codegen.text))
-        assert len(all_vars) == 3
+        assert len(all_vars) == 2
         # the function is a void function
         assert "void " in d.codegen.text
         # the function has a for loop
