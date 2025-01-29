@@ -1,8 +1,8 @@
-# pylint:disable=missing-class-docstring,unused-argument
+# pylint:disable=missing-class-docstring,unused-argument,consider-using-dict-items
 from __future__ import annotations
 from collections import defaultdict
-from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
+from typing import Any, TYPE_CHECKING
 
 import ailment
 from ailment import Expression, Block, AILBlockWalker
