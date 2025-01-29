@@ -5,7 +5,7 @@ import claripy
 import logging
 
 from angr.calling_conventions import DEFAULT_CC, default_cc, SimRegArg
-from angr.engines.engine import SuccessorsMixin, SimSuccessors
+from angr.engines.successors import SuccessorsEngine, SimSuccessors
 from angr.misc.ux import once
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr import sim_options as o
@@ -19,7 +19,7 @@ l = logging.getLogger(__name__)
 
 
 class HeavyPcodeMixin(
-    SuccessorsMixin,
+    SuccessorsEngine,
     PcodeLifterEngineMixin,
     PcodeEmulatorMixin,
 ):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 
-from .engine import SuccessorsMixin
+from .successors import SuccessorsEngine
 from .procedure import ProcedureMixin
 from archinfo.arch_soot import SootAddressDescriptor
 
@@ -9,7 +9,7 @@ l = logging.getLogger(name=__name__)
 
 
 # pylint: disable=abstract-method,unused-argument,arguments-differ
-class HooksMixin(SuccessorsMixin, ProcedureMixin):
+class HooksMixin(SuccessorsEngine, ProcedureMixin):
     """
     A SimEngine mixin which adds a SimSuccessors handler which will look into the project's hooks and run the hook at
     the current address.

@@ -3,13 +3,13 @@ from __future__ import annotations
 import logging
 
 from angr.errors import AngrExitError
-from .engine import SuccessorsMixin
+from .successors import SuccessorsEngine
 from .procedure import ProcedureMixin
 
 l = logging.getLogger(name=__name__)
 
 
-class SimEngineFailure(SuccessorsMixin, ProcedureMixin):
+class SimEngineFailure(SuccessorsEngine, ProcedureMixin):
     def process_successors(self, successors, **kwargs):
         state = self.state
         jumpkind = state.history.parent.jumpkind if state.history and state.history.parent else None

@@ -3,14 +3,14 @@ import logging
 
 import angr
 from angr.errors import AngrUnsupportedSyscallError
-from .engine import SuccessorsMixin
+from .successors import SuccessorsEngine
 from .procedure import ProcedureMixin
 
 l = logging.getLogger(name=__name__)
 
 
 # pylint:disable=abstract-method,arguments-differ
-class SimEngineSyscall(SuccessorsMixin, ProcedureMixin):
+class SimEngineSyscall(SuccessorsEngine, ProcedureMixin):
     """
     A SimEngine mixin which adds a successors handling step that checks if a syscall was just requested and if so
     handles it as a step.
