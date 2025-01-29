@@ -50,6 +50,7 @@ class TestAPIObfFinder(TestCase):
         }
 
         dec = proj.analyses.Decompiler(cfg.kb.functions[0x401530], cfg=cfg.model)
+        assert dec.codegen is not None, "Decompilation failed"
         print(dec.codegen.text)
 
     def test_type2(self):
