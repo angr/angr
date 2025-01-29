@@ -130,19 +130,23 @@ class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = [
+        "_backup_state",
         "_bytes",
         "_capstone",
         "_collect_data_refs",
         "_const_prop",
         "_cross_insn_opt",
         "_disassembly",
+        "_extra_stop_points",
         "_initial_regs",
         "_instruction_addrs",
         "_instructions",
         "_load_from_ro_regions",
+        "_max_size",
         "_opt_level",
         "_project",
         "_strict_block_end",
+        "_traceflags",
         "_vex",
         "_vex_nostmt",
         "addr",
@@ -155,7 +159,7 @@ class Block(Serializable):
         self,
         addr,
         project=None,
-        arch: Arch = None,
+        arch: Arch | None = None,
         size=None,
         max_size=None,
         byte_string=None,
@@ -173,14 +177,11 @@ class Block(Serializable):
         initial_regs=None,
         skip_stmts=False,
     ):
-        # set up arch
-        self.arch: Arch
-        if project is not None:
+        if arch is not None:
+            self.arch = arch
+        elif project is not None:
             self.arch = project.arch
         else:
-            self.arch = arch
-
-        if self.arch is None:
             raise ValueError('Either "project" or "arch" has to be specified.')
 
         if project is not None and backup_state is None and project.kb.patches.values():
@@ -194,63 +195,23 @@ class Block(Serializable):
         else:
             thumb = False
 
-        self._project: Project | None = project
-        self.thumb = thumb
+        self._project = project
         self.addr = addr
+        self._backup_state = backup_state
+        self.thumb = thumb
         self._opt_level = opt_level
-        self._initial_regs: list[tuple[int, int, int]] | None = (
-            initial_regs if (collect_data_refs or const_prop) else None
-        )
+        self._initial_regs = initial_regs if (collect_data_refs or const_prop) else None
+        self._traceflags = traceflags
+        self._extra_stop_points = extra_stop_points
+        self._max_size = max_size if max_size is not None else self.BLOCK_MAX_SIZE
 
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
 
         self._vex = None
         self._vex_nostmt = None
-
-        if size is None:
-            if byte_string is not None:
-                size = len(byte_string)
-            else:
-                if self._initial_regs:
-                    self.set_initial_regs()
-                clemory = None
-                if project is not None:
-                    clemory = (
-                        project.loader.memory_ro_view
-                        if project.loader.memory_ro_view is not None
-                        else project.loader.memory
-                    )
-                vex = self._vex_engine.lift_vex(
-                    clemory=clemory,
-                    state=backup_state,
-                    insn_bytes=byte_string,
-                    addr=addr,
-                    size=max_size,
-                    thumb=thumb,
-                    extra_stop_points=extra_stop_points,
-                    opt_level=opt_level,
-                    num_inst=num_inst,
-                    traceflags=traceflags,
-                    strict_block_end=strict_block_end,
-                    collect_data_refs=collect_data_refs,
-                    load_from_ro_regions=load_from_ro_regions,
-                    const_prop=const_prop,
-                    cross_insn_opt=cross_insn_opt,
-                    skip_stmts=skip_stmts,
-                )
-                if self._initial_regs:
-                    self.reset_initial_regs()
-                size = vex.size
-
-                if skip_stmts:
-                    self._vex_nostmt = vex
-                else:
-                    self._vex = vex
-
         self._disassembly = None
         self._capstone = None
-        self.size = size
         self._collect_data_refs = collect_data_refs
         self._strict_block_end = strict_block_end
         self._cross_insn_opt = cross_insn_opt
@@ -259,6 +220,23 @@ class Block(Serializable):
 
         self._instructions: int | None = num_inst
         self._instruction_addrs: list[int] = []
+
+        self._bytes = byte_string
+        self.size = size
+
+        if size is None:
+            if byte_string is not None:
+                size = len(byte_string)
+            else:
+                vex = self._lift_nocache(skip_stmts)
+                size = vex.size
+
+                if skip_stmts:
+                    self._vex_nostmt = vex
+                else:
+                    self._vex = vex
+
+        self.size = size
 
         if skip_stmts:
             self._parse_vex_info(self._vex_nostmt)
@@ -342,50 +320,7 @@ class Block(Serializable):
             raise ValueError("Project is not set")
         return self._project.factory.default_engine  # type:ignore
 
-    @property
-    def vex(self) -> IRSB | PcodeIRSB:
-        if not self._vex:
-            if self._initial_regs:
-                self.set_initial_regs()
-            clemory = None
-            if self._project is not None:
-                clemory = (
-                    self._project.loader.memory_ro_view
-                    if self._project.loader.memory_ro_view is not None
-                    else self._project.loader.memory
-                )
-            self._vex = self._vex_engine.lift_vex(
-                clemory=clemory,
-                insn_bytes=self._bytes,
-                addr=self.addr,
-                thumb=self.thumb,
-                size=self.size,
-                num_inst=self._instructions,
-                opt_level=self._opt_level,
-                arch=self.arch,
-                collect_data_refs=self._collect_data_refs,
-                strict_block_end=self._strict_block_end,
-                cross_insn_opt=self._cross_insn_opt,
-                load_from_ro_regions=self._load_from_ro_regions,
-                const_prop=self._const_prop,
-            )
-            if self._initial_regs:
-                self.reset_initial_regs()
-            self._parse_vex_info(self._vex)
-
-        assert self._vex is not None
-        return self._vex
-
-    @property
-    def vex_nostmt(self):
-        if self._vex_nostmt:
-            return self._vex_nostmt
-
-        if self._vex:
-            return self._vex
-
-        if self._initial_regs:
-            self.set_initial_regs()
+    def _lift_nocache(self, skip_stmts: bool) -> IRSB | PcodeIRSB:
         clemory = None
         if self._project is not None:
             clemory = (
@@ -393,25 +328,53 @@ class Block(Serializable):
                 if self._project.loader.memory_ro_view is not None
                 else self._project.loader.memory
             )
-        self._vex_nostmt = self._vex_engine.lift_vex(
+
+        if self._initial_regs:
+            self.set_initial_regs()
+
+        vex = self._vex_engine.lift_vex(
+            addr=self.addr,
+            state=self._backup_state,
             clemory=clemory,
             insn_bytes=self._bytes,
-            addr=self.addr,
-            thumb=self.thumb,
+            arch=self.arch,
             size=self.size,
             num_inst=self._instructions,
+            traceflags=self._traceflags,
+            thumb=self.thumb,
+            extra_stop_points=self._extra_stop_points,
             opt_level=self._opt_level,
-            arch=self.arch,
-            skip_stmts=True,
-            collect_data_refs=self._collect_data_refs,
             strict_block_end=self._strict_block_end,
+            skip_stmts=skip_stmts,
+            collect_data_refs=self._collect_data_refs,
             cross_insn_opt=self._cross_insn_opt,
             load_from_ro_regions=self._load_from_ro_regions,
             const_prop=self._const_prop,
         )
+
         if self._initial_regs:
             self.reset_initial_regs()
+
+        return vex
+
+    @property
+    def vex(self) -> IRSB | PcodeIRSB:
+        if not self._vex:
+            self._vex = self._lift_nocache(False)
+            self._parse_vex_info(self._vex)
+
+        return self._vex
+
+    @property
+    def vex_nostmt(self):
+        if self._vex_nostmt:
+            return self._vex_nostmt
+        if self._vex:
+            return self._vex
+
+        self._vex_nostmt = self._lift_nocache(True)
         self._parse_vex_info(self._vex_nostmt)
+
         return self._vex_nostmt
 
     @property
