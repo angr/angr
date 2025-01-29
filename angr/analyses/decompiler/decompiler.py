@@ -296,6 +296,7 @@ class Decompiler(Analysis):
             ri,
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
+            arg_vvars=set(clinic.arg_vvars),
         )
 
         # Rewrite the graph to remove phi expressions
@@ -325,9 +326,9 @@ class Decompiler(Analysis):
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
+                arg_vvars=set(self.clinic.arg_vvars),
                 kb=self.kb,
                 fail_fast=self._fail_fast,
-                variable_kb=clinic.variable_kb,
                 **self.options_to_params(self.options_by_class["region_simplifier"]),
             )
             seq_node = s.result
@@ -439,7 +440,7 @@ class Decompiler(Analysis):
         return ail_graph
 
     @timethis
-    def _run_region_simplification_passes(self, ail_graph, ri, reaching_definitions, **kwargs):
+    def _run_region_simplification_passes(self, ail_graph, ri, reaching_definitions, arg_vvars: set[int], **kwargs):
         """
         Runs optimizations that should be executed after a single region identification. This function will return
         two items: the new RegionIdentifier object and the new AIL Graph, which should probably be written
@@ -483,6 +484,7 @@ class Decompiler(Analysis):
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
                 variable_kb=self._variable_kb,
+                arg_vvars=arg_vvars,
                 region_identifier=ri,
                 reaching_definitions=reaching_definitions,
                 vvar_id_start=self.vvar_id_start,

@@ -2,10 +2,14 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Literal, overload
 
+from collections.abc import Callable
+
+import networkx
+
 import archinfo
 from ailment import Expression, Block
 from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset, DirtyExpression, ITE
-from ailment.statement import Statement, Assignment, Call
+from ailment.statement import Statement, Assignment, Call, Store
 from ailment.block_walker import AILBlockWalkerBase
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -203,6 +207,12 @@ def is_phi_assignment(stmt: Statement) -> bool:
     return isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
 
 
+def has_load_expr(stmt: Statement) -> bool:
+    walker = AILBlacklistExprTypeWalker((Load,))
+    walker.walk_statement(stmt)
+    return walker.has_blacklisted_exprs
+
+
 def phi_assignment_get_src(stmt: Statement) -> Phi | None:
     if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi):
         return stmt.src
@@ -225,13 +235,87 @@ def has_ite_stmt(stmt: Statement) -> bool:
     return walker.has_blacklisted_exprs
 
 
+def check_in_between_stmts(
+    graph: networkx.DiGraph,
+    blocks: dict[tuple[int, int | None], Block],
+    defloc: CodeLocation,
+    useloc: CodeLocation,
+    predicate: Callable,
+):
+    assert defloc.block_addr is not None
+    assert defloc.stmt_idx is not None
+    assert useloc.block_addr is not None
+    assert useloc.stmt_idx is not None
+    assert graph is not None
+
+    use_block = blocks[(useloc.block_addr, useloc.block_idx)]
+    def_block = blocks[(defloc.block_addr, defloc.block_idx)]
+
+    # traverse the graph, go from use_block until we reach def_block, and look for Store statements
+    seen = {use_block}
+    queue = [use_block]
+    while queue:
+        block = queue.pop(0)
+
+        starting_stmt_idx, ending_stmt_idx = 0, len(block.statements)
+        if block is def_block:
+            starting_stmt_idx = defloc.stmt_idx + 1
+        if block is use_block:
+            ending_stmt_idx = useloc.stmt_idx
+
+        for i in range(starting_stmt_idx, ending_stmt_idx):
+            if predicate(block.statements[i]):
+                return True
+
+        if block is def_block:
+            continue
+
+        for pred in graph.predecessors(block):
+            if pred not in seen:
+                seen.add(pred)
+                queue.append(pred)
+
+    return False
+
+
+def has_store_stmt_in_between_stmts(
+    graph: networkx.DiGraph, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+) -> bool:
+    return check_in_between_stmts(graph, blocks, defloc, useloc, lambda stmt: isinstance(stmt, Store))
+
+
+def has_call_in_between_stmts(
+    graph: networkx.DiGraph, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+) -> bool:
+
+    def _contains_call(stmt: Statement) -> bool:
+        if isinstance(stmt, Call):
+            return True
+        # walk the statement and check if there is a call expression
+        walker = AILBlacklistExprTypeWalker((Call,))
+        walker.walk_statement(stmt)
+        return walker.has_blacklisted_exprs
+
+    return check_in_between_stmts(graph, blocks, defloc, useloc, _contains_call)
+
+
+def has_load_expr_in_between_stmts(
+    graph: networkx.DiGraph, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+) -> bool:
+    return check_in_between_stmts(graph, blocks, defloc, useloc, has_load_expr)
+
+
 __all__ = (
     "VVarUsesCollector",
+    "check_in_between_stmts",
     "get_tmp_deflocs",
     "get_tmp_uselocs",
     "get_vvar_deflocs",
     "get_vvar_uselocs",
+    "has_call_in_between_stmts",
     "has_ite_expr",
+    "has_load_expr_in_between_stmts",
+    "has_store_stmt_in_between_stmts",
     "is_const_and_vvar_assignment",
     "is_const_assignment",
     "is_const_vvar_load_assignment",

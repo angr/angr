@@ -4228,7 +4228,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4236,7 +4236,7 @@ class TestDecompiler(unittest.TestCase):
         # Ensure f1 is called before f2
         expected = """
             v1 = f1();
-            v2 = f2();
+            if (f2() != v1)
         """
         assert normalize_whitespace(expected) in normalize_whitespace(text)
 
@@ -4246,7 +4246,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4265,7 +4265,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4284,7 +4284,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4306,7 +4306,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4327,7 +4327,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text

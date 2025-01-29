@@ -27,6 +27,7 @@ from ailment.expression import (
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.utils.ail import is_phi_assignment, HasExprWalker
+from angr.utils.ssa import has_call_in_between_stmts, has_store_stmt_in_between_stmts, has_load_expr_in_between_stmts
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
 from angr.knowledge_plugins.propagations.states import Equivalence
@@ -1120,8 +1121,6 @@ class AILSimplifier(Analysis):
         than once after simplification and graph structuring where conditions might be duplicated (e.g., in Dream).
         In such cases, the one-use expression folder in RegionSimplifier will perform this transformation.
         """
-        # Disabled until https://github.com/angr/angr/issues/5112 and related folding issues are fixed
-        return False
 
         # pylint:disable=unreachable
         simplified = False
@@ -1196,41 +1195,19 @@ class AILSimplifier(Analysis):
                 if u.block_addr not in {b.addr for b in super_node_blocks}:
                     continue
 
-                # check if the register has been overwritten by statements in between the def site and the use site
-                # usesite_atom_defs = set(rd.get_defs(the_def.atom, u, OP_BEFORE))
-                # if len(usesite_atom_defs) != 1:
-                #     continue
-                # usesite_atom_def = next(iter(usesite_atom_defs))
-                # if usesite_atom_def != the_def:
-                #     continue
-
-                # check if any atoms that the call relies on has been overwritten by statements in between the def site
-                # and the use site.
-                # TODO: Prove non-interference
-                # defsite_all_expr_uses = set(rd.all_uses.get_uses_by_location(the_def.codeloc))
-                # defsite_used_atoms = set()
-                # for dd in defsite_all_expr_uses:
-                #     defsite_used_atoms.add(dd.atom)
-                # usesite_expr_def_outdated = False
-                # for defsite_expr_atom in defsite_used_atoms:
-                #     usesite_expr_uses = set(rd.get_defs(defsite_expr_atom, u, OP_BEFORE))
-                #     if not usesite_expr_uses:
-                #         # the atom is not defined at the use site - it's fine
-                #         continue
-                #     defsite_expr_uses = set(rd.get_defs(defsite_expr_atom, the_def.codeloc, OP_BEFORE))
-                #     if usesite_expr_uses != defsite_expr_uses:
-                #         # special case: ok if this atom is assigned to at the def site and has not been overwritten
-                #         if len(usesite_expr_uses) == 1:
-                #             usesite_expr_use = next(iter(usesite_expr_uses))
-                #             if usesite_expr_use.atom == defsite_expr_atom and (
-                #                 usesite_expr_use.codeloc == the_def.codeloc
-                #                 or usesite_expr_use.codeloc.block_addr == call_addr
-                #             ):
-                #                 continue
-                #         usesite_expr_def_outdated = True
-                #         break
-                # if usesite_expr_def_outdated:
-                #     continue
+                # ensure there are no other calls between the def site and the use site.
+                # this is because we do not want to alter the order of calls.
+                u_inclusive = CodeLocation(u.block_addr, u.stmt_idx + 1, block_idx=u.block_idx)
+                if (
+                    has_call_in_between_stmts(self.func_graph, addr_and_idx_to_block, the_def.codeloc, u_inclusive)
+                    or has_store_stmt_in_between_stmts(
+                        self.func_graph, addr_and_idx_to_block, the_def.codeloc, u_inclusive
+                    )
+                    or has_load_expr_in_between_stmts(
+                        self.func_graph, addr_and_idx_to_block, the_def.codeloc, u_inclusive
+                    )
+                ):
+                    continue
 
                 # check if there are any calls in between the def site and the use site
                 if self._count_calls_in_supernodeblocks(super_node_blocks, the_def.codeloc, u) > 0:

@@ -12,7 +12,13 @@ from .if_ import IfSimplifier
 from .cascading_ifs import CascadingIfsRemover
 from .ifelse import IfElseFlattener
 from .loop import LoopSimplifier
-from .expr_folding import ExpressionCounter, ExpressionFolder, StoreStatementFinder, ExpressionLocation
+from .expr_folding import (
+    ExpressionCounter,
+    ExpressionFolder,
+    StoreStatementFinder,
+    ExpressionLocation,
+    InterferenceChecker,
+)
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .switch_expr_simplifier import SwitchExpressionSimplifier
 from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters, simplify_lowered_switches
@@ -23,10 +29,17 @@ class RegionSimplifier(Analysis):
     Simplifies a given region.
     """
 
-    def __init__(self, func, region, variable_kb=None, simplify_switches: bool = True, simplify_ifelse: bool = True):
+    def __init__(
+        self,
+        func,
+        region,
+        arg_vvars: set[int] | None = None,
+        simplify_switches: bool = True,
+        simplify_ifelse: bool = True,
+    ):
         self.func = func
         self.region = region
-        self.variable_kb = variable_kb
+        self.arg_vvars = arg_vvars
         self._simplify_switches = simplify_switches
         self._should_simplify_ifelses = simplify_ifelse
 
@@ -54,7 +67,7 @@ class RegionSimplifier(Analysis):
         # Remove empty nodes again
         r = self._remove_empty_nodes(r)
 
-        if self.variable_kb is not None:
+        if self.arg_vvars is not None:
             # Fold expressions that are only used once into their use sites
             r = self._fold_oneuse_expressions(r)
             r = self._remove_empty_nodes(r)
@@ -88,12 +101,8 @@ class RegionSimplifier(Analysis):
     #
 
     def _fold_oneuse_expressions(self, region):
-        # Disabled until https://github.com/angr/angr/issues/5110 and related folding issues fixed
-        return region
-
         # pylint:disable=unreachable
-        variable_manager = self.variable_kb.variables[self.func.addr]
-        expr_counter = ExpressionCounter(region, variable_manager)
+        expr_counter = ExpressionCounter(region)
 
         variable_assignments = {}
         variable_uses = {}
@@ -130,7 +139,7 @@ class RegionSimplifier(Analysis):
             # make sure all variables that var depends on has been assigned at most once
             fail = False
             for dep_var in deps:
-                if dep_var.is_function_argument:
+                if self.arg_vvars is not None and dep_var in self.arg_vvars:
                     continue
                 if dep_var in expr_counter.assignments and len(expr_counter.assignments[dep_var]) > 1:
                     fail = True
@@ -155,8 +164,14 @@ class RegionSimplifier(Analysis):
                 del variable_assignments[var]
                 del variable_uses[var]
 
-        # replace them
-        ExpressionFolder(variable_assignments, variable_uses, region, variable_manager)
+        # ensure there is no interference between the call site and the use site
+        checker = InterferenceChecker(variable_assignments, variable_uses, region)
+        for varid in checker.interfered_assignments:
+            if varid in variable_assignments:
+                del variable_assignments[varid]
+                del variable_uses[varid]
+        # fold these expressions if possible
+        ExpressionFolder(variable_assignments, variable_uses, region)
         return region
 
     @staticmethod
