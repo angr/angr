@@ -281,7 +281,7 @@ class SimEngineUnicorn(SuccessorsEngine):
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
         # pylint:disable=no-member
-        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)
+        irsb = self.project.factory.block(addr=block_addr, backup_state=self.state, size=block_size).vex
         if irsb.size == 0:
             if irsb.jumpkind == "Ijk_NoDecode":
                 if not self.state.project.is_hooked(irsb.addr):
