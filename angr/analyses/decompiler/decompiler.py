@@ -2,8 +2,8 @@
 from __future__ import annotations
 import logging
 from collections import defaultdict
-from typing import Optional, Union, Any, TYPE_CHECKING
 from collections.abc import Iterable
+from typing import Optional, Union, Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
@@ -15,6 +15,7 @@ from angr.knowledge_base import KnowledgeBase
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
+from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
@@ -30,7 +31,6 @@ from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
-    from .structured_codegen.c import CStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)
 

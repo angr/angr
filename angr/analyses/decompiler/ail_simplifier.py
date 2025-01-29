@@ -1316,8 +1316,6 @@ class AILSimplifier(Analysis):
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
         )
         for def_ in rd.all_definitions:
-            assert def_.codeloc.block_addr is not None
-            assert def_.codeloc.stmt_idx is not None
             if def_.dummy:
                 continue
             # we do not remove references to global memory regions no matter what
@@ -1355,10 +1353,15 @@ class AILSimplifier(Analysis):
                     dead_vvar_ids.add(def_.atom.varid)
 
                 if not isinstance(def_.codeloc, ExternalCodeLocation):
+                    assert def_.codeloc.block_addr is not None
+                    assert def_.codeloc.stmt_idx is not None
                     stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
                         def_.codeloc.stmt_idx
                     )
             else:
+                if not isinstance(def_.codeloc, ExternalCodeLocation):
+                    assert def_.codeloc.block_addr is not None
+                    assert def_.codeloc.stmt_idx is not None
                 stmts_to_keep_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
 
         # find all phi variables that rely on variables that no longer exist
