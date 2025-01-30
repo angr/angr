@@ -508,126 +508,6 @@ class IRSB:
         return self._disassembly
 
 
-class Lifter:
-    """
-    A lifter is a class of methods for processing a block.
-
-    :ivar data:             The bytes to lift as either a python string of bytes or a cffi buffer object.
-    :ivar bytes_offset:     The offset into `data` to start lifting at.
-    :ivar max_bytes:        The maximum number of bytes to lift. If set to None, no byte limit is used.
-    :ivar max_inst:         The maximum number of instructions to lift. If set to None, no instruction limit is used.
-    :ivar opt_level:        Unused by P-Code lifter
-    :ivar traceflags:       Unused by P-Code lifter
-    :ivar allow_arch_optimizations: Unused by P-Code lifter
-    :ivar strict_block_end: Unused by P-Code lifter
-    :ivar skip_stmts:       Unused by P-Code lifter
-    """
-
-    REQUIRE_DATA_C = False
-    REQUIRE_DATA_PY = False
-
-    __slots__ = (
-        "addr",
-        "allow_arch_optimizations",
-        "arch",
-        "bytes_offset",
-        "collect_data_refs",
-        "data",
-        "irsb",
-        "max_bytes",
-        "max_inst",
-        "opt_level",
-        "skip_stmts",
-        "strict_block_end",
-        "traceflags",
-    )
-
-    data: str | bytes | None
-    bytes_offset: int | None
-    opt_level: int
-    traceflags: int | None
-    allow_arch_optimizations: bool | None
-    strict_block_end: bool | None
-    collect_data_refs: bool
-    max_inst: int | None
-    max_bytes: int | None
-    skip_stmts: bool
-    irsb: IRSB
-    arch: archinfo.Arch
-    addr: int
-
-    def __init__(self, arch: archinfo.Arch, addr: int):
-        self.arch = arch
-        self.addr = addr
-        self.data = None
-        self.bytes_offset = None
-        self.opt_level = 1
-        self.traceflags = None
-        self.allow_arch_optimizations = None
-        self.strict_block_end = None
-        self.collect_data_refs = False
-        self.max_inst = None
-        self.max_bytes = None
-        self.skip_stmts = False
-        self.irsb = None
-
-    def _lift(
-        self,
-        data: str | bytes | None,
-        bytes_offset: int | None = None,
-        max_bytes: int | None = None,
-        max_inst: int | None = None,
-        opt_level: int = 1,
-        traceflags: int | None = None,
-        allow_arch_optimizations: bool | None = None,
-        strict_block_end: bool | None = None,
-        skip_stmts: bool = False,
-        collect_data_refs: bool = False,
-    ) -> IRSB:
-        """
-        Wrapper around the `lift` method on Lifters. Should not be overridden in child classes.
-
-        :param data:                The bytes to lift as either a python string of bytes or a cffi buffer object.
-        :param bytes_offset:        The offset into `data` to start lifting at.
-        :param max_bytes:           The maximum number of bytes to lift. If set to None, no byte limit is used.
-        :param max_inst:            The maximum number of instructions to lift. If set to None, no instruction limit is
-                                    used.
-        :param opt_level:           Unused by P-Code lifter
-        :param traceflags:          Unused by P-Code lifter
-        :param allow_arch_optimizations: Unused by P-Code lifter
-        :param strict_block_end:    Unused by P-Code lifter
-        :param skip_stmts:          Unused by P-Code lifter
-        :param collect_data_refs:   Unused by P-Code lifter
-        """
-        irsb = IRSB.empty_block(self.arch, self.addr)
-        self.data = data
-        self.bytes_offset = bytes_offset
-        self.opt_level = opt_level
-        self.traceflags = traceflags
-        self.allow_arch_optimizations = allow_arch_optimizations
-        self.strict_block_end = strict_block_end
-        self.collect_data_refs = collect_data_refs
-        self.max_inst = max_inst
-        self.max_bytes = max_bytes
-        self.skip_stmts = skip_stmts
-        self.irsb = irsb
-        self.lift()
-        return self.irsb
-
-    def lift(self) -> None:
-        """
-        Lifts the data using the information passed into _lift. Should be overridden in child classes.
-
-        Should set the lifted IRSB to self.irsb.
-        If a lifter raises a LiftingException on the data, this signals that the lifter cannot lift this data and arch
-        and the lifter is skipped.
-        If a lifter can lift any amount of data, it should lift it and return the lifted block with a jumpkind of
-        Ijk_NoDecode, signalling to pyvex that other lifters should be used on the undecodable data.
-
-        """
-        raise NotImplementedError
-
-
 # pylint:disable=unused-argument
 def lift(
     data: str | bytes | None,
@@ -700,7 +580,7 @@ def lift(
 
     u_data = data
     try:
-        final_irsb = PcodeLifter(arch, addr)._lift(
+        final_irsb = PcodeLifter(arch, addr).lift(
             u_data,
             bytes_offset,
             max_bytes,
@@ -714,7 +594,7 @@ def lift(
         )
     except SkipStatementsError:
         assert skip_stmts is True
-        final_irsb = PcodeLifter(arch, addr)._lift(
+        final_irsb = PcodeLifter(arch, addr).lift(
             u_data,
             bytes_offset,
             max_bytes,
@@ -954,31 +834,51 @@ class PcodeBasicBlockLifter:
         irsb.next, irsb.jumpkind = next_block
 
 
-class PcodeLifter(Lifter):
+class PcodeLifter:
     """
     Handles calling into pypcode to lift a block
     """
 
     _lifter_cache = {}
 
-    def lift(self) -> None:
+    def __init__(self, arch: archinfo.Arch, addr: int):
+        self.arch = arch
+        self.addr = addr
+
+    def lift(
+        self,
+        data: str | bytes | None,
+        bytes_offset: int | None = None,
+        max_bytes: int | None = None,
+        max_inst: int | None = None,
+        opt_level: int = 1,
+        traceflags: int | None = None,
+        allow_arch_optimizations: bool | None = None,
+        strict_block_end: bool | None = None,
+        skip_stmts: bool = False,
+        collect_data_refs: bool = False,
+    ) -> IRSB:
+        irsb = IRSB.empty_block(self.arch, self.addr)
+
         if self.arch not in PcodeLifter._lifter_cache:
             PcodeLifter._lifter_cache[self.arch] = PcodeBasicBlockLifter(self.arch)
+
         lifter = PcodeLifter._lifter_cache[self.arch]
         lifter.lift(
-            self.irsb,
+            irsb,
             self.addr,
-            self.data,
-            bytes_offset=self.bytes_offset,
-            max_inst=self.max_inst,
-            max_bytes=self.max_bytes,
+            data,
+            bytes_offset=bytes_offset,
+            max_inst=max_inst,
+            max_bytes=max_bytes,
             branch_delay_slot=self.arch.branch_delay_slot,
             is_sparc32="sparc:" in self.arch.name and self.arch.bits == 32,
         )
 
-        if self.irsb.size == 0:
+        if irsb.size == 0:
             l.debug("raising lifting exception")
             raise LiftingException(f"pypcode: could not decode any instructions @ 0x{self.addr:x}")
+        return irsb
 
 
 class PcodeLifterEngineMixin(SimEngine):
