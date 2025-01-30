@@ -748,9 +748,8 @@ class SimEngineRDVEX(
         expr1_v = expr1.one_value()
 
         if expr0_v is not None and expr1_v is not None:
-            if expr0_v.concrete and expr1_v.concrete:
-                # bitwise-and two single values together
-                r = MultiValues(expr0_v & expr1_v)
+            # bitwise-and two single values together
+            r = MultiValues(expr0_v & expr1_v)
         elif expr0_v is None and expr1_v is not None:
             # bitwise-and a single value with a multivalue
             if expr0.count() == 1 and 0 in expr0:
