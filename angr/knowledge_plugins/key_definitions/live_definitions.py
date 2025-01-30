@@ -18,6 +18,7 @@ from angr.storage.memory_mixins.paged_memory.pages.multi_values import MVType, M
 from angr.knowledge_plugins.key_definitions.definition import A
 from angr.engines.light import SpOffset
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.utils.constants import is_alignment_mask
 from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
@@ -360,6 +361,19 @@ class LiveDefinitions:
         return None
 
     @staticmethod
+    def _simplify_sp_alignment(data: MultiValues) -> MultiValues:
+        """
+        Eliminate trivial stack pointer alignment, e.g.: {sp & ~0xf} -> {sp}
+        """
+        value = data.one_value()
+        if value is not None and "stack_base" in value.variables and value.op == "__and__" and len(value.args) == 2:
+            if value.args[1].concrete and is_alignment_mask(value.args[1].concrete_value):
+                return MultiValues(value.args[0])
+            if value.args[0].concrete and is_alignment_mask(value.args[0].concrete_value):
+                return MultiValues(value.args[1])
+        return data
+
+    @staticmethod
     def annotate_with_def(symvar: MVType, definition: Definition) -> MVType:
         """
 
@@ -571,6 +585,11 @@ class LiveDefinitions:
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
+
+            # Tolerate simple stack pointer alignments
+            if atom.reg_offset == self.arch.sp_offset:
+                d = self._simplify_sp_alignment(d)
+
             try:
                 self.registers.store(
                     atom.reg_offset,
