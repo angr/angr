@@ -831,7 +831,9 @@ class LiveDefinitions:
             return None
         return r.concrete_value
 
-    def get_values(self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]]) -> MultiValues | None:
+    def get_values(
+        self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]], endness: archinfo.Endness | None = None
+    ) -> MultiValues | None:
         if isinstance(spec, Definition):
             atom = spec.atom
         elif isinstance(spec, Atom):
@@ -839,7 +841,7 @@ class LiveDefinitions:
         else:
             result = None
             for atom in spec:
-                r = self.get_values(atom)
+                r = self.get_values(atom, endness)
                 if r is None:
                     continue
                 result = r if result is None else result.merge(r)
@@ -850,27 +852,29 @@ class LiveDefinitions:
                 return self.registers.load(atom.reg_offset, size=atom.size)
             except SimMemoryMissingError:
                 return None
-        elif isinstance(atom, MemoryLocation):
+
+        if isinstance(atom, MemoryLocation):
+            endness = endness or atom.endness
             if isinstance(atom.addr, SpOffset):
                 stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
                 try:
-                    return self.stack.load(stack_addr, size=atom.size, endness=atom.endness)
+                    return self.stack.load(stack_addr, size=atom.size, endness=endness)
                 except SimMemoryMissingError:
                     return None
             elif isinstance(atom.addr, HeapAddress):
                 try:
-                    return self.heap.load(atom.addr.value, size=atom.size, endness=atom.endness)
+                    return self.heap.load(atom.addr.value, size=atom.size, endness=endness)
                 except SimMemoryMissingError:
                     return None
             elif isinstance(atom.addr, int):
                 try:
-                    return self.memory.load(atom.addr, size=atom.size, endness=atom.endness)
+                    return self.memory.load(atom.addr, size=atom.size, endness=endness)
                 except SimMemoryMissingError:
                     pass
                 if self.project is not None:
                     try:
                         bytestring = self.project.loader.memory.load(atom.addr, atom.size)
-                        if atom.endness == archinfo.Endness.LE:
+                        if endness == archinfo.Endness.LE:
                             bytestring = bytes(reversed(bytestring))
                         return MultiValues(
                             self.annotate_with_def(claripy.BVV(bytestring), Definition(atom, ExternalCodeLocation()))
@@ -1010,7 +1014,7 @@ class LiveDefinitions:
 
     def deref(self, pointer, size, endness=archinfo.Endness.BE):
         if isinstance(pointer, (Atom, Definition)):
-            pointer = self.get_values(pointer)
+            pointer = self.get_values(pointer, self.arch.memory_endness)
             if pointer is None:
                 return set()
 
