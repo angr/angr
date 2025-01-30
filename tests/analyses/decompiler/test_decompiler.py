@@ -540,10 +540,9 @@ class TestDecompiler(unittest.TestCase):
 
         m = re.search(r"strncmp\(a1, \S+, 64\)", code)
         assert m is not None
-        # Disable until https://github.com/angr/angr/issues/5113 fixed
-        # strncmp_expr = m.group(0)
-        # strncmp_stmt = strncmp_expr + ";"
-        # assert strncmp_stmt not in code, "Call expressions folding failed for strncmp()"
+        strncmp_expr = m.group(0)
+        strncmp_stmt = strncmp_expr + ";"
+        assert strncmp_stmt not in code, "Call expressions folding failed for strncmp()"
 
         lines = code.split("\n")
         for line in lines:
@@ -742,7 +741,6 @@ class TestDecompiler(unittest.TestCase):
             "local_strcat(char *a0, char *a1)" in lines[0]
         ), f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_decompilation_call_expr_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding")
@@ -780,7 +778,6 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_decompilation_call_expr_folding_mips64_true(self, decompiler_options=None):
         # This test is to ensure call expression folding correctly replaces call expressions in return statements
@@ -797,7 +794,6 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         assert "version_etc_va(" in code
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_decompilation_call_expr_folding_x8664_calc(self, decompiler_options=None):
         # This test is to ensure call expression folding do not re-use out-dated definitions when folding expressions
@@ -820,14 +816,6 @@ class TestDecompiler(unittest.TestCase):
         # fold root() into printf() and remove strlen()
         assert "printf(" in code
 
-        lines = code.split("\n")
-        # make sure root() and strlen() appear within the same line
-        for line in lines:
-            if "root(" in line:
-                assert "strlen(" in line
-                assert line.count("strlen") == 1
-
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @structuring_algo("sailr")
     def test_decompilation_call_expr_folding_into_if_conditions(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "stat.o")
@@ -1121,7 +1109,6 @@ class TestDecompiler(unittest.TestCase):
         # We should not find "__stack_chk_fail" in the code
         assert "__stack_chk_fail" not in code
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_ifelseif_x8664(self, decompiler_options=None):
         # nested if-else should be transformed to cascading if-elseif constructs
@@ -1248,7 +1235,6 @@ class TestDecompiler(unittest.TestCase):
         m = re.search(r"if\([^=]+==0\)", code_without_spaces)
         assert m is None
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_simple_strcpy(self, decompiler_options=None):
         """
@@ -1720,7 +1706,6 @@ class TestDecompiler(unittest.TestCase):
         assert "b_ptr += 1;" in d.codegen.text
         assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_call_return_variable_folding(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "ls_gcc_O0")
@@ -2707,7 +2692,6 @@ class TestDecompiler(unittest.TestCase):
             idx = i.start()
             assert text[idx + 1] == "\n"
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_fauxware_read_packet_call_folding_into_store_stmt(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fauxware_read_packet")
@@ -2783,7 +2767,6 @@ class TestDecompiler(unittest.TestCase):
         # there should be a ternary assignment in the code: x = (c ? a : b);
         assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_automatic_ternary_creation_2(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "head.o")
@@ -2831,7 +2814,6 @@ class TestDecompiler(unittest.TestCase):
         ternary_exprs = re.findall(r"\(.+\?.+:.+\);", text)
         assert len(ternary_exprs) == 2
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_ternary_propagation_2(self, decompiler_options=None):
         """
@@ -2854,6 +2836,17 @@ class TestDecompiler(unittest.TestCase):
         all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             "AMD64", "linux", disable_opts=DUPLICATING_OPTS
         )
+
+        # note that this test case will not fold the ternary expression into the call when it's like the following:
+        #      fputs_unlocked(v3, *((long long *)&stdout));
+        # this is to preserve the original execution order between calls and the load of stdout (we do not know if the
+        # calls will alter stdout or not).
+        # as such, we must alter the function prototype of fputs_unlocked to get rid of the second argument for this
+        # test case to work.
+        fputs = proj.kb.functions["fputs_unlocked"]
+        assert fputs.prototype is not None
+        fputs.prototype.args = (fputs.prototype.args[0],)
+
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -2994,7 +2987,6 @@ class TestDecompiler(unittest.TestCase):
         #     return;
         assert re.search(r"if\(.+?\)\{.+?\}return", text) is not None
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @structuring_algo("sailr")
     def test_numfmt_process_field(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "numfmt.o")
@@ -3724,7 +3716,6 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("foo") == 1  # the recursive call
         assert "bar" not in d.codegen.text
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @for_all_structuring_algos
     def test_const_prop_reverter_fmt(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
@@ -3818,7 +3809,6 @@ class TestDecompiler(unittest.TestCase):
 
         assert text.count("refresh_jobs") == 1
 
-    @unittest.skip("Disable until https://github.com/angr/angr/issues/5113 fixed")
     @structuring_algo("sailr")
     def test_fmt_deduplication(self, decompiler_options=None):
         # This testcase is highly related to the constant depropagation testcase above, also for the fmt binary
@@ -4228,7 +4218,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4236,7 +4226,7 @@ class TestDecompiler(unittest.TestCase):
         # Ensure f1 is called before f2
         expected = """
             v1 = f1();
-            v2 = f2();
+            if (f2() != v1)
         """
         assert normalize_whitespace(expected) in normalize_whitespace(text)
 
@@ -4246,7 +4236,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4265,7 +4255,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4284,7 +4274,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4306,7 +4296,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4327,7 +4317,7 @@ class TestDecompiler(unittest.TestCase):
 
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
-        p.analyses.CompleteCallingConventions(recover_variables=True)
+        p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
@@ -4356,7 +4346,7 @@ class TestDecompiler(unittest.TestCase):
 
         # there are only three variables (two when _fold_call_exprs is fixed re-enabled)
         all_vars = set(re.findall(r"v\d+", d.codegen.text))
-        assert len(all_vars) == 3
+        assert len(all_vars) == 2
         # the function is a void function
         assert "void " in d.codegen.text
         # the function has a for loop

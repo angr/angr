@@ -251,7 +251,11 @@ class VirtualVariable(Atom):
     )
 
     def __init__(
-        self, varid: int, size: int, category: ailment.Expr.VirtualVariableCategory, oident: str | int | None = None
+        self,
+        varid: int,
+        size: int,
+        category: ailment.Expr.VirtualVariableCategory,
+        oident: str | int | tuple | None = None,
     ):
         super().__init__(size)
 

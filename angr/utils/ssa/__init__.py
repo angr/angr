@@ -1,11 +1,14 @@
 from __future__ import annotations
 from collections import defaultdict
+from collections.abc import Callable
 from typing import Any, Literal, overload
+
+import networkx
 
 import archinfo
 from ailment import Expression, Block
 from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset, DirtyExpression, ITE
-from ailment.statement import Statement, Assignment, Call
+from ailment.statement import Statement, Assignment, Call, Store
 from ailment.block_walker import AILBlockWalkerBase
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -153,18 +156,40 @@ class AILBlacklistExprTypeWalker(AILBlockWalkerBase):
     Walks an AIL expression or statement and determines if it does not contain certain types of expressions.
     """
 
-    def __init__(self, blacklist_expr_types: tuple[type, ...]):
+    def __init__(self, blacklist_expr_types: tuple[type, ...], skip_if_contains_vvar: int | None = None):
         super().__init__()
         self.blacklist_expr_types = blacklist_expr_types
         self.has_blacklisted_exprs = False
+        self.skip_if_contains_vvar = skip_if_contains_vvar
+
+        self._has_specified_vvar = False
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if isinstance(expr, self.blacklist_expr_types):
-            self.has_blacklisted_exprs = True
-            return None
+            if self.skip_if_contains_vvar is None:
+                self.has_blacklisted_exprs = True
+                return None
+            # otherwise we do a more complicated check
+            self._has_specified_vvar = False  # we do not support nested blacklisted expr types
+            has_blacklisted_exprs = True
+            r = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            if self._has_specified_vvar is False:
+                # we have seen the vvar that we are looking for! ignore this match
+                self.has_blacklisted_exprs = has_blacklisted_exprs
+                return None
+            self._has_specified_vvar = False
+            return r
+
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if self.skip_if_contains_vvar is not None and expr.varid == self.skip_if_contains_vvar:
+            self._has_specified_vvar = True
+        return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def is_const_and_vvar_assignment(stmt: Statement) -> bool:
@@ -203,6 +228,12 @@ def is_phi_assignment(stmt: Statement) -> bool:
     return isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
 
 
+def has_load_expr(stmt: Statement, skip_if_contains_vvar: int | None = None) -> bool:
+    walker = AILBlacklistExprTypeWalker((Load,), skip_if_contains_vvar=skip_if_contains_vvar)
+    walker.walk_statement(stmt)
+    return walker.has_blacklisted_exprs
+
+
 def phi_assignment_get_src(stmt: Statement) -> Phi | None:
     if isinstance(stmt, Assignment) and isinstance(stmt.src, Phi):
         return stmt.src
@@ -225,13 +256,97 @@ def has_ite_stmt(stmt: Statement) -> bool:
     return walker.has_blacklisted_exprs
 
 
+def check_in_between_stmts(
+    graph: networkx.DiGraph,
+    blocks: dict[tuple[int, int | None], Block],
+    defloc: CodeLocation,
+    useloc: CodeLocation,
+    predicate: Callable,
+):
+    assert defloc.block_addr is not None
+    assert defloc.stmt_idx is not None
+    assert useloc.block_addr is not None
+    assert useloc.stmt_idx is not None
+    assert graph is not None
+
+    use_block = blocks[(useloc.block_addr, useloc.block_idx)]
+    def_block = blocks[(defloc.block_addr, defloc.block_idx)]
+
+    # traverse the graph, go from use_block until we reach def_block, and look for Store statements
+    seen = {use_block}
+    queue = [use_block]
+    while queue:
+        block = queue.pop(0)
+
+        starting_stmt_idx, ending_stmt_idx = 0, len(block.statements)
+        if block is def_block:
+            starting_stmt_idx = defloc.stmt_idx + 1
+        if block is use_block:
+            ending_stmt_idx = useloc.stmt_idx
+
+        for i in range(starting_stmt_idx, ending_stmt_idx):
+            if predicate(block.statements[i]):
+                return True
+
+        if block is def_block:
+            continue
+
+        for pred in graph.predecessors(block):
+            if pred not in seen:
+                seen.add(pred)
+                queue.append(pred)
+
+    return False
+
+
+def has_store_stmt_in_between_stmts(
+    graph: networkx.DiGraph, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+) -> bool:
+    return check_in_between_stmts(graph, blocks, defloc, useloc, lambda stmt: isinstance(stmt, Store))
+
+
+def has_call_in_between_stmts(
+    graph: networkx.DiGraph,
+    blocks: dict[tuple[int, int | None], Block],
+    defloc: CodeLocation,
+    useloc: CodeLocation,
+    skip_if_contains_vvar: int | None = None,
+) -> bool:
+
+    def _contains_call(stmt: Statement) -> bool:
+        if isinstance(stmt, Call):
+            return True
+        # walk the statement and check if there is a call expression
+        walker = AILBlacklistExprTypeWalker((Call,), skip_if_contains_vvar=skip_if_contains_vvar)
+        walker.walk_statement(stmt)
+        return walker.has_blacklisted_exprs
+
+    return check_in_between_stmts(graph, blocks, defloc, useloc, _contains_call)
+
+
+def has_load_expr_in_between_stmts(
+    graph: networkx.DiGraph,
+    blocks: dict[tuple[int, int | None], Block],
+    defloc: CodeLocation,
+    useloc: CodeLocation,
+    skip_if_contains_vvar: int | None = None,
+) -> bool:
+    return check_in_between_stmts(
+        graph, blocks, defloc, useloc, lambda stmt: has_load_expr(stmt, skip_if_contains_vvar=skip_if_contains_vvar)
+    )
+
+
 __all__ = (
     "VVarUsesCollector",
+    "check_in_between_stmts",
     "get_tmp_deflocs",
     "get_tmp_uselocs",
     "get_vvar_deflocs",
     "get_vvar_uselocs",
+    "has_call_in_between_stmts",
     "has_ite_expr",
+    "has_load_expr_in_between_stmts",
+    "has_store_stmt_in_between_stmts",
     "is_const_and_vvar_assignment",
     "is_const_assignment",
     "is_const_vvar_load_assignment",

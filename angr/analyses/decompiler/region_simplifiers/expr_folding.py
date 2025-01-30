@@ -1,15 +1,16 @@
-# pylint:disable=missing-class-docstring,unused-argument
+# pylint:disable=missing-class-docstring,unused-argument,consider-using-dict-items
 from __future__ import annotations
 from collections import defaultdict
-from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
+from typing import Any, TYPE_CHECKING
 
 import ailment
 from ailment import Expression, Block, AILBlockWalker
-from ailment.expression import ITE
-from ailment.statement import Statement, Assignment, Call
+from ailment.expression import ITE, Load
+from ailment.statement import Statement, Assignment, Call, Return
 
 from angr.utils.ail import is_phi_assignment
+from angr.utils.ssa import VVarUsesCollector
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import (
     ConditionNode,
@@ -20,8 +21,6 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
 )
 
 if TYPE_CHECKING:
-    from angr.sim_variable import SimVariable
-    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from ailment.expression import MultiStatementExpression
 
 
@@ -30,6 +29,10 @@ class LocationBase:
 
 
 class StatementLocation(LocationBase):
+    """
+    Describes the location of a statement.
+    """
+
     __slots__ = (
         "block_addr",
         "block_idx",
@@ -60,6 +63,10 @@ class StatementLocation(LocationBase):
 
 
 class ExpressionLocation(LocationBase):
+    """
+    Describes the location of an expression.
+    """
+
     __slots__ = (
         "block_addr",
         "block_idx",
@@ -93,6 +100,10 @@ class ExpressionLocation(LocationBase):
 
 
 class ConditionLocation(LocationBase):
+    """
+    Describes the location of a condition.
+    """
+
     __slots__ = (
         "case_idx",
         "node_addr",
@@ -117,6 +128,10 @@ class ConditionLocation(LocationBase):
 
 
 class ConditionalBreakLocation(LocationBase):
+    """
+    Describes the location of a conditional break.
+    """
+
     __slots__ = ("node_addr",)
 
     def __init__(self, node_addr):
@@ -177,18 +192,18 @@ class ExpressionUseFinder(AILBlockWalker):
 
     def __init__(self):
         super().__init__()
-        self.uses: defaultdict[SimVariable, set[tuple[Expression, ExpressionLocation | None]]] = defaultdict(set)
+        self.uses: defaultdict[int, set[tuple[Expression, ExpressionLocation | None]]] = defaultdict(set)
         self.has_load = False
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.variable is not None:
+        if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg:
             if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst is expr):
                 if block is not None:
-                    self.uses[expr.variable].add((expr, ExpressionLocation(block.addr, block.idx, stmt_idx, expr_idx)))
+                    self.uses[expr.varid].add((expr, ExpressionLocation(block.addr, block.idx, stmt_idx, expr_idx)))
                 else:
-                    self.uses[expr.variable].add((expr, None))
+                    self.uses[expr.varid].add((expr, None))
             return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -202,7 +217,7 @@ class ExpressionCounter(SequenceWalker):
     Find all expressions that are assigned once and only used once.
     """
 
-    def __init__(self, node, variable_manager):
+    def __init__(self, node):
         handlers = {
             ConditionalBreakNode: self._handle_ConditionalBreak,
             ConditionNode: self._handle_Condition,
@@ -215,20 +230,12 @@ class ExpressionCounter(SequenceWalker):
         # the current assignment depends on, StatementLocation of the assignment statement, a Boolean variable that
         # indicates if ExpressionUseFinder has succeeded or not)
         self.assignments: defaultdict[Any, set[tuple]] = defaultdict(set)
-        self.uses: dict[SimVariable, set[tuple[Expression, LocationBase | None]]] = {}
-        self._variable_manager: VariableManagerInternal = variable_manager
+        self.uses: dict[int, set[tuple[Expression, LocationBase | None]]] = {}
 
         super().__init__(handlers)
         self.walk(node)
 
-    def _u(self, v) -> SimVariable | None:
-        """
-        Get unified variable for a given variable.
-        """
-
-        return self._variable_manager.unified_variable(v)
-
-    def _handle_Statement(self, idx: int, stmt: ailment.Stmt, node: ailment.Block | LoopNode):
+    def _handle_Statement(self, idx: int, stmt: Statement, node: ailment.Block | LoopNode):
         if isinstance(stmt, ailment.Stmt.Assignment):
             if is_phi_assignment(stmt):
                 return
@@ -237,72 +244,65 @@ class ExpressionCounter(SequenceWalker):
                 and stmt.dst.was_reg
                 and stmt.dst.variable is not None
             ):
-                u = self._u(stmt.dst.variable)
-                if u is not None:
-                    # dependency
-                    dependency_finder = ExpressionUseFinder()
-                    dependency_finder.walk_expression(stmt.src)
-                    dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                    self.assignments[u].add(
-                        (
-                            stmt.src,
-                            dependencies,
-                            StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
-                            dependency_finder.has_load,
-                        )
+                # dependency
+                dependency_finder = ExpressionUseFinder()
+                dependency_finder.walk_expression(stmt.src)
+                dependencies = tuple(dependency_finder.uses)
+                self.assignments[stmt.dst.varid].add(
+                    (
+                        stmt.src,
+                        dependencies,
+                        StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
+                        dependency_finder.has_load,
                     )
+                )
         if (
             isinstance(stmt, ailment.Stmt.Call)
             and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
             and stmt.ret_expr.was_reg
             and stmt.ret_expr.variable is not None
         ):
-            u = self._u(stmt.ret_expr.variable)
-            if u is not None:
-                dependency_finder = ExpressionUseFinder()
-                dependency_finder.walk_expression(stmt)
-                dependencies = tuple({self._u(v) for v in dependency_finder.uses})
-                self.assignments[u].add(
-                    (
-                        stmt,
-                        dependencies,
-                        StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
-                        dependency_finder.has_load,
-                    )
+            dependency_finder = ExpressionUseFinder()
+            dependency_finder.walk_expression(stmt)
+            dependencies = tuple(dependency_finder.uses)
+            self.assignments[stmt.ret_expr.varid].add(
+                (
+                    stmt,
+                    dependencies,
+                    StatementLocation(node.addr, node.idx if isinstance(node, ailment.Block) else None, idx),
+                    dependency_finder.has_load,
                 )
+            )
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
-        # find assignments
+        # find assignments and uses of variables
+        use_finder = ExpressionUseFinder()
         for idx, stmt in enumerate(node.statements):
             self._handle_Statement(idx, stmt, node)
+            if not is_phi_assignment(stmt):
+                use_finder.walk_statement(stmt)
 
-        # walk the block and find uses of variables
-        use_finder = ExpressionUseFinder()
-        use_finder.walk(node)
+        for varid, content in use_finder.uses.items():
+            if varid not in self.uses:
+                self.uses[varid] = set()
+            self.uses[varid] |= content
 
-        for v, content in use_finder.uses.items():
-            u = self._u(v)
-            if u is not None:
-                if u not in self.uses:
-                    self.uses[u] = set()
-                self.uses[u] |= content
-
-    def _collect_assignments(self, expr: ailment.Expr, node) -> None:
+    def _collect_assignments(self, expr: Expression, node) -> None:
         finder = MultiStatementExpressionAssignmentFinder(self._handle_Statement)
         finder.walk_expression(expr, None, None, node)
 
-    def _collect_uses(self, expr: Expression, loc: LocationBase):
+    def _collect_uses(self, expr: Expression | Statement, loc: LocationBase):
         use_finder = ExpressionUseFinder()
-        use_finder.walk_expression(expr, stmt_idx=-1)
+        if isinstance(expr, Statement):
+            use_finder.walk_statement(expr)
+        else:
+            use_finder.walk_expression(expr, stmt_idx=-1)
 
-        for var, uses in use_finder.uses.items():
-            u = self._u(var)
-            if u is None:
-                continue
+        for varid, uses in use_finder.uses.items():
             for use in uses:
-                if u not in self.uses:
-                    self.uses[u] = set()
-                self.uses[u].add((use[0], loc))
+                if varid not in self.uses:
+                    self.uses[varid] = set()
+                self.uses[varid].add((use[0], loc))
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         # collect uses on the condition expression
@@ -338,22 +338,185 @@ class ExpressionCounter(SequenceWalker):
         return super()._handle_SwitchCase(node, **kwargs)
 
 
+class ExpressionSpotter(VVarUsesCollector):
+    """
+    ExpressionSpotter collects uses of vvars and existence of Call expressions.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.has_calls: bool = False
+        self.has_loads: bool = False
+
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+        self.has_calls = True
+        return super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
+        self.has_loads = True
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+
+class InterferenceChecker(SequenceWalker):
+    """
+    Detect for every pair of definition (assignment) - use if there is anything that may interfere with the definition.
+
+    Interferences may be caused by:
+
+    - another call
+    - function return
+    - store statements
+    - load expressions
+    - Condition and CascadingCondition nodes
+    """
+
+    def __init__(self, assignments: dict[int, Any], uses: dict[int, Any], node):
+        handlers = {
+            ailment.Block: self._handle_Block,
+            ConditionNode: self._handle_Condition,
+            ConditionalBreakNode: self._handle_ConditionalBreak,
+            SwitchCaseNode: self._handle_SwitchCase,
+        }
+
+        super().__init__(handlers, update_seqnode_in_place=False, force_forward_scan=True)
+        self._assignments = assignments
+        self._uses = uses
+        self._assignment_interferences: dict[int, list] = {}
+        self.interfered_assignments: set[int] = set()
+        self.walk(node)
+
+    def _after_spotting(self, obj, spotter: ExpressionSpotter) -> None:
+        if spotter.has_calls or spotter.has_loads:
+            # mark all existing assignments as interfered
+            for vid in list(self._assignment_interferences):
+                self._assignment_interferences[vid].append(obj)
+        if set(self._assignment_interferences).intersection(spotter.vvars):
+            for used_vvar_id in spotter.vvars:
+                if used_vvar_id in self._assignment_interferences:
+                    if self._assignment_interferences[used_vvar_id]:
+                        self.interfered_assignments.add(used_vvar_id)
+                    del self._assignment_interferences[used_vvar_id]
+
+    def _handle_Block(self, node: ailment.Block, **kwargs):
+        for stmt in node.statements:
+
+            # deal with uses
+            spotter = ExpressionSpotter()
+            # special case: we process the call arguments first, then the call itself. this is to allow more expression
+            # folding opportunities.
+            the_call = None
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, ailment.Stmt.Call):
+                the_call = stmt.src
+            elif isinstance(stmt, ailment.Stmt.Call):
+                the_call = stmt
+            if the_call is not None:
+                spotter.walk_expression(the_call.target)
+                if the_call.args:
+                    for arg in the_call.args:
+                        spotter.walk_expression(arg)
+                self._after_spotting(the_call, spotter)
+            spotter.walk_statement(stmt)
+            self._after_spotting(stmt, spotter)
+
+            if isinstance(stmt, Return):
+                # mark all existing assignments as interfered
+                for vid in self._assignment_interferences:
+                    self._assignment_interferences[vid].append(stmt)
+
+            if isinstance(stmt, ailment.Stmt.Store):
+                # mark all existing assignments as interfered
+                for vid in self._assignment_interferences:
+                    self._assignment_interferences[vid].append(stmt)
+
+            if isinstance(stmt, ailment.Stmt.Call):
+                # mark all existing assignments as interfered
+                for vid in self._assignment_interferences:
+                    self._assignment_interferences[vid].append(stmt)
+
+            # deal with defs
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
+                and stmt.dst.varid in self._assignments
+            ):
+                # we found this def
+                self._assignment_interferences[stmt.dst.varid] = []
+
+            if (
+                isinstance(stmt, ailment.Stmt.Call)
+                and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
+                and stmt.ret_expr.was_reg
+                and stmt.ret_expr.variable is not None
+                and stmt.ret_expr.varid in self._assignments
+            ):
+                # we found this def
+                self._assignment_interferences[stmt.ret_expr.varid] = []
+
+    def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
+        spotter = ExpressionSpotter()
+        spotter.walk_expression(node.condition)
+        self._after_spotting(node, spotter)
+        return super()._handle_ConditionalBreak(node, **kwargs)
+
+    def _handle_Condition(self, node: ConditionNode, **kwargs):
+        spotter = ExpressionSpotter()
+        spotter.walk_expression(node.condition)
+        self._after_spotting(node, spotter)
+
+        # mark all existing assignments as interfered
+        for vid in self._assignment_interferences:
+            self._assignment_interferences[vid].append(node)
+
+        return super()._handle_Condition(node, **kwargs)
+
+    def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
+        spotter = ExpressionSpotter()
+        for cond, _ in node.condition_and_nodes:  # pylint:disable=consider-using-enumerate
+            spotter.walk_expression(cond)
+            self._after_spotting(node, spotter)
+
+        # mark all existing assignments as interfered
+        for vid in self._assignment_interferences:
+            self._assignment_interferences[vid].append(node)
+
+        return super()._handle_CascadingCondition(node, **kwargs)
+
+    def _handle_Loop(self, node: LoopNode, **kwargs):
+        spotter = ExpressionSpotter()
+
+        # iterator
+        if node.iterator is not None:
+            spotter.walk_statement(node.iterator)
+
+        # initializer
+        if node.initializer is not None:
+            spotter.walk_statement(node.initializer)
+
+        # condition
+        if node.condition is not None:
+            spotter.walk_expression(node.condition)
+
+        self._after_spotting(node, spotter)
+
+        return super()._handle_Loop(node, **kwargs)
+
+    def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
+        spotter = ExpressionSpotter()
+        spotter.walk_expression(node.switch_expr)
+        self._after_spotting(node, spotter)
+        return super()._handle_SwitchCase(node, **kwargs)
+
+
 class ExpressionReplacer(AILBlockWalker):
-    def __init__(self, assignments: dict, uses: dict, variable_manager):
+    def __init__(self, assignments: dict[int, Any], uses: dict[int, Any]):
         super().__init__()
         self._assignments = assignments
         self._uses = uses
-        self._variable_manager: VariableManagerInternal = variable_manager
 
-    def _u(self, v) -> SimVariable | None:
-        """
-        Get unified variable for a given variable.
-        """
-        return self._variable_manager.unified_variable(v)
-
-    def _handle_MultiStatementExpression(
+    def _handle_MultiStatementExpression(  # type: ignore
         self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
-    ):
+    ) -> Expression | None:
         changed = False
         new_statements = []
         for idx, stmt_ in enumerate(expr.stmts):
@@ -386,7 +549,7 @@ class ExpressionReplacer(AILBlockWalker):
         if changed:
             if not new_statements:
                 # it is no longer a multi-statement expression
-                return new_expr
+                return new_expr  # type: ignore
             expr_ = expr.copy()
             expr_.expr = new_expr
             expr_.stmts = new_statements
@@ -424,16 +587,14 @@ class ExpressionReplacer(AILBlockWalker):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.variable is not None:
-            unified_var = self._u(expr.variable)
-            if unified_var in self._uses:
-                replace_with, _ = self._assignments[unified_var]
-                return replace_with
+        if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.varid in self._uses:
+            replace_with, _ = self._assignments[expr.varid]
+            return replace_with
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class ExpressionFolder(SequenceWalker):
-    def __init__(self, assignments: dict, uses: dict, node, variable_manager):
+    def __init__(self, assignments: dict[int, Any], uses: dict[int, Any], node):
         handlers = {
             ailment.Block: self._handle_Block,
             ConditionNode: self._handle_Condition,
@@ -444,14 +605,7 @@ class ExpressionFolder(SequenceWalker):
         super().__init__(handlers)
         self._assignments = assignments
         self._uses = uses
-        self._variable_manager = variable_manager
         self.walk(node)
-
-    def _u(self, v) -> SimVariable | None:
-        """
-        Get unified variable for a given variable.
-        """
-        return self._variable_manager.unified_variable(v)
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         # Walk the block to remove each assignment and replace uses of each variable
@@ -461,45 +615,42 @@ class ExpressionFolder(SequenceWalker):
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                 and stmt.dst.was_reg
-                and stmt.dst.variable is not None
+                and stmt.dst.varid in self._assignments
             ):
-                unified_var = self._u(stmt.dst.variable)
-                if unified_var in self._assignments:
-                    # remove this statement
-                    continue
+                # remove this statement
+                continue
             if (
                 isinstance(stmt, ailment.Stmt.Call)
                 and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None
+                and stmt.ret_expr.varid in self._assignments
             ):
-                unified_var = self._u(stmt.ret_expr.variable)
-                if unified_var in self._assignments:
-                    # remove this statement
-                    continue
+                # remove this statement
+                continue
             new_stmts.append(stmt)
         node.statements = new_stmts
 
         # Walk the block to replace the use of each variable
-        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
+        replacer = ExpressionReplacer(self._assignments, self._uses)
         replacer.walk(node)
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
+        replacer = ExpressionReplacer(self._assignments, self._uses)
         r = replacer.walk_expression(node.condition)
         if r is not None and r is not node.condition:
             node.condition = r
         return super()._handle_ConditionalBreak(node, **kwargs)
 
     def _handle_Condition(self, node: ConditionNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
+        replacer = ExpressionReplacer(self._assignments, self._uses)
         r = replacer.walk_expression(node.condition)
         if r is not None and r is not node.condition:
             node.condition = r
         return super()._handle_Condition(node, **kwargs)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
+        replacer = ExpressionReplacer(self._assignments, self._uses)
         for idx in range(len(node.condition_and_nodes)):  # pylint:disable=consider-using-enumerate
             cond, _ = node.condition_and_nodes[idx]
             r = replacer.walk_expression(cond)
@@ -508,17 +659,17 @@ class ExpressionFolder(SequenceWalker):
         return super()._handle_CascadingCondition(node, **kwargs)
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
+        replacer = ExpressionReplacer(self._assignments, self._uses)
 
         # iterator
         if node.iterator is not None:
-            r = replacer.walk_expression(node.iterator)
+            r = replacer.walk_statement(node.iterator)
             if r is not None and r is not node.iterator:
                 node.iterator = r
 
         # initializer
         if node.initializer is not None:
-            r = replacer.walk_expression(node.initializer)
+            r = replacer.walk_statement(node.initializer)
             if r is not None and r is not node.initializer:
                 node.initializer = r
 
@@ -531,7 +682,7 @@ class ExpressionFolder(SequenceWalker):
         return super()._handle_Loop(node, **kwargs)
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
+        replacer = ExpressionReplacer(self._assignments, self._uses)
 
         r = replacer.walk_expression(node.switch_expr)
         if r is not None and r is not node.switch_expr:

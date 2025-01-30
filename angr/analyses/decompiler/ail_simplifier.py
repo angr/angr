@@ -27,6 +27,7 @@ from ailment.expression import (
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.utils.ail import is_phi_assignment, HasExprWalker
+from angr.utils.ssa import has_call_in_between_stmts, has_store_stmt_in_between_stmts, has_load_expr_in_between_stmts
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
 from angr.knowledge_plugins.propagations.states import Equivalence
@@ -292,7 +293,7 @@ class AILSimplifier(Analysis):
 
         narrowed = False
 
-        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -424,6 +425,7 @@ class AILSimplifier(Analysis):
                 return ExprNarrowingInfo(False)
 
             block = self.blocks.get(old_block, old_block)
+            assert loc.stmt_idx is not None
             if loc.stmt_idx >= len(block.statements):
                 # missing a statement for whatever reason
                 return ExprNarrowingInfo(False)
@@ -623,9 +625,9 @@ class AILSimplifier(Analysis):
             block = blocks_by_addr_and_idx[(block_addr, block_idx)]
 
             # only replace loads if there are stack arguments in this block
-            replace_loads = insn_addrs_using_stack_args is not None and {
-                stmt.ins_addr for stmt in block.statements
-            }.intersection(insn_addrs_using_stack_args)
+            replace_loads: bool = insn_addrs_using_stack_args is not None and bool(
+                {stmt.ins_addr for stmt in block.statements}.intersection(insn_addrs_using_stack_args)
+            )
 
             # remove virtual variables in the avoid list
             if self._avoid_vvar_ids:
@@ -662,7 +664,7 @@ class AILSimplifier(Analysis):
         if not equivalence:
             return simplified
 
-        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -943,6 +945,8 @@ class AILSimplifier(Analysis):
                     for use_loc in all_use_locs:
                         if use_loc == eq.codeloc:
                             continue
+                        assert use_loc.block_addr is not None
+                        assert use_loc.stmt_idx is not None
                         block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                         stmt = block.statements[use_loc.stmt_idx]
                         if isinstance(stmt, Assignment) or (isinstance(replace_with, Load) and isinstance(stmt, Store)):
@@ -954,11 +958,15 @@ class AILSimplifier(Analysis):
 
                 remove_initial_assignment = False  # expression folding will take care of it
 
+            assert replace_with is not None
+
             if any(not isinstance(use_and_expr[1], VirtualVariable) for _, use_and_expr in all_uses_with_def):
                 # if any of the uses are phi assignments, we skip
                 used_in_phi_assignment = False
                 for _, use_and_expr in all_uses_with_def:
                     u = use_and_expr[0]
+                    assert u.block_addr is not None
+                    assert u.stmt_idx is not None
                     block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
                     stmt = block.statements[u.stmt_idx]
                     if is_phi_assignment(stmt):
@@ -1120,8 +1128,6 @@ class AILSimplifier(Analysis):
         than once after simplification and graph structuring where conditions might be duplicated (e.g., in Dream).
         In such cases, the one-use expression folder in RegionSimplifier will perform this transformation.
         """
-        # Disabled until https://github.com/angr/angr/issues/5112 and related folding issues are fixed
-        return False
 
         # pylint:disable=unreachable
         simplified = False
@@ -1130,7 +1136,7 @@ class AILSimplifier(Analysis):
         if not equivalence:
             return simplified
 
-        addr_and_idx_to_block: dict[tuple[int, int], Block] = {}
+        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
@@ -1168,6 +1174,8 @@ class AILSimplifier(Analysis):
                     ),
                     eq.codeloc,
                 )
+                assert the_def.codeloc.block_addr is not None
+                assert the_def.codeloc.stmt_idx is not None
 
                 all_uses: set[tuple[CodeLocation, Any]] = set(rd.get_vvar_uses_with_expr(the_def.atom))
 
@@ -1176,6 +1184,8 @@ class AILSimplifier(Analysis):
                 u, used_expr = next(iter(all_uses))
                 if used_expr is None:
                     continue
+                assert u.block_addr is not None
+                assert u.stmt_idx is not None
 
                 if u in def_locations_to_remove:
                     # this use site has been altered by previous folding attempts. the corresponding statement will be
@@ -1196,41 +1206,28 @@ class AILSimplifier(Analysis):
                 if u.block_addr not in {b.addr for b in super_node_blocks}:
                     continue
 
-                # check if the register has been overwritten by statements in between the def site and the use site
-                # usesite_atom_defs = set(rd.get_defs(the_def.atom, u, OP_BEFORE))
-                # if len(usesite_atom_defs) != 1:
-                #     continue
-                # usesite_atom_def = next(iter(usesite_atom_defs))
-                # if usesite_atom_def != the_def:
-                #     continue
-
-                # check if any atoms that the call relies on has been overwritten by statements in between the def site
-                # and the use site.
-                # TODO: Prove non-interference
-                # defsite_all_expr_uses = set(rd.all_uses.get_uses_by_location(the_def.codeloc))
-                # defsite_used_atoms = set()
-                # for dd in defsite_all_expr_uses:
-                #     defsite_used_atoms.add(dd.atom)
-                # usesite_expr_def_outdated = False
-                # for defsite_expr_atom in defsite_used_atoms:
-                #     usesite_expr_uses = set(rd.get_defs(defsite_expr_atom, u, OP_BEFORE))
-                #     if not usesite_expr_uses:
-                #         # the atom is not defined at the use site - it's fine
-                #         continue
-                #     defsite_expr_uses = set(rd.get_defs(defsite_expr_atom, the_def.codeloc, OP_BEFORE))
-                #     if usesite_expr_uses != defsite_expr_uses:
-                #         # special case: ok if this atom is assigned to at the def site and has not been overwritten
-                #         if len(usesite_expr_uses) == 1:
-                #             usesite_expr_use = next(iter(usesite_expr_uses))
-                #             if usesite_expr_use.atom == defsite_expr_atom and (
-                #                 usesite_expr_use.codeloc == the_def.codeloc
-                #                 or usesite_expr_use.codeloc.block_addr == call_addr
-                #             ):
-                #                 continue
-                #         usesite_expr_def_outdated = True
-                #         break
-                # if usesite_expr_def_outdated:
-                #     continue
+                # ensure there are no other calls between the def site and the use site.
+                # this is because we do not want to alter the order of calls.
+                u_inclusive = CodeLocation(u.block_addr, u.stmt_idx + 1, block_idx=u.block_idx)
+                # note that the target statement being a store is fine
+                if (
+                    has_call_in_between_stmts(
+                        self.func_graph,
+                        addr_and_idx_to_block,
+                        the_def.codeloc,
+                        u_inclusive,
+                        skip_if_contains_vvar=the_def.atom.varid,
+                    )
+                    or has_store_stmt_in_between_stmts(self.func_graph, addr_and_idx_to_block, the_def.codeloc, u)
+                    or has_load_expr_in_between_stmts(
+                        self.func_graph,
+                        addr_and_idx_to_block,
+                        the_def.codeloc,
+                        u_inclusive,
+                        skip_if_contains_vvar=the_def.atom.varid,
+                    )
+                ):
+                    continue
 
                 # check if there are any calls in between the def site and the use site
                 if self._count_calls_in_supernodeblocks(super_node_blocks, the_def.codeloc, u) > 0:
@@ -1316,8 +1313,8 @@ class AILSimplifier(Analysis):
         # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
         # cases where a statement defines more than one atoms, e.g., a call statement that defines both the return
         # value and the floating-point return value.
-        stmts_to_remove_per_block: dict[tuple[int, int], set[int]] = defaultdict(set)
-        stmts_to_keep_per_block: dict[tuple[int, int], set[int]] = defaultdict(set)
+        stmts_to_remove_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
+        stmts_to_keep_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         dead_vvar_ids: set[int] = set()
 
         # Find all statements that should be removed
@@ -1344,6 +1341,7 @@ class AILSimplifier(Analysis):
                             pass
                         elif stackarg_offsets is not None:
                             # we always remove definitions for stack arguments
+                            assert def_.atom.stack_offset is not None
                             if (def_.atom.stack_offset & mask) not in stackarg_offsets:
                                 continue
                         else:
@@ -1364,10 +1362,15 @@ class AILSimplifier(Analysis):
                     dead_vvar_ids.add(def_.atom.varid)
 
                 if not isinstance(def_.codeloc, ExternalCodeLocation):
+                    assert def_.codeloc.block_addr is not None
+                    assert def_.codeloc.stmt_idx is not None
                     stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
                         def_.codeloc.stmt_idx
                     )
             else:
+                if not isinstance(def_.codeloc, ExternalCodeLocation):
+                    assert def_.codeloc.block_addr is not None
+                    assert def_.codeloc.stmt_idx is not None
                 stmts_to_keep_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
 
         # find all phi variables that rely on variables that no longer exist
@@ -1380,6 +1383,7 @@ class AILSimplifier(Analysis):
                     vvarid in removed_vvar_ids for vvarid in phi_use_varids
                 ):
                     loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
+                    assert loc.block_addr is not None and loc.stmt_idx is not None
                     stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
                     new_removed_vvar_ids.add(phi_varid)
                     all_removed_var_ids.add(phi_varid)
@@ -1391,11 +1395,13 @@ class AILSimplifier(Analysis):
         redundant_phi_and_dirty_varids = self._find_cyclic_dependent_phis_and_dirty_vvars(rd)
         for varid in redundant_phi_and_dirty_varids:
             loc = rd.all_vvar_definitions[rd.varid_to_vvar[varid]]
+            assert loc.block_addr is not None and loc.stmt_idx is not None
             stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
             stmts_to_keep_per_block[(loc.block_addr, loc.block_idx)].discard(loc.stmt_idx)
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
+            assert codeloc.block_addr is not None and codeloc.stmt_idx is not None
             stmts_to_remove_per_block[codeloc.block_addr, codeloc.block_idx].add(codeloc.stmt_idx)
 
         simplified = False
@@ -1565,7 +1571,7 @@ class AILSimplifier(Analysis):
         if rewriter_cls is None:
             return False
 
-        walker = None
+        walker = AILBlockWalker()
 
         class _any_update:
             """
@@ -1574,7 +1580,9 @@ class AILSimplifier(Analysis):
 
             v = False
 
-        def _handle_expr(expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> Expression | None:
+        def _handle_expr(
+            expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
+        ) -> Expression | None:
             if isinstance(expr, VEXCCallExpression):
                 rewriter = rewriter_cls(expr, self.project.arch)
                 if rewriter.result is not None:
@@ -1585,8 +1593,6 @@ class AILSimplifier(Analysis):
             return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
-
-        walker = AILBlockWalker()
         walker._handle_expr = _handle_expr
 
         updated = False

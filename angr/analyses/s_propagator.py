@@ -35,6 +35,7 @@ from angr.utils.ssa import (
     get_tmp_uselocs,
     get_tmp_deflocs,
     phi_assignment_get_src,
+    has_store_stmt_in_between_stmts,
 )
 
 
@@ -186,6 +187,8 @@ class SPropagatorAnalysis(Analysis):
 
         # function mode only
         if self.mode == "function":
+            assert self.func_graph is not None
+
             for vvar, defloc in vvar_deflocs.items():
                 if vvar.varid not in vvar_uselocs:
                     continue
@@ -213,7 +216,7 @@ class SPropagatorAnalysis(Analysis):
                     #    }
                     can_replace = True
                     for _, vvar_useloc in vvar_uselocs[vvar.varid]:
-                        if self.has_store_stmt_in_between(blocks, defloc, vvar_useloc):
+                        if has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc):
                             can_replace = False
 
                     if can_replace:
@@ -241,8 +244,8 @@ class SPropagatorAnalysis(Analysis):
                 if vvar.was_reg or vvar.was_parameter:
                     if len(vvar_uselocs[vvar.varid]) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
-                        if is_const_vvar_load_assignment(stmt) and not self.has_store_stmt_in_between(
-                            blocks, defloc, vvar_useloc
+                        if is_const_vvar_load_assignment(stmt) and not has_store_stmt_in_between_stmts(
+                            self.func_graph, blocks, defloc, vvar_useloc
                         ):
                             # we can propagate this load because there is no store between its def and use
                             replacements[vvar_useloc][vvar_used] = stmt.src
@@ -459,44 +462,6 @@ class SPropagatorAnalysis(Analysis):
 
                     seen.add(succ)
                     queue.append(succ)
-
-        return False
-
-    def has_store_stmt_in_between(
-        self, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
-    ) -> bool:
-        assert defloc.block_addr is not None
-        assert defloc.stmt_idx is not None
-        assert useloc.block_addr is not None
-        assert useloc.stmt_idx is not None
-        assert self.func_graph is not None
-
-        use_block = blocks[(useloc.block_addr, useloc.block_idx)]
-        def_block = blocks[(defloc.block_addr, defloc.block_idx)]
-
-        # traverse the graph, go from use_block until we reach def_block, and look for Store statements
-        seen = {use_block}
-        queue = [use_block]
-        while queue:
-            block = queue.pop(0)
-
-            starting_stmt_idx, ending_stmt_idx = 0, len(block.statements)
-            if block is def_block:
-                starting_stmt_idx = defloc.stmt_idx + 1
-            if block is use_block:
-                ending_stmt_idx = useloc.stmt_idx
-
-            for i in range(starting_stmt_idx, ending_stmt_idx):
-                if isinstance(block.statements[i], Store):
-                    return True
-
-            if block is def_block:
-                continue
-
-            for pred in self.func_graph.predecessors(block):
-                if pred not in seen:
-                    seen.add(pred)
-                    queue.append(pred)
 
         return False
 

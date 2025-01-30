@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Generator
-from typing import Any
+from typing import Any, Literal, overload
 
 from ailment.expression import VirtualVariable, Tmp
 
@@ -47,6 +47,12 @@ class SRDAModel:
         for tmp_atom, stmt_idx in self.all_tmp_definitions[block_loc].items():
             s.add(Definition(tmp_atom, CodeLocation(block_loc.block_addr, stmt_idx, block_idx=block_loc.block_idx)))
         return s
+
+    @overload
+    def get_uses_by_location(self, loc: CodeLocation, exprs: Literal[True]) -> set[tuple[Definition, Any | None]]: ...
+
+    @overload
+    def get_uses_by_location(self, loc: CodeLocation, exprs: Literal[False] = ...) -> set[Definition]: ...
 
     def get_uses_by_location(
         self, loc: CodeLocation, exprs: bool = False

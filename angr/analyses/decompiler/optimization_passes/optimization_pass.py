@@ -129,6 +129,7 @@ class OptimizationPass(BaseOptimizationPass):
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
         avoid_vvar_ids: set[int] | None = None,
+        arg_vvars: set[int] | None = None,
         **kwargs,
     ):
         super().__init__(func)
@@ -141,6 +142,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._rd = reaching_definitions
         self._scratch = scratch if scratch is not None else {}
         self._new_block_addrs = set()
+        self._arg_vvars = arg_vvars
         self.vvar_id_start = vvar_id_start
         self.entry_node_addr: tuple[int, int | None] = (
             entry_node_addr if entry_node_addr is not None else (func.addr, None)
@@ -482,7 +484,7 @@ class StructuringOptimizationPass(OptimizationPass):
         if not rs or not rs.result or not rs.result.nodes or rs.result_incomplete:
             return False
 
-        rs = self.project.analyses.RegionSimplifier(self._func, rs.result, kb=self.kb, variable_kb=self._variable_kb)
+        rs = self.project.analyses.RegionSimplifier(self._func, rs.result, arg_vvars=self._arg_vvars, kb=self.kb)
         if not rs or rs.goto_manager is None or rs.result is None:
             return False
 

@@ -2,8 +2,8 @@
 from __future__ import annotations
 import logging
 from collections import defaultdict
-from typing import Optional, Union, Any, TYPE_CHECKING
 from collections.abc import Iterable
+from typing import Optional, Union, Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
@@ -15,6 +15,7 @@ from angr.knowledge_base import KnowledgeBase
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
+from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
@@ -30,7 +31,6 @@ from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
-    from .structured_codegen.c import CStructuredCodeGenerator
 
 l = logging.getLogger(name=__name__)
 
@@ -157,6 +157,8 @@ class Decompiler(Analysis):
                             self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
+        if self._cache_parameters is None or cache.parameters is None:
+            return False
         a, b = self._cache_parameters, cache.parameters
         id_checks = {"cfg", "variable_kb"}
         return all(a[k] is b[k] if k in id_checks else a[k] == b[k] for k in self._cache_parameters)
@@ -201,7 +203,7 @@ class Decompiler(Analysis):
 
         variable_kb = self._variable_kb
         # fall back to old codegen
-        if variable_kb is None and old_codegen is not None:
+        if variable_kb is None and old_codegen is not None and isinstance(old_codegen, CStructuredCodeGenerator):
             variable_kb = old_codegen._variable_kb
 
         if variable_kb is None:
@@ -223,7 +225,8 @@ class Decompiler(Analysis):
             fold_callexprs_into_conditions = True
 
         cache = DecompilationCache(self.func.addr)
-        cache.parameters = self._cache_parameters
+        if self._cache_parameters is not None:
+            cache.parameters = self._cache_parameters
         cache.ite_exprs = ite_exprs
         cache.binop_operators = binop_operators
 
@@ -296,6 +299,7 @@ class Decompiler(Analysis):
             ri,
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
+            arg_vvars=set(clinic.arg_vvars),
         )
 
         # Rewrite the graph to remove phi expressions
@@ -325,9 +329,9 @@ class Decompiler(Analysis):
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
+                arg_vvars=set(self.clinic.arg_vvars),
                 kb=self.kb,
                 fail_fast=self._fail_fast,
-                variable_kb=clinic.variable_kb,
                 **self.options_to_params(self.options_by_class["region_simplifier"]),
             )
             seq_node = s.result
@@ -439,7 +443,7 @@ class Decompiler(Analysis):
         return ail_graph
 
     @timethis
-    def _run_region_simplification_passes(self, ail_graph, ri, reaching_definitions, **kwargs):
+    def _run_region_simplification_passes(self, ail_graph, ri, reaching_definitions, arg_vvars: set[int], **kwargs):
         """
         Runs optimizations that should be executed after a single region identification. This function will return
         two items: the new RegionIdentifier object and the new AIL Graph, which should probably be written
@@ -483,6 +487,7 @@ class Decompiler(Analysis):
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
                 variable_kb=self._variable_kb,
+                arg_vvars=arg_vvars,
                 region_identifier=ri,
                 reaching_definitions=reaching_definitions,
                 vvar_id_start=self.vvar_id_start,
