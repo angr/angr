@@ -156,18 +156,40 @@ class AILBlacklistExprTypeWalker(AILBlockWalkerBase):
     Walks an AIL expression or statement and determines if it does not contain certain types of expressions.
     """
 
-    def __init__(self, blacklist_expr_types: tuple[type, ...]):
+    def __init__(self, blacklist_expr_types: tuple[type, ...], skip_if_contains_vvar: int | None = None):
         super().__init__()
         self.blacklist_expr_types = blacklist_expr_types
         self.has_blacklisted_exprs = False
+        self.skip_if_contains_vvar = skip_if_contains_vvar
+
+        self._has_specified_vvar = False
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
         if isinstance(expr, self.blacklist_expr_types):
-            self.has_blacklisted_exprs = True
-            return None
+            if self.skip_if_contains_vvar is None:
+                self.has_blacklisted_exprs = True
+                return None
+            # otherwise we do a more complicated check
+            self._has_specified_vvar = False  # we do not support nested blacklisted expr types
+            has_blacklisted_exprs = True
+            r = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            if self._has_specified_vvar is False:
+                # we have seen the vvar that we are looking for! ignore this match
+                self.has_blacklisted_exprs = has_blacklisted_exprs
+                return None
+            self._has_specified_vvar = False
+            return r
+
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if self.skip_if_contains_vvar is not None and expr.varid == self.skip_if_contains_vvar:
+            self._has_specified_vvar = True
+        return super()._handle_VirtualVariable(expr_idx, expr, stmt_idx, stmt, block)
 
 
 def is_const_and_vvar_assignment(stmt: Statement) -> bool:
@@ -206,8 +228,8 @@ def is_phi_assignment(stmt: Statement) -> bool:
     return isinstance(stmt, Assignment) and isinstance(stmt.src, Phi)
 
 
-def has_load_expr(stmt: Statement) -> bool:
-    walker = AILBlacklistExprTypeWalker((Load,))
+def has_load_expr(stmt: Statement, skip_if_contains_vvar: int | None = None) -> bool:
+    walker = AILBlacklistExprTypeWalker((Load,), skip_if_contains_vvar=skip_if_contains_vvar)
     walker.walk_statement(stmt)
     return walker.has_blacklisted_exprs
 
@@ -284,14 +306,18 @@ def has_store_stmt_in_between_stmts(
 
 
 def has_call_in_between_stmts(
-    graph: networkx.DiGraph, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+    graph: networkx.DiGraph,
+    blocks: dict[tuple[int, int | None], Block],
+    defloc: CodeLocation,
+    useloc: CodeLocation,
+    skip_if_contains_vvar: int | None = None,
 ) -> bool:
 
     def _contains_call(stmt: Statement) -> bool:
         if isinstance(stmt, Call):
             return True
         # walk the statement and check if there is a call expression
-        walker = AILBlacklistExprTypeWalker((Call,))
+        walker = AILBlacklistExprTypeWalker((Call,), skip_if_contains_vvar=skip_if_contains_vvar)
         walker.walk_statement(stmt)
         return walker.has_blacklisted_exprs
 
@@ -299,9 +325,15 @@ def has_call_in_between_stmts(
 
 
 def has_load_expr_in_between_stmts(
-    graph: networkx.DiGraph, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+    graph: networkx.DiGraph,
+    blocks: dict[tuple[int, int | None], Block],
+    defloc: CodeLocation,
+    useloc: CodeLocation,
+    skip_if_contains_vvar: int | None = None,
 ) -> bool:
-    return check_in_between_stmts(graph, blocks, defloc, useloc, has_load_expr)
+    return check_in_between_stmts(
+        graph, blocks, defloc, useloc, lambda stmt: has_load_expr(stmt, skip_if_contains_vvar=skip_if_contains_vvar)
+    )
 
 
 __all__ = (

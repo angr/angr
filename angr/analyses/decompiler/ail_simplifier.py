@@ -1209,13 +1209,22 @@ class AILSimplifier(Analysis):
                 # ensure there are no other calls between the def site and the use site.
                 # this is because we do not want to alter the order of calls.
                 u_inclusive = CodeLocation(u.block_addr, u.stmt_idx + 1, block_idx=u.block_idx)
+                # note that the target statement being a store is fine
                 if (
-                    has_call_in_between_stmts(self.func_graph, addr_and_idx_to_block, the_def.codeloc, u_inclusive)
-                    or has_store_stmt_in_between_stmts(
-                        self.func_graph, addr_and_idx_to_block, the_def.codeloc, u_inclusive
+                    has_call_in_between_stmts(
+                        self.func_graph,
+                        addr_and_idx_to_block,
+                        the_def.codeloc,
+                        u_inclusive,
+                        skip_if_contains_vvar=the_def.atom.varid,
                     )
+                    or has_store_stmt_in_between_stmts(self.func_graph, addr_and_idx_to_block, the_def.codeloc, u)
                     or has_load_expr_in_between_stmts(
-                        self.func_graph, addr_and_idx_to_block, the_def.codeloc, u_inclusive
+                        self.func_graph,
+                        addr_and_idx_to_block,
+                        the_def.codeloc,
+                        u_inclusive,
+                        skip_if_contains_vvar=the_def.atom.varid,
                     )
                 ):
                     continue
