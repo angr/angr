@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable, Sequence
+from weakref import WeakValueDictionary
 
 import archinfo
 from archinfo import ArchARM, ArchPcode
@@ -558,54 +559,41 @@ def lift(
     if isinstance(data, str):
         raise TypeError("Cannot pass unicode string as data to lifter")
 
-    if isinstance(data, bytes):
-        # py_data = data
-        # c_data = None
-        allow_arch_optimizations = False
-    else:
-        if max_bytes is None:
-            raise PyVEXError("Cannot lift block with ffi pointer and no size (max_bytes is None)")
-        # c_data = data
-        # py_data = None
-        allow_arch_optimizations = True
+    lifter = PcodeBasicBlockLifter.from_cache(arch)
+    final_irsb = IRSB.empty_block(arch, addr)
 
-    # In order to attempt to preserve the property that
-    # VEX lifts the same bytes to the same IR at all times when optimizations are disabled
-    # we hack off all of VEX's non-IROpt optimizations when opt_level == -1.
-    # This is intended to enable comparisons of the lifted IR between code that happens to be
-    # found in different contexts.
-    if opt_level < 0:
-        allow_arch_optimizations = False
-        opt_level = 0
-
-    u_data = data
     try:
-        final_irsb = PcodeLifter(arch, addr).lift(
-            u_data,
-            bytes_offset,
-            max_bytes,
-            max_inst,
-            opt_level,
-            traceflags,
-            allow_arch_optimizations,
-            strict_block_end,
-            skip_stmts,
-            collect_data_refs,
+        lifter.lift(
+            final_irsb,
+            addr,
+            data,
+            bytes_offset=bytes_offset,
+            max_inst=max_inst,
+            max_bytes=max_bytes,
+            branch_delay_slot=arch.branch_delay_slot,
+            is_sparc32="sparc:" in arch.name and arch.bits == 32,
         )
-    except SkipStatementsError:
+
+        if final_irsb.size == 0:
+            l.debug("raising lifting exception")
+            raise LiftingException(f"pypcode: could not decode any instructions @ 0x{addr:x}")
+    except SkipStatementsError as e:
         assert skip_stmts is True
-        final_irsb = PcodeLifter(arch, addr).lift(
-            u_data,
-            bytes_offset,
-            max_bytes,
-            max_inst,
-            opt_level,
-            traceflags,
-            allow_arch_optimizations,
-            strict_block_end,
-            skip_stmts=False,
-            collect_data_refs=collect_data_refs,
+
+        lifter.lift(
+            final_irsb,
+            addr,
+            data,
+            bytes_offset=bytes_offset,
+            max_inst=max_inst,
+            max_bytes=max_bytes,
+            branch_delay_slot=arch.branch_delay_slot,
+            is_sparc32="sparc:" in arch.name and arch.bits == 32,
         )
+
+        if final_irsb.size == 0:
+            l.debug("raising lifting exception")
+            raise LiftingException(f"pypcode: could not decode any instructions @ 0x{addr:x}") from e
     except LiftingException as ex:
         l.debug("Lifting Exception: %s", ex)
         final_irsb = IRSB.empty_block(
@@ -696,6 +684,8 @@ class PcodeBasicBlockLifter:
     context: Context
     behaviors: BehaviorFactory
 
+    _cache: WeakValueDictionary[archinfo.Arch, PcodeBasicBlockLifter] = WeakValueDictionary()
+
     def __init__(self, arch: archinfo.Arch):
         if isinstance(arch, ArchPcode):
             langid = arch.name
@@ -712,6 +702,14 @@ class PcodeBasicBlockLifter:
 
         self.context = pypcode.Context(langid)
         self.behaviors = BehaviorFactory()
+
+    @staticmethod
+    def from_cache(arch: archinfo.Arch) -> PcodeBasicBlockLifter:
+        if arch not in PcodeBasicBlockLifter._cache:
+            # keep a reference so it doesn't get garbage collected before we return
+            lifter = PcodeBasicBlockLifter(arch)
+            PcodeBasicBlockLifter._cache[arch] = lifter
+        return PcodeBasicBlockLifter._cache[arch]
 
     def lift(
         self,
@@ -832,53 +830,6 @@ class PcodeBasicBlockLifter:
 
         irsb._size = fallthru_addr - irsb.addr
         irsb.next, irsb.jumpkind = next_block
-
-
-class PcodeLifter:
-    """
-    Handles calling into pypcode to lift a block
-    """
-
-    _lifter_cache = {}
-
-    def __init__(self, arch: archinfo.Arch, addr: int):
-        self.arch = arch
-        self.addr = addr
-
-    def lift(
-        self,
-        data: str | bytes | None,
-        bytes_offset: int | None = None,
-        max_bytes: int | None = None,
-        max_inst: int | None = None,
-        opt_level: int = 1,
-        traceflags: int | None = None,
-        allow_arch_optimizations: bool | None = None,
-        strict_block_end: bool | None = None,
-        skip_stmts: bool = False,
-        collect_data_refs: bool = False,
-    ) -> IRSB:
-        irsb = IRSB.empty_block(self.arch, self.addr)
-
-        if self.arch not in PcodeLifter._lifter_cache:
-            PcodeLifter._lifter_cache[self.arch] = PcodeBasicBlockLifter(self.arch)
-
-        lifter = PcodeLifter._lifter_cache[self.arch]
-        lifter.lift(
-            irsb,
-            self.addr,
-            data,
-            bytes_offset=bytes_offset,
-            max_inst=max_inst,
-            max_bytes=max_bytes,
-            branch_delay_slot=self.arch.branch_delay_slot,
-            is_sparc32="sparc:" in self.arch.name and self.arch.bits == 32,
-        )
-
-        if irsb.size == 0:
-            l.debug("raising lifting exception")
-            raise LiftingException(f"pypcode: could not decode any instructions @ 0x{self.addr:x}")
-        return irsb
 
 
 class PcodeLifterEngineMixin(SimEngine):
