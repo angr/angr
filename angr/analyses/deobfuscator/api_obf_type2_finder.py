@@ -91,8 +91,12 @@ class APIObfuscationType2Finder:
             log.debug("...Failed to resolve a function name")
             return
 
-        proc_name = result.rstrip(b"\x00").decode("utf-8")
-        log.debug("...Resolved concrete function name: %s", proc_name)
+        try:
+            func_name = result.rstrip(b"\x00").decode("utf-8")
+            log.debug("...Resolved concrete function name: %s", func_name)
+        except UnicodeDecodeError:
+            log.debug("...Failed to decode utf-8 function name")
+            return
 
         # Examine successor definitions to find where the function pointer is written
         for successor in rda.dep_graph.find_all_successors(callsite_info.ret_defns):
@@ -121,7 +125,7 @@ class APIObfuscationType2Finder:
 
             self.results.append(
                 APIObfuscationType2(
-                    resolved_func_name=proc_name,
+                    resolved_func_name=func_name,
                     resolved_func_ptr=ptr,
                     resolved_in=caller,
                     resolved_by=callee,
