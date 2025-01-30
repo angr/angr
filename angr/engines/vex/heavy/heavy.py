@@ -83,7 +83,6 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
         self,
         successors,
         irsb=None,
-        insn_text=None,
         insn_bytes=None,
         thumb=False,
         size=None,
@@ -99,20 +98,9 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
                 extra_stop_points=extra_stop_points,
                 num_inst=num_inst,
                 size=size,
-                insn_text=insn_text,
                 insn_bytes=insn_bytes,
                 **kwargs,
             )
-
-        if insn_text is not None:
-            if insn_bytes is not None:
-                raise errors.SimEngineError("You cannot provide both 'insn_bytes' and 'insn_text'!")
-
-            insn_bytes = self.project.arch.asm(insn_text, addr=successors.addr, thumb=thumb)
-            if insn_bytes is None:
-                raise errors.AngrAssemblyError(
-                    "Assembling failed. Please make sure keystone is installed, and the assembly string is correct."
-                )
 
         successors.sort = "IRSB"
         successors.description = "IRSB"
@@ -137,9 +125,9 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
 
             if irsb is None:
                 irsb = self.lift_vex(
+                    insn_bytes=insn_bytes,
                     addr=addr,
                     state=self.state,
-                    insn_bytes=insn_bytes,
                     thumb=thumb,
                     size=size,
                     num_inst=num_inst,

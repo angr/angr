@@ -31,7 +31,8 @@ class TestKeyStone(unittest.TestCase):
 
         if is_thumb:
             addr |= 1
-        block = p.factory.block(addr, insn_text=insn_text, thumb=is_thumb).vex
+        insn_bytes = p.arch.asm(insn_text, addr=addr)
+        block = p.factory.block(addr, insn_bytes=insn_bytes, thumb=is_thumb).vex
 
         assert block.instructions == 1
 
