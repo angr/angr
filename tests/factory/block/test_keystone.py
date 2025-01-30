@@ -31,11 +31,12 @@ class TestKeyStone(unittest.TestCase):
 
         if is_thumb:
             addr |= 1
-        block = p.factory.block(addr, insn_text=insn_text, thumb=is_thumb).vex
+        insn_bytes = p.arch.asm(insn_text, addr=addr, thumb=is_thumb)
+        block = p.factory.block(addr, insn_bytes=insn_bytes, thumb=is_thumb).vex
 
         assert block.instructions == 1
 
-        sm.step(force_addr=addr, insn_text=insn_text, thumb=is_thumb)
+        sm.step(force_addr=addr, insn_bytes=insn_bytes, thumb=is_thumb)
 
         if arch in ["i386", "x86_64"]:
             assert sm.one_active.solver.eval(sm.one_active.regs.eax) == 0x12

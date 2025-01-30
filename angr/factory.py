@@ -10,7 +10,7 @@ from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 from .sim_state import SimState
 from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
-from .errors import AngrAssemblyError, AngrError
+from .errors import AngrError
 from .engines import UberEngine, ProcedureEngine
 from .sim_type import SimTypeFunction, SimTypeInt
 from .codenode import HookNode, SyscallNode
@@ -307,7 +307,6 @@ class AngrObjectFactory:
         num_inst=None,
         traceflags=0,
         insn_bytes=None,
-        insn_text=None,  # backward compatibility
         strict_block_end=None,
         collect_data_refs=False,
         cross_insn_opt=True,
@@ -332,7 +331,6 @@ class AngrObjectFactory:
         num_inst=None,
         traceflags=0,
         insn_bytes=None,
-        insn_text=None,  # backward compatibility
         strict_block_end=None,
         collect_data_refs=False,
         load_from_ro_regions=False,
@@ -354,7 +352,6 @@ class AngrObjectFactory:
         num_inst=None,
         traceflags=0,
         insn_bytes=None,
-        insn_text=None,  # backward compatibility
         strict_block_end=None,
         collect_data_refs=False,
         cross_insn_opt=True,
@@ -366,19 +363,8 @@ class AngrObjectFactory:
         if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
             return SootBlock(addr, arch=self.project.arch, project=self.project)
 
-        if insn_bytes is not None and insn_text is not None:
-            raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
-
         if insn_bytes is not None:
             byte_string = insn_bytes
-
-        if insn_text is not None:
-            byte_string = self.project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
-            if byte_string is None:
-                # assembly failed
-                raise AngrAssemblyError(
-                    "Assembling failed. Please make sure keystone is installed, and the assembly string is correct."
-                )
 
         return Block(
             addr,
