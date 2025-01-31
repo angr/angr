@@ -17,6 +17,7 @@ from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
+from angr.knowledge_plugins.key_definitions import DerefSize
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.knowledge_plugins.key_definitions.atoms import AtomKind, GuardUse, Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, OP_BEFORE, OP_AFTER
@@ -439,6 +440,29 @@ class TestReachingDefinitions(TestCase):
 
             # Verify expected constant value
             assert ld.get_concrete_value_from_definition(defn) == 1337
+
+    def test_string_ptr_argument_on_stack(self):
+        bin_path = _binary_path("fauxware", arch="i386")
+        project = angr.Project(bin_path, auto_load_libs=False)
+        cfg = project.analyses[CFGFast].prep()()
+        main_func = cfg.functions["main"]
+
+        project.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main_func, observe_all=True)
+
+        # Collect argument from each puts callsite in main
+        puts_args = []
+        for callsite_info in rda.callsites_to(project.kb.functions["puts"]):
+            ld = rda.model.get_observation_by_insn(callsite_info.callsite, ObservationPointType.OP_BEFORE)
+            assert ld is not None
+
+            string_atom = ld.deref(callsite_info.args_defns[0], DerefSize.NULL_TERMINATE)
+            result = ld.get_concrete_value(string_atom, cast_to=bytes)
+            assert result is not None
+
+            puts_args.append(result.rstrip(b"\x00").decode("utf-8"))
+
+        assert puts_args == ["Username: ", "Password: "]
 
 
 if __name__ == "__main__":
