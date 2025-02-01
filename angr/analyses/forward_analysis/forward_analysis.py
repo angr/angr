@@ -181,7 +181,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         """
         return node
 
-    def _run_on_node(self, node: NodeType, state: AnalysisState) -> tuple[bool, AnalysisState]:
+    def _run_on_node(self, node: NodeType, state: AnalysisState) -> tuple[bool | None, AnalysisState]:
         """
         The analysis routine that runs on each node in the graph.
 

@@ -22,6 +22,7 @@ try:
     from angr.engines import pcode
 except ImportError:
     pypcode = None
+    pcode = None
 
 if TYPE_CHECKING:
     from angr.block import Block
@@ -92,6 +93,11 @@ class Register:
         if type(other) is Register or isinstance(other, Register):
             return self.offset == other.offset
         return False
+
+    def __add__(self, other) -> OffsetVal:
+        if type(other) is Constant:
+            return OffsetVal(self, other.val)
+        raise CouldNotResolveException
 
     def __repr__(self):
         return str(self.offset)
@@ -232,6 +238,7 @@ class StackPointerTrackerState:
     def give_up_on_memory_tracking(self):
         self.memory = {}
         self.is_tracking_memory = False
+        return self
 
     def store(self, addr, val):
         # strong update
@@ -370,7 +377,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         self._mem_merge_cache = {}
 
         if initial_reg_values:
-            self._reg_value_at_block_start[func.addr if func is not None else block.addr] = initial_reg_values
+            block_start_addr = func.addr if func is not None else block.addr  # type: ignore
+            self._reg_value_at_block_start[block_start_addr] = initial_reg_values
 
         _l.debug("Running on function %r", self._func)
         self._analyze()
@@ -461,9 +469,13 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return any(self.inconsistent_for(r) for r in self.reg_offsets)
 
     def inconsistent_for(self, reg):
+        if self._func is None:
+            raise ValueError("inconsistent_for() is only supported in function mode")
         return any(self.offset_after_block(endpoint.addr, reg) is TOP for endpoint in self._func.endpoints)
 
     def offsets_for(self, reg):
+        if self._func is None:
+            raise ValueError("offsets_for() is only supported in function mode")
         return [
             o for block in self._func.blocks if (o := self.offset_after_block(block.addr, reg)) not in (TOP, BOTTOM)
         ]
@@ -481,7 +493,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _post_analysis(self):
         pass
 
-    def _get_register(self, offset):
+    def _get_register(self, offset) -> Register:
         name = self.project.arch.register_names[offset]
         size = self.project.arch.registers[name][1]
         return Register(offset, size * self.project.arch.byte_width)
@@ -557,7 +569,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         output_state = state.freeze()
         return None, output_state
 
-    def _process_vex_irsb(self, node, vex_block: pyvex.IRSB, state: StackPointerTrackerState) -> int:
+    def _process_vex_irsb(self, node, vex_block: pyvex.IRSB, state: StackPointerTrackerState) -> int | None:
         tmps = {}
         curr_stmt_start_addr = None
 
@@ -704,21 +716,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             if callees:
                 if len(callees) == 1:
                     callee = callees[0]
+                    track_rax = False
+                    if (
+                        (callee.info.get("is_rust_probestack", False) and self.project.arch.name == "AMD64")
+                        or (callee.info.get("is_alloca_probe", False) and self.project.arch.name == "AMD64")
+                        or callee.name == "__chkstk"
+                    ):
+                        # sp = sp - rax right after returning from the call
+                        track_rax = True
 
-                    if callee.info.get("is_rust_probestack", False) is True and self.project.arch.name == "AMD64":
-                        # special-case for rust_probestack: sp = sp - rax right after returning from the call, so we
-                        # need to keep track of rax
-                        for stmt in reversed(vex_block.statements):
-                            if (
-                                isinstance(stmt, pyvex.IRStmt.Put)
-                                and stmt.offset == self.project.arch.registers["rax"][0]
-                                and isinstance(stmt.data, pyvex.IRExpr.Const)
-                            ):
-                                state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
-                                break
-                    elif callee.name == "__chkstk":
-                        # special-case for __chkstk: sp = sp - rax right after returning from the call, so we need to
-                        # keep track of rax
+                    if track_rax:
                         for stmt in reversed(vex_block.statements):
                             if (
                                 isinstance(stmt, pyvex.IRStmt.Put)
@@ -737,18 +744,20 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     # found callee clean-up cases...
                     try:
                         v = state.get(self.project.arch.sp_offset)
+                        incremented = None
                         if v is BOTTOM:
                             incremented = BOTTOM
                         elif callee_cleanups[0].prototype is not None:
                             num_args = len(callee_cleanups[0].prototype.args)
                             incremented = v + Constant(self.project.arch.bytes * num_args)
-                        state.put(self.project.arch.sp_offset, incremented)
+                        if incremented is not None:
+                            state.put(self.project.arch.sp_offset, incremented)
                     except CouldNotResolveException:
                         pass
 
         return curr_stmt_start_addr
 
-    def _process_pcode_irsb(self, node, pcode_irsb: pcode.lifter.IRSB, state: StackPointerTrackerState) -> int:
+    def _process_pcode_irsb(self, node, pcode_irsb: pcode.lifter.IRSB, state: StackPointerTrackerState) -> int | None:
         unique = {}
         curr_stmt_start_addr = None
 
@@ -830,18 +839,20 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     # found callee clean-up cases...
                     try:
                         v = state.get(self.project.arch.sp_offset)
+                        incremented = None
                         if v is BOTTOM:
                             incremented = BOTTOM
                         elif callee_cleanups[0].prototype is not None:
                             num_args = len(callee_cleanups[0].prototype.args)
                             incremented = v + Constant(self.project.arch.bytes * num_args)
-                        state.put(self.project.arch.sp_offset, incremented)
+                        if incremented is not None:
+                            state.put(self.project.arch.sp_offset, incremented)
                     except CouldNotResolveException:
                         pass
 
         return curr_stmt_start_addr
 
-    def _widen_states(self, *states):
+    def _widen_states(self, *states: FrozenStackPointerTrackerState):
         assert len(states) == 2
         merged, _ = self._merge_states(None, *states)
         if len(merged.memory) > 5:
@@ -849,13 +860,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             merged = merged.unfreeze().give_up_on_memory_tracking().freeze()
         return merged
 
-    def _merge_states(self, node, *states: StackPointerTrackerState):
+    def _merge_states(self, node, *states: FrozenStackPointerTrackerState):
         merged_state = states[0]
         for other in states[1:]:
             merged_state = merged_state.merge(other, node.addr, self._reg_merge_cache, self._mem_merge_cache)
         return merged_state, merged_state == states[0]
 
     def _find_callees(self, node) -> list[Function]:
+        if self._func is None:
+            raise ValueError("find_callees() is only supported in function mode")
+
         callees: list[Function] = []
         for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
             if data.get("type") == "call" and isinstance(dst, Function):
