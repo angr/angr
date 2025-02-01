@@ -307,6 +307,7 @@ class StructurerBase(Analysis):
                         jump_stmt = this_node.statements[-1]  # type: ignore
 
                     if isinstance(jump_stmt, ailment.Stmt.Jump):
+                        assert isinstance(this_node, ailment.Block)
                         next_node = node.nodes[i + 1]
                         if (
                             isinstance(jump_stmt.target, ailment.Expr.Const)
@@ -315,6 +316,7 @@ class StructurerBase(Analysis):
                             # this goto is useless
                             this_node.statements = this_node.statements[:-1]
                     elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
+                        assert isinstance(this_node, ailment.Block)
                         next_node = node.nodes[i + 1]
                         if (
                             isinstance(jump_stmt.true_target, ailment.Expr.Const)
@@ -368,6 +370,7 @@ class StructurerBase(Analysis):
                         jump_stmt = this_node.nodes[-1].statements[-1]
                         this_node = this_node.nodes[-1]
 
+                    assert isinstance(this_node, ailment.Block)
                     if isinstance(jump_stmt, ailment.Stmt.Jump):
                         next_node = node.nodes[i + 1]
                         if (
@@ -894,7 +897,7 @@ class StructurerBase(Analysis):
                 if isinstance(last_stmt.false_target, ailment.Expr.Const):
                     jump_targets.append((last_stmt.false_target.value, last_stmt.false_target_idx))
             if any(tpl in addr_and_ids for tpl in jump_targets):
-                return remove_last_statement(node)
+                return remove_last_statement(node)  # type: ignore
         return None
 
     @staticmethod
@@ -907,7 +910,7 @@ class StructurerBase(Analysis):
             return None
 
         if len(last_stmts) == 1 and isinstance(last_stmts[0], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
-            return remove_last_statement(node)
+            return remove_last_statement(node)  # type: ignore
         return None
 
     @staticmethod
