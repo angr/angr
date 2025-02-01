@@ -1046,6 +1046,7 @@ class StructurerBase(Analysis):
 
     def _node_ending_with_jump_table_header(self, node: BaseNode) -> tuple[int | None, IndirectJump | None]:
         if isinstance(node, (ailment.Block, MultiNode, IncompleteSwitchCaseNode)):
+            assert node.addr is not None
             return node.addr, self.jump_tables.get(node.addr, None)
         if isinstance(node, SequenceNode):
             return node.addr, self._node_ending_with_jump_table_header(node.nodes[-1])[1]

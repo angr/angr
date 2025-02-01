@@ -1325,9 +1325,7 @@ class PhoenixStructurer(StructurerBase):
         cmp_lb = 0
 
         # populate whitelist_edges
-        for case_node_addr in jump_table.jumptable_entries:
-            self.whitelist_edges.add((node.addr, case_node_addr))
-        self.switch_case_known_heads.add(node)
+        assert jump_table.jumptable_entries is not None
 
         # sanity check: case nodes are successors to node_a. all case nodes must have at most common one successor
         node_pred = None
@@ -1349,7 +1347,6 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         # un-structure IncompleteSwitchCaseNode
-        node_original = node
         if isinstance(node, IncompleteSwitchCaseNode):
             r = self._unpack_incompleteswitchcasenode(graph, node)
             if not r:
@@ -1387,7 +1384,6 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         # fully structured into a switch-case. remove node from switch_case_known_heads
-        self.switch_case_known_heads.remove(node_original)
         if switch_end_addr is not None:
             self._switch_handle_gotos(cases, None, switch_end_addr)
 
@@ -1592,7 +1588,9 @@ class PhoenixStructurer(StructurerBase):
         default_node_candidates = (
             [nn for nn in graph.nodes if nn.addr == node_b_addr] if node_b_addr is not None else []
         )
-        node_default = self._switch_find_default_node(graph, head_node, node_b_addr)
+        node_default = (
+            self._switch_find_default_node(graph, head_node, node_b_addr) if node_b_addr is not None else None
+        )
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
