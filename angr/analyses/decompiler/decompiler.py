@@ -302,6 +302,10 @@ class Decompiler(Analysis):
             arg_vvars=set(clinic.arg_vvars),
         )
 
+        # finally (no more graph-based simplifications will run in the future), we can remove the edges that should be
+        # removed!
+        clinic.remove_edges(clinic.graph)
+
         # Rewrite the graph to remove phi expressions
         # this is probably optional if we do not pretty-print clinic.graph
         clinic.graph = self._transform_graph_from_ssa(clinic.graph)
