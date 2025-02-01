@@ -34,6 +34,7 @@ from .structurer_nodes import (
     BreakNode,
     LoopNode,
     EmptyBlockNotice,
+    IncompleteSwitchCaseNode,
 )
 
 if TYPE_CHECKING:
@@ -791,10 +792,6 @@ class StructurerBase(Analysis):
 
         return _Holder.merged, seq
 
-    #
-    # Util methods
-    #
-
     def _reorganize_switch_cases(
         self, cases: OrderedDict[int | tuple[int, ...], SequenceNode]
     ) -> OrderedDict[int | tuple[int, ...], SequenceNode]:
@@ -1046,3 +1043,23 @@ class StructurerBase(Analysis):
         if isinstance(node, SequenceNode):
             return any(StructurerBase.has_nonlabel_nonphi_statements(nn) for nn in node.nodes)
         return False
+
+    def _node_ending_with_jump_table_header(self, node: BaseNode) -> tuple[int | None, IndirectJump | None]:
+        if isinstance(node, (ailment.Block, MultiNode, IncompleteSwitchCaseNode)):
+            return node.addr, self.jump_tables.get(node.addr, None)
+        if isinstance(node, SequenceNode):
+            return node.addr, self._node_ending_with_jump_table_header(node.nodes[-1])[1]
+        return None, None
+
+    @staticmethod
+    def _switch_find_default_node(
+        graph: networkx.DiGraph, head_node: BaseNode, default_node_addr: int
+    ) -> BaseNode | None:
+        # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
+        # and a case node (addr.b). The addr.a node is a successor to the head node while the addr.b node is a
+        # successor to node_a
+        default_node_candidates = [nn for nn in graph.nodes if nn.addr == default_node_addr]
+        node_default: BaseNode | None = next(
+            iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
+        )
+        return node_default

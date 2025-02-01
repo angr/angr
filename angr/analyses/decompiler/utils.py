@@ -177,6 +177,54 @@ def switch_extract_cmp_bounds(
     return None
 
 
+def switch_extract_switch_expr_from_jump_target(target: ailment.Expr.Expression) -> ailment.Expr.Expression | None:
+    """
+    Extract the switch expression from the indirect jump target expression.
+
+    :param target:  The target of the indirect jump statement.
+    :return:        The extracted expression if successful, or None otherwise.
+    """
+
+    # e.g.: Jump (Conv(32->64, (Load(addr=((0x140000000<64> + (vvar_229{reg 80} * 0x4<64>)) + 0x2290<64>),
+    #               size=4,
+    #               endness=Iend_LE
+    #             ) + 0x140000000<32>)))
+
+    found_load = False
+    while True:
+        if isinstance(target, ailment.Expr.Convert):
+            if target.from_bits < target.to_bits:
+                target = target.operand
+            else:
+                return None
+        elif isinstance(target, ailment.Expr.BinaryOp):
+            if target.op == "Add":
+                # it must be adding the target expr with a constant
+                if isinstance(target.operands[0], ailment.Expr.Const):
+                    target = target.operands[1]
+                elif isinstance(target.operands[1], ailment.Expr.Const):
+                    target = target.operands[0]
+                else:
+                    return None
+            elif target.op == "Mul":
+                # it must be multiplying the target expr with a constant
+                if isinstance(target.operands[0], ailment.Expr.Const):
+                    target = target.operands[1]
+                elif isinstance(target.operands[1], ailment.Expr.Const):
+                    target = target.operands[0]
+                else:
+                    return None
+        elif isinstance(target, ailment.Expr.Load):
+            # we want the address!
+            found_load = True
+            target = target.addr
+        elif isinstance(target, ailment.Expr.VirtualVariable):
+            break
+        else:
+            return None
+    return target if found_load else None
+
+
 def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tuple[Any, int, int] | None:
     """
     Check the last statement of the switch-case header node (whose address is loaded from a jump table and computed

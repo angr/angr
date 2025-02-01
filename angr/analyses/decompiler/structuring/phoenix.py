@@ -15,7 +15,7 @@ from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from angr.utils.graph import GraphUtils
 from angr.utils.ail import is_phi_assignment
-from angr.knowledge_plugins.cfg import IndirectJumpType
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from angr.utils.graph import dominates, to_acyclic_graph, dfs_back_edges
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
@@ -28,6 +28,7 @@ from angr.analyses.decompiler.utils import (
     has_nonlabel_nonphi_statements,
     first_nonlabel_nonphi_statement,
     switch_extract_bitwiseand_jumptable_info,
+    switch_extract_switch_expr_from_jump_target,
 )
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
 from .structurer_nodes import (
@@ -1071,7 +1072,14 @@ class PhoenixStructurer(StructurerBase):
     # switch cases
 
     def _match_acyclic_switch_cases(self, graph: networkx.DiGraph, full_graph: networkx.DiGraph, node) -> bool:
-        if isinstance(node, (SwitchCaseNode, IncompleteSwitchCaseNode)):
+        if isinstance(node, SwitchCaseNode):
+            return False
+
+        r = self._match_acyclic_switch_cases_address_loaded_from_memory_no_default_node(node, graph, full_graph)
+        if r:
+            return r
+
+        if isinstance(node, IncompleteSwitchCaseNode):
             return False
 
         r = self._match_acyclic_switch_cases_incomplete_switch_head(node, graph, full_graph)
@@ -1227,6 +1235,12 @@ class PhoenixStructurer(StructurerBase):
         if not r:
             return False
 
+        node_default = self._switch_find_default_node(graph, node, node_b_addr)
+        if node_default is not None:
+            # ensure we have successfully structured node_default
+            if full_graph.out_degree(node_default) > 1:
+                return False
+
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
             _, new_seq_node = self._unpack_sequencenode_head(graph, node_a)
@@ -1281,6 +1295,101 @@ class PhoenixStructurer(StructurerBase):
         self.switch_case_known_heads.remove(node)
         if switch_end_addr is not None:
             self._switch_handle_gotos(cases, node_default, switch_end_addr)
+
+        return True
+
+    def _match_acyclic_switch_cases_address_loaded_from_memory_no_default_node(self, node, graph, full_graph) -> bool:
+        # sanity checks
+        if not isinstance(node, IncompleteSwitchCaseNode):
+            return False
+        if node.addr not in self.jump_tables:
+            return False
+        # ensure _match_acyclic_switch_cases_address_load_from_memory cannot structure its predecessor (and this node)
+        preds = list(graph.predecessors(node))
+        if len(preds) != 1:
+            return False
+        pred = preds[0]
+        if full_graph.out_degree[pred] != 1:
+            return False
+        jump_table: IndirectJump = self.jump_tables[node.addr]
+        if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
+            return False
+
+        # extract the comparison expression, lower-, and upper-bounds from the last statement
+        last_stmt = self.cond_proc.get_last_statement(node.head)
+        if not isinstance(last_stmt, Jump):
+            return False
+        cmp_expr = switch_extract_switch_expr_from_jump_target(last_stmt.target)
+        if cmp_expr is None:
+            return False
+        cmp_lb = 0
+
+        # populate whitelist_edges
+        for case_node_addr in jump_table.jumptable_entries:
+            self.whitelist_edges.add((node.addr, case_node_addr))
+        self.switch_case_known_heads.add(node)
+
+        # sanity check: case nodes are successors to node_a. all case nodes must have at most common one successor
+        node_pred = None
+        if graph.in_degree[node] == 1:
+            node_pred = next(iter(graph.predecessors(node)))
+
+        case_nodes = list(graph.successors(node))
+
+        # case 1: the common successor happens to be directly reachable from node_a (usually as a result of compiler
+        # optimization)
+        # example: touch_touch_no_switch.o:main
+        r = self.switch_case_entry_node_has_common_successor_case_1(graph, jump_table, case_nodes, node_pred)
+
+        # case 2: the common successor is not directly reachable from node_a. this is a more common case.
+        if not r:
+            r |= self.switch_case_entry_node_has_common_successor_case_2(graph, jump_table, case_nodes, node_pred)
+
+        if not r:
+            return False
+
+        # un-structure IncompleteSwitchCaseNode
+        node_original = node
+        if isinstance(node, IncompleteSwitchCaseNode):
+            r = self._unpack_incompleteswitchcasenode(graph, node)
+            if not r:
+                return False
+            self._unpack_incompleteswitchcasenode(full_graph, node)  # this shall not fail
+            # update node
+            node = next(iter(nn for nn in graph.nodes if nn.addr == jump_table.addr))
+
+        case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
+
+        cases, _, to_remove = self._switch_build_cases(
+            case_and_entry_addrs,
+            node,
+            node,
+            None,
+            graph,
+            full_graph,
+        )
+
+        # we don't know what the end address of this switch-case structure is. let's figure it out
+        switch_end_addr = self._switch_find_switch_end_addr(cases, None, {nn.addr for nn in self._region.graph})
+        r = self._make_switch_cases_core(
+            node,
+            cmp_expr,
+            cases,
+            None,
+            None,
+            last_stmt.ins_addr,
+            to_remove,
+            graph,
+            full_graph,
+            node_a=None,
+        )
+        if not r:
+            return False
+
+        # fully structured into a switch-case. remove node from switch_case_known_heads
+        self.switch_case_known_heads.remove(node_original)
+        if switch_end_addr is not None:
+            self._switch_handle_gotos(cases, None, switch_end_addr)
 
         return True
 
@@ -1405,6 +1514,12 @@ class PhoenixStructurer(StructurerBase):
         else:
             return False
 
+        node_default = self._switch_find_default_node(graph, node, default_addr)
+        if node_default is not None:
+            # ensure we have successfully structured node_default
+            if full_graph.out_degree(node_default) > 1:
+                return False
+
         case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
 
         cases, node_default, to_remove = self._switch_build_cases(
@@ -1474,16 +1589,10 @@ class PhoenixStructurer(StructurerBase):
         cases: OrderedDict[int | tuple[int, ...], SequenceNode] = OrderedDict()
         to_remove = set()
 
-        # it is possible that the default node gets duplicated by other analyses and creates a default node (addr.a)
-        # and a case node (addr.b). The addr.a node is a successor to the head node while the addr.b node is a
-        # successor to node_a
         default_node_candidates = (
             [nn for nn in graph.nodes if nn.addr == node_b_addr] if node_b_addr is not None else []
         )
-        node_default: BaseNode | None = next(
-            iter(nn for nn in default_node_candidates if graph.has_edge(head_node, nn)), None
-        )
-
+        node_default = self._switch_find_default_node(graph, head_node, node_b_addr)
         if node_default is not None and not isinstance(node_default, SequenceNode):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
@@ -1740,6 +1849,7 @@ class PhoenixStructurer(StructurerBase):
                 and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, end_node)
                 and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
                 and end_node not in self.dowhile_known_tail_nodes
+                and not isinstance(end_node, IncompleteSwitchCaseNode)
             ):
                 # merge two blocks
                 new_seq = self._merge_nodes(start_node, end_node)
