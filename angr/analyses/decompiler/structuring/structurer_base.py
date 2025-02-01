@@ -899,7 +899,7 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def _remove_last_statement_if_jump(
-        node: BaseNode | ailment.Block,
+        node: BaseNode | ailment.Block | MultiNode,
     ) -> ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | None:
         try:
             last_stmts = ConditionProcessor.get_last_statements(node)
@@ -997,8 +997,8 @@ class StructurerBase(Analysis):
     @staticmethod
     def replace_node_in_node(
         parent_node: BaseNode,
-        old_node: BaseNode | ailment.Block,
-        new_node: BaseNode | ailment.Block,
+        old_node: BaseNode | ailment.Block | MultiNode,
+        new_node: BaseNode | ailment.Block | MultiNode,
     ) -> None:
         if isinstance(parent_node, SequenceNode):
             for i in range(len(parent_node.nodes)):  # pylint:disable=consider-using-enumerate
@@ -1021,7 +1021,9 @@ class StructurerBase(Analysis):
             raise TypeError(f"Unsupported node type {type(parent_node)}")
 
     @staticmethod
-    def is_a_jump_target(stmt: ailment.Stmt.ConditionalJump | ailment.Stmt.Jump, addr: int) -> bool:
+    def is_a_jump_target(
+        stmt: ailment.Stmt.ConditionalJump | ailment.Stmt.Jump | ailment.Stmt.Statement, addr: int
+    ) -> bool:
         if isinstance(stmt, ailment.Stmt.ConditionalJump):
             if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == addr:
                 return True
