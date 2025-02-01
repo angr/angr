@@ -12,7 +12,8 @@ from angr.engines.light import SimEngineNostmtVEX, SpOffset
 from angr.engines.vex.claripy.datalayer import value as claripy_value
 from angr.errors import SimEngineError, SimMemoryMissingError
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.knowledge_plugins.key_definitions.live_definitions import Definition, LiveDefinitions
+from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, Tag
 from angr.knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -78,11 +79,15 @@ class SimEngineRDVEX(
         self._set_codeloc()
         if self.block.vex.jumpkind == "Ijk_Call":
             # it has to be a function
-            addr = self._expr_bv(self.block.vex.next)
+            block_next = self.block.vex.next
+            assert isinstance(block_next, pyvex.expr.IRExpr)
+            addr = self._expr_bv(block_next)
             self._handle_function(addr)
         elif self.block.vex.jumpkind == "Ijk_Boring":
             # test if the target addr is a function or not
-            addr = self._expr_bv(self.block.vex.next)
+            block_next = self.block.vex.next
+            assert isinstance(block_next, pyvex.expr.IRExpr)
+            addr = self._expr_bv(block_next)
             addr_v = addr.one_value()
             if addr_v is not None and addr_v.concrete:
                 addr_int = addr_v.concrete_value
@@ -550,7 +555,7 @@ class SimEngineRDVEX(
         return r
 
     @unop_handler
-    def _handle_unop_Not(self, expr):
+    def _handle_unop_Not(self, expr: pyvex.expr.Unop) -> MultiValues:
         arg0 = expr.args[0]
         expr_0 = self._expr_bv(arg0)
         bits = expr.result_size(self.tyenv)
@@ -563,7 +568,7 @@ class SimEngineRDVEX(
         return MultiValues(self.state.top(bits))
 
     @unop_handler
-    def _handle_unop_Clz(self, expr):
+    def _handle_unop_Clz(self, expr: pyvex.expr.Unop) -> MultiValues:
         arg0 = expr.args[0]
         _ = self._expr(arg0)
         bits = expr.result_size(self.tyenv)
@@ -571,7 +576,7 @@ class SimEngineRDVEX(
         return MultiValues(self.state.top(bits))
 
     @unop_handler
-    def _handle_unop_Ctz(self, expr):
+    def _handle_unop_Ctz(self, expr: pyvex.expr.Unop) -> MultiValues:
         arg0 = expr.args[0]
         _ = self._expr(arg0)
         bits = expr.result_size(self.tyenv)
@@ -582,19 +587,19 @@ class SimEngineRDVEX(
     # Binary operation handlers
     #
     @binop_handler
-    def _handle_binop_ExpCmpNE64(self, expr):
+    def _handle_binop_ExpCmpNE64(self, expr: pyvex.expr.Binop) -> MultiValues:
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
         return MultiValues(self.state.top(bits))
 
     @binop_handler
-    def _handle_binop_16HLto32(self, expr):
+    def _handle_binop_16HLto32(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
         return expr0.concat(expr1)
 
     @binop_handler
-    def _handle_binop_Add(self, expr):
+    def _handle_binop_Add(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -625,7 +630,7 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_Sub(self, expr):
+    def _handle_binop_Sub(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -656,7 +661,7 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_Mul(self, expr):
+    def _handle_binop_Mul(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_pair(expr.args[0], expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -687,13 +692,13 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_Mull(self, expr):
+    def _handle_binop_Mull(self, expr: pyvex.expr.Binop) -> MultiValues:
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         return MultiValues(self.state.top(bits))
 
     @binop_handler
-    def _handle_binop_Div(self, expr):
+    def _handle_binop_Div(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_pair(expr.args[0], expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -727,19 +732,20 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_DivMod(self, expr):
+    def _handle_binop_DivMod(self, expr: pyvex.expr.Binop) -> MultiValues:
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
         return MultiValues(self.state.top(bits))
 
-    def _handle_Mod(self, expr):
+    @binop_handler
+    def _handle_Mod(self, expr: pyvex.expr.Binop) -> MultiValues:
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
         return MultiValues(self.state.top(bits))
 
     @binop_handler
-    def _handle_binop_And(self, expr):
+    def _handle_binop_And(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -770,7 +776,7 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_Xor(self, expr):
+    def _handle_binop_Xor(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -802,7 +808,7 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_Or(self, expr):
+    def _handle_binop_Or(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -833,7 +839,7 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_Sar(self, expr):
+    def _handle_binop_Sar(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -876,7 +882,7 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_Shr(self, expr):
+    def _handle_binop_Shr(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr_bv(expr.args[0]), self._expr_bv(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -917,7 +923,7 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_Shl(self, expr):
+    def _handle_binop_Shl(self, expr: pyvex.expr.Binop) -> MultiValues:
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
 
@@ -955,7 +961,7 @@ class SimEngineRDVEX(
         return r
 
     @binop_handler
-    def _handle_binop_CmpEQ(self, expr):
+    def _handle_binop_CmpEQ(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
@@ -973,7 +979,7 @@ class SimEngineRDVEX(
         return MultiValues(self.state.top(1))
 
     @binop_handler
-    def _handle_binop_CmpNE(self, expr):
+    def _handle_binop_CmpNE(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
@@ -988,7 +994,7 @@ class SimEngineRDVEX(
         return MultiValues(self.state.top(1))
 
     @binop_handler
-    def _handle_binop_CmpLT(self, expr):
+    def _handle_binop_CmpLT(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
 
@@ -1003,7 +1009,7 @@ class SimEngineRDVEX(
         return MultiValues(self.state.top(1))
 
     @binop_handler
-    def _handle_binop_CmpLE(self, expr):
+    def _handle_binop_CmpLE(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
 
@@ -1018,7 +1024,7 @@ class SimEngineRDVEX(
         return MultiValues(self.state.top(1))
 
     @binop_handler
-    def _handle_binop_CmpGT(self, expr):
+    def _handle_binop_CmpGT(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
 
@@ -1033,7 +1039,7 @@ class SimEngineRDVEX(
         return MultiValues(self.state.top(1))
 
     @binop_handler
-    def _handle_binop_CmpGE(self, expr):
+    def _handle_binop_CmpGE(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
 
@@ -1049,7 +1055,7 @@ class SimEngineRDVEX(
 
     # ppc only
     @binop_handler
-    def _handle_binop_CmpORD(self, expr):
+    def _handle_binop_CmpORD(self, expr: pyvex.expr.Binop) -> MultiValues:
         arg0, arg1 = expr.args
         expr_0, expr_1 = self._expr_pair(arg0, arg1)
 
