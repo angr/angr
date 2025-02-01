@@ -20,6 +20,7 @@ from angr.analyses.decompiler.utils import (
 )
 from angr.analyses.decompiler.label_collector import LabelCollector
 from angr.errors import AngrDecompilationError
+from angr.knowledge_plugins.cfg import IndirectJump
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,
@@ -60,6 +61,7 @@ class StructurerBase(Analysis):
         func: Function | None = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
+        jump_tables: dict[int, IndirectJump] | None = None,
         **kwargs,
     ):
         self._region: GraphRegion = region
@@ -67,6 +69,7 @@ class StructurerBase(Analysis):
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
         self._parent_region = parent_region
+        self.jump_tables = jump_tables or {}
 
         self.cond_proc = (
             condition_processor if condition_processor is not None else ConditionProcessor(self.project.arch)

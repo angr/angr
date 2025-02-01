@@ -869,7 +869,7 @@ class PhoenixStructurer(StructurerBase):
                 if cont_block is None:
                     # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
                     # case being the loop head. in such cases, we can just remove the edge.
-                    if src.addr not in self.kb.cfgs["CFGFast"].jump_tables:
+                    if src.addr not in self.jump_tables:
                         l.debug(
                             "_refine_cyclic_core: Cannot find the block going to loop head for edge %r -> %r. "
                             "Remove the edge anyway.",
@@ -1076,19 +1076,16 @@ class PhoenixStructurer(StructurerBase):
         r = self._match_acyclic_switch_cases_incomplete_switch_head(node, graph, full_graph)
         if r:
             return r
-        jump_tables = self.kb.cfgs["CFGFast"].jump_tables
-        r = self._match_acyclic_switch_cases_address_loaded_from_memory_no_ob_check(
-            node, graph, full_graph, jump_tables
-        )
+        r = self._match_acyclic_switch_cases_address_loaded_from_memory_no_ob_check(node, graph, full_graph)
         if r:
             return r
-        r = self._match_acyclic_switch_cases_address_loaded_from_memory(node, graph, full_graph, jump_tables)
+        r = self._match_acyclic_switch_cases_address_loaded_from_memory(node, graph, full_graph)
         if r:
             return r
-        r = self._match_acyclic_switch_cases_address_computed(node, graph, full_graph, jump_tables)
+        r = self._match_acyclic_switch_cases_address_computed(node, graph, full_graph)
         if r:
             return r
-        return self._match_acyclic_incomplete_switch_cases(node, graph, full_graph, jump_tables)
+        return self._match_acyclic_incomplete_switch_cases(node, graph, full_graph)
 
     def _match_acyclic_switch_cases_incomplete_switch_head(self, node, graph, full_graph) -> bool:
         try:
@@ -1162,7 +1159,7 @@ class PhoenixStructurer(StructurerBase):
             self._switch_handle_gotos(cases, node_default, switch_end_addr)
         return True
 
-    def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph, full_graph, jump_tables) -> bool:
+    def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph, full_graph) -> bool:
         try:
             last_stmt = self.cond_proc.get_last_statement(node)
         except EmptyBlockNotice:
@@ -1176,14 +1173,14 @@ class PhoenixStructurer(StructurerBase):
             return False
 
         for t in successor_addrs:
-            if t in jump_tables:
+            if t in self.jump_tables:
                 # this is a candidate!
                 target = t
                 break
         else:
             return False
 
-        jump_table = jump_tables[target]
+        jump_table = self.jump_tables[target]
         if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
             return False
 
@@ -1285,10 +1282,8 @@ class PhoenixStructurer(StructurerBase):
 
         return True
 
-    def _match_acyclic_switch_cases_address_loaded_from_memory_no_ob_check(
-        self, node, graph, full_graph, jump_tables
-    ) -> bool:
-        if node.addr not in jump_tables:
+    def _match_acyclic_switch_cases_address_loaded_from_memory_no_ob_check(self, node, graph, full_graph) -> bool:
+        if node.addr not in self.jump_tables:
             return False
 
         try:
@@ -1298,7 +1293,7 @@ class PhoenixStructurer(StructurerBase):
         if not (isinstance(last_stmt, Jump) and not isinstance(last_stmt.target, Const)):
             return False
 
-        jump_table = jump_tables[node.addr]
+        jump_table = self.jump_tables[node.addr]
         if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
             return False
 
@@ -1373,10 +1368,10 @@ class PhoenixStructurer(StructurerBase):
 
         return True
 
-    def _match_acyclic_switch_cases_address_computed(self, node, graph, full_graph, jump_tables) -> bool:
-        if node.addr not in jump_tables:
+    def _match_acyclic_switch_cases_address_computed(self, node, graph, full_graph) -> bool:
+        if node.addr not in self.jump_tables:
             return False
-        jump_table = jump_tables[node.addr]
+        jump_table = self.jump_tables[node.addr]
         if jump_table.type != IndirectJumpType.Jumptable_AddressComputed:
             return False
 
@@ -1425,10 +1420,10 @@ class PhoenixStructurer(StructurerBase):
         )
 
     def _match_acyclic_incomplete_switch_cases(
-        self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph, jump_tables: dict
+        self, node, graph: networkx.DiGraph, full_graph: networkx.DiGraph
     ) -> bool:
         # sanity checks
-        if node.addr not in jump_tables:
+        if node.addr not in self.jump_tables:
             return False
         if isinstance(node, IncompleteSwitchCaseNode):
             return False
@@ -1439,7 +1434,7 @@ class PhoenixStructurer(StructurerBase):
 
         if (
             successors
-            and {succ.addr for succ in successors} == set(jump_tables[node.addr].jumptable_entries)
+            and {succ.addr for succ in successors} == set(self.jump_tables[node.addr].jumptable_entries)
             and all(graph.in_degree[succ] == 1 for succ in successors)
         ):
             out_nodes = set()
@@ -1705,8 +1700,7 @@ class PhoenixStructurer(StructurerBase):
         return case_and_entry_addrs
 
     def _is_node_unstructured_switch_case_head(self, node) -> bool:
-        jump_tables = self.kb.cfgs["CFGFast"].jump_tables
-        if node.addr in jump_tables:
+        if node.addr in self.jump_tables:
             # maybe it has been structured?
             try:
                 last_stmts = self.cond_proc.get_last_statements(node)

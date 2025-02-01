@@ -10,7 +10,7 @@ import claripy
 import ailment
 
 from angr.utils.graph import GraphUtils
-from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.knowledge_plugins.cfg import IndirectJumpType
 from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
@@ -480,8 +480,6 @@ class DreamStructurer(StructurerBase):
         :return:        None
         """
 
-        jump_tables = self.kb.cfgs["CFGFast"].jump_tables
-
         addr2nodes: dict[int, set[CodeNode]] = defaultdict(set)
         for node in seq.nodes:
             addr2nodes[node.addr].add(node)
@@ -491,14 +489,14 @@ class DreamStructurer(StructurerBase):
                 node = seq.nodes[i]
 
                 # Jumptable_AddressLoadedFromMemory
-                r = self._make_switch_cases_address_loaded_from_memory(seq, i, node, addr2nodes, jump_tables)
+                r = self._make_switch_cases_address_loaded_from_memory(seq, i, node, addr2nodes)
                 if r:
                     # we found a node that looks like a switch-case. seq.nodes are changed. resume to find the next such
                     # case
                     break
 
                 # Jumptable_AddressComputed
-                r = self._make_switch_cases_address_computed(seq, i, node, addr2nodes, jump_tables)
+                r = self._make_switch_cases_address_computed(seq, i, node, addr2nodes)
                 if r:
                     break
 
@@ -506,9 +504,7 @@ class DreamStructurer(StructurerBase):
                 # we did not find any node that looks like a switch-case. exit.
                 break
 
-    def _make_switch_cases_address_loaded_from_memory(
-        self, seq, i, node, addr2nodes: dict[int, set[CodeNode]], jump_tables: dict[int, IndirectJump]
-    ) -> bool:
+    def _make_switch_cases_address_loaded_from_memory(self, seq, i, node, addr2nodes: dict[int, set[CodeNode]]) -> bool:
         """
         A typical jump table involves multiple nodes, which look like the following:
 
@@ -533,14 +529,14 @@ class DreamStructurer(StructurerBase):
             return False
 
         for t in successor_addrs:
-            if t in addr2nodes and t in jump_tables:
+            if t in addr2nodes and t in self.jump_tables:
                 # this is a candidate!
                 target = t
                 break
         else:
             return False
 
-        jump_table = jump_tables[target]
+        jump_table = self.jump_tables[target]
         if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
             return False
 
@@ -591,12 +587,10 @@ class DreamStructurer(StructurerBase):
 
         return True
 
-    def _make_switch_cases_address_computed(
-        self, seq, i, node, addr2nodes: dict[int, set[CodeNode]], jump_tables: dict[int, IndirectJump]
-    ) -> bool:
-        if node.addr not in jump_tables:
+    def _make_switch_cases_address_computed(self, seq, i, node, addr2nodes: dict[int, set[CodeNode]]) -> bool:
+        if node.addr not in self.jump_tables:
             return False
-        jump_table = jump_tables[node.addr]
+        jump_table = self.jump_tables[node.addr]
         if jump_table.type != IndirectJumpType.Jumptable_AddressComputed:
             return False
 

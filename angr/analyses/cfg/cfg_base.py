@@ -1421,6 +1421,19 @@ class CFGBase(Analysis):
                 # We gotta create a new one
                 l.error("normalize(): Please report it to Fish.")
 
+        # update the jump tables dict and the indirect jumps dict
+        if smallest_node.addr not in self.model.jump_tables:
+            for n in other_nodes:
+                if n.addr in self.model.jump_tables:
+                    self.model.jump_tables[n.addr].addr = smallest_node.addr
+                    self.model.jump_tables[smallest_node.addr] = self.model.jump_tables[n.addr]
+                    break
+        if smallest_node.addr not in self.indirect_jumps:
+            for n in other_nodes:
+                if n.addr in self.indirect_jumps:
+                    self.indirect_jumps[n.addr].addr = smallest_node.addr
+                    self.indirect_jumps[smallest_node.addr] = self.indirect_jumps[n.addr]
+                    break
         # deal with duplicated entries in self.jump_tables and self.indirect_jumps
         if smallest_node.addr in self.model.jump_tables:
             for n in other_nodes:
