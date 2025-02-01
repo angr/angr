@@ -89,6 +89,8 @@ class Clinic(Analysis):
     A Clinic deals with AILments.
     """
 
+    _ail_manager: ailment.Manager
+
     def __init__(
         self,
         func,
@@ -117,7 +119,6 @@ class Clinic(Analysis):
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
-        unsound_fix_abnormal_switches: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -135,7 +136,6 @@ class Clinic(Analysis):
         self.optimization_scratch = optimization_scratch if optimization_scratch is not None else {}
 
         self._func_graph: networkx.DiGraph | None = None
-        self._ail_manager = None
         self._blocks_by_addr_and_size = {}
         self.entry_node_addr: tuple[int, int | None] = self.function.addr, None
 
@@ -209,6 +209,7 @@ class Clinic(Analysis):
 
         :return:
         """
+        assert self.graph is not None
 
         s = ""
 
@@ -297,6 +298,8 @@ class Clinic(Analysis):
         return ail_graph
 
     def _slice_variables(self, ail_graph):
+        assert self.variable_kb is not None
+
         nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
 
         vfm = self.variable_kb.variables.function_managers[self.function.addr]
@@ -344,7 +347,7 @@ class Clinic(Analysis):
             optimization_passes=[StackCanarySimplifier],
             sp_shift=self._max_stack_depth,
             vvar_id_start=self.vvar_id_start,
-            fail_fast=self._fail_fast,
+            fail_fast=self._fail_fast,  # type: ignore
         )
         self.vvar_id_start = callee_clinic.vvar_id_start + 1
         self._max_stack_depth = callee_clinic._max_stack_depth
@@ -801,7 +804,7 @@ class Clinic(Analysis):
 
             # case 2: the callee is a SimProcedure
             if target_func.is_simprocedure:
-                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)
+                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
@@ -809,7 +812,7 @@ class Clinic(Analysis):
 
             # case 3: the callee is a PLT function
             if target_func.is_plt:
-                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)
+                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
@@ -879,7 +882,7 @@ class Clinic(Analysis):
         # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
             self.project.analyses.CompleteCallingConventions(
-                fail_fast=self._fail_fast,
+                fail_fast=self._fail_fast,  # type: ignore
                 recover_variables=True,
                 prioritize_func_addrs=[self.function.addr],
                 skip_other_funcs=True,
@@ -2122,7 +2125,6 @@ class Clinic(Analysis):
             else:
                 # Case 2
                 self._fix_abnormal_switch_case_heads_case2(
-                    ail_graph,
                     candidate,
                     other_heads,
                 )
@@ -2335,7 +2337,7 @@ class Clinic(Analysis):
                     pass
 
     def _fix_abnormal_switch_case_heads_case2(
-        self, ail_graph, indirect_jump_node: ailment.Block, other_heads: list[ailment.Block]
+        self, indirect_jump_node: ailment.Block, other_heads: list[ailment.Block]
     ) -> None:
         # remove all edges from other_heads to the indirect jump node
         for other_head in other_heads:
