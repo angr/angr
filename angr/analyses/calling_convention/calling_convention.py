@@ -150,6 +150,8 @@ class CallingConventionAnalysis(Analysis):
         The major analysis routine.
         """
 
+        assert self._function is not None
+
         if self._function.is_simprocedure:
             hooker = self.project.hooked_by(self._function.addr)
             if isinstance(
@@ -200,8 +202,8 @@ class CallingConventionAnalysis(Analysis):
                         )
                         if prototype.args:
                             break
-                self.cc = cc
-                self.prototype = prototype
+                self.cc = cc  # type: ignore
+                self.prototype = prototype  # type: ignore
             return
         if self._function.is_plt:
             r = self._analyze_plt()
@@ -218,23 +220,33 @@ class CallingConventionAnalysis(Analysis):
             if self.analyze_callsites:
                 # only take the first 3 because running reaching definition analysis on all functions is costly
                 callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=3)
-                prototype = self._adjust_prototype(
-                    prototype, callsite_facts, update_arguments=UpdateArgumentsOption.UpdateWhenCCHasNoArgs
+                prototype = (
+                    self._adjust_prototype(
+                        prototype, callsite_facts, update_arguments=UpdateArgumentsOption.UpdateWhenCCHasNoArgs
+                    )
+                    if prototype is not None
+                    else None
                 )
 
             self.cc = cc
             self.prototype = prototype
 
     def _analyze_callsite_only(self):
+        assert self.caller_func_addr is not None
+        assert self.callsite_block_addr is not None
+        assert self.callsite_insn_addr is not None
+        cc, prototype = None, None
+
         for include_callsite_preds in [False, True]:
-            callsite_facts = [
-                self._analyze_callsite(
-                    self.caller_func_addr,
-                    self.callsite_block_addr,
-                    self.callsite_insn_addr,
-                    include_preds=include_callsite_preds,
-                )
-            ]
+            fact = self._analyze_callsite(
+                self.caller_func_addr,
+                self.callsite_block_addr,
+                self.callsite_insn_addr,
+                include_preds=include_callsite_preds,
+            )
+            if fact is None:
+                continue
+            callsite_facts = [fact]
             cc_cls = default_cc(
                 self.project.arch.name,
                 platform=(
@@ -258,6 +270,7 @@ class CallingConventionAnalysis(Analysis):
 
         :return:    A calling convention.
         """
+        assert self._function is not None
 
         if len(self._function.jumpout_sites) != 1:
             l.warning(
@@ -314,6 +327,7 @@ class CallingConventionAnalysis(Analysis):
         Go over the variable information in variable manager for this function, and return all uninitialized
         register/stack variables.
         """
+        assert self._function is not None
 
         if self._function.is_simprocedure or self._function.is_plt:
             # we do not analyze SimProcedures or PLT stubs
@@ -402,6 +416,8 @@ class CallingConventionAnalysis(Analysis):
         Analyze all call sites of the function and determine the possible number of arguments and if the function
         returns anything or not.
         """
+
+        assert self._function is not None
 
         if self._cfg is None:
             l.warning("CFG is not provided. Skip calling convention analysis at call sites.")
@@ -656,13 +672,10 @@ class CallingConventionAnalysis(Analysis):
 
     def _adjust_prototype(
         self,
-        proto: SimTypeFunction | None,
+        proto: SimTypeFunction,
         facts: list[CallSiteFact],
         update_arguments: int = UpdateArgumentsOption.DoNotUpdate,
-    ) -> SimTypeFunction | None:
-        if proto is None:
-            return None
-
+    ) -> SimTypeFunction:
         # is the return value used anywhere?
         if facts:
             if all(fact.return_value_used is False for fact in facts):
@@ -690,6 +703,8 @@ class CallingConventionAnalysis(Analysis):
         :param var_manager: The variable manager of this function.
         :return:
         """
+
+        assert self._function is not None
 
         args = set()
         ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
@@ -839,17 +854,27 @@ class CallingConventionAnalysis(Analysis):
         return SimTypeBottom()
 
     def _guess_retval_type(self, cc: SimCC, ret_val_size: int | None) -> SimType:
+        assert self._function is not None
+
         if cc.FP_RETURN_VAL and self._function.ret_sites:
             # examine the last block of the function and see which registers are assigned to
             for ret_block in self._function.ret_sites:
+                fpretval_updated, retval_updated = False, False
+                fp_reg_size = 0
                 irsb = self.project.factory.block(ret_block.addr, size=ret_block.size).vex
                 for stmt in irsb.statements:
                     if isinstance(stmt, Put) and isinstance(stmt.data, RdTmp):
-                        reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width
+                        reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width  # type: ignore
                         reg_name = self.project.arch.translate_register_name(stmt.offset, size=reg_size)
-                        if reg_name == cc.FP_RETURN_VAL.reg_name:
-                            # possibly float
-                            return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
+                        if isinstance(cc.FP_RETURN_VAL, SimRegArg) and reg_name == cc.FP_RETURN_VAL.reg_name:
+                            fpretval_updated = True
+                            fp_reg_size = reg_size
+                        elif isinstance(cc.RETURN_VAL, SimRegArg) and reg_name == cc.RETURN_VAL.reg_name:
+                            retval_updated = True
+
+                if fpretval_updated and not retval_updated:
+                    # possibly float
+                    return SimTypeFloat() if fp_reg_size == 4 else SimTypeDouble()
 
         if ret_val_size is not None:
             if ret_val_size == 1:
@@ -883,6 +908,8 @@ class CallingConventionAnalysis(Analysis):
     def is_va_start_amd64(self, func: Function) -> tuple[bool, int | None]:
         # TODO: Use a better pattern matching approach
         if len(func.block_addrs_set) < 3:
+            return False, None
+        if func.startpoint is None:
             return False, None
 
         head = func.startpoint
