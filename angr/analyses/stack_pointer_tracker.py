@@ -704,21 +704,16 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             if callees:
                 if len(callees) == 1:
                     callee = callees[0]
+                    track_rax = False
+                    if (
+                        (callee.info.get("is_rust_probestack", False) and self.project.arch.name == "AMD64")
+                        or (callee.info.get("is_alloca_probe", False) and self.project.arch.name == "AMD64")
+                        or callee.name == "__chkstk"
+                    ):
+                        # sp = sp - rax right after returning from the call
+                        track_rax = True
 
-                    if callee.info.get("is_rust_probestack", False) is True and self.project.arch.name == "AMD64":
-                        # special-case for rust_probestack: sp = sp - rax right after returning from the call, so we
-                        # need to keep track of rax
-                        for stmt in reversed(vex_block.statements):
-                            if (
-                                isinstance(stmt, pyvex.IRStmt.Put)
-                                and stmt.offset == self.project.arch.registers["rax"][0]
-                                and isinstance(stmt.data, pyvex.IRExpr.Const)
-                            ):
-                                state.put(stmt.offset, Constant(stmt.data.con.value), force=True)
-                                break
-                    elif callee.name == "__chkstk":
-                        # special-case for __chkstk: sp = sp - rax right after returning from the call, so we need to
-                        # keep track of rax
+                    if track_rax:
                         for stmt in reversed(vex_block.statements):
                             if (
                                 isinstance(stmt, pyvex.IRStmt.Put)

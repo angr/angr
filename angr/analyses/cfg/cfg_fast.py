@@ -1524,6 +1524,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 }:
                     func.info["is_rust_probestack"] = True
 
+            # determine if the function is __alloca_probe
+            if func is not None and len(func.block_addrs_set) == 4:
+                block_bytes = {func.get_block(block_addr).bytes for block_addr in func.block_addrs_set}
+                if block_bytes == {
+                    b"H\x83\xec\x10L\x89\x14$L\x89\\$\x08M3\xdbL\x8dT$\x18L+\xd0M\x0fB\xd3eL\x8b\x1c%\x10\x00\x00\x00M;\xd3s\x16",
+                    b"fA\x81\xe2\x00\xf0M\x8d\x9b\x00\xf0\xff\xffA\xc6\x03\x00M;\xd3u\xf0",
+                    b"M\x8d\x9b\x00\xf0\xff\xffA\xc6\x03\x00M;\xd3u\xf0",
+                    b"L\x8b\x14$L\x8b\\$\x08H\x83\xc4\x10\xc3",
+                }:
+                    func.info["is_alloca_probe"] = True
+
         if self._collect_data_ref and self.project is not None and ":" in self.project.arch.name:
             # this is a pcode arch - use Clinic to recover data references
 
