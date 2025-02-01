@@ -20,6 +20,7 @@ from angr.analyses.decompiler.utils import (
 )
 from angr.analyses.decompiler.label_collector import LabelCollector
 from angr.errors import AngrDecompilationError
+from angr.knowledge_plugins.cfg import IndirectJump
 from .structurer_nodes import (
     MultiNode,
     SequenceNode,
@@ -60,6 +61,7 @@ class StructurerBase(Analysis):
         func: Function | None = None,
         case_entry_to_switch_head: dict[int, int] | None = None,
         parent_region=None,
+        jump_tables: dict[int, IndirectJump] | None = None,
         **kwargs,
     ):
         self._region: GraphRegion = region
@@ -67,6 +69,7 @@ class StructurerBase(Analysis):
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
         self._parent_region = parent_region
+        self.jump_tables = jump_tables or {}
 
         self.cond_proc = (
             condition_processor if condition_processor is not None else ConditionProcessor(self.project.arch)
@@ -304,6 +307,7 @@ class StructurerBase(Analysis):
                         jump_stmt = this_node.statements[-1]  # type: ignore
 
                     if isinstance(jump_stmt, ailment.Stmt.Jump):
+                        assert isinstance(this_node, ailment.Block)
                         next_node = node.nodes[i + 1]
                         if (
                             isinstance(jump_stmt.target, ailment.Expr.Const)
@@ -312,6 +316,7 @@ class StructurerBase(Analysis):
                             # this goto is useless
                             this_node.statements = this_node.statements[:-1]
                     elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
+                        assert isinstance(this_node, ailment.Block)
                         next_node = node.nodes[i + 1]
                         if (
                             isinstance(jump_stmt.true_target, ailment.Expr.Const)
@@ -365,6 +370,7 @@ class StructurerBase(Analysis):
                         jump_stmt = this_node.nodes[-1].statements[-1]
                         this_node = this_node.nodes[-1]
 
+                    assert isinstance(this_node, ailment.Block)
                     if isinstance(jump_stmt, ailment.Stmt.Jump):
                         next_node = node.nodes[i + 1]
                         if (
@@ -891,12 +897,12 @@ class StructurerBase(Analysis):
                 if isinstance(last_stmt.false_target, ailment.Expr.Const):
                     jump_targets.append((last_stmt.false_target.value, last_stmt.false_target_idx))
             if any(tpl in addr_and_ids for tpl in jump_targets):
-                return remove_last_statement(node)
+                return remove_last_statement(node)  # type: ignore
         return None
 
     @staticmethod
     def _remove_last_statement_if_jump(
-        node: BaseNode | ailment.Block,
+        node: BaseNode | ailment.Block | MultiNode,
     ) -> ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | None:
         try:
             last_stmts = ConditionProcessor.get_last_statements(node)
@@ -904,7 +910,7 @@ class StructurerBase(Analysis):
             return None
 
         if len(last_stmts) == 1 and isinstance(last_stmts[0], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
-            return remove_last_statement(node)
+            return remove_last_statement(node)  # type: ignore
         return None
 
     @staticmethod
@@ -994,8 +1000,8 @@ class StructurerBase(Analysis):
     @staticmethod
     def replace_node_in_node(
         parent_node: BaseNode,
-        old_node: BaseNode | ailment.Block,
-        new_node: BaseNode | ailment.Block,
+        old_node: BaseNode | ailment.Block | MultiNode,
+        new_node: BaseNode | ailment.Block | MultiNode,
     ) -> None:
         if isinstance(parent_node, SequenceNode):
             for i in range(len(parent_node.nodes)):  # pylint:disable=consider-using-enumerate
@@ -1018,7 +1024,9 @@ class StructurerBase(Analysis):
             raise TypeError(f"Unsupported node type {type(parent_node)}")
 
     @staticmethod
-    def is_a_jump_target(stmt: ailment.Stmt.ConditionalJump | ailment.Stmt.Jump, addr: int) -> bool:
+    def is_a_jump_target(
+        stmt: ailment.Stmt.ConditionalJump | ailment.Stmt.Jump | ailment.Stmt.Statement, addr: int
+    ) -> bool:
         if isinstance(stmt, ailment.Stmt.ConditionalJump):
             if isinstance(stmt.true_target, ailment.Expr.Const) and stmt.true_target.value == addr:
                 return True

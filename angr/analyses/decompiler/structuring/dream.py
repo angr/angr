@@ -10,7 +10,7 @@ import claripy
 import ailment
 
 from angr.utils.graph import GraphUtils
-from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.knowledge_plugins.cfg import IndirectJumpType
 from angr.analyses.decompiler.graph_region import GraphRegion
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
@@ -112,6 +112,7 @@ class DreamStructurer(StructurerBase):
 
         loop_subgraph = self._region.graph
         successors = self._region.successors
+        assert successors is not None
 
         assert len(successors) <= 1
 
@@ -267,6 +268,7 @@ class DreamStructurer(StructurerBase):
 
     def _to_loop_body_sequence(self, loop_head, loop_subgraph, loop_successors):
         graph = self._region.graph_with_successors
+        assert graph is not None
         loop_region_graph = networkx.DiGraph()
 
         # TODO: Make sure the loop body has been structured
@@ -372,7 +374,7 @@ class DreamStructurer(StructurerBase):
             node.condition_and_nodes = new_cond_and_nodes
 
             if node.else_node is not None:
-                node.else_node = walker._handle(node.else_node)
+                node.else_node = walker._handle(node.else_node)  # type: ignore
             return node
 
         def _handle_SwitchCaseNode(node, **kwargs):  # pylint:disable=unused-argument
@@ -480,8 +482,6 @@ class DreamStructurer(StructurerBase):
         :return:        None
         """
 
-        jump_tables = self.kb.cfgs["CFGFast"].jump_tables
-
         addr2nodes: dict[int, set[CodeNode]] = defaultdict(set)
         for node in seq.nodes:
             addr2nodes[node.addr].add(node)
@@ -491,14 +491,14 @@ class DreamStructurer(StructurerBase):
                 node = seq.nodes[i]
 
                 # Jumptable_AddressLoadedFromMemory
-                r = self._make_switch_cases_address_loaded_from_memory(seq, i, node, addr2nodes, jump_tables)
+                r = self._make_switch_cases_address_loaded_from_memory(seq, i, node, addr2nodes)
                 if r:
                     # we found a node that looks like a switch-case. seq.nodes are changed. resume to find the next such
                     # case
                     break
 
                 # Jumptable_AddressComputed
-                r = self._make_switch_cases_address_computed(seq, i, node, addr2nodes, jump_tables)
+                r = self._make_switch_cases_address_computed(seq, i, node, addr2nodes)
                 if r:
                     break
 
@@ -506,9 +506,7 @@ class DreamStructurer(StructurerBase):
                 # we did not find any node that looks like a switch-case. exit.
                 break
 
-    def _make_switch_cases_address_loaded_from_memory(
-        self, seq, i, node, addr2nodes: dict[int, set[CodeNode]], jump_tables: dict[int, IndirectJump]
-    ) -> bool:
+    def _make_switch_cases_address_loaded_from_memory(self, seq, i, node, addr2nodes: dict[int, set[CodeNode]]) -> bool:
         """
         A typical jump table involves multiple nodes, which look like the following:
 
@@ -526,6 +524,8 @@ class DreamStructurer(StructurerBase):
 
         try:
             last_stmt = self.cond_proc.get_last_statement(node)
+            if not isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                return False
         except EmptyBlockNotice:
             return False
         successor_addrs = extract_jump_targets(last_stmt)
@@ -533,14 +533,14 @@ class DreamStructurer(StructurerBase):
             return False
 
         for t in successor_addrs:
-            if t in addr2nodes and t in jump_tables:
+            if t in addr2nodes and t in self.jump_tables:
                 # this is a candidate!
                 target = t
                 break
         else:
             return False
 
-        jump_table = jump_tables[target]
+        jump_table = self.jump_tables[target]
         if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
             return False
 
@@ -563,6 +563,7 @@ class DreamStructurer(StructurerBase):
             return False
 
         # build switch-cases
+        assert jump_table.jumptable_entries is not None
         cases, node_default, to_remove = self._switch_build_cases(
             seq, cmp_lb, jump_table.jumptable_entries, i, node_b_addr, addr2nodes
         )
@@ -575,6 +576,7 @@ class DreamStructurer(StructurerBase):
         if switch_end_addr is not None:
             self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
+        assert last_stmt.ins_addr is not None
         self._make_switch_cases_core(
             seq,
             i,
@@ -591,12 +593,10 @@ class DreamStructurer(StructurerBase):
 
         return True
 
-    def _make_switch_cases_address_computed(
-        self, seq, i, node, addr2nodes: dict[int, set[CodeNode]], jump_tables: dict[int, IndirectJump]
-    ) -> bool:
-        if node.addr not in jump_tables:
+    def _make_switch_cases_address_computed(self, seq, i, node, addr2nodes: dict[int, set[CodeNode]]) -> bool:
+        if node.addr not in self.jump_tables:
             return False
-        jump_table = jump_tables[node.addr]
+        jump_table = self.jump_tables[node.addr]
         if jump_table.type != IndirectJumpType.Jumptable_AddressComputed:
             return False
 
@@ -622,9 +622,11 @@ class DreamStructurer(StructurerBase):
         cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
 
         jumptable_entries = jump_table.jumptable_entries
+        assert jumptable_entries is not None
 
         if isinstance(last_stmt.false_target, ailment.Expr.Const):
             default_addr = last_stmt.false_target.value
+            assert isinstance(default_addr, int)
         else:
             return False
 
@@ -661,8 +663,9 @@ class DreamStructurer(StructurerBase):
         addr,
         addr2nodes,
         to_remove,
+        *,
+        jumptable_addr: int,
         node_a=None,
-        jumptable_addr=None,
     ):
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
         scnode = CodeNode(scnode, node.reaching_condition)
@@ -720,6 +723,7 @@ class DreamStructurer(StructurerBase):
         ):
             # unpacking is needed
             for n in node_a.node.nodes:
+                assert n.addr is not None
                 if isinstance(n, ConditionNode):
                     unpacked = self._switch_unpack_condition_node(n, jumptable)
                     if unpacked is None:

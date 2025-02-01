@@ -144,7 +144,9 @@ def extract_jump_targets(stmt):
     return targets
 
 
-def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> tuple[Any, int, int] | None:
+def switch_extract_cmp_bounds(
+    last_stmt: ailment.Stmt.ConditionalJump | ailment.Stmt.Statement,
+) -> tuple[Any, int, int] | None:
     """
     Check the last statement of the switch-case header node, and extract lower+upper bounds for the comparison.
 
