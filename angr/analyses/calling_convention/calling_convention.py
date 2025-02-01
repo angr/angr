@@ -842,14 +842,22 @@ class CallingConventionAnalysis(Analysis):
         if cc.FP_RETURN_VAL and self._function.ret_sites:
             # examine the last block of the function and see which registers are assigned to
             for ret_block in self._function.ret_sites:
+                fpretval_updated, retval_updated = False, False
+                fp_reg_size = 0
                 irsb = self.project.factory.block(ret_block.addr, size=ret_block.size).vex
                 for stmt in irsb.statements:
                     if isinstance(stmt, Put) and isinstance(stmt.data, RdTmp):
                         reg_size = irsb.tyenv.sizeof(stmt.data.tmp) // self.project.arch.byte_width
                         reg_name = self.project.arch.translate_register_name(stmt.offset, size=reg_size)
                         if reg_name == cc.FP_RETURN_VAL.reg_name:
-                            # possibly float
-                            return SimTypeFloat() if reg_size == 4 else SimTypeDouble()
+                            fpretval_updated = True
+                            fp_reg_size = reg_size
+                        elif reg_name == cc.RETURN_VAL.reg_name:
+                            retval_updated = True
+
+                if fpretval_updated and not retval_updated:
+                    # possibly float
+                    return SimTypeFloat() if fp_reg_size == 4 else SimTypeDouble()
 
         if ret_val_size is not None:
             if ret_val_size == 1:
