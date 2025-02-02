@@ -89,6 +89,8 @@ class Clinic(Analysis):
     A Clinic deals with AILments.
     """
 
+    _ail_manager: ailment.Manager
+
     def __init__(
         self,
         func,
@@ -117,7 +119,6 @@ class Clinic(Analysis):
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
-        unsound_fix_abnormal_switches: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -135,7 +136,6 @@ class Clinic(Analysis):
         self.optimization_scratch = optimization_scratch if optimization_scratch is not None else {}
 
         self._func_graph: networkx.DiGraph | None = None
-        self._ail_manager = None
         self._blocks_by_addr_and_size = {}
         self.entry_node_addr: tuple[int, int | None] = self.function.addr, None
 
@@ -149,7 +149,6 @@ class Clinic(Analysis):
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
         self._rewrite_ites_to_diamonds = rewrite_ites_to_diamonds
-        self._unsound_fix_abnormal_switches = unsound_fix_abnormal_switches
         self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
         self._cache = cache
         self._mode = mode
@@ -167,6 +166,7 @@ class Clinic(Analysis):
         self._complete_successors = complete_successors
 
         self._register_save_areas_removed: bool = False
+        self.edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] = []
 
         self._new_block_addrs = set()
 
@@ -209,6 +209,7 @@ class Clinic(Analysis):
 
         :return:
         """
+        assert self.graph is not None
 
         s = ""
 
@@ -297,6 +298,8 @@ class Clinic(Analysis):
         return ail_graph
 
     def _slice_variables(self, ail_graph):
+        assert self.variable_kb is not None
+
         nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
 
         vfm = self.variable_kb.variables.function_managers[self.function.addr]
@@ -344,7 +347,7 @@ class Clinic(Analysis):
             optimization_passes=[StackCanarySimplifier],
             sp_shift=self._max_stack_depth,
             vvar_id_start=self.vvar_id_start,
-            fail_fast=self._fail_fast,
+            fail_fast=self._fail_fast,  # type: ignore
         )
         self.vvar_id_start = callee_clinic.vvar_id_start + 1
         self._max_stack_depth = callee_clinic._max_stack_depth
@@ -618,6 +621,7 @@ class Clinic(Analysis):
 
         # remove empty nodes from the graph
         ail_graph = self.remove_empty_nodes(ail_graph)
+        # note that there are still edges to remove before we can structure this graph!
 
         self.arg_list = arg_list
         self.arg_vvars = arg_vvars
@@ -800,7 +804,7 @@ class Clinic(Analysis):
 
             # case 2: the callee is a SimProcedure
             if target_func.is_simprocedure:
-                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)
+                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
@@ -808,7 +812,7 @@ class Clinic(Analysis):
 
             # case 3: the callee is a PLT function
             if target_func.is_plt:
-                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)
+                cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
@@ -878,7 +882,7 @@ class Clinic(Analysis):
         # finally, recover the calling convention of the current function
         if self.function.prototype is None or self.function.calling_convention is None:
             self.project.analyses.CompleteCallingConventions(
-                fail_fast=self._fail_fast,
+                fail_fast=self._fail_fast,  # type: ignore
                 recover_variables=True,
                 prioritize_func_addrs=[self.function.addr],
                 skip_other_funcs=True,
@@ -2109,49 +2113,60 @@ class Clinic(Analysis):
             # the overlapped instructions and add an unconditional jump so that it jumps to 0x41da9d.
             # this is the most common case created by jump threading optimization in compilers. it's easy to handle.
 
-            # Case 2: the intended head and the other heads do not share the same suffix of instructions. in this case,
-            # we cannot reliably convert the blocks into a properly structured switch-case construct. we will alter the
-            # last instruction of all other heads to jump to the cmp instruction in the intended head, but do not remove
-            # any other instructions in these other heads. this is unsound, but is the best we can do in this case.
+            # Case 2 & 3: the intended head and the other heads do not share the same suffix of instructions. in this
+            # case, we have two choices:
+            #   Case 2: The intended head has two successors, but at least one unintended head has only one successor.
+            #           we cannot reliably convert the blocks into a properly structured switch-case construct. we will
+            #           last instruction of all other heads to jump to the cmp instruction in the intended head, but do
+            #           not remove any other instructions in these other heads. this is unsound, but is the best we can
+            #           do in this case.
+            #   Case 3: The intended head has only one successor (which is the indirect jump node). during structuring,
+            #           we expect it will be structured as a no-default-node switch-case construct. in this case, we
+            #           can simply remove the edges from all other heads to the jump node and only leave the edge from
+            #           the intended head to the jump node. we will see goto statements in the output, but this will
+            #           lead to correct structuring result.
 
             overlaps = [self._get_overlapping_suffix_instructions(intended_head, head) for head in other_heads]
             if overlaps and (overlap := min(overlaps)) > 0:
                 # Case 1
                 self._fix_abnormal_switch_case_heads_case1(ail_graph, candidate, intended_head, other_heads, overlap)
+            elif ail_graph.out_degree[intended_head] == 2:
+                # Case 2
+                l.warning("Switch-case at %#x has multiple head nodes but cannot be fixed soundly.", candidate.addr)
+                # find the comparison instruction in the intended head
+                comparison_stmt = None
+                if "cc_op" in self.project.arch.registers:
+                    comparison_stmt = next(
+                        iter(
+                            stmt
+                            for stmt in intended_head.statements
+                            if isinstance(stmt, ailment.Stmt.Assignment)
+                            and isinstance(stmt.dst, ailment.Expr.Register)
+                            and stmt.dst.reg_offset == self.project.arch.registers["cc_op"][0]
+                        ),
+                        None,
+                    )
+                intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
+                if comparison_stmt is not None:
+                    cmp_rpos = len(intended_head_block.instruction_addrs) - intended_head_block.instruction_addrs.index(
+                        comparison_stmt.ins_addr
+                    )
+                else:
+                    cmp_rpos = min(len(intended_head_block.instruction_addrs), 2)
+                self._fix_abnormal_switch_case_heads_case2(
+                    ail_graph,
+                    candidate,
+                    intended_head,
+                    other_heads,
+                    intended_head_split_insns=cmp_rpos,
+                    other_head_split_insns=0,
+                )
             else:
-                if self._unsound_fix_abnormal_switches:
-                    # Case 2
-                    l.warning("Switch-case at %#x has multiple head nodes but cannot be fixed soundly.", candidate.addr)
-                    # find the comparison instruction in the intended head
-                    comparison_stmt = None
-                    if "cc_op" in self.project.arch.registers:
-                        comparison_stmt = next(
-                            iter(
-                                stmt
-                                for stmt in intended_head.statements
-                                if isinstance(stmt, ailment.Stmt.Assignment)
-                                and isinstance(stmt.dst, ailment.Expr.Register)
-                                and stmt.dst.reg_offset == self.project.arch.registers["cc_op"][0]
-                            ),
-                            None,
-                        )
-                    intended_head_block = self.project.factory.block(
-                        intended_head.addr, size=intended_head.original_size
-                    )
-                    if comparison_stmt is not None:
-                        cmp_rpos = len(
-                            intended_head_block.instruction_addrs
-                        ) - intended_head_block.instruction_addrs.index(comparison_stmt.ins_addr)
-                    else:
-                        cmp_rpos = min(len(intended_head_block.instruction_addrs), 2)
-                    self._fix_abnormal_switch_case_heads_case2(
-                        ail_graph,
-                        candidate,
-                        intended_head,
-                        other_heads,
-                        intended_head_split_insns=cmp_rpos,
-                        other_head_split_insns=0,
-                    )
+                # Case 3
+                self._fix_abnormal_switch_case_heads_case3(
+                    candidate,
+                    other_heads,
+                )
 
     def _get_overlapping_suffix_instructions(self, ailblock_0: ailment.Block, ailblock_1: ailment.Block) -> int:
         # we first compare their ending conditional jumps
@@ -2359,6 +2374,16 @@ class Clinic(Analysis):
                 else:
                     # it should be going to the default node. ignore it
                     pass
+
+    def _fix_abnormal_switch_case_heads_case3(
+        self, indirect_jump_node: ailment.Block, other_heads: list[ailment.Block]
+    ) -> None:
+        # remove all edges from other_heads to the indirect jump node
+        for other_head in other_heads:
+            # delay the edge removal so that we don't mess up the SSA analysis
+            self.edges_to_remove.append(
+                ((other_head.addr, other_head.idx), (indirect_jump_node.addr, indirect_jump_node.idx))
+            )
 
     @staticmethod
     def _remove_redundant_jump_blocks(ail_graph):

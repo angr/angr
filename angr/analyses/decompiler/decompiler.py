@@ -23,7 +23,7 @@ from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
-from .utils import remove_labels
+from .utils import remove_labels, remove_edges_in_ailgraph
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
@@ -300,7 +300,12 @@ class Decompiler(Analysis):
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
             arg_vvars=set(clinic.arg_vvars),
+            edges_to_remove=clinic.edges_to_remove,
         )
+
+        # finally (no more graph-based simplifications will run in the future), we can remove the edges that should be
+        # removed!
+        remove_edges_in_ailgraph(clinic.graph, clinic.edges_to_remove)
 
         # Rewrite the graph to remove phi expressions
         # this is probably optional if we do not pretty-print clinic.graph
