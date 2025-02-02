@@ -4021,6 +4021,21 @@ class TestDecompiler(unittest.TestCase):
         for i in range(10):
             assert f"case {i}:" in d.codegen.text
 
+    def test_decompiling_abnormal_switch_case_case3(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "windows", "msvcr120.dll")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        f = proj.kb.functions[0x18003C330]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert d.codegen.text.count("switch") == 1
+        assert d.codegen.text.count("goto LABEL_18003c3fc;") == 2
+        assert d.codegen.text.count("LABEL_18003c3fc:") == 1
+        for i in range(16):
+            assert f"case {i}:" in d.codegen.text
+        assert "default:" not in d.codegen.text
+
     def test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump(self, decompiler_options=None):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "0a9bd4898d4c966cda1102952a74b3b829581c5b6bbeb4c4e6a09cefde8c0d26"

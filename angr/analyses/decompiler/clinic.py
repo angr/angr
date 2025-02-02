@@ -166,7 +166,7 @@ class Clinic(Analysis):
         self._complete_successors = complete_successors
 
         self._register_save_areas_removed: bool = False
-        self._edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] = []
+        self.edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] = []
 
         self._new_block_addrs = set()
 
@@ -2113,18 +2113,57 @@ class Clinic(Analysis):
             # the overlapped instructions and add an unconditional jump so that it jumps to 0x41da9d.
             # this is the most common case created by jump threading optimization in compilers. it's easy to handle.
 
-            # Case 2: the intended head and the other heads do not share the same suffix of instructions. in this case,
-            # we simply remove the edges from all other heads to the jump node and only leave the edge from the
-            # intended head to the jump node. we will see goto statements in the output, but this will lead to correct
-            # structuring result.
+            # Case 2 & 3: the intended head and the other heads do not share the same suffix of instructions. in this
+            # case, we have two choices:
+            #   Case 2: The intended head has two successors, but at least one unintended head has only one successor.
+            #           we cannot reliably convert the blocks into a properly structured switch-case construct. we will
+            #           last instruction of all other heads to jump to the cmp instruction in the intended head, but do
+            #           not remove any other instructions in these other heads. this is unsound, but is the best we can
+            #           do in this case.
+            #   Case 3: The intended head has only one successor (which is the indirect jump node). during structuring,
+            #           we expect it will be structured as a no-default-node switch-case construct. in this case, we
+            #           can simply remove the edges from all other heads to the jump node and only leave the edge from
+            #           the intended head to the jump node. we will see goto statements in the output, but this will
+            #           lead to correct structuring result.
 
             overlaps = [self._get_overlapping_suffix_instructions(intended_head, head) for head in other_heads]
             if overlaps and (overlap := min(overlaps)) > 0:
                 # Case 1
                 self._fix_abnormal_switch_case_heads_case1(ail_graph, candidate, intended_head, other_heads, overlap)
-            else:
+            elif ail_graph.out_degree[intended_head] == 2:
                 # Case 2
+                l.warning("Switch-case at %#x has multiple head nodes but cannot be fixed soundly.", candidate.addr)
+                # find the comparison instruction in the intended head
+                comparison_stmt = None
+                if "cc_op" in self.project.arch.registers:
+                    comparison_stmt = next(
+                        iter(
+                            stmt
+                            for stmt in intended_head.statements
+                            if isinstance(stmt, ailment.Stmt.Assignment)
+                            and isinstance(stmt.dst, ailment.Expr.Register)
+                            and stmt.dst.reg_offset == self.project.arch.registers["cc_op"][0]
+                        ),
+                        None,
+                    )
+                intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
+                if comparison_stmt is not None:
+                    cmp_rpos = len(intended_head_block.instruction_addrs) - intended_head_block.instruction_addrs.index(
+                        comparison_stmt.ins_addr
+                    )
+                else:
+                    cmp_rpos = min(len(intended_head_block.instruction_addrs), 2)
                 self._fix_abnormal_switch_case_heads_case2(
+                    ail_graph,
+                    candidate,
+                    intended_head,
+                    other_heads,
+                    intended_head_split_insns=cmp_rpos,
+                    other_head_split_insns=0,
+                )
+            else:
+                # Case 3
+                self._fix_abnormal_switch_case_heads_case3(
                     candidate,
                     other_heads,
                 )
@@ -2215,7 +2254,7 @@ class Clinic(Analysis):
         other_heads: list[ailment.Block],
         overlap: int,
     ) -> None:
-        self._fix_abnormal_switch_case_heads_case1_core(
+        self._fix_abnormal_switch_case_heads_case2(
             ail_graph,
             indirect_jump_node,
             intended_head,
@@ -2224,7 +2263,7 @@ class Clinic(Analysis):
             other_head_split_insns=overlap,
         )
 
-    def _fix_abnormal_switch_case_heads_case1_core(
+    def _fix_abnormal_switch_case_heads_case2(
         self,
         ail_graph: networkx.DiGraph,
         indirect_jump_node: ailment.Block,
@@ -2336,13 +2375,13 @@ class Clinic(Analysis):
                     # it should be going to the default node. ignore it
                     pass
 
-    def _fix_abnormal_switch_case_heads_case2(
+    def _fix_abnormal_switch_case_heads_case3(
         self, indirect_jump_node: ailment.Block, other_heads: list[ailment.Block]
     ) -> None:
         # remove all edges from other_heads to the indirect jump node
         for other_head in other_heads:
             # delay the edge removal so that we don't mess up the SSA analysis
-            self._edges_to_remove.append(
+            self.edges_to_remove.append(
                 ((other_head.addr, other_head.idx), (indirect_jump_node.addr, indirect_jump_node.idx))
             )
 
@@ -2596,12 +2635,6 @@ class Clinic(Analysis):
             new_addr = max(self.function.block_addrs_set) + 2048
         self._new_block_addrs.add(new_addr)
         return new_addr
-
-    def remove_edges(self, ail_graph: networkx.DiGraph) -> None:
-        d = {(bb.addr, bb.idx): bb for bb in ail_graph}
-        for src_addr, dst_addr in self._edges_to_remove:
-            if src_addr in d and dst_addr in d and ail_graph.has_edge(d[src_addr], d[dst_addr]):
-                ail_graph.remove_edge(d[src_addr], d[dst_addr])
 
     @staticmethod
     @timethis

@@ -1023,6 +1023,15 @@ def sequence_to_statements(
     return statements
 
 
+def remove_edges_in_ailgraph(
+    ail_graph: networkx.DiGraph, edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]]
+) -> None:
+    d = {(bb.addr, bb.idx): bb for bb in ail_graph}
+    for src_addr, dst_addr in edges_to_remove:
+        if src_addr in d and dst_addr in d and ail_graph.has_edge(d[src_addr], d[dst_addr]):
+            ail_graph.remove_edge(d[src_addr], d[dst_addr])
+
+
 # delayed import
 from .structuring.structurer_nodes import (
     MultiNode,

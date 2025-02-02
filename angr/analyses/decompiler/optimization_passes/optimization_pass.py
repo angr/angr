@@ -13,7 +13,7 @@ from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
-from angr.analyses.decompiler.utils import add_labels
+from angr.analyses.decompiler.utils import add_labels, remove_edges_in_ailgraph
 from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.project import Project
 
@@ -333,14 +333,15 @@ class StructuringOptimizationPass(OptimizationPass):
     def __init__(
         self,
         func,
-        prevent_new_gotos=True,
-        strictly_less_gotos=False,
-        recover_structure_fails=True,
-        must_improve_rel_quality=True,
-        max_opt_iters=1,
-        simplify_ail=True,
-        require_gotos=True,
-        readd_labels=False,
+        prevent_new_gotos: bool = True,
+        strictly_less_gotos: bool = False,
+        recover_structure_fails: bool = True,
+        must_improve_rel_quality: bool = True,
+        max_opt_iters: int = 1,
+        simplify_ail: bool = True,
+        require_gotos: bool = True,
+        readd_labels: bool = False,
+        edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] | None = None,
         **kwargs,
     ):
         super().__init__(func, **kwargs)
@@ -352,6 +353,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._require_gotos = require_gotos
         self._must_improve_rel_quality = must_improve_rel_quality
         self._readd_labels = readd_labels
+        self._edges_to_remove = edges_to_remove or []
 
         # relative quality metrics (excludes gotos)
         self._initial_structure_counter = None
@@ -453,6 +455,8 @@ class StructuringOptimizationPass(OptimizationPass):
         """
         if readd_labels:
             graph = add_labels(graph)
+
+        remove_edges_in_ailgraph(graph, self._edges_to_remove)
 
         self._ri = self.project.analyses[RegionIdentifier].prep(kb=self.kb)(
             self._func,
