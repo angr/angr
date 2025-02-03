@@ -20,10 +20,8 @@ from .misc.ux import deprecated
 
 if TYPE_CHECKING:
     from angr.procedures.definitions import SimTypeCollection
-    from angr.storage.memory_mixins import _Coerce
 
-    StoreType = _Coerce
-
+StoreType = int | claripy.ast.BV
 
 l = logging.getLogger(name=__name__)
 
@@ -318,6 +316,8 @@ class SimTypeReg(SimType):
         return f"reg{self.size}_t"
 
     def store(self, state, addr, value: StoreType):
+        if self.size is None:
+            raise TypeError("Need a size to store")
         store_endness = state.arch.memory_endness
         with contextlib.suppress(AttributeError):
             value = value.ast  # type: ignore
@@ -366,7 +366,7 @@ class SimTypeNum(SimType):
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+    def extract(self, state, addr, concrete: Literal[True]) -> int: ...
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
@@ -445,7 +445,7 @@ class SimTypeInt(SimTypeReg):
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+    def extract(self, state, addr, concrete: Literal[True]) -> int: ...
 
     def extract(self, state, addr, concrete=False):
         out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
@@ -575,7 +575,7 @@ class SimTypeChar(SimTypeReg):
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> bytes: ...
+    def extract(self, state, addr, concrete: Literal[True]) -> bytes: ...
 
     def extract(self, state, addr, concrete: bool = False) -> claripy.ast.BV | bytes:
         # FIXME: This is a hack.
@@ -665,7 +665,7 @@ class SimTypeBool(SimTypeReg):
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.Bool: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> bool: ...
+    def extract(self, state, addr, concrete: Literal[True]) -> bool: ...
 
     def extract(self, state, addr, concrete=False):
         ver = super().extract(state, addr, concrete)
@@ -715,7 +715,7 @@ class SimTypeFd(SimTypeReg):
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+    def extract(self, state, addr, concrete: Literal[True]) -> int: ...
 
     def extract(self, state, addr, concrete=False):
         # TODO: EDG says this looks dangerously closed-minded. Just in case...
@@ -788,7 +788,7 @@ class SimTypePointer(SimTypeReg):
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+    def extract(self, state, addr, concrete: Literal[True]) -> int: ...
 
     def extract(self, state, addr, concrete=False):
         # TODO: EDG says this looks dangerously closed-minded. Just in case...
@@ -848,7 +848,7 @@ class SimTypeReference(SimTypeReg):
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+    def extract(self, state, addr, concrete: Literal[True]) -> int: ...
 
     def extract(self, state, addr, concrete=False):
         # TODO: EDG says this looks dangerously closed-minded. Just in case...
@@ -984,7 +984,7 @@ class SimTypeString(NamedTypeMixin, SimType):
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> bytes: ...
+    def extract(self, state, addr, concrete: Literal[True]) -> bytes: ...
 
     def extract(self, state: SimState, addr, concrete=False):
         if self.length is None:
@@ -1585,7 +1585,7 @@ class SimStructValue:
         for name in self._struct.fields:
             value = self._values[name]
             try:
-                f = value.__indented_repr__
+                f = value.__indented_repr__  # type: ignore[reportAttributeAccessIssue]
                 s = f(indent=indent + 2)
             except AttributeError:
                 s = repr(value)
@@ -1630,6 +1630,8 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @property
     def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
         member_sizes = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
         # fall back to word size in case all members are SimTypeBottom
         return max(member_sizes) if member_sizes else self._arch.bytes
@@ -1722,7 +1724,7 @@ class SimUnionValue:
         fields = []
         for name, value in self._values.items():
             try:
-                f = value.__indented_repr__
+                f = value.__indented_repr__  # type: ignore[reportAttributeAccessIssue]
                 s = f(indent=indent + 2)
             except AttributeError:
                 s = repr(value)
@@ -1820,7 +1822,7 @@ class SimCppClassValue(SimStructValue):
         for name in self._class.fields:
             value = self._values[name]
             try:
-                f = value.__indented_repr__
+                f = value.__indented_repr__  # type: ignore[reportAttributeAccessIssue]
                 s = f(indent=indent + 2)
             except AttributeError:
                 s = repr(value)
@@ -1864,10 +1866,10 @@ class SimTypeNumOffset(SimTypeNum):
         self.offset = offset
 
     @overload
-    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+    def extract(self, state: SimState, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True] = ...) -> int: ...
+    def extract(self, state: SimState, addr, concrete: Literal[True]) -> int: ...
 
     def extract(self, state: SimState, addr, concrete=False):
         if state.arch.memory_endness != Endness.LE:
