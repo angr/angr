@@ -1206,7 +1206,7 @@ class SimpleSolver:
                         node_by_offset[last_label.offset].add(succ)
 
             sorted_offsets: list[int] = sorted(node_by_offset)
-            for i in range(len(sorted_offsets)):
+            for i in range(len(sorted_offsets)):  # pylint:disable=consider-using-enumerate
                 offset = sorted_offsets[i]
                 next_offset = sorted_offsets[i + 1] if i + 1 < len(sorted_offsets) else None
 
