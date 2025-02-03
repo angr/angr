@@ -1,6 +1,7 @@
 from __future__ import annotations
 import pycparser
 
+from .sim_manager import SimulationManager
 from .errors import AngrCallableError, AngrCallableMultistateError
 from .calling_conventions import default_cc, SimCC
 
@@ -28,6 +29,7 @@ class Callable:
         cc=None,
         add_options=None,
         remove_options=None,
+        step_limit: int | None = None,
     ):
         """
         :param project:         The project to operate on
@@ -60,6 +62,7 @@ class Callable:
         self._func_ty = prototype
         self._add_options = add_options if add_options else set()
         self._remove_options = remove_options if remove_options else set()
+        self._step_limit = step_limit
 
         self.result_path_group = None
         self.result_state = None
@@ -95,16 +98,12 @@ class Callable:
             remove_options=self._remove_options,
         )
 
-        def step_func(pg):
-            pg2 = pg.prune()
-            if len(pg2.active) > 1:
-                raise AngrCallableMultistateError("Execution split on symbolic condition!")
-            return pg2
-
         caller = self._project.factory.simulation_manager(state)
-        caller.run(step_func=step_func if self._concrete_only else None).unstash(from_stash="deadended")
+        caller.run(step_func=self._step_func).unstash(from_stash="deadended")
         caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
+        if "step_limited" in caller.stashes:
+            caller.stash(from_stash="step_limited", to_stash="active")
         if len(caller.active) == 0:
             raise AngrCallableError("No paths returned from function")
 
@@ -159,3 +158,11 @@ class Callable:
                 raise AngrCallableError(f"Unsupported expression type {type(expr)}.")
 
         return self.__call__(*args)
+
+    def _step_func(self, pg: SimulationManager):
+        pg2 = pg.prune()
+        if self._concrete_only and len(pg2.active) > 1:
+            raise AngrCallableMultistateError("Execution split on symbolic condition!")
+        if self._step_limit:
+            pg2.stash(filter_func=lambda p: p.history.depth >= self._step_limit, to_stash="step_limited")
+        return pg2
