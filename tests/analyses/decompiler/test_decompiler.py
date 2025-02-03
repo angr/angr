@@ -14,7 +14,7 @@ import ailment
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.sim_type import SimTypeInt, SimTypePointer, SimTypeBottom, SimTypeLong, SimTypeArray, SimTypeChar
+from angr.sim_type import SimTypeInt, SimTypePointer, SimTypeBottom, SimTypeLongLong, SimTypeArray, SimTypeChar
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -4039,16 +4039,19 @@ class TestDecompiler(unittest.TestCase):
 
         # a0 should be an integer and a1 should be a char pointer
         assert len(d.codegen.cfunc.arg_list) == 3
-        arg0, arg1 = d.codegen.cfunc.arg_list[0:2]
+        arg0, arg1, arg2 = d.codegen.cfunc.arg_list
         arg0_type = arg0.type
         arg1_type = arg1.type
-        assert isinstance(arg0_type, SimTypeLong)
-        assert arg0_type.signed is False
+        arg2_type = arg2.type
+        assert isinstance(arg0_type, SimTypePointer)
+        assert isinstance(arg0_type.pts_to, SimTypeBottom)
         assert isinstance(arg1_type, SimTypePointer)
         if isinstance(arg1_type.pts_to, SimTypeArray):
             assert isinstance(arg1_type.pts_to.elem_type, SimTypeChar)
         else:
             assert isinstance(arg1_type.pts_to, SimTypeChar)
+        assert isinstance(arg2_type, SimTypeLongLong)
+        assert arg2_type.signed is False
 
     def test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump(self, decompiler_options=None):
         bin_path = os.path.join(

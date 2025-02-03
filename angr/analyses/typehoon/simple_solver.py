@@ -1227,10 +1227,12 @@ class SimpleSolver:
                 result = Top_
                 for node in nodes:
                     self._solution_cache[node.typevar] = result
+                    solution[node.typevar] = result
             elif any(off < 0 for off in fields):
                 result = self._pointer_class()(Bottom_)
                 for node in nodes:
                     self._solution_cache[node.typevar] = result
+                    solution[node.typevar] = result
             else:
                 # back-patch
                 struct_type.fields = fields
