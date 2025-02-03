@@ -430,6 +430,7 @@ class SimEngineVRBase(
                 self.state.variable_manager[self.func_addr].add_variable("register", vvar.oident, variable)
             elif vvar.was_tmp:
                 # FIXME: we treat all tmp vvars as registers
+                assert vvar.tmp_idx is not None
                 variable = SimRegisterVariable(
                     4096 + vvar.tmp_idx,
                     vvar.size,
@@ -669,7 +670,7 @@ class SimEngineVRBase(
                 self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
 
-    def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV], size: int):
+    def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], data: RichR, size: int):
         addr_variable = richr_addr.variable
         codeloc = self._codeloc()
 
