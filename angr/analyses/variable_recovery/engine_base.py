@@ -503,7 +503,7 @@ class SimEngineVRBase(
                     self.state.variable_manager[self.func_addr].remove_variable_by_atom(codeloc, existing_var, atom)
 
             # storing to a location specified by a pointer whose value cannot be determined at this point
-            self._store_to_variable(richr_addr, size)
+            self._store_to_variable(richr_addr, data, size)
 
     def _store_to_stack(
         self, stack_offset, data: RichR[claripy.ast.BV | claripy.ast.FP], size, offset=0, atom=None, endness=None
@@ -669,7 +669,7 @@ class SimEngineVRBase(
                 self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
 
-    def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], size: int):
+    def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV], size: int):
         addr_variable = richr_addr.variable
         codeloc = self._codeloc()
 
@@ -691,7 +691,8 @@ class SimEngineVRBase(
             store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
             if addr_variable is not None:
                 self.state.typevars.add_type_variable(addr_variable, codeloc, typevar)
-            self.state.add_type_constraint(typevars.Subtype(store_typevar, typeconsts.TopType()))
+            data_typevar = data.typevar if data.typevar is not None else typeconsts.TopType()
+            self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
 
     def _load(self, richr_addr: RichR[claripy.ast.BV], size: int, expr=None):
         """

@@ -1187,6 +1187,17 @@ class SimpleSolver:
                         if access_off not in offset_to_base:
                             offset_to_base[access_off] = start_offset
 
+            # determine again the maximum size of each field (at each offset)
+            offset_to_maxsize = defaultdict(int)
+            offset_to_sizes = defaultdict(set)  # we do not consider offsets to each base offset
+            for labels, _succ in path_and_successors:
+                last_label = labels[-1] if labels else None
+                if isinstance(last_label, HasField):
+                    base = offset_to_base[last_label.offset]
+                    access_size = 1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
+                    offset_to_maxsize[base] = max(offset_to_maxsize[base], (last_label.offset - base) + access_size)
+                    offset_to_sizes[base].add(access_size)
+
             node_to_base = {}
 
             for labels, succ in path_and_successors:
@@ -1208,14 +1219,13 @@ class SimpleSolver:
             sorted_offsets: list[int] = sorted(node_by_offset)
             for i in range(len(sorted_offsets)):  # pylint:disable=consider-using-enumerate
                 offset = sorted_offsets[i]
-                next_offset = sorted_offsets[i + 1] if i + 1 < len(sorted_offsets) else None
 
                 child_nodes = node_by_offset[offset]
                 sol = self._determine(equivalent_classes, the_typevar, sketch, solution, nodes=child_nodes)
                 if isinstance(sol, TopType):
                     # make it an array if possible
-                    elem_size = min(candidate_bases[offset])
-                    array_size = next_offset - offset if next_offset is not None else max(candidate_bases[offset])
+                    elem_size = min(offset_to_sizes[offset])
+                    array_size = offset_to_maxsize[offset]
                     if array_size % elem_size != 0:
                         # fall back to byte_t
                         elem_size = 1
