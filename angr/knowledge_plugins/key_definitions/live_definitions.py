@@ -22,6 +22,7 @@ from angr.utils.constants import is_alignment_mask
 from .atoms import Atom, Register, MemoryLocation, Tmp, ConstantSrc
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
+from .undefined import Undefined
 from .uses import Uses
 
 if TYPE_CHECKING:
@@ -535,7 +536,8 @@ class LiveDefinitions:
                 else:
                     l.warning("Skip stack storing since the stack offset is None.")
             elif isinstance(atom.addr, HeapAddress):
-                self.heap.erase(atom.addr.value, size=atom.size)
+                if not isinstance(atom.addr.value, Undefined):
+                    self.heap.erase(atom.addr.value, size=atom.size)
             elif isinstance(atom.addr, int):
                 self.memory.erase(atom.addr, size=atom.size)
             elif isinstance(atom.addr, claripy.ast.Base):
@@ -705,6 +707,8 @@ class LiveDefinitions:
             if isinstance(thing.addr, SpOffset):
                 return self.get_stack_definitions(thing.addr.offset, thing.size)
             if isinstance(thing.addr, HeapAddress):
+                if isinstance(thing.addr.value, Undefined):
+                    return set()
                 return self.get_heap_definitions(thing.addr.value, size=thing.size)
             if isinstance(thing.addr, int):
                 return self.get_memory_definitions(thing.addr, thing.size)
