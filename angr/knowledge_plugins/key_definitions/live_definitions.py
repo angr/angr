@@ -630,7 +630,7 @@ class LiveDefinitions:
                 return None
         elif isinstance(atom, Tmp):
             if self.track_tmps:
-                self.tmps[atom.tmp_idx] = {definition}
+                self.tmps[atom.tmp_idx] = {Definition(atom, code_loc, dummy=dummy, tags=tags)}
             else:
                 self.tmps[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
                 return None
