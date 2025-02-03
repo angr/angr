@@ -900,14 +900,12 @@ class LiveDefinitions:
 
     @overload
     def get_concrete_value(
-        self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]], cast_to: type[int] = ...
+        self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]], cast_to: type[int]
     ) -> int | None: ...
 
     @overload
     def get_concrete_value(
-        self,
-        spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]],
-        cast_to: type[bytes] = ...,
+        self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]], cast_to: type[bytes]
     ) -> bytes | None: ...
 
     def get_concrete_value(
