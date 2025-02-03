@@ -9,11 +9,11 @@ import networkx
 
 import claripy
 
-from angr import sim_options
 from angr.analyses import Analysis, AnalysesHub
-from angr.errors import SimMemoryMissingError, AngrCallableMultistateError, AngrCallableError
+from angr.errors import SimMemoryMissingError, AngrCallableMultistateError, AngrCallableError, AngrAnalysisError
 from angr.calling_conventions import SimRegArg, default_cc
 from angr.state_plugins.sim_action import SimActionData
+from angr.sim_options import ZERO_FILL_UNCONSTRAINED_REGISTERS, ZERO_FILL_UNCONSTRAINED_MEMORY, TRACK_MEMORY_ACTIONS
 from angr.sim_type import SimTypeFunction, SimTypeBottom, SimTypePointer
 from angr.analyses.reaching_definitions import ObservationPointType
 from angr.utils.graph import GraphUtils
@@ -23,12 +23,22 @@ from .irsb_reg_collector import IRSBRegisterCollector
 _l = logging.getLogger(__name__)
 
 
+STEP_LIMIT = 500
+
+
 class StringDeobFuncDescriptor:
+    """
+    Describes a string deobfuscation function.
+    """
+
+    string_input_arg_idx: int
+    string_output_arg_idx: int
+    string_length_arg_idx: int | None
+    string_null_terminating: bool | None
+
     def __init__(self):
-        self.string_input_arg_idx = None
-        self.string_output_arg_idx = None
         self.string_length_arg_idx = None
-        self.string_null_terminating: bool | None = None
+        self.string_null_terminating = None
 
 
 class StringObfuscationFinder(Analysis):
@@ -89,6 +99,9 @@ class StringObfuscationFinder(Analysis):
         # Type 1 string deobfuscation functions will decrypt each string once and for good.
 
         cfg = self.kb.cfgs.get_most_accurate()
+        if cfg is None:
+            raise AngrAnalysisError("StringObfuscationFinder needs a CFG for the analysis")
+
         arch = self.project.arch
 
         type1_candidates: list[tuple[int, StringDeobFuncDescriptor]] = []
@@ -98,6 +111,10 @@ class StringObfuscationFinder(Analysis):
                 continue
 
             if func.prototype is None or len(func.prototype.args) < 1:
+                continue
+
+            if len(func.arguments) != len(func.prototype.args):
+                # function argument locations and function prototype arguments do not match
                 continue
 
             if self.project.kb.functions.callgraph.out_degree[func.addr] != 0:
@@ -123,14 +140,22 @@ class StringObfuscationFinder(Analysis):
                 dec = self.project.analyses.Decompiler(func, cfg=cfg)
             except Exception:  # pylint:disable=broad-exception-caught
                 continue
-            if dec.codegen is None or not self._like_type1_deobfuscation_function(dec.codegen.text):
+            if (
+                dec.codegen is None
+                or not dec.codegen.text
+                or not self._like_type1_deobfuscation_function(dec.codegen.text)
+            ):
+                continue
+
+            func_node = cfg.get_any_node(func.addr)
+            if func_node is None:
                 continue
 
             args_list = []
             for caller in callers:
                 callsite_nodes = [
                     pred
-                    for pred in cfg.get_predecessors(cfg.get_any_node(func.addr))
+                    for pred in cfg.get_predecessors(func_node)
                     if pred.function_address == caller and pred.instruction_addrs
                 ]
                 observation_points = []
@@ -148,15 +173,21 @@ class StringObfuscationFinder(Analysis):
                         callsite_node.instruction_addrs[-1],
                         ObservationPointType.OP_BEFORE,
                     )
+                    if observ is None:
+                        continue
                     # load values for each function argument
                     args: list[tuple[int, Any]] = []
                     for arg_idx, func_arg in enumerate(func.arguments):
                         # FIXME: We are ignoring all non-register function arguments until we see a test case where
                         # FIXME: stack-passing arguments are used
+                        real_arg = func.prototype.args[arg_idx]
                         if isinstance(func_arg, SimRegArg):
                             reg_offset, reg_size = arch.registers[func_arg.reg_name]
+                            arg_size = (
+                                real_arg.size if real_arg.size is not None else reg_size
+                            ) // self.project.arch.byte_width
                             try:
-                                mv = observ.registers.load(reg_offset, size=reg_size)
+                                mv = observ.registers.load(reg_offset, size=arg_size)
                             except SimMemoryMissingError:
                                 args.append((arg_idx, claripy.BVV(0xDEADBEEF, self.project.arch.bits)))
                                 continue
@@ -185,7 +216,15 @@ class StringObfuscationFinder(Analysis):
             # now that we have good arguments, let's test the function!
             for args in args_list:
                 func_call = self.project.factory.callable(
-                    func.addr, concrete_only=True, cc=func.calling_convention, prototype=func.prototype
+                    func.addr,
+                    concrete_only=True,
+                    cc=func.calling_convention,
+                    prototype=func.prototype,
+                    add_options={
+                        ZERO_FILL_UNCONSTRAINED_MEMORY,
+                        ZERO_FILL_UNCONSTRAINED_REGISTERS,
+                    },
+                    step_limit=STEP_LIMIT,
                 )
 
                 # before calling the function, let's record the crime scene
@@ -200,6 +239,9 @@ class StringObfuscationFinder(Analysis):
                 try:
                     func_call(*[arg for _, arg in args])
                 except (AngrCallableMultistateError, AngrCallableError):
+                    continue
+
+                if func_call.result_state is None:
                     continue
 
                 # let's see what this amazing function has done
@@ -240,6 +282,9 @@ class StringObfuscationFinder(Analysis):
 
         arch = self.project.arch
         cfg = self.kb.cfgs.get_most_accurate()
+        if cfg is None:
+            raise AngrAnalysisError("StringObfuscationFinder needs a CFG for the analysis")
+
         func = self.kb.functions.get_by_addr(func_addr)
         func_node = cfg.get_any_node(func_addr)
         assert func_node is not None
@@ -260,14 +305,20 @@ class StringObfuscationFinder(Analysis):
                 callsite_node.instruction_addrs[-1],
                 ObservationPointType.OP_BEFORE,
             )
+            if observ is None:
+                continue
             args = []
-            for func_arg in func.arguments:
+            assert func.prototype is not None and len(func.arguments) == len(func.prototype.args)
+            for func_arg, real_arg in zip(func.arguments, func.prototype.args):
                 # FIXME: We are ignoring all non-register function arguments until we see a test case where
                 # FIXME: stack-passing arguments are used
                 if isinstance(func_arg, SimRegArg):
                     reg_offset, reg_size = arch.registers[func_arg.reg_name]
+                    arg_size = (
+                        real_arg.size if real_arg.size is not None else reg_size
+                    ) // self.project.arch.byte_width
                     try:
-                        mv = observ.registers.load(reg_offset, size=reg_size)
+                        mv = observ.registers.load(reg_offset, size=arg_size)
                     except SimMemoryMissingError:
                         args.append(claripy.BVV(0xDEADBEEF, self.project.arch.bits))
                         continue
@@ -286,7 +337,11 @@ class StringObfuscationFinder(Analysis):
 
             # call the function
             func_call = self.project.factory.callable(
-                func.addr, concrete_only=True, cc=func.calling_convention, prototype=func.prototype
+                func.addr,
+                concrete_only=True,
+                cc=func.calling_convention,
+                prototype=func.prototype,
+                step_limit=STEP_LIMIT,
             )
             try:
                 func_call(*args)
@@ -301,6 +356,9 @@ class StringObfuscationFinder(Analysis):
                     "No path returned. Skip the call at %#x.",
                     callsite_node.instruction_addrs[-1],
                 )
+                continue
+
+            if func_call.result_state is None:
                 continue
 
             # dump the decrypted string!
@@ -322,6 +380,8 @@ class StringObfuscationFinder(Analysis):
             xref_set = xrefs.get_xrefs_by_dst(str_addr)
             block_addrs = {xref.block_addr for xref in xref_set}
             for block_addr in block_addrs:
+                if block_addr is None:
+                    continue
                 node = cfg.get_any_node(block_addr)
                 if node is not None:
                     callees = list(self.kb.functions.callgraph.successors(node.function_address))
@@ -340,6 +400,8 @@ class StringObfuscationFinder(Analysis):
         # Type 2 string deobfuscation functions will decrypt each string once and for good.
 
         cfg = self.kb.cfgs.get_most_accurate()
+        if cfg is None:
+            raise AngrAnalysisError("StringObfuscationFinder needs a CFG for the analysis")
 
         type2_candidates: list[tuple[int, StringDeobFuncDescriptor, list[tuple[int, int, bytes]]]] = []
 
@@ -374,7 +436,11 @@ class StringObfuscationFinder(Analysis):
                 dec = self.project.analyses.Decompiler(func, cfg=cfg, expr_collapse_depth=64)
             except Exception:  # pylint:disable=broad-exception-caught
                 continue
-            if dec.codegen is None or not self._like_type2_deobfuscation_function(dec.codegen.text):
+            if (
+                dec.codegen is None
+                or not dec.codegen.text
+                or not self._like_type2_deobfuscation_function(dec.codegen.text)
+            ):
                 continue
 
             desc = StringDeobFuncDescriptor()
@@ -384,12 +450,16 @@ class StringObfuscationFinder(Analysis):
                 concrete_only=True,
                 cc=func.calling_convention,
                 prototype=func.prototype,
-                add_options={sim_options.TRACK_MEMORY_ACTIONS},
+                add_options={TRACK_MEMORY_ACTIONS},
+                step_limit=STEP_LIMIT,
             )
 
             try:
                 func_call()
             except (AngrCallableMultistateError, AngrCallableError):
+                continue
+
+            if func_call.result_state is None:
                 continue
 
             # where are the reads and writes?
@@ -399,7 +469,7 @@ class StringObfuscationFinder(Analysis):
                 if not isinstance(action, SimActionData):
                     continue
                 if not action.actual_addrs:
-                    if not action.addr.ast.concrete:
+                    if action.addr is None or not action.addr.ast.concrete:
                         continue
                     actual_addrs = [action.addr.ast.concrete_value]
                 else:
@@ -469,6 +539,8 @@ class StringObfuscationFinder(Analysis):
         """
 
         cfg = self.kb.cfgs.get_most_accurate()
+        if cfg is None:
+            raise AngrAnalysisError("StringObfuscationFinder needs a CFG for the analysis")
 
         # for each string table address, we find its string loader function
         # an obvious candidate function is 0x140001b20
@@ -478,6 +550,8 @@ class StringObfuscationFinder(Analysis):
             xref_set = xrefs.get_xrefs_by_dst(table_addr)
             block_addrs = {xref.block_addr for xref in xref_set}
             for block_addr in block_addrs:
+                if block_addr is None:
+                    continue
                 node = cfg.get_any_node(block_addr)
                 if node is not None:
                     callees = list(self.kb.functions.callgraph.successors(node.function_address))
@@ -496,6 +570,9 @@ class StringObfuscationFinder(Analysis):
         #   not have a SimProcedure for)
 
         cfg = self.kb.cfgs.get_most_accurate()
+        if cfg is None:
+            raise AngrAnalysisError("StringObfuscationFinder needs a CFG for the analysis")
+
         functions = self.kb.functions
         callgraph_digraph = networkx.DiGraph(functions.callgraph)
 
@@ -554,7 +631,7 @@ class StringObfuscationFinder(Analysis):
             except Exception:  # pylint:disable=broad-exception-caught
                 # catch all exceptions
                 continue
-            if dec.codegen is None:
+            if dec.codegen is None or not dec.codegen.text:
                 continue
             if not self._like_type3_deobfuscation_function(dec.codegen.text):
                 continue
@@ -605,6 +682,8 @@ class StringObfuscationFinder(Analysis):
         """
 
         cfg = self.kb.cfgs.get_most_accurate()
+        if cfg is None:
+            raise AngrAnalysisError("StringObfuscationFinder needs a CFG for the analysis")
 
         call_sites = cfg.get_predecessors(cfg.get_any_node(func_addr))
         callinsn2content = {}
@@ -687,7 +766,7 @@ class StringObfuscationFinder(Analysis):
         # execute the block at the call site
         state = self.project.factory.blank_state(
             addr=call_site_addr,
-            add_options={sim_options.ZERO_FILL_UNCONSTRAINED_REGISTERS, sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY},
+            add_options={ZERO_FILL_UNCONSTRAINED_REGISTERS, ZERO_FILL_UNCONSTRAINED_MEMORY},
         )
         # setup sp and bp, just in case
         state.regs._sp = 0x7FFF0000
@@ -728,7 +807,12 @@ class StringObfuscationFinder(Analysis):
             self.project.arch
         )
         callable_0 = self.project.factory.callable(
-            func_addr, concrete_only=True, base_state=in_state, cc=cc, prototype=prototype_0
+            func_addr,
+            concrete_only=True,
+            base_state=in_state,
+            cc=cc,
+            prototype=prototype_0,
+            step_limit=STEP_LIMIT,
         )
 
         try:

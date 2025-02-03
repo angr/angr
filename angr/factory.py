@@ -245,6 +245,7 @@ class AngrObjectFactory:
         cc=None,
         add_options=None,
         remove_options=None,
+        step_limit: int | None = None,
     ):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
@@ -257,6 +258,7 @@ class AngrObjectFactory:
         :param base_state:      The state from which to do these runs
         :param toc:             The address of the table of contents for ppc64
         :param cc:              The SimCC to use for a calling convention
+        :param step_limit:      The maximum number of blocks that Callable will execute before pruning the path.
         :returns:               A Callable object that can be used as a interface for executing guest code like a
                                 python function.
         :rtype:                 angr.callable.Callable
@@ -272,6 +274,7 @@ class AngrObjectFactory:
             cc=cc,
             add_options=add_options,
             remove_options=remove_options,
+            step_limit=step_limit,
         )
 
     def cc(self):
