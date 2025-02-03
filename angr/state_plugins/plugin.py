@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, Generic, cast, TypeVar, Protocol
+from collections.abc import Callable
 
 import logging
 
@@ -8,6 +9,18 @@ import angr
 from angr.misc.ux import once
 
 l = logging.getLogger(name=__name__)
+
+T = TypeVar("T")
+S_co = TypeVar("S_co", covariant=True)
+
+
+class _CopyFunc(Protocol, Generic[S_co]):
+    """
+    Function wrapping copy method for memo tracking.
+    """
+
+    @staticmethod
+    def __call__(memo: dict[int, Any] | None = None) -> S_co: ...
 
 
 class SimStatePlugin:
@@ -55,12 +68,12 @@ class SimStatePlugin:
         return o
 
     @staticmethod
-    def memo(f):
+    def memo(f: Callable[[T, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
         """
         A decorator function you should apply to ``copy``
         """
 
-        def inner(self, memo=None, **kwargs):
+        def inner(self, memo: dict[int, Any] | None = None, **kwargs: Any) -> S_co:
             if memo is None:
                 memo = {}
             if id(self) in memo:
@@ -69,7 +82,9 @@ class SimStatePlugin:
             memo[id(self)] = c
             return c
 
-        return inner
+        # Type-checking fails here because we can't express the `self` partial-application with a Protocol
+        # and we can't express the optional `memo` parameter without a Protocol
+        return inner  # type: ignore
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         """
