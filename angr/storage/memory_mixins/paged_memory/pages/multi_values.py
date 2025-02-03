@@ -91,6 +91,8 @@ class MultiValues(Generic[MVType]):
             value_end = offset + value.size() // 8
             if value_end > succ_offset:
                 if isinstance(value, claripy.ast.FP):
+                    # no precise floating point support; it directly goes to TOP
+                    value = claripy.BVS("top", value.size())
                     raise AngrTypeError("Unsupported case. How do we handle floating point values overlapping?")
                 # value is too long. we need to break value into two
                 mid_value_size = succ_offset - offset
@@ -107,7 +109,8 @@ class MultiValues(Generic[MVType]):
                 remaining_values = set()
                 for v in self._values[offset]:
                     if isinstance(v, claripy.ast.FP):
-                        raise AngrTypeError("Unsupported case. How do we handle floating point values overlapping?")
+                        # no precise floating point support; it directly goes to TOP
+                        v = claripy.BVS("top", v.size())
 
                     new_curr_values.add(v[v.size() - 1 : v.size() - value.size()])
                     remaining_values.add(v[v.size() - value.size() - 1 : 0])
@@ -116,7 +119,8 @@ class MultiValues(Generic[MVType]):
                     self.add_value(offset + value.size() // 8, v)
             elif curr_value_size < value.size() // 8:
                 if isinstance(value, claripy.ast.FP):
-                    raise AngrTypeError("Unsupported case. How do we handle floating point values overlapping?")
+                    # no precise floating point support; it directly goes to TOP
+                    value = claripy.BVS("top", value.size())
 
                 # value is too long. we need to break value into two
                 remaining_value = cast(MVType, value[value.size() - curr_value_size * 8 - 1 : 0])
@@ -137,7 +141,8 @@ class MultiValues(Generic[MVType]):
                 remaining_values = set()
                 for v in pre_values:
                     if isinstance(v, claripy.ast.FP):
-                        raise AngrTypeError("Unsupported case. How do we handle floating point values overlapping?")
+                        # no precise floating point support; it directly goes to TOP
+                        v = claripy.BVS("top", v.size())
                     new_pre_values.add(v[v.size() - 1 : v.size() - new_pre_value_size * 8])
                     remaining_values.add(v[v.size() - new_pre_value_size * 8 - 1 : 0])
                 self._values[pre_offset] = new_pre_values
