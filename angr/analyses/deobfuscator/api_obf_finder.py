@@ -35,7 +35,7 @@ class APIObfuscationType(IntEnum):
 
 
 class APIDeobFuncDescriptor:
-    def __init__(self, type_: APIObfuscationType, func_addr=None, libname_argidx=None, funcname_argidx=None):
+    def __init__(self, type_: APIObfuscationType, *, func_addr: int, libname_argidx: int, funcname_argidx: int):
         self.type = type_
         self.func_addr = func_addr
         self.libname_argidx = libname_argidx
@@ -195,6 +195,8 @@ class APIObfuscationFinder(Analysis):
                     callsite_node.instruction_addrs[-1],
                     ObservationPointType.OP_BEFORE,
                 )
+                if observ is None:
+                    continue
                 args: list[tuple[int, Any]] = []
                 for arg_idx, func_arg in enumerate(func.arguments):
                     # FIXME: We are ignoring all non-register function arguments until we see a test case where
