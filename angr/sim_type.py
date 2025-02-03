@@ -1620,7 +1620,7 @@ class SimStructValue:
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
 
-    def __init__(self, members, name=None, label=None):
+    def __init__(self, members: dict[str, SimType], name=None, label=None):
         """
         :param members:     The members of the union, as a mapping name -> type
         :param name:        The name of the union
