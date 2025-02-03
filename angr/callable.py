@@ -102,6 +102,8 @@ class Callable:
         caller.run(step_func=self._step_func).unstash(from_stash="deadended")
         caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
+        if "step_limited" in caller.stashes:
+            caller.stash(from_stash="step_limited", to_stash="active")
         if len(caller.active) == 0:
             raise AngrCallableError("No paths returned from function")
 

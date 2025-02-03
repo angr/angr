@@ -23,7 +23,8 @@ from .irsb_reg_collector import IRSBRegisterCollector
 _l = logging.getLogger(__name__)
 
 
-STEP_LIMIT = 500
+STEP_LIMIT_FIND = 500
+STEP_LIMIT_ANALYSIS = 5000
 
 
 class StringDeobFuncDescriptor:
@@ -224,7 +225,7 @@ class StringObfuscationFinder(Analysis):
                         ZERO_FILL_UNCONSTRAINED_MEMORY,
                         ZERO_FILL_UNCONSTRAINED_REGISTERS,
                     },
-                    step_limit=STEP_LIMIT,
+                    step_limit=STEP_LIMIT_FIND,
                 )
 
                 # before calling the function, let's record the crime scene
@@ -341,7 +342,8 @@ class StringObfuscationFinder(Analysis):
                 concrete_only=True,
                 cc=func.calling_convention,
                 prototype=func.prototype,
-                step_limit=STEP_LIMIT,
+                add_options={ZERO_FILL_UNCONSTRAINED_MEMORY, ZERO_FILL_UNCONSTRAINED_REGISTERS},
+                step_limit=STEP_LIMIT_ANALYSIS,
             )
             try:
                 func_call(*args)
@@ -450,8 +452,8 @@ class StringObfuscationFinder(Analysis):
                 concrete_only=True,
                 cc=func.calling_convention,
                 prototype=func.prototype,
-                add_options={TRACK_MEMORY_ACTIONS},
-                step_limit=STEP_LIMIT,
+                add_options={TRACK_MEMORY_ACTIONS, ZERO_FILL_UNCONSTRAINED_MEMORY, ZERO_FILL_UNCONSTRAINED_REGISTERS},
+                step_limit=STEP_LIMIT_FIND,
             )
 
             try:
@@ -812,7 +814,8 @@ class StringObfuscationFinder(Analysis):
             base_state=in_state,
             cc=cc,
             prototype=prototype_0,
-            step_limit=STEP_LIMIT,
+            add_options={ZERO_FILL_UNCONSTRAINED_MEMORY, ZERO_FILL_UNCONSTRAINED_REGISTERS},
+            step_limit=STEP_LIMIT_ANALYSIS,
         )
 
         try:
