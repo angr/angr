@@ -31,7 +31,7 @@ class ClaripyDataEngineMixin(
 
 
 def _vex_make_comparison(
-    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.Bool]
+    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.Bool],
 ) -> Callable[[ClaripyDataEngineMixin, Binop], claripy.ast.BV]:
     @SimEngineLightVEX.binop_handler
     def inner(self, expr):
@@ -44,7 +44,7 @@ def _vex_make_comparison(
 
 
 def _vex_make_vec_comparison(
-    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.Bool]
+    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.Bool],
 ) -> Callable[[ClaripyDataEngineMixin, int, int, Binop], claripy.ast.BV]:
     @SimEngineLightVEX.binopv_handler
     def inner(self, size, count, expr):
@@ -56,7 +56,7 @@ def _vex_make_vec_comparison(
 
 
 def _vex_make_operation(
-    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]
+    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV],
 ) -> Callable[[ClaripyDataEngineMixin, Binop], claripy.ast.BV]:
     @SimEngineLightVEX.binop_handler
     def inner(self, expr: Binop):
@@ -70,7 +70,7 @@ def _vex_make_operation(
 
 
 def _vex_make_unary_operation(
-    func: Callable[[claripy.ast.BV], claripy.ast.BV]
+    func: Callable[[claripy.ast.BV], claripy.ast.BV],
 ) -> Callable[[ClaripyDataEngineMixin, Unop], claripy.ast.BV]:
     @SimEngineLightVEX.unop_handler
     def inner(self, expr):
@@ -84,7 +84,7 @@ def _vex_make_unary_operation(
 
 
 def _vex_make_shift_operation(
-    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]
+    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV],
 ) -> Callable[[ClaripyDataEngineMixin, Binop], claripy.ast.BV]:
     @_vex_make_operation
     def inner(a, b):
@@ -99,7 +99,7 @@ def _vex_make_shift_operation(
 
 
 def _vex_make_vec_operation(
-    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV]
+    func: Callable[[claripy.ast.BV, claripy.ast.BV], claripy.ast.BV],
 ) -> Callable[[ClaripyDataEngineMixin, int, int, Binop], claripy.ast.BV]:
     @SimEngineLightVEX.binopv_handler
     def inner(self, size, count, expr):

@@ -246,7 +246,7 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     @staticmethod
     @wraps
     def decorate(
-        f: Callable[[FunctionHandler, ReachingDefinitionsState, FunctionCallDataUnwrapped], None]
+        f: Callable[[FunctionHandler, ReachingDefinitionsState, FunctionCallDataUnwrapped], None],
     ) -> Callable[[FunctionHandler, ReachingDefinitionsState, FunctionCallData], None]:
         """
         Decorate a function handler method with this to make it take a FunctionCallDataUnwrapped instead of a
