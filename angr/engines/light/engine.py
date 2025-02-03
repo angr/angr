@@ -159,7 +159,7 @@ class SimEngineLightVEX(
 
     @staticmethod
     def binopv_handler(
-        f: Callable[[T, int, int, pyvex.expr.Binop], DataType_co]
+        f: Callable[[T, int, int, pyvex.expr.Binop], DataType_co],
     ) -> Callable[[T, int, int, pyvex.expr.Binop], DataType_co]:
         f.binopv_handler = True
         return f
@@ -181,7 +181,7 @@ class SimEngineLightVEX(
 
     @staticmethod
     def dirty_handler(
-        f: Callable[[T, pyvex.stmt.Dirty], StmtDataType]
+        f: Callable[[T, pyvex.stmt.Dirty], StmtDataType],
     ) -> Callable[[T, pyvex.stmt.Dirty], StmtDataType]:
         f.dirty_handler = True
         return f

@@ -25,7 +25,7 @@ class SwitchBase(SimSootStmt):
             jmp_condition = lookup_value == key_val
             self._add_jmp_target(jmp_target, jmp_condition)
             # add condition for the default target
-            default_jmp_conditions += [(lookup_value != key_val)]
+            default_jmp_conditions += [lookup_value != key_val]
 
         # add default target
         default_jmp_target = self._get_bb_addr_from_instr(self.stmt.default_target)

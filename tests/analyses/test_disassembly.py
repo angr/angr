@@ -112,11 +112,11 @@ class TestDisassembly(TestCase):
         proj = angr.load_shellcode(
             b"\x8f\xbc\x00\x10"
             b"\x02\x20\x30\x21"
-            b"\x8F\x85\x80\x28"
-            b"\x8F\x99\x81\x20"
+            b"\x8f\x85\x80\x28"
+            b"\x8f\x99\x81\x20"
             b"\x02\x40\x38\x21"
-            b"\x24\xA5\x5E\x38"
-            b"\x03\x20\xF8\x09"
+            b"\x24\xa5\x5e\x38"
+            b"\x03\x20\xf8\x09"
             b"\x24\x04\x00\x02",
             "MIPS32",
             0,

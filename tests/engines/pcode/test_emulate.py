@@ -524,7 +524,7 @@ class TestPcodeEmulatorMixin(unittest.TestCase):
 
         state = SimState(arch="AMD64", remove_options={"SIMPLIFY_MEMORY_WRITES"})
         state.memory.store(operand_addr, input_value, endness="Iend_LE")
-        state.memory.store(result_addr, claripy.BVV(b"\xCA" * result_size), endness="Iend_LE")
+        state.memory.store(result_addr, claripy.BVV(b"\xca" * result_size), endness="Iend_LE")
 
         successors = self._step_irsb(
             MockIRSB(
