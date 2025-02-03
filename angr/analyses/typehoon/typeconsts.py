@@ -42,7 +42,7 @@ class TypeConstant:
             raise NotImplementedError
         return self.SIZE
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         raise NotImplementedError
 
 
@@ -57,7 +57,7 @@ class BottomType(TypeConstant):
 
 
 class Int(TypeConstant):
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "intbase"
 
 
@@ -82,14 +82,14 @@ class Int16(Int):
 class Int32(Int):
     SIZE = 4
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "int32"
 
 
 class Int64(Int):
     SIZE = 8
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "int64"
 
 
@@ -115,7 +115,7 @@ class Int512(Int):
 
 
 class FloatBase(TypeConstant):
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "floatbase"
 
 
@@ -187,7 +187,7 @@ class Array(TypeConstant):
 
     @property
     def size(self) -> int:
-        if not self.count:
+        if not self.count or not self.element:
             return 0
         return self.element.size * self.count
 
