@@ -5,7 +5,6 @@ import archinfo
 
 import claripy
 
-from angr.errors import AngrTypeError
 from angr.storage.memory_object import bv_slice
 
 MVType = TypeVar("MVType", bound=claripy.ast.BV | claripy.ast.FP)
@@ -92,9 +91,9 @@ class MultiValues(Generic[MVType]):
             if value_end > succ_offset:
                 if isinstance(value, claripy.ast.FP):
                     # no precise floating point support; it directly goes to TOP
-                    value = claripy.BVS("top", value.size())
-                    raise AngrTypeError("Unsupported case. How do we handle floating point values overlapping?")
+                    value = cast(MVType, claripy.BVS("top", value.size()))
                 # value is too long. we need to break value into two
+                assert isinstance(value, claripy.ast.BV)
                 mid_value_size = succ_offset - offset
                 remaining_value = cast(MVType, value[value.size() - mid_value_size * 8 - 1 : 0])
                 # update value
@@ -120,9 +119,10 @@ class MultiValues(Generic[MVType]):
             elif curr_value_size < value.size() // 8:
                 if isinstance(value, claripy.ast.FP):
                     # no precise floating point support; it directly goes to TOP
-                    value = claripy.BVS("top", value.size())
+                    value = cast(MVType, claripy.BVS("top", value.size()))
 
                 # value is too long. we need to break value into two
+                assert isinstance(value, claripy.ast.BV)
                 remaining_value = cast(MVType, value[value.size() - curr_value_size * 8 - 1 : 0])
                 # update value
                 value = cast(MVType, value[value.size() - 1 : value.size() - curr_value_size * 8])
