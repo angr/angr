@@ -3,7 +3,7 @@ from enum import Enum, auto
 
 import claripy
 import ailment
-from archinfo import Arch, RegisterOffset
+from archinfo import Arch, Endness, RegisterOffset
 
 from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from angr.engines.light import SpOffset
@@ -123,7 +123,7 @@ class Atom:
     register = reg
 
     @staticmethod
-    def mem(addr: SpOffset | HeapAddress | int, size: int, endness: str | None = None) -> MemoryLocation:
+    def mem(addr: SpOffset | HeapAddress | int, size: int, endness: Endness | None = None) -> MemoryLocation:
         """
         Create a MemoryLocation atom,
 
@@ -314,7 +314,7 @@ class MemoryLocation(Atom):
         "endness",
     )
 
-    def __init__(self, addr: SpOffset | HeapAddress | int, size: int, endness: str | None = None):
+    def __init__(self, addr: SpOffset | HeapAddress | int, size: int, endness: Endness | None = None):
         """
         :param int addr: The address of the beginning memory location slice.
         :param int size: The size of the represented memory location, in bytes.
