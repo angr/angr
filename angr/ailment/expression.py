@@ -455,7 +455,7 @@ class Phi(Atom):
 
     @staticmethod
     def _src_and_vvar_filter(
-        src_and_vvar: tuple[tuple[int, int | None], VirtualVariable | None]
+        src_and_vvar: tuple[tuple[int, int | None], VirtualVariable | None],
     ) -> tuple[tuple[int, int], int]:
         src, vvar = src_and_vvar
         if src[1] is None:
