@@ -5,6 +5,7 @@ from collections import defaultdict
 import logging
 
 import networkx
+from sortedcontainers import SortedDict
 
 from angr.utils.constants import MAX_POINTSTO_BITS
 from .typevars import (
@@ -1165,25 +1166,45 @@ class SimpleSolver:
             # this might be a struct
             fields = {}
 
-            candidate_bases = defaultdict(set)
+            candidate_bases = SortedDict()
 
             for labels, _succ in path_and_successors:
                 last_label = labels[-1] if labels else None
                 if isinstance(last_label, HasField):
                     # TODO: Really determine the maximum possible size of the field when MAX_POINTSTO_BITS is in use
+                    if last_label.offset not in candidate_bases:
+                        candidate_bases[last_label.offset] = set()
                     candidate_bases[last_label.offset].add(
                         1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
                     )
+
+            # determine possible bases and map each offset to its base
+            offset_to_base = SortedDict()
+            for start_offset, sizes in candidate_bases.items():
+                for size in sizes:
+                    for i in range(size):
+                        access_off = start_offset + i
+                        if access_off not in offset_to_base:
+                            offset_to_base[access_off] = start_offset
+
+            # determine again the maximum size of each field (at each offset)
+            offset_to_maxsize = defaultdict(int)
+            offset_to_sizes = defaultdict(set)  # we do not consider offsets to each base offset
+            for labels, _succ in path_and_successors:
+                last_label = labels[-1] if labels else None
+                if isinstance(last_label, HasField):
+                    base = offset_to_base[last_label.offset]
+                    access_size = 1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
+                    offset_to_maxsize[base] = max(offset_to_maxsize[base], (last_label.offset - base) + access_size)
+                    offset_to_sizes[base].add(access_size)
 
             node_to_base = {}
 
             for labels, succ in path_and_successors:
                 last_label = labels[-1] if labels else None
                 if isinstance(last_label, HasField):
-                    for start_offset, sizes in candidate_bases.items():
-                        for size in sizes:
-                            if last_label.offset > start_offset and last_label.offset < start_offset + size:  # ???
-                                node_to_base[succ] = start_offset
+                    prev_offset = next(offset_to_base.irange(maximum=last_label.offset, reverse=True))
+                    node_to_base[succ] = offset_to_base[prev_offset]
 
             node_by_offset = defaultdict(set)
 
@@ -1195,20 +1216,33 @@ class SimpleSolver:
                     else:
                         node_by_offset[last_label.offset].add(succ)
 
-            for offset, child_nodes in node_by_offset.items():
+            sorted_offsets: list[int] = sorted(node_by_offset)
+            for i in range(len(sorted_offsets)):  # pylint:disable=consider-using-enumerate
+                offset = sorted_offsets[i]
+
+                child_nodes = node_by_offset[offset]
                 sol = self._determine(equivalent_classes, the_typevar, sketch, solution, nodes=child_nodes)
                 if isinstance(sol, TopType):
-                    sol = int_type(min(candidate_bases[offset]) * 8)
+                    # make it an array if possible
+                    elem_size = min(offset_to_sizes[offset])
+                    array_size = offset_to_maxsize[offset]
+                    if array_size % elem_size != 0:
+                        # fall back to byte_t
+                        elem_size = 1
+                    elem_type = int_type(elem_size * 8)
+                    sol = elem_type if array_size == elem_size else Array(elem_type, array_size // elem_size)
                 fields[offset] = sol
 
             if not fields:
                 result = Top_
                 for node in nodes:
                     self._solution_cache[node.typevar] = result
+                    solution[node.typevar] = result
             elif any(off < 0 for off in fields):
                 result = self._pointer_class()(Bottom_)
                 for node in nodes:
                     self._solution_cache[node.typevar] = result
+                    solution[node.typevar] = result
             else:
                 # back-patch
                 struct_type.fields = fields

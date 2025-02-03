@@ -42,7 +42,7 @@ class TypeConstant:
             raise NotImplementedError
         return self.SIZE
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         raise NotImplementedError
 
 
@@ -57,7 +57,7 @@ class BottomType(TypeConstant):
 
 
 class Int(TypeConstant):
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "intbase"
 
 
@@ -82,14 +82,14 @@ class Int16(Int):
 class Int32(Int):
     SIZE = 4
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "int32"
 
 
 class Int64(Int):
     SIZE = 8
 
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "int64"
 
 
@@ -115,7 +115,7 @@ class Int512(Int):
 
 
 class FloatBase(TypeConstant):
-    def __repr__(self, memo=None):
+    def __repr__(self, memo=None) -> str:
         return "floatbase"
 
 
@@ -185,6 +185,12 @@ class Array(TypeConstant):
         self.element: TypeConstant | None = element
         self.count: int | None = count
 
+    @property
+    def size(self) -> int:
+        if not self.count or not self.element:
+            return 0
+        return self.element.size * self.count
+
     @memoize
     def __repr__(self, memo=None):
         if self.count is None:
@@ -220,6 +226,13 @@ class Struct(TypeConstant):
         keys = sorted(self.fields.keys())
         tpl = tuple((k, self.fields[k]._hash(visited) if self.fields[k] is not None else None) for k in keys)
         return hash(tpl)
+
+    @property
+    def size(self) -> int:
+        if not self.fields:
+            return 0
+        max_field_off = max(self.fields.keys())
+        return max_field_off + self.fields[max_field_off].size
 
     @memoize
     def __repr__(self, memo=None):
