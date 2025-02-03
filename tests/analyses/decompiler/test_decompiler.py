@@ -14,7 +14,7 @@ import ailment
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.sim_type import SimTypeInt, SimTypePointer, SimTypeBottom
+from angr.sim_type import SimTypeInt, SimTypePointer, SimTypeBottom, SimTypeLong, SimTypeArray, SimTypeChar
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -4032,9 +4032,23 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("switch") == 1
         assert d.codegen.text.count("goto LABEL_18003c3fc;") == 2
         assert d.codegen.text.count("LABEL_18003c3fc:") == 1
+        # 16 cases without a default case
         for i in range(16):
             assert f"case {i}:" in d.codegen.text
         assert "default:" not in d.codegen.text
+
+        # a0 should be an integer and a1 should be a char pointer
+        assert len(d.codegen.cfunc.arg_list) == 3
+        arg0, arg1 = d.codegen.cfunc.arg_list[0:2]
+        arg0_type = arg0.type
+        arg1_type = arg1.type
+        assert isinstance(arg0_type, SimTypeLong)
+        assert arg0_type.signed is False
+        assert isinstance(arg1_type, SimTypePointer)
+        if isinstance(arg1_type.pts_to, SimTypeArray):
+            assert isinstance(arg1_type.pts_to.elem_type, SimTypeChar)
+        else:
+            assert isinstance(arg1_type.pts_to, SimTypeChar)
 
     def test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump(self, decompiler_options=None):
         bin_path = os.path.join(

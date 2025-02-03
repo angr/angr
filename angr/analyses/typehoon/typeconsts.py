@@ -185,6 +185,12 @@ class Array(TypeConstant):
         self.element: TypeConstant | None = element
         self.count: int | None = count
 
+    @property
+    def size(self) -> int:
+        if not self.count:
+            return 0
+        return self.element.size * self.count
+
     @memoize
     def __repr__(self, memo=None):
         if self.count is None:
@@ -220,6 +226,13 @@ class Struct(TypeConstant):
         keys = sorted(self.fields.keys())
         tpl = tuple((k, self.fields[k]._hash(visited) if self.fields[k] is not None else None) for k in keys)
         return hash(tpl)
+
+    @property
+    def size(self) -> int:
+        if not self.fields:
+            return 0
+        max_field_off = max(self.fields.keys())
+        return max_field_off + self.fields[max_field_off].size
 
     @memoize
     def __repr__(self, memo=None):

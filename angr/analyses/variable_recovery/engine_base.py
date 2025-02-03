@@ -941,13 +941,13 @@ class SimEngineVRBase(
             # it's an array!
             if offset.concrete:
                 concrete_offset = offset.concrete_value * elem_size
-                load_typevar = self._create_access_typevar(typevar, True, size, concrete_offset)
+                load_typevar = self._create_access_typevar(typevar, False, size, concrete_offset)
                 self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))
             else:
                 # FIXME: This is a hack
                 for i in range(4):
                     concrete_offset = size * i
-                    load_typevar = self._create_access_typevar(typevar, True, size, concrete_offset)
+                    load_typevar = self._create_access_typevar(typevar, False, size, concrete_offset)
                     self.state.add_type_constraint(typevars.Subtype(load_typevar, typeconsts.TopType()))
 
         return RichR(self.state.top(size * self.project.arch.byte_width), typevar=typevar)
