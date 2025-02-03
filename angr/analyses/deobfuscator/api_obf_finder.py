@@ -232,9 +232,8 @@ class APIObfuscationFinder(Analysis):
                                 acceptable_args = False
                                 break
                             arg_strs.append((idx, value.decode("utf-8")))
-                if acceptable_args:
+                if acceptable_args and len(arg_strs) == 2:
                     libname_arg_idx, funcname_arg_idx = None, None
-                    assert len(arg_strs) == 2
                     for arg_idx, name in arg_strs:
                         if self.is_libname(name):
                             libname_arg_idx = arg_idx
