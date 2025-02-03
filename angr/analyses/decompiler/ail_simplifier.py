@@ -553,14 +553,23 @@ class AILSimplifier(Analysis):
                 return None, None
             return expr.size, ("expr", (expr,))
 
-        first_op = walker.operations[0]
+        ops = walker.operations
+        first_op = ops[0]
+        if isinstance(first_op, BinaryOp) and first_op.op in {"Add", "Sub"}:
+            # expr + x
+            ops = ops[1:]
+            if not ops:
+                if expr is None:
+                    return None, None
+                return expr.size, ("expr", (expr,))
+            first_op = ops[0]
         if isinstance(first_op, Convert) and first_op.to_bits >= self.project.arch.byte_width:
             # we need at least one byte!
             return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
-            if len(walker.operations) >= 2:
-                second_op = walker.operations[1]
+            if len(ops) >= 2:
+                second_op = ops[1]
             if (
                 first_op.op == "And"
                 and isinstance(first_op.operands[1], Const)
