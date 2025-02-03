@@ -687,7 +687,7 @@ class SimCC:
             ty = ty.with_arch(self.arch)
         if isinstance(ty, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
             raise AngrTypeError(
-                f"{self} doesn't know how to return aggregate types. Consider overriding return_val to "
+                f"{self} doesn't know how to return aggregate types ({type(ty)}). Consider overriding return_val to "
                 "implement its ABI logic"
             )
         if self.return_in_implicit_outparam(ty):
@@ -1334,6 +1334,20 @@ class SimCCMicrosoftAMD64(SimCC):
     def return_val(self, ty, perspective_returned=False):
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
+
+        # Unions are allocated according to the layout of the largest member
+        if isinstance(ty, SimUnion):
+            chosen = None
+            size = None
+            for subty in ty.members.values():
+                if subty.size is not None and (size is None or size < subty.size):
+                    chosen = subty
+                    size = subty.size
+            if chosen is None:
+                # fallback to void*
+                chosen = SimTypePointer(SimTypeBottom())
+            return self.return_val(chosen, perspective_returned=perspective_returned)
+
         if not isinstance(ty, SimStruct):
             return super().return_val(ty, perspective_returned)
 
