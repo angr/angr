@@ -17,11 +17,12 @@ from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
+from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions import DerefSize
 from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.knowledge_plugins.key_definitions.atoms import AtomKind, GuardUse, Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType, OP_BEFORE, OP_AFTER
-from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
+from angr.knowledge_plugins.key_definitions import Definition
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_object import SimMemoryObject
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -96,6 +97,7 @@ class TestReachingDefinitions(TestCase):
     def _extract_all_definitions_from_storage(storage: MultiValuedMemory):
         all_defs = []
         for page_id, page in storage._pages.items():
+            assert page is not None
             last_mo = None
             for pos, n in enumerate(page.content):
                 if n is not None and (type(n) is not set or len(n) == 1):
@@ -426,10 +428,11 @@ class TestReachingDefinitions(TestCase):
         rda = project.analyses.ReachingDefinitions("main", observe_all=True)
 
         for info in rda.callsites_to("f"):
-            (defn,) = info.args_defns[0]
             ld = rda.model.get_observation_by_insn(info.callsite, ObservationPointType.OP_BEFORE)
+            assert ld is not None
 
             # Expect a singular mem predecessor
+            defn = info.args_defns[0]
             preds = rda.dep_graph.find_all_predecessors(defn, kind=AtomKind.MEMORY)
             assert len(preds) == 1
 
@@ -439,7 +442,7 @@ class TestReachingDefinitions(TestCase):
                 ld.memory.load(atom.addr, atom.size)
 
             # Verify expected constant value
-            assert ld.get_concrete_value(defn) == 1337
+            assert ld.get_concrete_value(defn, cast_to=int) == 1337
 
     def test_string_ptr_argument_on_stack(self):
         bin_path = _binary_path("fauxware", arch="i386")
