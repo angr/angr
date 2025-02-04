@@ -55,7 +55,7 @@ class ReachingDefinitionsAnalysis(
         track_tmps=False,
         track_consts=True,
         observation_points: Iterable[ObservationPoint] | None = None,
-        init_state: ReachingDefinitionsState = None,
+        init_state: ReachingDefinitionsState | None = None,
         init_context=None,
         state_initializer: RDAStateInitializer | None = None,
         cc=None,
