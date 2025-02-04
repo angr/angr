@@ -6,7 +6,6 @@ from typing import (
     Any,
 )
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
 
 import networkx
 
@@ -33,16 +32,6 @@ if TYPE_CHECKING:
 
 def _is_definition(node):
     return isinstance(node, Definition)
-
-
-@dataclass
-class FunctionCallRelationships:  # TODO this doesn't belong in this file anymore
-    callsite: CodeLocation
-    target: int | None
-    args_defns: list[set[Definition]]
-    other_input_defns: set[Definition]
-    ret_defns: set[Definition]
-    other_output_defns: set[Definition]
 
 
 class DepGraph:
