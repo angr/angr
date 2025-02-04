@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import logging
 
 from angr.project import Project
+from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.key_definitions import DerefSize
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
@@ -42,8 +43,9 @@ class APIObfuscationType2Finder:
 
     results: list[APIObfuscationType2]
 
-    def __init__(self, project: Project):
+    def __init__(self, project: Project, variable_kb: KnowledgeBase | None = None):
         self.project = project
+        self.variable_kb = variable_kb or self.project.kb
         self.results = []
 
     def analyze(self) -> list[APIObfuscationType2]:
@@ -145,7 +147,7 @@ class APIObfuscationType2Finder:
             log.debug("...Created label %s for address %x", lbl, result.resolved_func_ptr.addr)
 
             # Create a variable
-            global_variables = self.project.kb.variables["global"]
+            global_variables = self.variable_kb.variables["global"]
             variables = global_variables.get_global_variables(result.resolved_func_ptr.addr)
             if not variables:
                 ident = global_variables.next_variable_ident("global")
