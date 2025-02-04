@@ -115,7 +115,7 @@ class CustomFunctionHandler(FunctionHandler):
         self.system_cmd = load_cstring_from_memory_definitions(state.live_definitions, cmd_addr, as_str=True)
 
 
-class TestFunctionhandler(TestCase):
+class TestFunctionHandler(TestCase):
     def test_function_handler_depends_has_endness(self):
         filename = os.path.join(TESTS_LOCATION, "x86_64", "rda_function_handler")
         project = angr.Project(filename, auto_load_libs=False)
