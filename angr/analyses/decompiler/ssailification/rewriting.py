@@ -37,7 +37,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         bp_as_gpr: bool,
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
-        stackvar_locs: dict[int, int],
+        stackvar_locs: dict[int, set[int]],
         rewrite_tmps: bool,
         ail_manager,
         func_args: set[VirtualVariable],

@@ -45,7 +45,7 @@ class CallSiteMaker(Analysis):
         self._ail_manager = ail_manager
 
         self.result_block = None
-        self.stack_arg_offsets: set[tuple[int, int]] | None = None  # ins_addr, stack_offset
+        self.stack_arg_offsets: set[tuple[int, int]] | None = None  # call ins addr, stack_offset
         self.removed_vvar_ids: set[int] = set()
 
         self._analyze()
@@ -372,7 +372,9 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt, arg_loc) -> tuple[Any, Any]:  # pylint:disable=unused-argument
+    def _resolve_stack_argument(
+        self, call_stmt: Stmt.Call, arg_loc
+    ) -> tuple[Any, Any]:  # pylint:disable=unused-argument
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
@@ -399,15 +401,26 @@ class CallSiteMaker(Analysis):
                     # FIXME: vvar may be larger than that we ask; we may need to chop the correct value of vvar
                     value = view.get_vvar_value(vvar)
                     if value is not None and not isinstance(value, Expr.Phi):
-                        return None, value
-                    return None, Expr.VirtualVariable(
-                        self._atom_idx(),
-                        vvar.varid,
-                        vvar.bits,
-                        vvar.category,
-                        oident=vvar.oident,
-                        ins_addr=call_stmt.ins_addr,
-                    )
+                        v: Expr.Expression = value
+                    else:
+                        v: Expr.Expression = Expr.VirtualVariable(
+                            self._atom_idx(),
+                            vvar.varid,
+                            vvar.bits,
+                            vvar.category,
+                            oident=vvar.oident,
+                            ins_addr=call_stmt.ins_addr,
+                        )
+                    if v.size > size:
+                        v = Expr.Convert(
+                            self._atom_idx(),
+                            v.bits,
+                            size * self.project.arch.byte_width,
+                            False,
+                            v,
+                            ins_addr=call_stmt.ins_addr,
+                        )
+                    return None, v
 
             return None, Expr.Load(
                 self._atom_idx(),
