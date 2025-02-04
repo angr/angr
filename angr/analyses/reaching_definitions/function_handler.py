@@ -264,6 +264,10 @@ def _mk_wrapper(func, iself):
 
 @dataclass
 class FunctionCallRelationships:
+    """
+    Produced by the function handler, provides associated callsite info and function input/output definitions.
+    """
+
     callsite: CodeLocation
     target: int | None
     args_defns: list[set[Definition]]
