@@ -1,11 +1,10 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING, cast, overload
+from collections import defaultdict
 from collections.abc import Iterable, Generator
+from enum import Enum, auto
 import weakref
 import logging
-from enum import Enum, auto
-
-from collections import defaultdict
 
 import claripy
 from claripy.annotation import Annotation
