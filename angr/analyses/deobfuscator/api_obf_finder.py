@@ -12,6 +12,7 @@ import claripy
 from angr import SIM_LIBRARIES
 from angr.calling_conventions import SimRegArg
 from angr.errors import SimMemoryMissingError
+from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.sim_type import SimTypePointer, SimTypeChar
 from angr.analyses import Analysis, AnalysesHub
@@ -96,8 +97,9 @@ class APIObfuscationFinder(Analysis):
     - Type 2: GetProcAddress(_, "api_name").
     """
 
-    def __init__(self):
+    def __init__(self, variable_kb: KnowledgeBase | None = None):
         self.type1_candidates = []
+        self.variable_kb = variable_kb or self.project.kb
 
         self.analyze()
 
@@ -109,7 +111,7 @@ class APIObfuscationFinder(Analysis):
                 type1_deobfuscated = self._analyze_type1(desc.func_addr, desc)
                 self.kb.obfuscations.type1_deobfuscated_apis.update(type1_deobfuscated)
 
-        APIObfuscationType2Finder(self.project).analyze()
+        APIObfuscationType2Finder(self.project, self.variable_kb).analyze()
 
     def _find_type1(self):
         cfg = self.kb.cfgs.get_most_accurate()
