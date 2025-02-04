@@ -8,7 +8,7 @@ import claripy
 from ailment import Const
 from ailment.block_walker import AILBlockWalkerBase
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from ailment.expression import Convert, Register, Expression
+from ailment.expression import Convert, Register, Expression, Load
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
@@ -207,16 +207,17 @@ class ConstPropOptReverter(OptimizationPass):
                     continue
 
                 unwrapped_sym_arg = sym_arg.operands[0] if isinstance(sym_arg, Convert) else sym_arg
-                try:
+                if (
+                    isinstance(unwrapped_sym_arg, Load)
+                    and isinstance(unwrapped_sym_arg.addr, Const)
+                    and isinstance(unwrapped_sym_arg.addr.value, int)
+                ):
                     # TODO: make this support more than just Loads
                     # target must be a Load of a memory location
                     target_atom = MemoryLocation(unwrapped_sym_arg.addr.value, unwrapped_sym_arg.size, "Iend_LE")
                     const_state = self.rd.get_reaching_definitions_by_node(blks[calls[const_arg]].addr, OP_BEFORE)
-
                     state_load_vals = const_state.get_values(target_atom)
-                except AttributeError:
-                    continue
-                except KeyError:
+                else:
                     continue
 
                 if not state_load_vals:
