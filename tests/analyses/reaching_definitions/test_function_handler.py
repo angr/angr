@@ -68,6 +68,7 @@ class CustomFunctionHandler(FunctionHandler):
         self.malloc_sizes = []
 
     def handle_impl_malloc(self, state: ReachingDefinitionsState, data: FunctionCallData):
+        assert data.args_atoms
         ((src_atom,),) = data.args_atoms
 
         src_value = state.get_values(src_atom).one_value().concrete_value
@@ -75,6 +76,7 @@ class CustomFunctionHandler(FunctionHandler):
         data.depends(next(iter(data.ret_atoms)), value=MultiValues(claripy.BVV(0x12345678, 64)))
 
     def handle_impl___isoc99_sscanf(self, state: ReachingDefinitionsState, data: FunctionCallData):
+        assert data.args_atoms
         (str_atom,), (fmtstr_atom,), (out_atom,) = data.args_atoms[:3]
 
         # string
@@ -96,6 +98,7 @@ class CustomFunctionHandler(FunctionHandler):
         data.depends(dst, src, value=MultiValues(claripy.BVV(self.sscanf_out_value, 32)))
 
     def handle_impl_strcpy(self, state: ReachingDefinitionsState, data: FunctionCallData):
+        assert data.args_atoms
         (dst_atom,), (src_atom,) = data.args_atoms
 
         # Assume source is a constant string
@@ -110,6 +113,7 @@ class CustomFunctionHandler(FunctionHandler):
         data.depends(dst, src, value=MultiValues(claripy.BVV(src_str)))
 
     def handle_impl_system(self, state: ReachingDefinitionsState, data: FunctionCallData):
+        assert data.args_atoms
         (cmd_atom,) = data.args_atoms[0]
         cmd_addr = state.get_values(cmd_atom).one_value().concrete_value
         self.system_cmd = load_cstring_from_memory_definitions(state.live_definitions, cmd_addr, as_str=True)
