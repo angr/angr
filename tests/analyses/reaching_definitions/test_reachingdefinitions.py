@@ -439,7 +439,7 @@ class TestReachingDefinitions(TestCase):
                 ld.memory.load(atom.addr, atom.size)
 
             # Verify expected constant value
-            assert ld.get_concrete_value_from_definition(defn) == 1337
+            assert ld.get_concrete_value(defn) == 1337
 
     def test_string_ptr_argument_on_stack(self):
         bin_path = _binary_path("fauxware", arch="i386")

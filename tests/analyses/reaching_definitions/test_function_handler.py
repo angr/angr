@@ -90,8 +90,8 @@ class CustomFunctionHandler(FunctionHandler):
         self.sscanf_fmtstr = fmtstr
 
         # out pointer
-        (dst,) = state.pointer_to_atoms(state.get_values(out_atom), size=4, endness=state.arch.memory_endness)
-        (src,) = state.pointer_to_atoms(state.get_values(str_atom), size=len(str_), endness="Iend_BE")
+        (dst,) = state.deref(out_atom, size=4, endness=state.arch.memory_endness)
+        (src,) = state.deref(str_atom, size=len(str_), endness="Iend_BE")
         self.sscanf_out_value = int(str_.strip(b"\x00"))
         data.depends(dst, src, value=MultiValues(claripy.BVV(self.sscanf_out_value, 32)))
 
@@ -104,8 +104,8 @@ class CustomFunctionHandler(FunctionHandler):
         src_str = load_cstring_from_loader_memory(self.project, src_addr)
         src_str_size = len(src_str)
 
-        (dst,) = state.pointer_to_atoms(state.get_values(dst_atom), size=src_str_size, endness="Iend_BE")
-        (src,) = state.pointer_to_atoms(state.get_values(src_atom), size=src_str_size, endness="Iend_BE")
+        (dst,) = state.deref(dst_atom, size=src_str_size, endness="Iend_BE")
+        (src,) = state.deref(src_atom, size=src_str_size, endness="Iend_BE")
 
         data.depends(dst, src, value=MultiValues(claripy.BVV(src_str)))
 
