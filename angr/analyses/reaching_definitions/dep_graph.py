@@ -73,7 +73,7 @@ class DepGraph:
         """
         self._graph.add_edge(source, destination, **labels)
 
-    def nodes(self) -> networkx.classes.reportviews.NodeView[Definition]:
+    def nodes(self) -> Iterator[Definition]:
         return self._graph.nodes()
 
     def predecessors(self, node: Definition) -> Iterator[Definition]:
