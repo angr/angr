@@ -112,6 +112,7 @@ class SimEngineSSARewriting(
             elif stmt.dst.category == VirtualVariableCategory.STACK:
                 self.state.stackvars[stmt.dst.stack_offset][stmt.dst.size] = stmt.dst
             elif stmt.dst.category == VirtualVariableCategory.TMP:
+                assert stmt.dst.tmp_idx is not None
                 self.state.tmps[stmt.dst.tmp_idx] = stmt.dst
             new_dst = None
         else:
@@ -143,6 +144,7 @@ class SimEngineSSARewriting(
                     base_reg_vvar = self._replace_def_expr(
                         self.block.addr, self.block.idx, self.stmt_idx, base_reg_expr
                     )
+                    assert base_reg_vvar is not None
                     stmt_base_reg = Assignment(
                         self.ail_manager.next_atom(),
                         base_reg_vvar,
@@ -186,6 +188,7 @@ class SimEngineSSARewriting(
                 vvar_assignment = Assignment(stmt.idx, vvar, data, **stmt.tags)
 
                 full_size = self._get_stack_var_full_size(stmt)
+                assert full_size is not None
                 if vvar.size >= full_size:
                     return vvar_assignment
 
@@ -194,7 +197,7 @@ class SimEngineSSARewriting(
                 vvar_full = self._replace_def_store(
                     self.block.addr, self.block.idx, self.stmt_idx, stmt, force_size=full_size
                 )
-                if vvar_full is not None:
+                if existing_full_vvar is not None and vvar_full is not None:
                     full_data = self._partial_update_expr(
                         existing_full_vvar, stmt.addr.offset, full_size, vvar, stmt.addr.offset, stmt.size
                     )
@@ -245,7 +248,7 @@ class SimEngineSSARewriting(
     def _handle_stmt_Call(self, stmt: Call) -> Call | None:
         changed = False
 
-        new_target = self._replace_use_expr(stmt.target)
+        new_target = self._replace_use_expr(stmt.target) if not isinstance(stmt.target, str) else None
         new_ret_expr = (
             self._replace_def_expr(self.block.addr, self.block.idx, self.stmt_idx, stmt.ret_expr)
             if stmt.ret_expr is not None
@@ -310,7 +313,7 @@ class SimEngineSSARewriting(
         assert isinstance(dirty, DirtyExpression)
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
 
-    def _handle_expr_Register(self, expr: Register) -> VirtualVariable | None:
+    def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
         return self._replace_use_reg(expr)
 
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
@@ -497,7 +500,7 @@ class SimEngineSSARewriting(
 
     def _partial_update_expr(
         self,
-        existing_vvar: VirtualVariable,
+        existing_vvar: Expression,
         base_offset: int,
         base_size: int,
         new_vvar: VirtualVariable,
@@ -613,7 +616,9 @@ class SimEngineSSARewriting(
             )
             self.state.registers[base_off][base_size] = vvar
             return vvar
-        return self.state.registers[base_off][base_size]
+        existing_var = self.state.registers[base_off][base_size]
+        assert existing_var is not None
+        return existing_var
 
     def _get_stack_var_full_size(self, stmt: Store) -> int | None:
         if (
@@ -667,7 +672,7 @@ class SimEngineSSARewriting(
         self.state.tmps[expr.tmp_idx] = vvar
         return vvar
 
-    def _replace_use_expr(self, thing: Expression | Statement) -> VirtualVariable | None:
+    def _replace_use_expr(self, thing: Expression | Statement) -> VirtualVariable | Expression | None:
         """
         Return a new virtual variable for the given defined expression.
         """
@@ -722,7 +727,7 @@ class SimEngineSSARewriting(
                 elif reg_expr.size > existing_size:
                     # part of the variable exists... maybe it's a parameter?
                     vvar = self.state.registers[reg_expr.reg_offset][existing_size]
-                    if vvar.category == VirtualVariableCategory.PARAMETER:
+                    if vvar is not None and vvar.category == VirtualVariableCategory.PARAMETER:
                         # just zero-extend it
                         return Convert(
                             self.ail_manager.next_atom(),
@@ -750,7 +755,7 @@ class SimEngineSSARewriting(
             shift_amount = Const(
                 self.ail_manager.next_atom(),
                 None,
-                (reg_expr.reg_offset - vvar.oident) * self.arch.byte_width,
+                (reg_expr.reg_offset - vvar.reg_offset) * self.arch.byte_width,
                 8,
                 **reg_expr.tags,
             )

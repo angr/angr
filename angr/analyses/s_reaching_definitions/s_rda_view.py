@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 from collections import defaultdict
 
+from ailment import Block
 from ailment.statement import Statement, Assignment, Call, Label
 from ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
 
@@ -117,7 +118,9 @@ class SRDAView:
             return
 
         traversed = set()
-        queue = [(the_block, stmt_idx if op_type == ObservationPointType.OP_BEFORE else stmt_idx + 1)]
+        queue: list[tuple[Block, int | None]] = [
+            (the_block, stmt_idx if op_type == ObservationPointType.OP_BEFORE else stmt_idx + 1)
+        ]
         predicate_returned_true = False
         while queue:
             block, start_stmt_idx = queue.pop(0)
@@ -149,9 +152,9 @@ class SRDAView:
             # not found - check function arguments
             for func_arg in self.model.func_args:
                 if isinstance(func_arg, VirtualVariable):
-                    func_arg_category = func_arg.oident[0]
+                    func_arg_category = func_arg.parameter_category
                     if func_arg_category == VirtualVariableCategory.REGISTER:
-                        func_arg_regoff = func_arg.oident[1]
+                        func_arg_regoff = func_arg.parameter_reg_offset
                         if func_arg_regoff == reg_offset:
                             vvars.append(func_arg)
 
@@ -175,11 +178,11 @@ class SRDAView:
             # not found - check function arguments
             for func_arg in self.model.func_args:
                 if isinstance(func_arg, VirtualVariable):
-                    func_arg_category = func_arg.oident[0]
+                    func_arg_category = func_arg.parameter_category
                     if func_arg_category == VirtualVariableCategory.STACK:
-                        func_arg_stackoff = func_arg.oident[1]
+                        func_arg_stackoff = func_arg.oident[1]  # type: ignore
                         if func_arg_stackoff == stack_offset and func_arg.size == size:
-                            vvars.add(func_arg)
+                            vvars.append(func_arg)
         # there might be multiple vvars; we prioritize the one whose size fits the best
         for v in vvars:
             if v.stack_offset == stack_offset and v.size == size:
@@ -217,23 +220,23 @@ class SRDAView:
         self, reg_offset: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
-        vvars = set()
+        vvars = []
         predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
         assert len(vvars) <= 1
-        return next(iter(vvars), None)
+        return vvars[0] if vvars else None
 
     def get_stack_vvar_by_insn(  # pylint: disable=too-many-positional-arguments
         self, stack_offset: int, size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
-        vvars = set()
+        vvars = []
         predicater = StackVVarPredicate(stack_offset, size, vvars)
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
         assert len(vvars) <= 1
-        return next(iter(vvars), None)
+        return vvars[0] if vvars else None
 
     def get_vvar_value(self, vvar: VirtualVariable) -> Expression | None:
         if vvar not in self.model.all_vvar_definitions:
@@ -242,7 +245,7 @@ class SRDAView:
 
         for block in self.model.func_graph:
             if block.addr == codeloc.block_addr and block.idx == codeloc.block_idx:
-                if codeloc.stmt_idx < len(block.statements):
+                if codeloc.stmt_idx is not None and codeloc.stmt_idx < len(block.statements):
                     stmt = block.statements[codeloc.stmt_idx]
                     if isinstance(stmt, Assignment) and stmt.dst.likes(vvar):
                         return stmt.src

@@ -8,21 +8,20 @@ import networkx
 
 import ailment
 from ailment import Block
-from ailment.expression import Expression, Phi, VirtualVariable, VirtualVariableCategory
-from ailment.statement import Statement, Assignment, Label
+from ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
+from ailment.statement import Assignment, Label
 
 from angr.code_location import CodeLocation
 from angr.analyses import ForwardAnalysis
-from angr.analyses.forward_analysis.visitors.graph import NodeType
 from angr.analyses.forward_analysis import FunctionGraphVisitor
-from .rewriting_engine import SimEngineSSARewriting
+from .rewriting_engine import SimEngineSSARewriting, DefExprType, AT
 from .rewriting_state import RewritingState
 
 
 l = logging.getLogger(__name__)
 
 
-class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object]):
+class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, object]):
     """
     RewritingAnalysis traverses the AIL graph, inserts phi nodes, and rewrites all expression uses to virtual variables
     when necessary.
@@ -75,7 +74,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
 
         self._analyze()
 
-        self.def_to_vvid: dict[tuple[int, int | None, int, Expression | Statement], int] = self._engine_ail.def_to_vvid
+        self.def_to_vvid: dict[tuple[int, int | None, int, DefExprType, AT], int] = self._engine_ail.def_to_vvid
         self.out_graph = self._make_new_graph(ail_graph)
 
     @property
@@ -177,10 +176,11 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
     def _reg_predicate(self, node_, *, reg_offset: int, reg_size: int) -> tuple[bool, Any]:
         out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
         if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
-            if out_state.registers[reg_offset][reg_size] is None:
+            existing_var = out_state.registers[reg_offset][reg_size]
+            if existing_var is None:
                 # the vvar is not set. it should never be referenced
                 return True, None
-            vvar = out_state.registers[reg_offset][reg_size].copy()
+            vvar = existing_var.copy()
             vvar.idx = self._ail_manager.next_atom()
             return True, vvar
         return False, None
@@ -188,10 +188,11 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
     def _stack_predicate(self, node_, *, stack_offset: int, stackvar_size: int) -> tuple[bool, Any]:
         out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
         if stack_offset in out_state.stackvars and stackvar_size in out_state.stackvars[stack_offset]:
-            if out_state.stackvars[stack_offset][stackvar_size] is None:
+            existing_var = out_state.stackvars[stack_offset][stackvar_size]
+            if existing_var is None:
                 # the vvar is not set. it should never be referenced
                 return True, None
-            vvar = out_state.stackvars[stack_offset][stackvar_size].copy()
+            vvar = existing_var.copy()
             vvar.idx = self._ail_manager.next_atom()
             return True, vvar
         return False, None
@@ -215,11 +216,14 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, NodeType, object, object
         )
         # update state with function arguments
         for func_arg in self._func_args:
-            if func_arg.oident[0] == VirtualVariableCategory.REGISTER:
-                reg_offset, reg_size = func_arg.oident[1], func_arg.size
+            if func_arg.parameter_category == VirtualVariableCategory.REGISTER:
+                reg_offset, reg_size = func_arg.parameter_reg_offset, func_arg.size
+                assert reg_offset is not None and reg_size is not None
                 state.registers[reg_offset][reg_size] = func_arg
-            elif func_arg.oident[0] == VirtualVariableCategory.STACK:
-                state.stackvars[func_arg.oident[1]][func_arg.size] = func_arg
+            elif func_arg.parameter_category == VirtualVariableCategory.STACK:
+                parameter_stack_offset: int = func_arg.oident[1]  # type: ignore
+                assert parameter_stack_offset is not None and func_arg.size is not None
+                state.stackvars[parameter_stack_offset][func_arg.size] = func_arg
         return state
 
     def _run_on_node(self, node, state: RewritingState):
