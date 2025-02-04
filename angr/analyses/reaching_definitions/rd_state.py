@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, cast, overload
+from typing import Any, TYPE_CHECKING, overload
 from collections.abc import Iterable, Iterator
 import logging
 from typing_extensions import Self
@@ -7,7 +7,6 @@ from typing_extensions import Self
 import archinfo
 import claripy
 
-from angr.misc.ux import deprecated
 from angr.knowledge_plugins.key_definitions.environment import Environment
 from angr.knowledge_plugins.key_definitions.tag import Tag
 from angr.knowledge_plugins.key_definitions.heap_address import HeapAddress
@@ -540,41 +539,6 @@ class ReachingDefinitionsState:
     def downsize(self):
         self.all_definitions = set()
         self.live_definitions.reset_uses()
-
-    @deprecated("deref")
-    def pointer_to_atoms(self, pointer: MultiValues, size: int, endness: str) -> set[MemoryLocation]:
-        """
-        Given a MultiValues, return the set of atoms that loading or storing to the pointer with that value
-        could define or use.
-        """
-        result = set()
-        for vs in pointer.values():
-            for value in vs:
-                atom = self.pointer_to_atom(value, size, endness)
-                if atom is not None:
-                    result.add(atom)
-
-        return result
-
-    @deprecated("deref")
-    def pointer_to_atom(self, value: claripy.ast.BV, size: int, endness: str) -> MemoryLocation | None:
-        if self.is_top(value):
-            return None
-
-        stack_offset = self.get_stack_offset(value)
-        if stack_offset is not None:
-            addr = SpOffset(len(value), stack_offset)
-        else:
-            heap_offset = self.get_heap_offset(value)
-            if heap_offset is not None:
-                addr = HeapAddress(heap_offset)
-            elif value.op == "BVV":
-                addr = cast(int, value.args[0])
-            else:
-                # cannot resolve
-                return None
-
-        return MemoryLocation(addr, size, endness)
 
     @overload
     def deref(
