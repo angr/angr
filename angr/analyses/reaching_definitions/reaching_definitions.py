@@ -49,7 +49,7 @@ class ReachingDefinitionsAnalysis(
 
     def __init__(
         self,
-        subject: Subject | ailment.Block | Block | Function | str = None,
+        subject: Subject | ailment.Block | Block | Function | str,
         func_graph=None,
         max_iterations=30,
         track_tmps=False,
