@@ -16,7 +16,6 @@ from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType, ObservationPoint
 from angr.code_location import CodeLocation, ExternalCodeLocation
-from angr.misc.ux import deprecated
 from angr.analyses.forward_analysis.visitors.graph import NodeType
 from angr.analyses.analysis import Analysis
 from .engine_ail import SimEngineRDAIL
@@ -241,10 +240,6 @@ class ReachingDefinitionsAnalysis(
     @property
     def visited_blocks(self):
         return self._visited_blocks
-
-    @deprecated(replacement="get_reaching_definitions_by_insn")
-    def get_reaching_definitions(self, ins_addr, op_type):
-        return self.get_reaching_definitions_by_insn(ins_addr, op_type)
 
     def get_reaching_definitions_by_insn(self, ins_addr, op_type):
         key = "insn", ins_addr, op_type

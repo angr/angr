@@ -11,7 +11,6 @@ import claripy
 from claripy.annotation import Annotation
 import archinfo
 
-from angr.misc.ux import deprecated
 from angr.errors import SimMemoryMissingError, SimMemoryError
 from angr.storage.memory_mixins import MultiValuedMemory
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MVType, MultiValues
@@ -208,26 +207,6 @@ class LiveDefinitions:
         self.other_uses = Uses() if other_uses is None else other_uses
 
         self.uses_by_codeloc: dict[CodeLocation, set[Definition]] = defaultdict(set)
-
-    @property
-    @deprecated("registers")
-    def register_definitions(self) -> MultiValuedMemory:
-        return self.registers
-
-    @property
-    @deprecated("stack")
-    def stack_definitions(self) -> MultiValuedMemory:
-        return self.stack
-
-    @property
-    @deprecated("memory")
-    def memory_definitions(self) -> MultiValuedMemory:
-        return self.memory
-
-    @property
-    @deprecated("heap")
-    def heap_definitions(self) -> MultiValuedMemory:
-        return self.heap
 
     def __repr__(self):
         ctnt = "LiveDefs"
@@ -769,71 +748,6 @@ class LiveDefinitions:
             return set()
 
         return LiveDefinitions.extract_defs_from_annotations(annotations)
-
-    @deprecated("get_definitions")
-    def get_definitions_from_atoms(self, atoms: Iterable[A]) -> Iterable[Definition]:
-        result = set()
-        for atom in atoms:
-            result |= self.get_definitions(atom)
-        return result
-
-    @deprecated("get_values")
-    def get_value_from_definition(self, definition: Definition) -> MultiValues | None:
-        return self.get_value_from_atom(definition.atom)
-
-    @deprecated("get_one_value")
-    def get_one_value_from_definition(self, definition: Definition) -> claripy.ast.bv.BV | None:
-        return self.get_one_value_from_atom(definition.atom)
-
-    @deprecated("get_concrete_value")
-    def get_concrete_value_from_definition(self, definition: Definition) -> int | None:
-        return self.get_concrete_value_from_atom(definition.atom)
-
-    @deprecated("get_values")
-    def get_value_from_atom(self, atom: Atom) -> MultiValues | None:
-        if isinstance(atom, Register):
-            try:
-                return self.registers.load(atom.reg_offset, size=atom.size)
-            except SimMemoryMissingError:
-                return None
-        elif isinstance(atom, MemoryLocation):
-            if isinstance(atom.addr, SpOffset):
-                stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
-                try:
-                    return self.stack.load(stack_addr, size=atom.size, endness=atom.endness)
-                except SimMemoryMissingError:
-                    return None
-            elif isinstance(atom.addr, HeapAddress):
-                try:
-                    return self.heap.load(atom.addr.value, size=atom.size, endness=atom.endness)
-                except SimMemoryMissingError:
-                    return None
-            elif isinstance(atom.addr, int):
-                try:
-                    return self.memory.load(atom.addr, size=atom.size, endness=atom.endness)
-                except SimMemoryMissingError:
-                    return None
-            else:
-                # ignore RegisterOffset
-                return None
-        else:
-            return None
-
-    @deprecated("get_one_value")
-    def get_one_value_from_atom(self, atom: Atom) -> claripy.ast.bv.BV | None:
-        r = self.get_value_from_atom(atom)
-        if r is None:
-            return None
-        return r.one_value()
-
-    @deprecated("get_concrete_value")
-    def get_concrete_value_from_atom(self, atom: Atom) -> int | None:
-        r = self.get_one_value_from_atom(atom)
-        if r is None:
-            return None
-        if r.symbolic:
-            return None
-        return r.concrete_value
 
     def get_values(
         self, spec: A | Definition[A] | Iterable[A] | Iterable[Definition[A]], endness: archinfo.Endness | None = None
