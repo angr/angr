@@ -15,7 +15,7 @@ from angr.knowledge_plugins.key_definitions.atoms import (
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.analyses import register_analysis
 from .reaching_definitions import ReachingDefinitionsAnalysis, ReachingDefinitionsModel
-from .function_handler import FunctionHandler, FunctionCallData
+from .function_handler import FunctionHandler, FunctionCallData, FunctionCallRelationships
 from .rd_state import ReachingDefinitionsState
 
 if TYPE_CHECKING:
@@ -29,6 +29,7 @@ __all__ = (
     "ConstantSrc",
     "Definition",
     "FunctionCallData",
+    "FunctionCallRelationships",
     "FunctionHandler",
     "GuardUse",
     "LiveDefinitions",
