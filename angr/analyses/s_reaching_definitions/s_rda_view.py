@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from collections import defaultdict
 
+from ailment import Block
 from ailment.statement import Statement, Assignment, Call, Label
 from ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
 
@@ -22,7 +24,7 @@ class RegVVarPredicate:
     Implements a predicate that is used in get_reg_vvar_by_stmt_idx and get_reg_vvar_by_insn.
     """
 
-    def __init__(self, reg_offset: int, vvars: set[VirtualVariable], arch):
+    def __init__(self, reg_offset: int, vvars: list[VirtualVariable], arch):
         self.reg_offset = reg_offset
         self.vvars = vvars
         self.arch = arch
@@ -47,7 +49,8 @@ class RegVVarPredicate:
             and stmt.dst.was_reg
             and stmt.dst.reg_offset == self.reg_offset
         ):
-            self.vvars.add(stmt.dst)
+            if stmt.dst not in self.vvars:
+                self.vvars.append(stmt.dst)
             return True
         if isinstance(stmt, Call):
             if (
@@ -55,7 +58,8 @@ class RegVVarPredicate:
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.reg_offset == self.reg_offset
             ):
-                self.vvars.add(stmt.ret_expr)
+                if stmt.ret_expr not in self.vvars:
+                    self.vvars.append(stmt.ret_expr)
                 return True
             # is it clobbered maybe?
             clobbered_regs = self._get_call_clobbered_regs(stmt)
@@ -69,7 +73,7 @@ class StackVVarPredicate:
     Implements a predicate that is used in get_stack_vvar_by_stmt_idx and get_stack_vvar_by_insn.
     """
 
-    def __init__(self, stack_offset: int, size: int, vvars: set[VirtualVariable]):
+    def __init__(self, stack_offset: int, size: int, vvars: list[VirtualVariable]):
         self.stack_offset = stack_offset
         self.size = size
         self.vvars = vvars
@@ -82,7 +86,8 @@ class StackVVarPredicate:
             and stmt.dst.stack_offset <= self.stack_offset < stmt.dst.stack_offset + stmt.dst.size
             and stmt.dst.stack_offset <= self.stack_offset + self.size <= stmt.dst.stack_offset + stmt.dst.size
         ):
-            self.vvars.add(stmt.dst)
+            if stmt.dst not in self.vvars:
+                self.vvars.append(stmt.dst)
             return True
         return False
 
@@ -96,7 +101,13 @@ class SRDAView:
         self.model = model
 
     def _get_vvar_by_stmt(
-        self, block_addr: int, block_idx: int | None, stmt_idx: int, op_type: ObservationPointType, predicate
+        self,
+        block_addr: int,
+        block_idx: int | None,
+        stmt_idx: int,
+        op_type: ObservationPointType,
+        predicate: Callable,
+        consecutive: bool = False,
     ):
         # find the starting block
         for block in self.model.func_graph:
@@ -107,7 +118,10 @@ class SRDAView:
             return
 
         traversed = set()
-        queue = [(the_block, stmt_idx if op_type == ObservationPointType.OP_BEFORE else stmt_idx + 1)]
+        queue: list[tuple[Block, int | None]] = [
+            (the_block, stmt_idx if op_type == ObservationPointType.OP_BEFORE else stmt_idx + 1)
+        ]
+        predicate_returned_true = False
         while queue:
             block, start_stmt_idx = queue.pop(0)
             traversed.add(block)
@@ -115,7 +129,8 @@ class SRDAView:
             stmts = block.statements[:start_stmt_idx] if start_stmt_idx is not None else block.statements
 
             for stmt in reversed(stmts):
-                should_break = predicate(stmt)
+                r = predicate(stmt)
+                should_break = (predicate_returned_true and r is False) if consecutive else r
                 if should_break:
                     break
             else:
@@ -129,7 +144,7 @@ class SRDAView:
         self, reg_offset: int, block_addr: int, block_idx: int | None, stmt_idx: int, op_type: ObservationPointType
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
-        vvars = set()
+        vvars = []
         predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
         self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
 
@@ -137,14 +152,14 @@ class SRDAView:
             # not found - check function arguments
             for func_arg in self.model.func_args:
                 if isinstance(func_arg, VirtualVariable):
-                    func_arg_category = func_arg.oident[0]
+                    func_arg_category = func_arg.parameter_category
                     if func_arg_category == VirtualVariableCategory.REGISTER:
-                        func_arg_regoff = func_arg.oident[1]
+                        func_arg_regoff = func_arg.parameter_reg_offset
                         if func_arg_regoff == reg_offset:
-                            vvars.add(func_arg)
+                            vvars.append(func_arg)
 
         assert len(vvars) <= 1
-        return next(iter(vvars), None)
+        return vvars[0] if vvars else None
 
     def get_stack_vvar_by_stmt(  # pylint: disable=too-many-positional-arguments
         self,
@@ -155,21 +170,24 @@ class SRDAView:
         stmt_idx: int,
         op_type: ObservationPointType,
     ) -> VirtualVariable | None:
-        vvars = set()
+        vvars = []
         predicater = StackVVarPredicate(stack_offset, size, vvars)
-        self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
+        self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate, consecutive=True)
 
         if not vvars:
             # not found - check function arguments
             for func_arg in self.model.func_args:
                 if isinstance(func_arg, VirtualVariable):
-                    func_arg_category = func_arg.oident[0]
+                    func_arg_category = func_arg.parameter_category
                     if func_arg_category == VirtualVariableCategory.STACK:
-                        func_arg_stackoff = func_arg.oident[1]
+                        func_arg_stackoff = func_arg.oident[1]  # type: ignore
                         if func_arg_stackoff == stack_offset and func_arg.size == size:
-                            vvars.add(func_arg)
-        assert len(vvars) <= 1
-        return next(iter(vvars), None)
+                            vvars.append(func_arg)
+        # there might be multiple vvars; we prioritize the one whose size fits the best
+        for v in vvars:
+            if v.stack_offset == stack_offset and v.size == size:
+                return v
+        return vvars[0] if vvars else None
 
     def _get_vvar_by_insn(self, addr: int, op_type: ObservationPointType, predicate, block_idx: int | None = None):
         # find the starting block
@@ -202,23 +220,23 @@ class SRDAView:
         self, reg_offset: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
-        vvars = set()
+        vvars = []
         predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
         assert len(vvars) <= 1
-        return next(iter(vvars), None)
+        return vvars[0] if vvars else None
 
     def get_stack_vvar_by_insn(  # pylint: disable=too-many-positional-arguments
         self, stack_offset: int, size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
-        vvars = set()
+        vvars = []
         predicater = StackVVarPredicate(stack_offset, size, vvars)
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
         assert len(vvars) <= 1
-        return next(iter(vvars), None)
+        return vvars[0] if vvars else None
 
     def get_vvar_value(self, vvar: VirtualVariable) -> Expression | None:
         if vvar not in self.model.all_vvar_definitions:
@@ -227,7 +245,7 @@ class SRDAView:
 
         for block in self.model.func_graph:
             if block.addr == codeloc.block_addr and block.idx == codeloc.block_idx:
-                if codeloc.stmt_idx < len(block.statements):
+                if codeloc.stmt_idx is not None and codeloc.stmt_idx < len(block.statements):
                     stmt = block.statements[codeloc.stmt_idx]
                     if isinstance(stmt, Assignment) and stmt.dst.likes(vvar):
                         return stmt.src

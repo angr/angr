@@ -79,7 +79,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         # calculate virtual variables and phi nodes
         self._udef_to_phiid: dict[tuple, set[int]] = None
         self._phiid_to_loc: dict[int, tuple[int, int | None]] = None
-        self._stackvar_locs: dict[int, int] = None
+        self._stackvar_locs: dict[int, set[int]] = None
         self._calculate_virtual_variables(ail_graph, traversal.def_to_loc, traversal.loc_to_defs)
 
         # insert phi variables and rewrite uses
@@ -130,7 +130,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             if self._func_args:
                 for func_arg in self._func_args:
                     if func_arg.oident[0] == VirtualVariableCategory.STACK:
-                        stackvar_locs[func_arg.oident[1]] = func_arg.size
+                        stackvar_locs[func_arg.oident[1]] = {func_arg.size}
             sorted_stackvar_offs = sorted(stackvar_locs)
         else:
             stackvar_locs = {}
@@ -157,8 +157,13 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         off = sorted_stackvar_offs[i]
                         if off >= def_.addr.offset + def_.size:
                             break
-                        udef_to_defs[("stack", off, stackvar_locs[off])].add(def_)
-                        udef_to_blockkeys[("stack", off, stackvar_locs[off])].add((loc.block_addr, loc.block_idx))
+                        full_sz = max(stackvar_locs[off])
+                        udef_to_defs[("stack", off, full_sz)].add(def_)
+                        udef_to_blockkeys[("stack", off, full_sz)].add((loc.block_addr, loc.block_idx))
+                        # add a definition for the partial stack variable
+                        if def_.size in stackvar_locs[off] and def_.size < full_sz:
+                            udef_to_defs[("stack", off, def_.size)].add(def_)
+                            udef_to_blockkeys[("stack", off, def_.size)].add((loc.block_addr, loc.block_idx))
             elif isinstance(def_, Tmp):
                 # Tmps are local to each block and do not need phi nodes
                 pass
@@ -197,7 +202,15 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         return last_frontier
 
     @staticmethod
-    def _synthesize_stackvar_locs(defs: list[Store]) -> dict[int, int]:
+    def _synthesize_stackvar_locs(defs: list[Store]) -> dict[int, set[int]]:
+        """
+        Derive potential locations (in terms of offsets and sizes) for stack variables based on all stack variable
+        definitions provided.
+
+        :param defs:    Store definitions.
+        :return:        A dictionary of stack variable offsets and their sizes.
+        """
+
         accesses: defaultdict[int, set[int]] = defaultdict(set)
         offs: set[int] = set()
 
@@ -208,7 +221,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 offs.add(stack_off)
 
         sorted_offs = sorted(offs)
-        locs: dict[int, int] = {}
+        locs: dict[int, set[int]] = {}
         for idx, off in enumerate(sorted_offs):
             sorted_sizes = sorted(accesses[off])
             if idx < len(sorted_offs) - 1:
@@ -217,14 +230,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             else:
                 allowed_sizes = sorted_sizes
 
-            if len(allowed_sizes) == 1:
-                locs[off] = allowed_sizes[0]
-            # else:
-            #     last_off = off
-            #     for a in allowed_sizes:
-            #         locs[off + a] = off + a - last_off
-            #         last_off = off + a
-            # TODO: Update locs for sizes beyond allowed_sizes
+            if allowed_sizes:
+                locs[off] = set(allowed_sizes)
 
         return locs
 

@@ -4402,6 +4402,25 @@ class TestDecompiler(unittest.TestCase):
             assert f"case {case_number}:" in d.codegen.text
         assert "default:" in d.codegen.text
 
+    def test_decompiling_stack_argument_propagation(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "0822d4c51c466544072ac07dd5c2dbf4143431fb6955a05911600fed50d0229a"
+        )
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+
+        f = proj.kb.functions[0x14000579C]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # all arguments of CreateFileA should have been propagated to inside the call statement, so CreateFileA()
+        # should be within a single scope
+        assert d.codegen is not None
+        assert normalize_whitespace("{ CreateFileA(") in normalize_whitespace(d.codegen.text)
+
 
 if __name__ == "__main__":
     unittest.main()

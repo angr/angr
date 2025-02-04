@@ -1,7 +1,9 @@
 # pylint:disable=no-self-use,unused-argument
 from __future__ import annotations
+from typing import Literal
 import logging
 
+from archinfo import Endness
 from ailment.manager import Manager
 from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement, Jump
 from ailment.expression import (
@@ -22,12 +24,17 @@ from ailment.expression import (
     Reinterpret,
 )
 
+from angr.knowledge_plugins.key_definitions import atoms
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.utils.ssa import get_reg_offset_base_and_size
 from .rewriting_state import RewritingState
 
 
 _l = logging.getLogger(__name__)
+
+
+DefExprType = atoms.Register | atoms.Tmp | atoms.MemoryLocation
+AT = Literal["l", "s"] | None
 
 
 class SimEngineSSARewriting(
@@ -38,6 +45,8 @@ class SimEngineSSARewriting(
     copies at each use location.
     """
 
+    state: RewritingState
+
     def __init__(
         self,
         project,
@@ -45,7 +54,7 @@ class SimEngineSSARewriting(
         sp_tracker,
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
-        stackvar_locs: dict[int, int],
+        stackvar_locs: dict[int, set[int]],
         ail_manager: Manager,
         vvar_id_start: int = 0,
         bp_as_gpr: bool = False,
@@ -55,7 +64,7 @@ class SimEngineSSARewriting(
 
         self.sp_tracker = sp_tracker
         self.bp_as_gpr = bp_as_gpr
-        self.def_to_vvid: dict[tuple[int, int | None, int, Expression | Statement], int] = {}
+        self.def_to_vvid: dict[tuple[int, int | None, int, DefExprType, AT], int] = {}
         self.stackvar_locs = stackvar_locs
         self.udef_to_phiid = udef_to_phiid
         self.phiid_to_loc = phiid_to_loc
@@ -103,6 +112,7 @@ class SimEngineSSARewriting(
             elif stmt.dst.category == VirtualVariableCategory.STACK:
                 self.state.stackvars[stmt.dst.stack_offset][stmt.dst.size] = stmt.dst
             elif stmt.dst.category == VirtualVariableCategory.TMP:
+                assert stmt.dst.tmp_idx is not None
                 self.state.tmps[stmt.dst.tmp_idx] = stmt.dst
             new_dst = None
         else:
@@ -134,10 +144,11 @@ class SimEngineSSARewriting(
                     base_reg_vvar = self._replace_def_expr(
                         self.block.addr, self.block.idx, self.stmt_idx, base_reg_expr
                     )
+                    assert base_reg_vvar is not None
                     stmt_base_reg = Assignment(
                         self.ail_manager.next_atom(),
                         base_reg_vvar,
-                        self._reg_update_expr(
+                        self._partial_update_expr(
                             existing_base_reg_vvar, base_offset, base_size, new_dst, stmt.dst.reg_offset, stmt.dst.size
                         ),
                         **stmt.tags,
@@ -160,12 +171,39 @@ class SimEngineSSARewriting(
             return new_stmt
         return None
 
-    def _handle_stmt_Store(self, stmt: Store) -> Store | Assignment | None:
+    def _handle_stmt_Store(self, stmt: Store) -> Store | Assignment | tuple[Assignment, ...] | None:
         new_data = self._expr(stmt.data)
         if stmt.guard is None:
+            # the variable
             vvar = self._replace_def_store(self.block.addr, self.block.idx, self.stmt_idx, stmt)
             if vvar is not None:
-                return Assignment(stmt.idx, vvar, stmt.data if new_data is None else new_data, **stmt.tags)
+                assert isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int)
+
+                # remove everything else that overlaps with the full (base) stack variable
+                # the full stack variable is kept around because it's always updated immediately and will be used in
+                # case of partial stack variable update
+                self._clear_overlapping_stackvars(stmt.addr.offset, stmt.size, remove_base_stackvar=False)
+
+                data = stmt.data if new_data is None else new_data
+                vvar_assignment = Assignment(stmt.idx, vvar, data, **stmt.tags)
+
+                full_size = self._get_stack_var_full_size(stmt)
+                assert full_size is not None
+                if vvar.size >= full_size:
+                    return vvar_assignment
+
+                # update the full variable
+                existing_full_vvar = self._replace_use_load(Load(None, stmt.addr, full_size, stmt.endness))
+                vvar_full = self._replace_def_store(
+                    self.block.addr, self.block.idx, self.stmt_idx, stmt, force_size=full_size
+                )
+                if existing_full_vvar is not None and vvar_full is not None:
+                    full_data = self._partial_update_expr(
+                        existing_full_vvar, stmt.addr.offset, full_size, vvar, stmt.addr.offset, stmt.size
+                    )
+                    full_assignment = Assignment(stmt.idx, vvar_full, full_data, **stmt.tags)
+                    return vvar_assignment, full_assignment
+                return vvar_assignment
 
         # fall back to Store
         new_addr = self._expr(stmt.addr)
@@ -210,7 +248,7 @@ class SimEngineSSARewriting(
     def _handle_stmt_Call(self, stmt: Call) -> Call | None:
         changed = False
 
-        new_target = self._replace_use_expr(stmt.target)
+        new_target = self._replace_use_expr(stmt.target) if not isinstance(stmt.target, str) else None
         new_ret_expr = (
             self._replace_def_expr(self.block.addr, self.block.idx, self.stmt_idx, stmt.ret_expr)
             if stmt.ret_expr is not None
@@ -275,7 +313,7 @@ class SimEngineSSARewriting(
         assert isinstance(dirty, DirtyExpression)
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
 
-    def _handle_expr_Register(self, expr: Register) -> VirtualVariable | None:
+    def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
         return self._replace_use_reg(expr)
 
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
@@ -460,9 +498,9 @@ class SimEngineSSARewriting(
     # Expression replacement
     #
 
-    def _reg_update_expr(
+    def _partial_update_expr(
         self,
-        existing_vvar: VirtualVariable,
+        existing_vvar: Expression,
         base_offset: int,
         base_size: int,
         new_vvar: VirtualVariable,
@@ -546,7 +584,7 @@ class SimEngineSSARewriting(
         """
 
         # get the virtual variable ID
-        vvid = self.get_vvid_by_def(block_addr, block_idx, stmt_idx, expr)
+        vvid = self.get_vvid_by_def(block_addr, block_idx, stmt_idx, atoms.Register(expr.reg_offset, expr.size), "s")
         return VirtualVariable(
             expr.idx,
             vvid,
@@ -578,32 +616,51 @@ class SimEngineSSARewriting(
             )
             self.state.registers[base_off][base_size] = vvar
             return vvar
-        return self.state.registers[base_off][base_size]
+        existing_var = self.state.registers[base_off][base_size]
+        assert existing_var is not None
+        return existing_var
+
+    def _get_stack_var_full_size(self, stmt: Store) -> int | None:
+        if (
+            isinstance(stmt.addr, StackBaseOffset)
+            and isinstance(stmt.addr.offset, int)
+            and stmt.addr.offset in self.stackvar_locs
+            and stmt.size in self.stackvar_locs[stmt.addr.offset]
+        ):
+            return max(self.stackvar_locs[stmt.addr.offset])
+        return None
 
     def _replace_def_store(
-        self, block_addr: int, block_idx: int | None, stmt_idx: int, stmt: Store
+        self, block_addr: int, block_idx: int | None, stmt_idx: int, stmt: Store, force_size: int | None = None
     ) -> VirtualVariable | None:
         if (
             isinstance(stmt.addr, StackBaseOffset)
             and isinstance(stmt.addr.offset, int)
             and stmt.addr.offset in self.stackvar_locs
-            and stmt.size == self.stackvar_locs[stmt.addr.offset]
+            and stmt.size in self.stackvar_locs[stmt.addr.offset]
         ):
-            vvar_id = self.get_vvid_by_def(block_addr, block_idx, stmt_idx, stmt)
+            size = stmt.size if force_size is None else force_size
+            vvar_id = self.get_vvid_by_def(
+                block_addr,
+                block_idx,
+                stmt_idx,
+                atoms.MemoryLocation(stmt.addr.offset, size, Endness(stmt.endness)),
+                "s",
+            )
             vvar = VirtualVariable(
                 self.ail_manager.next_atom(),
                 vvar_id,
-                stmt.size * self.arch.byte_width,
+                size * self.arch.byte_width,
                 category=VirtualVariableCategory.STACK,
                 oident=stmt.addr.offset,
                 **stmt.tags,
             )
-            self.state.stackvars[stmt.addr.offset][stmt.size] = vvar
+            self.state.stackvars[stmt.addr.offset][size] = vvar
             return vvar
         return None
 
     def _replace_def_tmp(self, block_addr: int, block_idx: int | None, stmt_idx: int, expr: Tmp) -> VirtualVariable:
-        vvid = self.get_vvid_by_def(block_addr, block_idx, stmt_idx, expr)
+        vvid = self.get_vvid_by_def(block_addr, block_idx, stmt_idx, atoms.Tmp(expr.tmp_idx, expr.size), "s")
         vvar = VirtualVariable(
             expr.idx,
             vvid,
@@ -615,7 +672,7 @@ class SimEngineSSARewriting(
         self.state.tmps[expr.tmp_idx] = vvar
         return vvar
 
-    def _replace_use_expr(self, thing: Expression | Statement) -> VirtualVariable | None:
+    def _replace_use_expr(self, thing: Expression | Statement) -> VirtualVariable | Expression | None:
         """
         Return a new virtual variable for the given defined expression.
         """
@@ -670,7 +727,7 @@ class SimEngineSSARewriting(
                 elif reg_expr.size > existing_size:
                     # part of the variable exists... maybe it's a parameter?
                     vvar = self.state.registers[reg_expr.reg_offset][existing_size]
-                    if vvar.category == VirtualVariableCategory.PARAMETER:
+                    if vvar is not None and vvar.category == VirtualVariableCategory.PARAMETER:
                         # just zero-extend it
                         return Convert(
                             self.ail_manager.next_atom(),
@@ -698,7 +755,7 @@ class SimEngineSSARewriting(
             shift_amount = Const(
                 self.ail_manager.next_atom(),
                 None,
-                (reg_expr.reg_offset - vvar.oident) * self.arch.byte_width,
+                (reg_expr.reg_offset - vvar.reg_offset) * self.arch.byte_width,
                 8,
                 **reg_expr.tags,
             )
@@ -729,11 +786,17 @@ class SimEngineSSARewriting(
             isinstance(expr.addr, StackBaseOffset)
             and isinstance(expr.addr.offset, int)
             and expr.addr.offset in self.stackvar_locs
-            and expr.size == self.stackvar_locs[expr.addr.offset]
+            and expr.size in self.stackvar_locs[expr.addr.offset]
         ):
             if expr.size not in self.state.stackvars[expr.addr.offset]:
                 # create it on the fly
-                vvar_id = self.get_vvid_by_def(self.block.addr, self.block.idx, self.stmt_idx, expr)
+                vvar_id = self.get_vvid_by_def(
+                    self.block.addr,
+                    self.block.idx,
+                    self.stmt_idx,
+                    atoms.MemoryLocation(expr.addr.offset, expr.size, Endness(expr.endness)),
+                    "l",
+                )
                 return VirtualVariable(
                     self.ail_manager.next_atom(),
                     vvar_id,
@@ -783,9 +846,9 @@ class SimEngineSSARewriting(
     #
 
     def get_vvid_by_def(
-        self, block_addr: int, block_idx: int | None, stmt_idx: int, thing: Expression | Statement
+        self, block_addr: int, block_idx: int | None, stmt_idx: int, thing: DefExprType, access_type: AT
     ) -> int:
-        key = block_addr, block_idx, stmt_idx, thing
+        key = block_addr, block_idx, stmt_idx, thing, access_type
         if key in self.def_to_vvid:
             return self.def_to_vvid[key]
         vvid = self.next_vvar_id()
@@ -801,6 +864,21 @@ class SimEngineSSARewriting(
                         self.state.registers[off] = {base_size: self.state.registers[off][base_size]}
                 else:
                     del self.state.registers[off]
+
+    def _clear_overlapping_stackvars(self, stack_offset: int, size: int, remove_base_stackvar: bool = True) -> None:
+        for off in range(stack_offset, stack_offset + size):
+            if off in self.state.stackvars:
+                if (
+                    not remove_base_stackvar
+                    and off in self.stackvar_locs
+                    and off == stack_offset
+                    and (base_size := max(self.stackvar_locs[off])) == size
+                    and base_size in self.state.stackvars[off]
+                ):
+                    if len(self.state.stackvars[off]) > 1:
+                        self.state.stackvars[off] = {base_size: self.state.stackvars[off][base_size]}
+                else:
+                    del self.state.stackvars[off]
 
     def _unreachable(self, *args, **kwargs):
         assert False
