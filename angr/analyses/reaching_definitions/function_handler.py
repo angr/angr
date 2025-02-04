@@ -16,7 +16,6 @@ from angr.calling_conventions import SimCC
 from angr.sim_type import SimTypeFunction
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.functions import Function
-from angr.analyses.reaching_definitions.dep_graph import FunctionCallRelationships
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
@@ -261,6 +260,16 @@ class FunctionCallDataUnwrapped(FunctionCallData):
 
 def _mk_wrapper(func, iself):
     return lambda *args, **kwargs: func(iself, *args, **kwargs)
+
+
+@dataclass
+class FunctionCallRelationships:
+    callsite: CodeLocation
+    target: int | None
+    args_defns: list[set[Definition]]
+    other_input_defns: set[Definition]
+    ret_defns: set[Definition]
+    other_output_defns: set[Definition]
 
 
 # pylint: disable=unused-argument, no-self-use
