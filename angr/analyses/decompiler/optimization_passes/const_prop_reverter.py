@@ -213,7 +213,7 @@ class ConstPropOptReverter(OptimizationPass):
                     target_atom = MemoryLocation(unwrapped_sym_arg.addr.value, unwrapped_sym_arg.size, "Iend_LE")
                     const_state = self.rd.get_reaching_definitions_by_node(blks[calls[const_arg]].addr, OP_BEFORE)
 
-                    state_load_vals = const_state.get_value_from_atom(target_atom)
+                    state_load_vals = const_state.get_values(target_atom)
                 except AttributeError:
                     continue
                 except KeyError:
