@@ -2449,6 +2449,40 @@ class TestDecompiler(unittest.TestCase):
         assert "case 118:" in d.codegen.text
 
     @structuring_algo("sailr")
+    def test_reverting_switch_clustering_and_lowering_fmt_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        all_optimization_passes = DECOMPILATION_PRESETS["fast"].get_optimization_passes(
+            "AMD64",
+            "linux",
+            disable_opts=CONDENSING_OPTS,
+        )
+
+        f = proj.kb.functions["main"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
+        self._print_decompilation_result(d)
+
+        assert d.codegen.text.count("switch (v") == 1
+        cases = [
+            112,
+            116,
+            4294967166,
+            117,
+            115,
+            99,
+            4294967165,
+            119,
+            103,
+        ]
+        for case_ in cases:
+            assert f"case {case_}:" in d.codegen.text
+        assert "default:" in d.codegen.text
+
+    @structuring_algo("sailr")
     def test_comma_separated_statement_expression_whoami(self, decompiler_options=None):
         # nested switch-cases
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "whoami.o")
