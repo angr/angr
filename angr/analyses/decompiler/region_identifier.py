@@ -1,6 +1,7 @@
 from __future__ import annotations
 from itertools import count
 from collections import defaultdict
+from typing import Any
 import logging
 
 import networkx
@@ -714,11 +715,14 @@ class RegionIdentifier(Analysis):
         df = networkx.algorithms.dominance_frontiers(graph_copy, head)
 
         # visit the nodes in post-order
-        for node in networkx.dfs_postorder_nodes(graph_copy, source=head):
+        region_created = False
+        for node in list(networkx.dfs_postorder_nodes(graph_copy, source=head)):
             if node is dummy_endnode:
                 # skip the dummy endnode
                 continue
             if cyclic and node is head:
+                continue
+            if node not in graph_copy:
                 continue
 
             out_degree = graph_copy.out_degree[node]
@@ -780,7 +784,16 @@ class RegionIdentifier(Analysis):
                             graph, region, frontier, dummy_endnode=dummy_endnode, secondary_graph=secondary_graph
                         )
                         # assert dummy_endnode not in graph
-                        return True
+                        region_created = True
+                        # we created a new region to replace one or more nodes in the graph.
+                        # update postdoms and dominance frontiers.
+                        replaced_nodes = set(region.graph)
+                        self._update_postdoms(postdoms, region, replaced_nodes)
+                        self._update_dominance_frontiers(df, region, replaced_nodes)
+                        # update graph_copy
+                        if graph_copy is not graph:
+                            self._update_graph(graph_copy, region, replaced_nodes)
+                        break
 
                 failed_region_attempts.add((node, postdom_node))
                 if not dominates(doms, node, postdom_node):
@@ -791,7 +804,36 @@ class RegionIdentifier(Analysis):
                 levels += 1
             # l.debug("Walked back %d levels in postdom tree and did not find anything for %r. Next.", levels, node)
 
-        return False
+        return region_created
+
+    @staticmethod
+    def _update_postdoms(postdoms: dict, new_region, replaced_nodes: set) -> None:
+        for k in list(postdoms):
+            if postdoms[k] in replaced_nodes:
+                postdoms[k] = new_region
+
+    @staticmethod
+    def _update_dominance_frontiers(df: dict[Any, set], new_region, replaced_nodes: set) -> None:
+        for k in list(df):
+            has_replaced_node = False
+            for v in list(df[k]):
+                if v in replaced_nodes:
+                    has_replaced_node = True
+                    df[k].remove(v)
+            if has_replaced_node:
+                df[k].add(new_region)
+
+    @staticmethod
+    def _update_graph(graph: networkx.DiGraph, new_region, replaced_nodes: set) -> None:
+        region_in_edges = RegionIdentifier._region_in_edges(graph, new_region, data=True)
+        region_out_edges = RegionIdentifier._region_out_edges(graph, new_region, data=True)
+        for node in replaced_nodes:
+            graph.remove_node(node)
+        graph.add_node(new_region)
+        for src, _, data in region_in_edges:
+            graph.add_edge(src, new_region, **data)
+        for _, dst, data in region_out_edges:
+            graph.add_edge(new_region, dst, **data)
 
     @staticmethod
     def _check_region(graph, start_node, end_node, doms, df):
