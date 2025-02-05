@@ -1864,6 +1864,11 @@ class Clinic(Analysis):
             if expr.guard:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.guard)
 
+        elif isinstance(expr, ailment.Expr.Phi):
+            for _, vvar in expr.src_and_vvars:
+                if vvar is not None:
+                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, vvar)
+
     def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
         if blocks_by_addr_and_size is None:
             blocks_by_addr_and_size = self._blocks_by_addr_and_size

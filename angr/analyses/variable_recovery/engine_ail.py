@@ -333,7 +333,7 @@ class SimEngineVRAIL(
         tvs = set()
         for _, vvar in expr.src_and_vvars:
             if vvar is not None:
-                r = self._read_from_vvar(vvar, expr=expr, vvar_id=self._mapped_vvarid(vvar.varid))
+                r = self._read_from_vvar(vvar, expr=vvar, vvar_id=self._mapped_vvarid(vvar.varid))
                 if r.typevar is not None:
                     tvs.add(r.typevar)
 
