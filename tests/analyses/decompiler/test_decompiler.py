@@ -4005,6 +4005,9 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen.text.count("switch") == 1
         for i in range(10):
             assert f"case {i}:" in d.codegen.text
+        # this function triggers ReturnDuplicatorLow; phi source vvars in duplicated blocks should have variables
+        # associated with them
+        assert "{reg" not in d.codegen.text
 
     def test_decompiling_abnormal_switch_case_within_a_loop_case_2(self, decompiler_options=None):
         bin_path = os.path.join(

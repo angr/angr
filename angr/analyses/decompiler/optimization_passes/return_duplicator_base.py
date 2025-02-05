@@ -34,13 +34,23 @@ class FreshVirtualVariableRewriter(AILBlockWalker):
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         new_stmt = super()._handle_Assignment(stmt_idx, stmt, block)
         dst = new_stmt.dst if new_stmt is not None else stmt.dst
+        src = new_stmt.src if new_stmt is not None else stmt.src
         if isinstance(dst, VirtualVariable):
             self.vvar_mapping[dst.varid] = self.vvar_idx
             self.vvar_idx += 1
 
-            dst = VirtualVariable(dst.idx, self.vvar_mapping[dst.varid], dst.bits, dst.category, dst.oident, **dst.tags)
+            dst = VirtualVariable(
+                dst.idx,
+                self.vvar_mapping[dst.varid],
+                dst.bits,
+                dst.category,
+                dst.oident,
+                variable=dst.variable,
+                variable_offset=dst.variable_offset,
+                **dst.tags,
+            )
 
-            return Assignment(stmt.idx, dst, stmt.src, **stmt.tags)
+            return Assignment(stmt.idx, dst, src, **stmt.tags)
 
         return new_stmt
 
