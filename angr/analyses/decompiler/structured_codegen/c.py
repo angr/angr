@@ -40,6 +40,7 @@ from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariabl
 from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
+from angr.utils.types import unpack_typeref, unpack_pointer
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
@@ -70,35 +71,6 @@ l.addFilter(UniqueLogFilter())
 
 
 INDENT_DELTA = 4
-
-
-def unpack_typeref(ty):
-    if isinstance(ty, TypeRef):
-        return ty.type
-    return ty
-
-
-def unpack_pointer(ty) -> SimType | None:
-    if isinstance(ty, SimTypePointer):
-        return ty.pts_to
-    return None
-
-
-def unpack_array(ty) -> SimType | None:
-    if isinstance(ty, SimTypeArray):
-        return ty.elem_type
-    if isinstance(ty, SimTypeFixedSizeArray):
-        return ty.elem_type
-    return None
-
-
-def squash_array_reference(ty):
-    pointed_to = unpack_pointer(ty)
-    if pointed_to:
-        array_of = unpack_array(pointed_to)
-        if array_of:
-            return SimTypePointer(array_of)
-    return ty
 
 
 def qualifies_for_simple_cast(ty1, ty2):
