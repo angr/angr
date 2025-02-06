@@ -24,7 +24,6 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.todo",
-    "sphinx.ext.viewcode",
     "sphinx_autodoc_typehints",
     "myst_parser",
 ]
