@@ -137,7 +137,7 @@ class ReturnDuplicatorBase:
         if self._minimize_copies_for_regions:
             # perform a second pass to minimize the number of copies by doing only a single copy
             # for connected in_edges that form a region
-            endnode_regions = self._copy_connected_edge_components(endnode_regions, graph)
+            graph_changed, endnode_regions = self._copy_connected_edge_components(endnode_regions, graph)
 
         # refresh the supergraph
         self._supergraph = to_ail_supergraph(graph)
@@ -298,6 +298,7 @@ class ReturnDuplicatorBase:
     def _copy_connected_edge_components(
         self, endnode_regions: dict[Any, tuple[list[tuple[Any, Any]], networkx.DiGraph]], graph: networkx.DiGraph
     ):
+        graph_changed = False
         updated_regions = endnode_regions.copy()
         assert self._ri is not None
         assert isinstance(self._ri.region, GraphRegion)
@@ -349,8 +350,9 @@ class ReturnDuplicatorBase:
                 del updated_regions[region_head]
             else:
                 updated_regions[region_head] = new_in_edges, region
+            graph_changed = True
 
-        return updated_regions
+        return graph_changed, updated_regions
 
     @staticmethod
     def _is_simple_return_graph(graph: networkx.DiGraph, max_assigns=1):
