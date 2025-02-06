@@ -2484,7 +2484,7 @@ class TestDecompiler(unittest.TestCase):
 
     @structuring_algo("sailr")
     def test_reverting_switch_clustering_and_lowering_mv_o2_main(self, decompiler_options=None):
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "mv_-O2")
+        bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
