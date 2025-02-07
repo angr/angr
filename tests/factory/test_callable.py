@@ -53,7 +53,9 @@ class TestCallable(unittest.TestCase):
         authenticate = p.factory.callable(
             addr, toc=0x10018E80 if arch == "ppc64" else None, concrete_only=True, prototype=prototype
         )
-        assert authenticate("asdf", "SOSNEAKY").concrete_value == 1
+        r = authenticate("asdf", "SOSNEAKY")
+        assert r is not None
+        assert r.concrete_value == 1
         self.assertRaises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
     def run_callable_c_fauxware(self, arch):
@@ -63,6 +65,7 @@ class TestCallable(unittest.TestCase):
             addr, toc=0x10018E80 if arch == "ppc64" else None, concrete_only=True, prototype="int f(char*, char*)"
         )
         retval = authenticate.call_c('("asdf", "SOSNEAKY")')
+        assert retval is not None
         assert retval.concrete_value == 1
 
     def run_manysum(self, arch):
@@ -72,7 +75,7 @@ class TestCallable(unittest.TestCase):
         prototype = SimTypeFunction([inttype] * 11, inttype)
         sumlots = p.factory.callable(addr, prototype=prototype)
         result = sumlots(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
-        assert not result.symbolic
+        assert result is not None and not result.symbolic
         assert result.concrete_value == sum(range(12))
 
     def run_callable_c_manysum(self, arch):
@@ -80,7 +83,7 @@ class TestCallable(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, arch, "manysum"))
         sumlots = p.factory.callable(addr, prototype="int f(int, int, int, int, int, int, int, int, int, int, int)")
         result = sumlots.call_c("(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)")
-        assert not result.symbolic
+        assert result is not None and not result.symbolic
         assert result.concrete_value == sum(range(12))
 
     def run_manyfloatsum(self, arch):
@@ -100,10 +103,12 @@ class TestCallable(unittest.TestCase):
         ):
             args = list(range(len(type_cache[function].args)))
             answer = float(sum(args))
-            addr = p.loader.main_object.get_symbol(function).rebased_addr
+            symbol = p.loader.main_object.get_symbol(function)
+            assert symbol is not None
+            addr = symbol.rebased_addr
             my_callable = p.factory.callable(addr, prototype=type_cache[function])
             result = my_callable(*args)
-            assert not result.symbolic
+            assert result is not None and not result.symbolic
             result_concrete = result.args[0]
             assert answer == result_concrete
 
@@ -117,14 +122,16 @@ class TestCallable(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, arch, "manyfloatsum"))
         function = "sum_doubles"
         args = [claripy.FPS(f"arg_{i}", claripy.FSORT_DOUBLE) for i in range(len(type_cache[function].args))]
-        addr = p.loader.main_object.get_symbol(function).rebased_addr
+        symbol = p.loader.main_object.get_symbol(function)
+        assert symbol is not None
+        addr = symbol.rebased_addr
         my_callable = p.factory.callable(addr, prototype=type_cache[function])
         result = my_callable(*args)
-        assert result.symbolic
+        assert result is not None and result.symbolic
 
         s = claripy.Solver(timeout=15 * 60 * 1000)
         for arg in args:
-            s.add(arg > claripy.FPV(1.0, claripy.FSORT_DOUBLE))
+            s.add(arg > claripy.FPV(1.0, claripy.FSORT_DOUBLE))  # type: ignore
         s.add(result == claripy.FPV(27.7, claripy.FSORT_DOUBLE))
 
         args_conc = s.batch_eval(args, 1)[0]
@@ -262,6 +269,19 @@ class TestCallable(unittest.TestCase):
         assert (s.regs.sp == 0x1234).is_true()
         assert (s.mem[0x1234 + 4].long.resolved == 0x1234 + 8).is_true()
         assert (s.memory.load(0x1234 + 8, 5) == b"hello").is_true()
+
+    def test_factory_callable_function_arg(self):
+        arch = "x86_64"
+        addr = addresses_fauxware[arch]
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
+        p.analyses.CFG()
+        charstar = SimTypePointer(SimTypeChar())
+        prototype = SimTypeFunction((charstar, charstar), SimTypeInt(False))
+        authenticate = p.factory.callable(p.kb.functions[addr], concrete_only=True, prototype=prototype)
+        r = authenticate("asdf", "SOSNEAKY")
+        assert r is not None
+        assert r.concrete_value == 1
+        self.assertRaises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
 
 if __name__ == "__main__":
