@@ -320,6 +320,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             node_to_heads[succ].add(new_head)
                     graph_copy.remove_node(onode)
                 for onode in redundant_nodes:
+                    if onode in original_nodes:
+                        # sometimes they overlap
+                        # e.g., 0x402cc7 in mv_-O2
+                        continue
                     # ensure all nodes that are only reachable from onode are also removed
                     # FIXME: Remove the entire path of nodes instead of only the immediate successors
                     successors = list(graph_copy.successors(onode))
@@ -527,14 +531,27 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             le_added = True
                         if gt_added or le_added:
                             if not le_added:
-                                if le_addr not in default_case_candidates:
+                                # if min_ + 1 == value, it means we actually have another case! it's not a default case
+                                if min_ + 1 == value:
+                                    cases.append(
+                                        Case(comp, comp_type, variable_hash, expr, min_ + 1, le_addr, le_idx, None)
+                                    )
+                                    used_nodes.add(comp)
+                                elif le_addr not in default_case_candidates:
                                     default_case_candidates[le_addr] = Case(
                                         comp, None, variable_hash, expr, "default", le_addr, le_idx, None
                                     )
-                            elif not gt_added and gt_addr not in default_case_candidates:
-                                default_case_candidates[gt_addr] = Case(
-                                    comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
-                                )
+                            if not gt_added:
+                                # likewise, this means we have another non-default case
+                                if value == max_:
+                                    cases.append(
+                                        Case(comp, comp_type, variable_hash, expr, max_, gt_addr, gt_idx, None)
+                                    )
+                                    used_nodes.add(comp)
+                                elif gt_addr not in default_case_candidates:
+                                    default_case_candidates[gt_addr] = Case(
+                                        comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
+                                    )
                             extra_cmp_nodes.append(comp)
                             used_nodes.add(comp)
                         else:
