@@ -7,6 +7,7 @@ from typing import overload, TYPE_CHECKING
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
+from .knowledge_plugins.functions import Function
 from .sim_state import SimState
 from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
@@ -236,7 +237,7 @@ class AngrObjectFactory:
 
     def callable(
         self,
-        addr,
+        addr: int | Function,
         prototype=None,
         concrete_only=False,
         perform_merge=True,
@@ -251,8 +252,9 @@ class AngrObjectFactory:
         A Callable is a representation of a function in the binary that can be interacted with like a native python
         function.
 
-        :param addr:            The address of the function to use
-        :param prototype:         The prototype of the call to use, as a string or a SimTypeFunction
+        :param addr:            The address of the function to use. If you pass in the function object, we will take
+                                its addr.
+        :param prototype:       The prototype of the call to use, as a string or a SimTypeFunction
         :param concrete_only:   Throw an exception if the execution splits into multiple states
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
@@ -263,6 +265,9 @@ class AngrObjectFactory:
                                 python function.
         :rtype:                 angr.callable.Callable
         """
+        if isinstance(addr, Function):
+            addr = addr.addr
+
         return Callable(
             self.project,
             addr=addr,

@@ -263,6 +263,17 @@ class TestCallable(unittest.TestCase):
         assert (s.mem[0x1234 + 4].long.resolved == 0x1234 + 8).is_true()
         assert (s.memory.load(0x1234 + 8, 5) == b"hello").is_true()
 
+    def test_factory_callable_function_arg(self):
+        arch = "x86_64"
+        addr = addresses_fauxware[arch]
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
+        p.analyses.CFG()
+        charstar = SimTypePointer(SimTypeChar())
+        prototype = SimTypeFunction((charstar, charstar), SimTypeInt(False))
+        authenticate = p.factory.callable(p.kb.functions[addr], concrete_only=True, prototype=prototype)
+        assert authenticate("asdf", "SOSNEAKY").concrete_value == 1
+        self.assertRaises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
+
 
 if __name__ == "__main__":
     unittest.main()
