@@ -116,10 +116,13 @@ class RegionSimplifier(Analysis):
         for var, uses in expr_counter.uses.items():
             if len(uses) == 1 and var in expr_counter.assignments and len(expr_counter.assignments[var]) == 1:
                 definition, deps, loc, has_loads = next(iter(expr_counter.assignments[var]))
+                _, use_expr_loc = next(iter(uses))
+                if isinstance(use_expr_loc, ExpressionLocation) and use_expr_loc.phi_stmt:
+                    # we cannot fold expressions that are used in phi statements
+                    continue
                 if has_loads:
                     # the definition has at least one load expression. we need to ensure there are no store statements
                     # between the definition site and the use site
-                    _, use_expr_loc = next(iter(uses))
                     if isinstance(use_expr_loc, ExpressionLocation):
                         use_loc = use_expr_loc.statement_location()
                     else:

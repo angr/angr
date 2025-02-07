@@ -4209,6 +4209,45 @@ class TestDecompiler(unittest.TestCase):
         # ReturnDuplicatorHigh must run before the last run of function simplification for proper constant propagation
         assert "return -1;" in d.codegen.text or "return 4294967295;" in d.codegen.text
 
+    def test_decompiling_msvcrt_setsbuplow(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "vcruntime_test.exe")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        # setSBUpLow
+        f = proj.kb.functions[0x14002EC04]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # ensure the block at 0x14002EC60 is not simplified into an infinite loop; both variables should be incremented
+        # intended:
+        #   do
+        #   {
+        #       *(v12) = (char)v11;
+        #       v11 = (unsigned int)v11 + 1;
+        #       v12 += 1;
+        #   } while ((unsigned int)v11 < 0x100);
+        lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
+        while True:
+            # find the do-while loop
+            try:
+                start_idx = next(idx for idx, line in enumerate(lines) if line == "do")
+            except StopIteration:
+                assert False, "Cannot find the do-while loop in this function"
+            if (
+                lines[start_idx + 1] == "{"
+                and re.match(r"\*\(v\d+\) = \(char\)v\d+;", lines[start_idx + 2])
+                and re.match(r"v\d+ = \(unsigned int\)v\d+ \+ 1;", lines[start_idx + 3])
+                and re.match(r"v\d+ \+= 1;", lines[start_idx + 4])
+                and re.match(r"} while \(\(unsigned int\)v\d+ < 0x100\);", lines[start_idx + 5])
+            ):
+                # found it!
+                break
+            lines = lines[start_idx + 1 :]
+
     def test_decompiling_livectf_dc30_shell_me_maybe_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "livectf-dc30-shell-me-maybe")
 

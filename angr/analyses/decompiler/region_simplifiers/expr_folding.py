@@ -36,19 +36,21 @@ class StatementLocation(LocationBase):
     __slots__ = (
         "block_addr",
         "block_idx",
+        "phi_stmt",
         "stmt_idx",
     )
 
-    def __init__(self, block_addr, block_idx, stmt_idx):
+    def __init__(self, block_addr, block_idx, stmt_idx, phi_stmt: bool = False):
         self.block_addr = block_addr
         self.block_idx = block_idx
         self.stmt_idx = stmt_idx
+        self.phi_stmt = phi_stmt
 
     def __repr__(self):
-        return f"Loc: Statement@{self.block_addr:x}.{self.block_idx}-{self.stmt_idx}"
+        return f"Loc: Statement@{self.block_addr:x}.{self.block_idx}-{self.stmt_idx}{' phi' if self.phi_stmt else ''}"
 
     def __hash__(self):
-        return hash((StatementLocation, self.block_addr, self.block_idx, self.stmt_idx))
+        return hash((StatementLocation, self.block_addr, self.block_idx, self.stmt_idx, self.phi_stmt))
 
     def __eq__(self, other):
         return (
@@ -56,10 +58,11 @@ class StatementLocation(LocationBase):
             and self.block_addr == other.block_addr
             and self.block_idx == other.block_idx
             and self.stmt_idx == other.stmt_idx
+            and self.phi_stmt == other.phi_stmt
         )
 
     def copy(self):
-        return StatementLocation(self.block_addr, self.block_idx, self.stmt_idx)
+        return StatementLocation(self.block_addr, self.block_idx, self.stmt_idx, phi_stmt=self.phi_stmt)
 
 
 class ExpressionLocation(LocationBase):
@@ -71,23 +74,28 @@ class ExpressionLocation(LocationBase):
         "block_addr",
         "block_idx",
         "expr_idx",
+        "phi_stmt",
         "stmt_idx",
     )
 
-    def __init__(self, block_addr, block_idx, stmt_idx, expr_idx):
+    def __init__(self, block_addr, block_idx, stmt_idx, expr_idx, phi_stmt: bool = False):
         self.block_addr = block_addr
         self.block_idx = block_idx
         self.stmt_idx = stmt_idx
         self.expr_idx = expr_idx
+        self.phi_stmt = phi_stmt
 
     def __repr__(self):
-        return f"Loc: Expression@{self.block_addr:x}.{self.block_idx}-{self.stmt_idx}[{self.expr_idx}]"
+        return (
+            f"Loc: Expression@{self.block_addr:x}.{self.block_idx}-{self.stmt_idx}[{self.expr_idx}]"
+            f"{'phi' if self.phi_stmt else ''}"
+        )
 
     def statement_location(self) -> StatementLocation:
-        return StatementLocation(self.block_addr, self.block_idx, self.stmt_idx)
+        return StatementLocation(self.block_addr, self.block_idx, self.stmt_idx, phi_stmt=self.phi_stmt)
 
     def __hash__(self):
-        return hash((ExpressionLocation, self.block_addr, self.block_idx, self.stmt_idx, self.expr_idx))
+        return hash((ExpressionLocation, self.block_addr, self.block_idx, self.stmt_idx, self.expr_idx, self.phi_stmt))
 
     def __eq__(self, other):
         return (
@@ -96,6 +104,7 @@ class ExpressionLocation(LocationBase):
             and self.block_idx == other.block_idx
             and self.stmt_idx == other.stmt_idx
             and self.expr_idx == other.expr_idx
+            and self.phi_stmt == other.phi_stmt
         )
 
 
@@ -201,7 +210,18 @@ class ExpressionUseFinder(AILBlockWalker):
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg:
             if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst is expr):
                 if block is not None:
-                    self.uses[expr.varid].add((expr, ExpressionLocation(block.addr, block.idx, stmt_idx, expr_idx)))
+                    self.uses[expr.varid].add(
+                        (
+                            expr,
+                            ExpressionLocation(
+                                block.addr,
+                                block.idx,
+                                stmt_idx,
+                                expr_idx,
+                                phi_stmt=stmt is not None and is_phi_assignment(stmt),
+                            ),
+                        )
+                    )
                 else:
                     self.uses[expr.varid].add((expr, None))
             return None
@@ -239,11 +259,7 @@ class ExpressionCounter(SequenceWalker):
         if isinstance(stmt, ailment.Stmt.Assignment):
             if is_phi_assignment(stmt):
                 return
-            if (
-                isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-                and stmt.dst.was_reg
-                and stmt.dst.variable is not None
-            ):
+            if isinstance(stmt.dst, ailment.Expr.VirtualVariable) and stmt.dst.was_reg:
                 # dependency
                 dependency_finder = ExpressionUseFinder()
                 dependency_finder.walk_expression(stmt.src)
@@ -260,7 +276,6 @@ class ExpressionCounter(SequenceWalker):
             isinstance(stmt, ailment.Stmt.Call)
             and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
             and stmt.ret_expr.was_reg
-            and stmt.ret_expr.variable is not None
         ):
             dependency_finder = ExpressionUseFinder()
             dependency_finder.walk_expression(stmt)
@@ -279,8 +294,7 @@ class ExpressionCounter(SequenceWalker):
         use_finder = ExpressionUseFinder()
         for idx, stmt in enumerate(node.statements):
             self._handle_Statement(idx, stmt, node)
-            if not is_phi_assignment(stmt):
-                use_finder.walk_statement(stmt)
+            use_finder.walk_statement(stmt, block=node)
 
         for varid, content in use_finder.uses.items():
             if varid not in self.uses:
@@ -407,7 +421,7 @@ class InterferenceChecker(SequenceWalker):
             the_call = None
             if isinstance(stmt, Assignment) and isinstance(stmt.src, ailment.Stmt.Call):
                 the_call = stmt.src
-            elif isinstance(stmt, ailment.Stmt.Call):
+            elif isinstance(stmt, ailment.Stmt.Call) and not isinstance(stmt.target, str):
                 the_call = stmt
             if the_call is not None:
                 spotter.walk_expression(the_call.target)
