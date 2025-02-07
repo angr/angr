@@ -182,23 +182,24 @@ class ConstantValueManager:
 
         # determine blocks to run FCP on
 
-        # - include at most three levels of successors from the entrypoint
+        # - include at most three levels of superblock successors from the entrypoint
         startpoint = self.func.startpoint
         blocks = set()
-        succs = [startpoint]
-        for _ in range(3):
+        succ_and_levels = [(startpoint, 0)]
+        while succ_and_levels:
             new_succs = []
-            for node in succs:
+            for node, level in succ_and_levels:
                 if node in blocks:
                     continue
                 blocks.add(node)
                 if node.addr == self.indirect_jump_addr:
                     # stop at the indirect jump block
                     continue
-                new_succs += list(self.func.graph.successors(node))
-            succs = new_succs
-            if not succs:
-                break
+                for _, succ, data in self.func.graph.out_edges(node, data=True):
+                    new_level = level if data.get("type") == "fake_return" else level + 1
+                    if new_level <= 3:
+                        new_succs.append((succ, new_level))
+            succ_and_levels = new_succs
 
         # - include at most six levels of predecessors from the indirect jump block
         ij_block = self.func.get_node(self.indirect_jump_addr)
