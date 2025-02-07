@@ -68,8 +68,8 @@ class AILBlockWalkerBase:
             self._handle_stmt(i, stmt, block)
             i += 1
 
-    def walk_statement(self, stmt: Statement):
-        return self._handle_stmt(0, stmt, None)
+    def walk_statement(self, stmt: Statement, block: Block | None = None):
+        return self._handle_stmt(0, stmt, block)
 
     def walk_expression(
         self,
