@@ -12,6 +12,7 @@ from cle.backends.elf.variable import Variable
 
 from angr.utils.orderedset import OrderedSet
 from angr.utils.ail import is_phi_assignment
+from angr.utils.types import unpack_pointer, replace_pointer_pts_to
 from angr.protos import variables_pb2
 from angr.serializable import Serializable
 from angr.sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
@@ -19,7 +20,6 @@ from angr.sim_type import (
     TypeRef,
     SimType,
     SimStruct,
-    SimTypePointer,
     SimTypeBottom,
     SimTypeChar,
     SimTypeShort,
@@ -985,10 +985,12 @@ class VariableManagerInternal(Serializable):
             if name not in self.types:
                 self.types[name] = TypeRef(name, ty).with_arch(self.manager._kb._project.arch)
             ty = self.types[name]
-        elif isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimStruct):
-            typeref = self._register_struct_type(ty.pts_to)
-            ty = ty.copy().with_arch(self.manager._kb._project.arch)
-            ty.pts_to = typeref
+        elif (inner_ty := unpack_pointer(ty, iterative=True)) and isinstance(inner_ty, SimStruct):
+            typeref = self._register_struct_type(inner_ty)
+            # rebuild the multi-layer pointer type
+            replaced_ty = replace_pointer_pts_to(ty, inner_ty, typeref)
+            assert replaced_ty is not None
+            ty = replaced_ty.with_arch(self.manager._kb._project.arch)
         elif isinstance(ty, SimStruct):
             ty = self._register_struct_type(ty, name=name)
 

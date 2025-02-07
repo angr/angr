@@ -40,6 +40,7 @@ from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariabl
 from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
+from angr.utils.types import unpack_typeref, unpack_pointer
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
@@ -72,35 +73,6 @@ l.addFilter(UniqueLogFilter())
 INDENT_DELTA = 4
 
 
-def unpack_typeref(ty):
-    if isinstance(ty, TypeRef):
-        return ty.type
-    return ty
-
-
-def unpack_pointer(ty) -> SimType | None:
-    if isinstance(ty, SimTypePointer):
-        return ty.pts_to
-    return None
-
-
-def unpack_array(ty) -> SimType | None:
-    if isinstance(ty, SimTypeArray):
-        return ty.elem_type
-    if isinstance(ty, SimTypeFixedSizeArray):
-        return ty.elem_type
-    return None
-
-
-def squash_array_reference(ty):
-    pointed_to = unpack_pointer(ty)
-    if pointed_to:
-        array_of = unpack_array(pointed_to)
-        if array_of:
-            return SimTypePointer(array_of)
-    return ty
-
-
 def qualifies_for_simple_cast(ty1, ty2):
     # converting ty1 to ty2 - can this happen precisely?
     # used to decide whether to add explicit typecasts instead of doing *(int*)&v1
@@ -122,7 +94,7 @@ def qualifies_for_implicit_cast(ty1, ty2):
     ):
         return False
 
-    return ty1.size <= ty2.size
+    return ty1.size <= ty2.size if ty1.size is not None and ty2.size is not None else False
 
 
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
@@ -260,9 +232,10 @@ class CConstruct:
     Acts as the base class for all other representation constructions.
     """
 
-    __slots__ = ("codegen",)
+    __slots__ = ("codegen", "tags")
 
-    def __init__(self, codegen):
+    def __init__(self, codegen, tags=None):
+        self.tags = tags or {}
         self.codegen: StructuredCodeGenerator = codegen
 
     def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
@@ -341,7 +314,7 @@ class CConstruct:
                             pos_to_node.add_mapping(pos, len(s), obj)
 
                 if s.endswith("\n"):
-                    text = pending_stmt_comments.pop(last_insn_addr, None)
+                    text = pending_stmt_comments.pop(last_insn_addr, None) if isinstance(last_insn_addr, int) else None
                     if text is not None:
                         todo = "  // " + text
                         pos += len(s) - 1
@@ -354,7 +327,7 @@ class CConstruct:
                 yield s
 
                 if isinstance(obj, CExpression):
-                    text = pending_expr_comments.pop(last_insn_addr, None)
+                    text = pending_expr_comments.pop(last_insn_addr, None) if isinstance(last_insn_addr, int) else None
                     if text is not None:
                         todo = " /*" + text + "*/ "
                         pos += len(todo)
@@ -504,7 +477,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             vartypes = [x[1] for x in cvar_and_vartypes]
             count = Counter(vartypes)
             vartypes = sorted(
-                count.copy(), key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
+                count.copy(),
+                key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
             )
 
             for i, var_type in enumerate(vartypes):
@@ -563,7 +537,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
         if self.codegen.show_externs and self.codegen.cexterns:
-            for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
+            for v in sorted(self.codegen.cexterns, key=lambda v: str(v.variable.name)):
                 varname = v.c_repr() if v.type is None else v.variable.name
                 yield "extern ", None
                 yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
@@ -573,6 +547,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield indent_str, None
 
         # header comments (if they exist)
+        assert self.codegen.cfunc is not None and self.codegen.cfunc.addr is not None
         header_comments = self.codegen.kb.comments.get(self.codegen.cfunc.addr, [])
         if header_comments:
             header_cmt = self._line_wrap_comment("".join(header_comments))
@@ -582,6 +557,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield "// attributes: PLT stub\n", None
 
         # return type
+        assert self.functy.returnty is not None
         yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
         yield " ", None
         # function name
@@ -641,7 +617,8 @@ class CStatement(CConstruct):  # pylint:disable=abstract-method
     Represents a statement in C.
     """
 
-    __slots__ = ()
+    def __init__(self, tags=None, codegen=None):
+        super().__init__(codegen=codegen, tags=tags)
 
 
 class CExpression(CConstruct):
@@ -649,13 +626,10 @@ class CExpression(CConstruct):
     Base class for C expressions.
     """
 
-    __slots__ = (
-        "_type",
-        "collapsed",
-    )
+    __slots__ = ("_type", "collapsed")
 
-    def __init__(self, collapsed=False, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, collapsed=False, tags=None, codegen=None):
+        super().__init__(codegen=codegen, tags=tags)
         self._type = None
         self.collapsed = collapsed
 
@@ -739,15 +713,13 @@ class CWhileLoop(CLoop):
     __slots__ = (
         "body",
         "condition",
-        "tags",
     )
 
-    def __init__(self, condition, body, tags=None, **kwargs):
+    def __init__(self, condition, body, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
         self.body = body
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -787,15 +759,13 @@ class CDoWhileLoop(CLoop):
     __slots__ = (
         "body",
         "condition",
-        "tags",
     )
 
-    def __init__(self, condition, body, tags=None, **kwargs):
+    def __init__(self, condition, body, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
         self.body = body
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -835,17 +805,20 @@ class CForLoop(CStatement):
     Represents a for-loop in C.
     """
 
-    __slots__ = ("body", "condition", "initializer", "iterator", "tags")
+    __slots__ = (
+        "body",
+        "condition",
+        "initializer",
+        "iterator",
+    )
 
-    def __init__(self, initializer, condition, iterator, body, tags=None, **kwargs):
+    def __init__(self, initializer, condition, iterator, body, **kwargs):
         super().__init__(**kwargs)
 
         self.initializer = initializer
         self.condition = condition
         self.iterator = iterator
         self.body = body
-
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -887,7 +860,12 @@ class CIfElse(CStatement):
     Represents an if-else construct in C.
     """
 
-    __slots__ = ("condition_and_nodes", "cstyle_ifs", "else_node", "simplify_else_scope", "tags")
+    __slots__ = (
+        "condition_and_nodes",
+        "cstyle_ifs",
+        "else_node",
+        "simplify_else_scope",
+    )
 
     def __init__(
         self,
@@ -895,7 +873,6 @@ class CIfElse(CStatement):
         else_node=None,
         simplify_else_scope=False,
         cstyle_ifs=True,
-        tags=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -904,7 +881,6 @@ class CIfElse(CStatement):
         self.else_node = else_node
         self.simplify_else_scope = simplify_else_scope
         self.cstyle_ifs = cstyle_ifs
-        self.tags = tags
 
         if not self.condition_and_nodes:
             raise ValueError("You must specify at least one condition")
@@ -1014,15 +990,13 @@ class CIfBreak(CStatement):
     __slots__ = (
         "condition",
         "cstyle_ifs",
-        "tags",
     )
 
-    def __init__(self, condition, cstyle_ifs=True, tags=None, **kwargs):
+    def __init__(self, condition, cstyle_ifs=True, **kwargs):
         super().__init__(**kwargs)
 
         self.condition = condition
         self.cstyle_ifs = cstyle_ifs
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1058,11 +1032,10 @@ class CBreak(CStatement):
     Represents a break statement in C.
     """
 
-    __slots__ = ("tags",)
+    __slots__ = ()
 
-    def __init__(self, tags=None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1076,11 +1049,10 @@ class CContinue(CStatement):
     Represents a continue statement in C.
     """
 
-    __slots__ = ("tags",)
+    __slots__ = ()
 
-    def __init__(self, tags=None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1094,15 +1066,14 @@ class CSwitchCase(CStatement):
     Represents a switch-case statement in C.
     """
 
-    __slots__ = ("cases", "default", "switch", "tags")
+    __slots__ = ("cases", "default", "switch")
 
-    def __init__(self, switch, cases, default, tags=None, **kwargs):
+    def __init__(self, switch, cases, default, **kwargs):
         super().__init__(**kwargs)
 
         self.switch = switch
         self.cases: list[tuple[int | tuple[int], CStatements]] = cases
         self.default = default
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1153,14 +1124,13 @@ class CIncompleteSwitchCase(CStatement):
     structuring fails (for whatever reason).
     """
 
-    __slots__ = ("cases", "head", "tags")
+    __slots__ = ("cases", "head")
 
-    def __init__(self, head, cases, tags=None, **kwargs):
+    def __init__(self, head, cases, **kwargs):
         super().__init__(**kwargs)
 
         self.head = head
         self.cases: list[tuple[int, CStatements]] = cases
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1199,18 +1169,13 @@ class CAssignment(CStatement):
     a = b
     """
 
-    __slots__ = (
-        "lhs",
-        "rhs",
-        "tags",
-    )
+    __slots__ = ("lhs", "rhs")
 
-    def __init__(self, lhs, rhs, tags=None, **kwargs):
+    def __init__(self, lhs, rhs, **kwargs):
         super().__init__(**kwargs)
 
         self.lhs = lhs
         self.rhs = rhs
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1278,7 +1243,6 @@ class CFunctionCall(CStatement, CExpression):
         "returning",
         "show_demangled_name",
         "show_disambiguated_name",
-        "tags",
     )
 
     def __init__(
@@ -1288,20 +1252,21 @@ class CFunctionCall(CStatement, CExpression):
         args,
         returning=True,
         ret_expr=None,
-        tags=None,
         is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
+        tags=None,
+        codegen=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(tags=tags, codegen=codegen, **kwargs)
+        CConstruct.__init__(self, tags=tags, codegen=codegen)
 
         self.callee_target = callee_target
         self.callee_func: Function | None = callee_func
         self.args = args if args is not None else []
         self.returning = returning
         self.ret_expr = ret_expr
-        self.tags = tags
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
@@ -1390,16 +1355,12 @@ class CFunctionCall(CStatement, CExpression):
 
 
 class CReturn(CStatement):
-    __slots__ = (
-        "retval",
-        "tags",
-    )
+    __slots__ = ("retval",)
 
-    def __init__(self, retval, tags=None, **kwargs):
+    def __init__(self, retval, **kwargs):
         super().__init__(**kwargs)
 
         self.retval = retval
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1416,12 +1377,11 @@ class CReturn(CStatement):
 
 class CGoto(CStatement):
     __slots__ = (
-        "tags",
         "target",
         "target_idx",
     )
 
-    def __init__(self, target, target_idx, tags=None, **kwargs):
+    def __init__(self, target, target_idx, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(target, CConstant):
@@ -1430,7 +1390,6 @@ class CGoto(CStatement):
 
         self.target: int | CExpression = target
         self.target_idx = target_idx
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
@@ -1503,15 +1462,13 @@ class CLabel(CStatement):
         "block_idx",
         "ins_addr",
         "name",
-        "tags",
     )
 
-    def __init__(self, name: str, ins_addr: int, block_idx: int | None, tags=None, **kwargs):
+    def __init__(self, name: str, ins_addr: int, block_idx: int | None, **kwargs):
         super().__init__(**kwargs)
         self.name = name
         self.ins_addr = ins_addr
         self.block_idx = block_idx
-        self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         # indent-_str = self.indent_str(indent=indent)
@@ -1526,16 +1483,14 @@ class CStructField(CExpression):
         "field",
         "offset",
         "struct_type",
-        "tags",
     )
 
-    def __init__(self, struct_type: SimStruct, offset, field, tags=None, **kwargs):
+    def __init__(self, struct_type: SimStruct, offset, field, **kwargs):
         super().__init__(**kwargs)
 
         self.struct_type = struct_type
         self.offset = offset
         self.field = field
-        self.tags = tags
 
     @property
     def type(self):
@@ -1553,13 +1508,12 @@ class CFakeVariable(CExpression):
     An uninterpreted name to display in the decompilation output. Pretty much always represents an error?
     """
 
-    __slots__ = ("name", "tags")
+    __slots__ = ("name",)
 
-    def __init__(self, name: str, ty: SimType, tags=None, **kwargs):
+    def __init__(self, name: str, ty: SimType, **kwargs):
         super().__init__(**kwargs)
         self.name = name
         self._type = ty.with_arch(self.codegen.project.arch)
-        self.tags = tags
 
     @property
     def type(self):
@@ -1577,22 +1531,18 @@ class CVariable(CExpression):
     """
 
     __slots__ = (
-        "tags",
         "unified_variable",
         "variable",
         "variable_type",
         "vvar_id",
     )
 
-    def __init__(
-        self, variable: SimVariable, unified_variable=None, variable_type=None, tags=None, vvar_id=None, **kwargs
-    ):
+    def __init__(self, variable: SimVariable, unified_variable=None, variable_type=None, vvar_id=None, **kwargs):
         super().__init__(**kwargs)
 
         self.variable: SimVariable = variable
         self.unified_variable: SimVariable | None = unified_variable
         self.variable_type: SimType = variable_type.with_arch(self.codegen.project.arch)
-        self.tags = tags
         self.vvar_id = vvar_id
 
     @property
@@ -1620,12 +1570,11 @@ class CIndexedVariable(CExpression):
     Represent a variable (an array) that is indexed.
     """
 
-    def __init__(self, variable: CExpression, index: CExpression, variable_type=None, tags=None, **kwargs):
+    def __init__(self, variable: CExpression, index: CExpression, variable_type=None, **kwargs):
         super().__init__(**kwargs)
         self.variable = variable
         self.index: CExpression = index
         self._type = variable_type
-        self.tags = tags
 
         if self._type is None and self.variable.type is not None:
             u = unpack_typeref(self.variable.type)
@@ -1665,12 +1614,11 @@ class CVariableField(CExpression):
     Represent a field of a variable.
     """
 
-    def __init__(self, variable: CExpression, field: CStructField, var_is_ptr: bool = False, tags=None, **kwargs):
+    def __init__(self, variable: CExpression, field: CStructField, var_is_ptr: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.variable = variable
         self.field = field
         self.var_is_ptr = var_is_ptr
-        self.tags = tags
 
     @property
     def type(self):
@@ -1696,15 +1644,13 @@ class CUnaryOp(CExpression):
     __slots__ = (
         "op",
         "operand",
-        "tags",
     )
 
-    def __init__(self, op, operand: CExpression, tags=None, **kwargs):
+    def __init__(self, op, operand: CExpression, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
         self.operand = operand
-        self.tags = tags
 
         if operand.type is not None:
             var_type = unpack_typeref(operand.type)
@@ -1791,15 +1737,14 @@ class CBinaryOp(CExpression):
     Binary operations.
     """
 
-    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs", "tags")
+    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
 
-    def __init__(self, op, lhs, rhs, tags: dict | None = None, **kwargs):
+    def __init__(self, op, lhs, rhs, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
-        self.tags = tags
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
 
         self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
@@ -2066,16 +2011,14 @@ class CTypeCast(CExpression):
         "dst_type",
         "expr",
         "src_type",
-        "tags",
     )
 
-    def __init__(self, src_type: SimType | None, dst_type: SimType, expr: CExpression, tags=None, **kwargs):
+    def __init__(self, src_type: SimType | None, dst_type: SimType, expr: CExpression, **kwargs):
         super().__init__(**kwargs)
 
         self.src_type = (src_type or expr.type).with_arch(self.codegen.project.arch)
         self.dst_type = dst_type.with_arch(self.codegen.project.arch)
         self.expr = expr
-        self.tags = tags
 
     @property
     def type(self):
@@ -2106,17 +2049,15 @@ class CTypeCast(CExpression):
 class CConstant(CExpression):
     __slots__ = (
         "reference_values",
-        "tags",
         "value",
     )
 
-    def __init__(self, value, type_: SimType, reference_values=None, tags: dict | None = None, **kwargs):
+    def __init__(self, value, type_: SimType, reference_values=None, **kwargs):
         super().__init__(**kwargs)
 
         self.value = value
         self._type = type_.with_arch(self.codegen.project.arch)
         self.reference_values = reference_values
-        self.tags = tags
 
     @property
     def _ident(self):
@@ -2304,16 +2245,12 @@ class CConstant(CExpression):
 
 
 class CRegister(CExpression):
-    __slots__ = (
-        "reg",
-        "tags",
-    )
+    __slots__ = ("reg",)
 
-    def __init__(self, reg, tags=None, **kwargs):
+    def __init__(self, reg, **kwargs):
         super().__init__(**kwargs)
 
         self.reg = reg
-        self.tags = tags
 
     @property
     def type(self):
@@ -2329,15 +2266,13 @@ class CITE(CExpression):
         "cond",
         "iffalse",
         "iftrue",
-        "tags",
     )
 
-    def __init__(self, cond, iftrue, iffalse, tags=None, **kwargs):
+    def __init__(self, cond, iftrue, iffalse, **kwargs):
         super().__init__(**kwargs)
         self.cond = cond
         self.iftrue = iftrue
         self.iffalse = iffalse
-        self.tags = tags
 
     @property
     def type(self):
@@ -2362,13 +2297,15 @@ class CMultiStatementExpression(CExpression):
     (stmt0, stmt1, stmt2, expr)
     """
 
-    __slots__ = ("expr", "stmts", "tags")
+    __slots__ = (
+        "expr",
+        "stmts",
+    )
 
-    def __init__(self, stmts: CStatements, expr: CExpression, tags=None, **kwargs):
+    def __init__(self, stmts: CStatements, expr: CExpression, **kwargs):
         super().__init__(**kwargs)
         self.stmts = stmts
         self.expr = expr
-        self.tags = tags
 
     @property
     def type(self):
@@ -2390,14 +2327,12 @@ class CVEXCCallExpression(CExpression):
     __slots__ = (
         "callee",
         "operands",
-        "tags",
     )
 
-    def __init__(self, callee: str, operands: list[CExpression], tags=None, **kwargs):
+    def __init__(self, callee: str, operands: list[CExpression], **kwargs):
         super().__init__(**kwargs)
         self.callee = callee
         self.operands = operands
-        self.tags = tags
 
     @property
     def type(self):
@@ -3967,7 +3902,7 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
                     )
                 else:
                     op = "Add"
-                return CBinaryOp(op, out.operand.variable, const, out.operand.tags, codegen=out.codegen)
+                return CBinaryOp(op, out.operand.variable, const, tags=out.operand.tags, codegen=out.codegen)
             return out
         return obj
 

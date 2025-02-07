@@ -1136,6 +1136,8 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
+        decompiler_options = decompiler_options or []
+        decompiler_options.append((PARAM_TO_OPTION["show_local_types"], False))
 
         dec = p.analyses[Decompiler].prep(fail_fast=True)(
             func,
