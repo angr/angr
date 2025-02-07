@@ -658,12 +658,6 @@ class CallingConventionAnalysis(Analysis):
                 break
 
         if None in temp_args:
-            first_none_idx = temp_args.index(None)
-            # test if there is at least one argument set after None; if so, we ignore the first None
-            if any(arg is not None for arg in temp_args[first_none_idx:]):
-                temp_args[first_none_idx] = expected_args[first_none_idx]
-
-        if None in temp_args:
             # we be very conservative here and ignore all arguments starting from the first missing one
             first_none_idx = temp_args.index(None)
             fact.args = temp_args[:first_none_idx]

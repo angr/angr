@@ -431,6 +431,133 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert func2.prototype is not None
         assert len(func2.prototype.args) == 4
 
+    @cca_mode("fast,variables")
+    def test_call_sites_arguments_csplit(self, *, mode):
+        binary_path = os.path.join(test_location, "x86_64", "csplit.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
+        func0 = cfg.kb.functions["check_for_offset"]
+        assert isinstance(func0.calling_convention, SimCCSystemVAMD64)
+        assert func0.prototype is not None
+        assert len(func0.prototype.args) == 3
+
+        func1 = cfg.kb.functions["xstrtoimax"]
+        assert isinstance(func1.calling_convention, SimCCSystemVAMD64)
+        assert func1.prototype is not None
+        assert len(func1.prototype.args) == 5
+
+        func2 = cfg.kb.functions["remove_line"]
+        assert isinstance(func2.calling_convention, SimCCSystemVAMD64)
+        assert func2.prototype is not None
+        assert len(func2.prototype.args) == 0
+
+        func3 = cfg.kb.functions["dump_rest_of_file"]
+        assert isinstance(func3.calling_convention, SimCCSystemVAMD64)
+        assert func3.prototype is not None
+        assert len(func3.prototype.args) == 0
+
+    @cca_mode("fast,variables")
+    def test_call_sites_arguments_test(self, *, mode):
+        binary_path = os.path.join(test_location, "x86_64", "test.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
+
+        func0 = cfg.kb.functions["term"]
+        assert isinstance(func0.calling_convention, SimCCSystemVAMD64)
+        assert func0.prototype is not None
+        assert len(func0.prototype.args) == 0
+
+        func1 = cfg.kb.functions["unary_operator"]
+        assert isinstance(func1.calling_convention, SimCCSystemVAMD64)
+        assert func1.prototype is not None
+        assert len(func1.prototype.args) == 0
+
+        func2 = cfg.kb.functions["advance"]
+        assert isinstance(func2.calling_convention, SimCCSystemVAMD64)
+        assert func2.prototype is not None
+        assert len(func2.prototype.args) == 1
+
+        # external function
+        func3 = cfg.kb.functions["quote"]
+        assert isinstance(func3.calling_convention, SimCCSystemVAMD64)
+        assert func3.prototype is not None
+        assert len(func3.prototype.args) == 1
+
+        func4 = cfg.kb.functions["posixtest"]
+        assert isinstance(func4.calling_convention, SimCCSystemVAMD64)
+        assert func4.prototype is not None
+        assert len(func4.prototype.args) == 1
+
+    @cca_mode("fast,variables")
+    def test_call_sites_arguments_copy(self, *, mode):
+        binary_path = os.path.join(test_location, "x86_64", "copy.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
+
+        func0 = cfg.kb.functions["punch_hole"]
+        assert isinstance(func0.calling_convention, SimCCSystemVAMD64)
+        assert func0.prototype is not None
+        assert len(func0.prototype.args) == 3
+
+        func1 = cfg.kb.functions["can_write_any_file"]
+        assert isinstance(func1.calling_convention, SimCCSystemVAMD64)
+        assert func1.prototype is not None
+        assert len(func1.prototype.args) == 0
+
+    @cca_mode("fast,variables")
+    def test_call_sites_arguments_mv(self, *, mode):
+        binary_path = os.path.join(test_location, "x86_64", "mv.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
+
+        # external function
+        func0 = cfg.kb.functions["last_component"]
+        assert isinstance(func0.calling_convention, SimCCSystemVAMD64)
+        assert func0.prototype is not None
+        assert len(func0.prototype.args) == 1
+
+        # external function
+        func1 = cfg.kb.functions["strip_trailing_slashes"]
+        assert isinstance(func1.calling_convention, SimCCSystemVAMD64)
+        assert func1.prototype is not None
+        assert len(func1.prototype.args) == 1
+
+    @cca_mode("fast,variables")
+    def test_call_sites_arguments_df(self, *, mode):
+        binary_path = os.path.join(test_location, "x86_64", "df.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
+
+        func0 = cfg.kb.functions["alloc_table_row"]
+        assert isinstance(func0.calling_convention, SimCCSystemVAMD64)
+        assert func0.prototype is not None
+        assert len(func0.prototype.args) == 0
+
+        func1 = cfg.kb.functions["get_header"]
+        assert isinstance(func1.calling_convention, SimCCSystemVAMD64)
+        assert func1.prototype is not None
+        assert len(func1.prototype.args) == 0
+
+        func2 = cfg.kb.functions["get_field_list"]
+        assert isinstance(func2.calling_convention, SimCCSystemVAMD64)
+        assert func2.prototype is not None
+        assert len(func2.prototype.args) == 0
+
+        func3 = cfg.kb.functions["alloc_field"]
+        assert isinstance(func3.calling_convention, SimCCSystemVAMD64)
+        assert func3.prototype is not None
+        assert len(func3.prototype.args) == 2
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
