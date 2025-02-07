@@ -477,7 +477,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             vartypes = [x[1] for x in cvar_and_vartypes]
             count = Counter(vartypes)
             vartypes = sorted(
-                count.copy(), key=lambda x: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), count[x], repr(x))
+                count.copy(),
+                key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
             )
 
             for i, var_type in enumerate(vartypes):
@@ -1482,7 +1483,6 @@ class CStructField(CExpression):
         "field",
         "offset",
         "struct_type",
-        "tags",
     )
 
     def __init__(self, struct_type: SimStruct, offset, field, **kwargs):
@@ -1508,7 +1508,7 @@ class CFakeVariable(CExpression):
     An uninterpreted name to display in the decompilation output. Pretty much always represents an error?
     """
 
-    __slots__ = ("name", "tags")
+    __slots__ = ("name",)
 
     def __init__(self, name: str, ty: SimType, **kwargs):
         super().__init__(**kwargs)
@@ -1644,7 +1644,6 @@ class CUnaryOp(CExpression):
     __slots__ = (
         "op",
         "operand",
-        "tags",
     )
 
     def __init__(self, op, operand: CExpression, **kwargs):
@@ -3903,7 +3902,7 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
                     )
                 else:
                     op = "Add"
-                return CBinaryOp(op, out.operand.variable, const, out.operand.tags, codegen=out.codegen)
+                return CBinaryOp(op, out.operand.variable, const, tags=out.operand.tags, codegen=out.codegen)
             return out
         return obj
 
