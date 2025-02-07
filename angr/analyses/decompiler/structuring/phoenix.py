@@ -1723,7 +1723,12 @@ class PhoenixStructurer(StructurerBase):
         for case_node in to_remove:
             if case_node is not node_default and case_node is not node_a and case_node is not head:
                 for succ in graph.successors(case_node):
-                    if succ is not case_node and succ is not head and graph.in_degree[succ] == 1:
+                    if (
+                        succ is not case_node
+                        and succ is not head
+                        and succ is not self._region.head
+                        and graph.in_degree[succ] == 1
+                    ):
                         # succ will be dangling - not ready to be structured yet - do it later
                         return False
 

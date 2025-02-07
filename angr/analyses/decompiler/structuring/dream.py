@@ -314,7 +314,7 @@ class DreamStructurer(StructurerBase):
             loop_head, loop_region_graph, successors=None, graph_with_successors=None, cyclic=False, full_graph=None
         )
         structurer = self.project.analyses[DreamStructurer].prep()(
-            region, condition_processor=self.cond_proc, func=self.function
+            region, condition_processor=self.cond_proc, func=self.function, jump_tables=self.jump_tables
         )
         seq = structurer.result
 

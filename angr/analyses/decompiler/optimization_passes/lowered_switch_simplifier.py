@@ -7,7 +7,7 @@ import networkx
 
 from ailment import Block, AILBlockWalkerBase
 from ailment.statement import ConditionalJump, Label, Assignment, Jump
-from ailment.expression import Expression, BinaryOp, Const, Load
+from ailment.expression import VirtualVariable, Expression, BinaryOp, Const, Load
 
 from angr.utils.graph import GraphUtils
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement, remove_last_statement
@@ -320,6 +320,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             node_to_heads[succ].add(new_head)
                     graph_copy.remove_node(onode)
                 for onode in redundant_nodes:
+                    if onode in original_nodes:
+                        # sometimes they overlap
+                        # e.g., 0x402cc7 in mv_-O2
+                        continue
                     # ensure all nodes that are only reachable from onode are also removed
                     # FIXME: Remove the entire path of nodes instead of only the immediate successors
                     successors = list(graph_copy.successors(onode))
@@ -396,6 +400,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             default_case_candidates = {}
             last_comp = None
             stack = [(head, 0, 0xFFFF_FFFF_FFFF_FFFF)]
+            head_varhash = variable_comparisons[head][1]
 
             # cursed: there is an infinite loop in the following loop that
             # occurs rarely. we need to keep track of the nodes we've seen
@@ -418,12 +423,11 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     next_addr,
                     next_addr_idx,
                 ) = variable_comparisons[comp]
-                last_varhash = cases[-1].variable_hash if cases else None
 
                 if op == "eq":
                     # eq always indicates a new case
 
-                    if last_varhash is None or last_varhash == variable_hash:
+                    if head_varhash == variable_hash:
                         if target == comp.addr and target_idx == comp.idx:
                             # invalid
                             break
@@ -443,9 +447,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                         # new variable!
                         if last_comp is not None and comp.addr not in default_case_candidates:
                             default_case_candidates[comp.addr] = Case(
-                                last_comp, None, last_varhash, None, "default", comp.addr, comp.idx, None
+                                last_comp, None, head_varhash, None, "default", comp.addr, comp.idx, None
                             )
-                        break
+                            break
+                        continue
 
                     successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
                     succ_addrs = {(succ.addr, succ.idx) for succ in successors}
@@ -505,7 +510,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     # gt always indicates new subtrees
                     gt_addr, gt_idx, le_addr, le_idx = target, target_idx, next_addr, next_addr_idx
                     # TODO: We don't yet support gt nodes acting as the head of a switch
-                    if last_varhash is not None and last_varhash == variable_hash:
+                    if head_varhash == variable_hash:
                         successors = [succ for succ in self._graph.successors(comp) if succ is not comp]
                         succ_addrs = {(succ.addr, succ.idx) for succ in successors}
                         if succ_addrs != {(gt_addr, gt_idx), (le_addr, le_idx)}:
@@ -526,21 +531,34 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             le_added = True
                         if gt_added or le_added:
                             if not le_added:
-                                if le_addr not in default_case_candidates:
+                                # if min_ + 1 == value, it means we actually have another case! it's not a default case
+                                if min_ + 1 == value:
+                                    cases.append(
+                                        Case(comp, comp_type, variable_hash, expr, min_ + 1, le_addr, le_idx, None)
+                                    )
+                                    used_nodes.add(comp)
+                                elif le_addr not in default_case_candidates:
                                     default_case_candidates[le_addr] = Case(
                                         comp, None, variable_hash, expr, "default", le_addr, le_idx, None
                                     )
-                            elif not gt_added and gt_addr not in default_case_candidates:
-                                default_case_candidates[gt_addr] = Case(
-                                    comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
-                                )
+                            if not gt_added:
+                                # likewise, this means we have another non-default case
+                                if value == max_:
+                                    cases.append(
+                                        Case(comp, comp_type, variable_hash, expr, max_, gt_addr, gt_idx, None)
+                                    )
+                                    used_nodes.add(comp)
+                                elif gt_addr not in default_case_candidates:
+                                    default_case_candidates[gt_addr] = Case(
+                                        comp, None, variable_hash, expr, "default", gt_addr, gt_idx, None
+                                    )
                             extra_cmp_nodes.append(comp)
                             used_nodes.add(comp)
                         else:
                             break
                     else:
                         # checking on a new variable... it probably was not a switch-case
-                        break
+                        continue
 
             if cases and len(default_case_candidates) <= 1:
                 if default_case_candidates:
@@ -625,7 +643,11 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 )
             ):
                 cond = stmt.condition
-                if isinstance(cond, BinaryOp) and isinstance(cond.operands[1], Const):
+                if (
+                    isinstance(cond, BinaryOp)
+                    and isinstance(cond.operands[0], VirtualVariable)
+                    and isinstance(cond.operands[1], Const)
+                ):
                     variable_hash = StableVarExprHasher(cond.operands[0]).hash
                     value = cond.operands[1].value
                     if cond.op == "CmpEQ":
@@ -672,7 +694,11 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 )
             ):
                 cond = stmt.condition
-                if isinstance(cond, BinaryOp) and isinstance(cond.operands[1], Const):
+                if (
+                    isinstance(cond, BinaryOp)
+                    and isinstance(cond.operands[0], VirtualVariable)
+                    and isinstance(cond.operands[1], Const)
+                ):
                     variable_hash = StableVarExprHasher(cond.operands[0]).hash
                     value = cond.operands[1].value
                     if cond.op == "CmpEQ":
@@ -719,7 +745,11 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 )
             ):
                 cond = stmt.condition
-                if isinstance(cond, BinaryOp) and isinstance(cond.operands[1], Const):
+                if (
+                    isinstance(cond, BinaryOp)
+                    and isinstance(cond.operands[0], VirtualVariable)
+                    and isinstance(cond.operands[1], Const)
+                ):
                     variable_hash = StableVarExprHasher(cond.operands[0]).hash
                     value = cond.operands[1].value
                     op = cond.op

@@ -371,8 +371,8 @@ class StructurerBase(Analysis):
                         jump_stmt = this_node.nodes[-1].statements[-1]
                         this_node = this_node.nodes[-1]
 
-                    assert isinstance(this_node, ailment.Block)
                     if isinstance(jump_stmt, ailment.Stmt.Jump):
+                        assert isinstance(this_node, ailment.Block)
                         next_node = node.nodes[i + 1]
                         if (
                             isinstance(jump_stmt.target, ailment.Expr.Const)
@@ -381,6 +381,7 @@ class StructurerBase(Analysis):
                             # this goto is useless
                             this_node.statements = this_node.statements[:-1]
                     elif isinstance(jump_stmt, ailment.Stmt.ConditionalJump):
+                        assert isinstance(this_node, ailment.Block)
                         next_node = node.nodes[i + 1]
                         if (
                             isinstance(jump_stmt.true_target, ailment.Expr.Const)
