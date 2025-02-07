@@ -86,7 +86,10 @@ class ExpressionLocation(LocationBase):
         self.phi_stmt = phi_stmt
 
     def __repr__(self):
-        return f"Loc: Expression@{self.block_addr:x}.{self.block_idx}-{self.stmt_idx}[{self.expr_idx}]{'phi' if self.phi_stmt else ''}"
+        return (
+            f"Loc: Expression@{self.block_addr:x}.{self.block_idx}-{self.stmt_idx}[{self.expr_idx}]"
+            f"{'phi' if self.phi_stmt else ''}"
+        )
 
     def statement_location(self) -> StatementLocation:
         return StatementLocation(self.block_addr, self.block_idx, self.stmt_idx, phi_stmt=self.phi_stmt)
@@ -418,7 +421,7 @@ class InterferenceChecker(SequenceWalker):
             the_call = None
             if isinstance(stmt, Assignment) and isinstance(stmt.src, ailment.Stmt.Call):
                 the_call = stmt.src
-            elif isinstance(stmt, ailment.Stmt.Call):
+            elif isinstance(stmt, ailment.Stmt.Call) and not isinstance(stmt.target, str):
                 the_call = stmt
             if the_call is not None:
                 spotter.walk_expression(the_call.target)
