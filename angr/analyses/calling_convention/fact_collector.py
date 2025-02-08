@@ -532,13 +532,8 @@ class FactCollector(Analysis):
                 ):
                     continue
                 reg_offset_created.add(offset)
-                if self.project.arch.name in {"AMD64", "X86"} and size < self.project.arch.bytes:
-                    # use complete registers on AMD64 and X86
-                    reg_name = self.project.arch.translate_register_name(offset, size=self.project.arch.bytes)
-                    arg = SimRegArg(reg_name, self.project.arch.bytes)
-                else:
-                    reg_name = self.project.arch.translate_register_name(offset, size=size)
-                    arg = SimRegArg(reg_name, size)
+                reg_name = self.project.arch.translate_register_name(offset, size=size)
+                arg = SimRegArg(reg_name, size)
                 self.input_args.append(arg)
 
         stack_offset_created = set()

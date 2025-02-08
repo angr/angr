@@ -33,6 +33,7 @@ from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsM
 from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
 from angr.knowledge_plugins.functions import Function
 from angr.utils.constants import DEFAULT_STATEMENT
+from angr.utils.ssa import get_reg_offset_base_and_size, get_reg_offset_base
 from angr import SIM_PROCEDURES
 from angr.analyses import Analysis, register_analysis, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions import get_all_definitions
@@ -355,8 +356,14 @@ class CallingConventionAnalysis(Analysis):
         # TODO: properly determine sp_delta
         sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
 
-        input_args = list(input_args)  # input_args might be modified by find_cc()
-        cc = SimCC.find_cc(self.project.arch, input_args, sp_delta, platform=self.project.simos.name)
+        full_input_args = self._consolidate_input_args(input_args)
+        full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
+        cc = SimCC.find_cc(self.project.arch, full_input_args_copy, sp_delta, platform=self.project.simos.name)
+
+        # update input_args according to the difference between full_input_args and full_input_args_copy
+        for a in full_input_args:
+            if a not in full_input_args_copy and a in input_args:
+                input_args.remove(a)
 
         if cc is None:
             l.warning(
@@ -675,7 +682,8 @@ class CallingConventionAnalysis(Analysis):
             if all(fact.return_value_used is False for fact in facts):
                 proto.returnty = SimTypeBottom(label="void")
             else:
-                proto.returnty = SimTypeInt().with_arch(self.project.arch)
+                if proto.returnty is None or isinstance(proto.returnty, SimTypeBottom):
+                    proto.returnty = SimTypeInt().with_arch(self.project.arch)
 
         if (
             update_arguments == UpdateArgumentsOption.AlwaysUpdate
@@ -724,13 +732,8 @@ class CallingConventionAnalysis(Analysis):
                 # a register variable, convert it to a register argument
                 if not is_sane_register_variable(self.project.arch, variable.reg, variable.size, def_cc=def_cc):
                     continue
-                if self.project.arch.name in {"AMD64", "X86"} and variable.size < self.project.arch.bytes:
-                    # use complete registers on AMD64 and X86
-                    reg_name = self.project.arch.translate_register_name(variable.reg, size=self.project.arch.bytes)
-                    arg = SimRegArg(reg_name, self.project.arch.bytes)
-                else:
-                    reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
-                    arg = SimRegArg(reg_name, variable.size)
+                reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
+                arg = SimRegArg(reg_name, variable.size)
                 args.add(arg)
 
                 accesses = var_manager.get_variable_accesses(variable)
@@ -772,6 +775,33 @@ class CallingConventionAnalysis(Analysis):
 
         return args.difference(restored_reg_vars)
 
+    def _consolidate_input_args(self, input_args: list[SimRegArg | SimStackArg]) -> list[SimRegArg | SimStackArg]:
+        """
+        Consolidate register arguments by converting partial registers to full registers on certain architectures.
+
+        :param input_args:  A list of input arguments.
+        :return:            A list of consolidated input args.
+        """
+
+        if self.project.arch.name in {"AMD64", "X86"}:
+            new_input_args = []
+            for a in input_args:
+                if isinstance(a, SimRegArg) and a.size < self.project.arch.bytes:
+                    # use complete registers on AMD64 and X86
+                    reg_offset, reg_size = self.project.arch.registers[a.reg_name]
+                    full_reg_offset, full_reg_size = get_reg_offset_base_and_size(
+                        reg_offset, self.project.arch, size=reg_size
+                    )
+                    full_reg_name = self.project.arch.translate_register_name(full_reg_offset, size=full_reg_size)
+                    arg = SimRegArg(full_reg_name, full_reg_size)
+                    if arg not in new_input_args:
+                        new_input_args.append(arg)
+                else:
+                    new_input_args.append(a)
+            return new_input_args
+
+        return input_args
+
     def _reorder_args(self, args: list[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """
         Reorder arguments according to the calling convention identified.
@@ -780,6 +810,22 @@ class CallingConventionAnalysis(Analysis):
         :param cc:    The identified calling convention.
         :return:            A reordered list of args.
         """
+
+        def _is_same_reg(rn0: str, rn1: str) -> bool:
+            """
+            Check if rn0 and rn1 belong to the same base register.
+
+            :param rn0:     Register name of the first register.
+            :param rn1:     Register name of the second register.
+            :return:        True if they belong to the same base register; False otherwise.
+            """
+            if rn0 == rn1:
+                return True
+            off0, sz0 = self.project.arch.registers[rn0]
+            full_off0 = get_reg_offset_base(off0, self.project.arch, sz0)
+            off1, sz1 = self.project.arch.registers[rn1]
+            full_off1 = get_reg_offset_base(off1, self.project.arch, sz1)
+            return full_off0 == full_off1
 
         reg_args = []
 
@@ -799,7 +845,7 @@ class CallingConventionAnalysis(Analysis):
         # match int args first
         for reg_name in cc.ARG_REGS:
             try:
-                arg = next(iter(a for a in int_args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
+                arg = next(iter(a for a in int_args if isinstance(a, SimRegArg) and _is_same_reg(a.reg_name, reg_name)))
             except StopIteration:
                 # have we reached the end of the args list?
                 if [a for a in int_args if isinstance(a, SimRegArg)] or len(stack_int_args) > 0:
@@ -815,7 +861,9 @@ class CallingConventionAnalysis(Analysis):
         if fp_args:
             for reg_name in cc.FP_ARG_REGS:
                 try:
-                    arg = next(iter(a for a in fp_args if isinstance(a, SimRegArg) and a.reg_name == reg_name))
+                    arg = next(
+                        iter(a for a in fp_args if isinstance(a, SimRegArg) and _is_same_reg(a.reg_name, reg_name))
+                    )
                 except StopIteration:
                     # have we reached the end of the args list?
                     if [a for a in fp_args if isinstance(a, SimRegArg)] or len(stack_fp_args) > 0:
