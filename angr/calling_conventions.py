@@ -2,7 +2,8 @@
 from __future__ import annotations
 import logging
 from typing import cast
-from collections.abc import Iterable
+
+from collections.abc import Iterable, Sequence
 from collections import defaultdict
 import contextlib
 
@@ -1130,7 +1131,7 @@ class SimCC:
 
     @staticmethod
     def find_cc(
-        arch: archinfo.Arch, args: list[SimFunctionArgument], sp_delta: int, platform: str = "Linux"
+        arch: archinfo.Arch, args: Sequence[SimFunctionArgument], sp_delta: int, platform: str = "Linux"
     ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is

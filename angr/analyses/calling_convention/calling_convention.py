@@ -265,7 +265,7 @@ class CallingConventionAnalysis(Analysis):
         self.cc = cc
         self.prototype = prototype
 
-    def _analyze_plt(self) -> tuple[SimCC, SimTypeFunction] | None:
+    def _analyze_plt(self) -> tuple[SimCC, SimTypeFunction | None] | None:
         """
         Get the calling convention for a PLT stub.
 
@@ -297,6 +297,14 @@ class CallingConventionAnalysis(Analysis):
             real_func = None
 
         if real_func is not None:
+            if real_func.calling_convention is None:
+                cc_cls = default_cc(self.project.arch.name)
+                if cc_cls is None:
+                    # can't determine the default calling convention for this architecture
+                    return None
+                cc = cc_cls(self.project.arch)
+            else:
+                cc = real_func.calling_convention
             if real_func.is_simprocedure:
                 if self.project.is_hooked(real_func.addr):
                     # prioritize the hooker
@@ -304,17 +312,20 @@ class CallingConventionAnalysis(Analysis):
                     if hooker is not None and (
                         not hooker.is_stub or (hooker.is_function and not hooker.guessed_prototype)
                     ):
-                        return real_func.calling_convention, hooker.prototype
-                if real_func.calling_convention and real_func.prototype:
-                    return real_func.calling_convention, real_func.prototype
+                        return cc, hooker.prototype
+                if real_func.prototype is not None:
+                    return cc, real_func.prototype
             else:
-                return real_func.calling_convention, real_func.prototype
+                return cc, real_func.prototype
 
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
             callsite_facts = self._extract_and_analyze_callsites(max_analyzing_callsites=1)
             cc_cls = default_cc(self.project.arch.name)
-            cc = cc_cls(self.project.arch) if cc_cls is not None else None
+            if cc_cls is None:
+                # can't determine the default calling convention for this architecture
+                return None
+            cc = cc_cls(self.project.arch)
             prototype = SimTypeFunction([], None)
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
@@ -343,7 +354,7 @@ class CallingConventionAnalysis(Analysis):
             input_variables = vm.input_variables()
             input_args = self._args_from_vars(input_variables, vm)
         else:
-            input_args = self._input_args
+            input_args = set(self._input_args)
             retval_size = self._retval_size
 
         # check if this function is a variadic function
@@ -690,10 +701,10 @@ class CallingConventionAnalysis(Analysis):
             or (update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and not proto.args)
         ) and len({len(fact.args) for fact in facts}) == 1:
             fact = next(iter(facts))
-            proto.args = [
+            proto.args = tuple(
                 self._guess_arg_type(arg) if arg is not None else SimTypeInt().with_arch(self.project.arch)
                 for arg in fact.args
-            ]
+            )
 
         return proto
 
@@ -775,16 +786,16 @@ class CallingConventionAnalysis(Analysis):
 
         return args.difference(restored_reg_vars)
 
-    def _consolidate_input_args(self, input_args: list[SimRegArg | SimStackArg]) -> list[SimRegArg | SimStackArg]:
+    def _consolidate_input_args(self, input_args: set[SimRegArg | SimStackArg]) -> set[SimRegArg | SimStackArg]:
         """
         Consolidate register arguments by converting partial registers to full registers on certain architectures.
 
-        :param input_args:  A list of input arguments.
-        :return:            A list of consolidated input args.
+        :param input_args:  A set of input arguments.
+        :return:            A set of consolidated input args.
         """
 
         if self.project.arch.name in {"AMD64", "X86"}:
-            new_input_args = []
+            new_input_args = set()
             for a in input_args:
                 if isinstance(a, SimRegArg) and a.size < self.project.arch.bytes:
                     # use complete registers on AMD64 and X86
@@ -795,18 +806,18 @@ class CallingConventionAnalysis(Analysis):
                     full_reg_name = self.project.arch.translate_register_name(full_reg_offset, size=full_reg_size)
                     arg = SimRegArg(full_reg_name, full_reg_size)
                     if arg not in new_input_args:
-                        new_input_args.append(arg)
+                        new_input_args.add(arg)
                 else:
-                    new_input_args.append(a)
+                    new_input_args.add(a)
             return new_input_args
 
         return input_args
 
-    def _reorder_args(self, args: list[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
+    def _reorder_args(self, args: set[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """
         Reorder arguments according to the calling convention identified.
 
-        :param args:   A list of arguments that haven't been ordered.
+        :param args:   A set of arguments that haven't been ordered.
         :param cc:    The identified calling convention.
         :return:            A reordered list of args.
         """
@@ -932,7 +943,11 @@ class CallingConventionAnalysis(Analysis):
 
     @staticmethod
     def _likely_saving_temp_reg(ail_block: ailment.Block, d: Definition, all_reg_defs: set[Definition]) -> bool:
-        if d.codeloc.block_addr == ail_block.addr and d.codeloc.stmt_idx < len(ail_block.statements):
+        if (
+            d.codeloc.block_addr == ail_block.addr
+            and d.codeloc.stmt_idx is not None
+            and d.codeloc.stmt_idx < len(ail_block.statements)
+        ):
             stmt = ail_block.statements[d.codeloc.stmt_idx]
             if isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Register):
                 src_offset = stmt.src.reg_offset

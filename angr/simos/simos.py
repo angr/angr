@@ -23,6 +23,8 @@ class SimOS:
     A class describing OS/arch-level configuration.
     """
 
+    name: str
+
     def __init__(self, project: angr.Project, name=None):
         self.arch = project.arch
         self.project = project
