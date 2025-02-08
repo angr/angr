@@ -355,6 +355,7 @@ class FactCollector(Analysis):
 
                 if isinstance(node, BlockNode) and node.size == 0:
                     continue
+
                 if isinstance(node, HookNode):
                     # attempt to convert it into a function
                     if self.kb.functions.contains_addr(node.addr):
@@ -375,6 +376,29 @@ class FactCollector(Analysis):
                         retval_sizes.append(retval_size)
                     continue
 
+                # if this block ends with a call to a function, we process the function first
+                func_succs = [succ for succ in func_graph.successors(node) if isinstance(succ, (Function, HookNode))]
+                if len(func_succs) == 1:
+                    func_succ = func_succs[0]
+
+                    if isinstance(func_succ, HookNode) and self.kb.functions.contains_addr(func_succ.addr):
+                        # attempt to convert it into a function
+                        func_succ = self.kb.functions.get_by_addr(func_succ.addr)
+                    if isinstance(func_succ, Function):
+                        if (
+                            func_succ.calling_convention is not None
+                            and func_succ.prototype is not None
+                            and func_succ.prototype.returnty is not None
+                            and not isinstance(func_succ.prototype.returnty, SimTypeBottom)
+                        ):
+                            # assume the function overwrites the return variable
+                            retval_size = (
+                                func_succ.prototype.returnty.with_arch(self.project.arch).size
+                                // self.project.arch.byte_width
+                            )
+                            retval_sizes.append(retval_size)
+                        continue
+
                 block = self.project.factory.block(node.addr, size=node.size)
                 # scan the block statements backwards to find writes to the return value register
                 retval_size = None
@@ -391,9 +415,9 @@ class FactCollector(Analysis):
                 for pred, _, data in func_graph.in_edges(node, data=True):
                     edge_type = data.get("type")
                     if pred not in traversed and depth + 1 <= self._max_depth:
-                        if edge_type == "fake_return":
+                        if edge_type == "call":
                             continue
-                        if edge_type in {"transition", "call"}:
+                        if edge_type in {"transition", "fake_return"}:
                             queue.append((depth + 1, pred))
 
         self.retval_size = max(retval_sizes) if retval_sizes else None

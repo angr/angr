@@ -28,7 +28,7 @@ class SimOS:
     def __init__(self, project: angr.Project, name=None):
         self.arch = project.arch
         self.project = project
-        self.name = name
+        self.name = name if name is not None else self.__class__.__name__
         self.return_deadend = None
         self.unresolvable_jump_target = None
         self.unresolvable_call_target = None
