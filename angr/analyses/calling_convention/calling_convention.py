@@ -928,8 +928,7 @@ class CallingConventionAnalysis(Analysis):
             if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
 
-        # fallback
-        return SimTypeInt() if cc.arch.bits == 32 else SimTypeLongLong()
+        return SimTypeBottom(label="void")
 
     @staticmethod
     def _likely_saving_temp_reg(ail_block: ailment.Block, d: Definition, all_reg_defs: set[Definition]) -> bool:
