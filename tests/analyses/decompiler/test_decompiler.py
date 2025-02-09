@@ -4488,10 +4488,10 @@ class TestDecompiler(unittest.TestCase):
 
         # we alter the function prototype of f1 and entry to make this test case work as expected
         f1 = p.kb.functions["f1"]
-        assert f1 is not None
+        assert f1 is not None and f1.prototype is not None
         f1.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
         entry = p.kb.functions[p.entry]
-        assert entry is not None
+        assert entry is not None and entry.prototype is not None
         entry.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
 
         dec = p.analyses.Decompiler(entry, cfg=cfg, options=decompiler_options)
