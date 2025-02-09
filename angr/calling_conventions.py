@@ -83,7 +83,8 @@ class AllocHelper:
 
     def size(self):
         val = self.translate(self.ptr, claripy.BVV(0, len(self.ptr)))
-        assert val.op == "BVV"
+        assert isinstance(val, claripy.ast.Base) and val.op == "BVV"
+        assert isinstance(val.args[0], int)
         return abs(val.args[0])
 
     @classmethod
@@ -131,6 +132,7 @@ def refine_locs_with_struct_type(
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
 
     if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
+        assert arg_type.size is not None
         seen_bytes = 0
         pieces = []
         while seen_bytes < arg_type.size // arch.byte_width:
@@ -148,20 +150,21 @@ def refine_locs_with_struct_type(
             piece.is_fp = True
         return piece
     if isinstance(arg_type, SimTypeFixedSizeArray):
+        assert arg_type.elem_type.size is not None and arg_type.length is not None
         # TODO explicit stride
-        locs = [
+        locs_list = [
             refine_locs_with_struct_type(
                 arch, locs, arg_type.elem_type, offset=offset + i * arg_type.elem_type.size // arch.byte_width
             )
             for i in range(arg_type.length)
         ]
-        return SimArrayArg(locs)
+        return SimArrayArg(locs_list)
     if isinstance(arg_type, SimStruct):
-        locs = {
+        locs_dict = {
             field: refine_locs_with_struct_type(arch, locs, field_ty, offset=offset + arg_type.offsets[field])
             for field, field_ty in arg_type.fields.items()
         }
-        return SimStructArg(arg_type, locs)
+        return SimStructArg(arg_type, locs_dict)
     if isinstance(arg_type, SimUnion):
         # Treat a SimUnion as functionality equivalent to its longest member
         for member in arg_type.members.values():
@@ -575,8 +578,8 @@ class SimCC:
     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0  # The amount of stack space reserved for the return address
     CALLER_SAVED_REGS: list[str] = []  # Caller-saved registers
-    RETURN_ADDR: SimFunctionArgument = None  # The location where the return address is stored, as a SimFunctionArgument
-    RETURN_VAL: SimFunctionArgument = None  # The location where the return value is stored, as a SimFunctionArgument
+    RETURN_ADDR: SimFunctionArgument  # The location where the return address is stored, as a SimFunctionArgument
+    RETURN_VAL: SimFunctionArgument  # The location where the return value is stored, as a SimFunctionArgument
     OVERFLOW_RETURN_VAL: SimFunctionArgument | None = (
         None  # The second half of the location where a double-length return value is stored
     )
@@ -729,6 +732,7 @@ class SimCC:
             l.warning("Function argument type cannot be BOT. Treating it as a 32-bit int.")
             arg_type = SimTypeInt().with_arch(self.arch)
         is_fp = isinstance(arg_type, SimTypeFloat)
+        assert arg_type.size is not None
         size = arg_type.size // self.arch.byte_width
         try:
             arg = next(session.fp_iter) if is_fp else next(session.int_iter)
@@ -761,7 +765,7 @@ class SimCC:
     def is_fp_value(val):
         return (
             isinstance(val, (float, claripy.ast.FP))
-            or (isinstance(val, claripy.ast.Base) and val.op.startswith("fp"))
+            or (isinstance(val, claripy.ast.Base) and val.op.startswith("fp"))  # type: ignore
             or (isinstance(val, claripy.ast.Base) and val.op == "Reverse" and val.args[0].op.startswith("fp"))
         )
 
