@@ -625,6 +625,48 @@ def update_labels(graph: networkx.DiGraph):
     return add_labels(remove_labels(graph))
 
 
+def _flatten_structured_node(packed_node: SequenceNode | MultiNode) -> list[ailment.Block]:
+    if not packed_node or not packed_node.nodes:
+        return []
+
+    blocks = []
+    if packed_node.nodes is not None:
+        for _node in packed_node.nodes:
+            if isinstance(_node, (SequenceNode, MultiNode)):
+                blocks += _flatten_structured_node(_node)
+            else:
+                blocks.append(_node)
+
+    return blocks
+
+
+def _find_node_in_graph(node: ailment.Block, graph: networkx.DiGraph) -> ailment.Block | None:
+    for bb in graph:
+        if bb.addr == node.addr and bb.idx == node.idx:
+            return bb
+    return None
+
+
+def structured_node_has_multi_predecessors(node: SequenceNode | MultiNode, graph: networkx.DiGraph) -> bool:
+    if graph is None:
+        return False
+
+    first_block = None
+    if isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
+        flat_blocks = _flatten_structured_node(node)
+        node = flat_blocks[0]
+
+    if isinstance(node, ailment.Block):
+        first_block = node
+
+    if first_block is not None:
+        graph_node = _find_node_in_graph(first_block, graph)
+        if graph_node is not None:
+            return len(list(graph.predecessors(graph_node))) > 1
+
+    return False
+
+
 def structured_node_is_simple_return(
     node: SequenceNode | MultiNode, graph: networkx.DiGraph, use_packed_successors=False
 ) -> bool:
@@ -639,21 +681,6 @@ def structured_node_is_simple_return(
 
     Returns true on any block ending in linear statements and a return.
     """
-
-    def _flatten_structured_node(packed_node: SequenceNode | MultiNode) -> list[ailment.Block]:
-        if not packed_node or not packed_node.nodes:
-            return []
-
-        blocks = []
-        if packed_node.nodes is not None:
-            for _node in packed_node.nodes:
-                if isinstance(_node, (SequenceNode, MultiNode)):
-                    blocks += _flatten_structured_node(_node)
-                else:
-                    blocks.append(_node)
-
-        return blocks
-
     # sanity check: we need a graph to understand returning blocks
     if graph is None:
         return False
@@ -676,11 +703,10 @@ def structured_node_is_simple_return(
     if valid_last_stmt:
         # note that the block may not be the same block in the AIL graph post dephication. we must find the block again
         # in the graph.
-        for bb in graph:
-            if bb.addr == last_block.addr and bb.idx == last_block.idx:
-                # found it
-                succs = list(graph.successors(bb))
-                return not succs or succs == [bb]
+        last_graph_block = _find_node_in_graph(last_block, graph)
+        if last_graph_block is not None:
+            succs = list(graph.successors(last_graph_block))
+            return not succs or succs == [last_graph_block]
     return False
 
 

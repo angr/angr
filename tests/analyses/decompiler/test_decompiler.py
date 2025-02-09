@@ -4540,6 +4540,47 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen is not None
         assert normalize_whitespace("{ CreateFileA(") in normalize_whitespace(d.codegen.text)
 
+    @structuring_algo("sailr")
+    def test_boolean_no_flip_fmt_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+
+        f = proj.kb.functions["main"]
+        # flipping is enabled by default, if this fails, and it's off, turn it on!
+        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
+        code = d.codegen.text.replace("\n", " ")
+        # The original way we would output the if statement would be:
+        #
+        # """
+        # if (v15)
+        # {
+        # LABEL_401cab:
+        #     if (rpl_fclose(stdin))
+        #     {
+        #         dcgettext(NULL, "closing standard input", 5);
+        #         v29 = __errno_location();
+        #         error(1, *(v29), "%s");
+        #     }
+        # }
+        # return v14 ^ 1;
+        # """
+        #
+        # But if we do a flip we should not be doing, it turns out like the following (near the bottom):
+        # """
+        # if (!v15)
+        #   return v14 ^ 1
+        # """
+        #
+        # Make sure this case does not exist. Note: in the entire output there should be no other if statements
+        # with a null compare (or no compare) that have an early return.
+        bad_flipped_returns = re.findall(r"if \(!*v[0-9]{1,5}\)\s+return .+?;", code)
+        assert len(bad_flipped_returns) == 0
+
 
 if __name__ == "__main__":
     unittest.main()

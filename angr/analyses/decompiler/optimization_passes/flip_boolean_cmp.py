@@ -6,7 +6,11 @@ import ailment
 from ailment.expression import Op
 
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
-from angr.analyses.decompiler.utils import structured_node_is_simple_return, sequence_to_statements
+from angr.analyses.decompiler.utils import (
+    structured_node_is_simple_return,
+    sequence_to_statements,
+    structured_node_has_multi_predecessors,
+)
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
@@ -43,7 +47,22 @@ class FlipBooleanWalker(SequenceWalker):
                 and structured_node_is_simple_return(seq_node.nodes[idx + 1], self._graph)
                 and node not in type1_condition_nodes
             ):
-                type2_condition_nodes.append((idx, node, seq_node.nodes[idx + 1]))
+                # Type 2: Special Filter:
+                # consider code that looks like the following:
+                # {if (cond) {LABEL: ... } return;}; goto LABEL;
+                #
+                # if we were to do the normal flip, this happens:
+                # {if (!cond) return; LABEL: ...}; goto LABEL;
+                #
+                # This is incorrect because we've now created an infinite loop in the event that cond is false,
+                # which is not what the original code was. The gist here is that you can't ever flip these cases
+                # in the presence of more than one incoming edge to `...` region.
+                #
+                # To eliminate this illegal case, we simply need to find all the condition nodes of the above structure
+                # that have multiple incoming edges to the `...` region.
+                illegal_flip = structured_node_has_multi_predecessors(node.true_node, self._graph)
+                if not illegal_flip:
+                    type2_condition_nodes.append((idx, node, seq_node.nodes[idx + 1]))
 
         for node in type1_condition_nodes:
             if isinstance(node.condition, Op) and structured_node_is_simple_return(node.false_node, self._graph):
