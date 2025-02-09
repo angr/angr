@@ -377,11 +377,14 @@ class FactCollector(Analysis):
                     continue
 
                 # if this block ends with a call to a function, we process the function first
-                func_succs = [succ for succ in func_graph.successors(node) if isinstance(succ, (Function, HookNode))]
+                func_succs = [
+                    succ
+                    for succ in func_graph.successors(node)
+                    if isinstance(succ, (Function, HookNode)) or self.kb.functions.contains_addr(succ.addr)
+                ]
                 if len(func_succs) == 1:
                     func_succ = func_succs[0]
-
-                    if isinstance(func_succ, HookNode) and self.kb.functions.contains_addr(func_succ.addr):
+                    if isinstance(func_succ, (BlockNode, HookNode)) and self.kb.functions.contains_addr(func_succ.addr):
                         # attempt to convert it into a function
                         func_succ = self.kb.functions.get_by_addr(func_succ.addr)
                     if isinstance(func_succ, Function):
