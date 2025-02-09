@@ -292,6 +292,7 @@ class CConstruct:
                                 CUnaryOp,
                                 CAssignment,
                                 CFunctionCall,
+                                CLabel,
                             ),
                         )
                         and pos_to_node is not None

@@ -14,7 +14,15 @@ import ailment
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from angr.sim_type import SimTypeInt, SimTypePointer, SimTypeBottom, SimTypeLongLong, SimTypeArray, SimTypeChar
+from angr.sim_type import (
+    SimTypeInt,
+    SimTypePointer,
+    SimTypeBottom,
+    SimTypeLongLong,
+    SimTypeArray,
+    SimTypeChar,
+    SimTypeFunction,
+)
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -4426,7 +4434,15 @@ class TestDecompiler(unittest.TestCase):
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
         p.analyses.CompleteCallingConventions()
-        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
+        # we alter the function prototype of f1 and entry to make this test case work as expected
+        f1 = p.kb.functions["f1"]
+        assert f1 is not None
+        f1.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
+        entry = p.kb.functions[p.entry]
+        assert entry is not None
+        entry.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
+        # decompile!
+        dec = p.analyses.Decompiler(entry, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
 
@@ -4469,7 +4485,16 @@ class TestDecompiler(unittest.TestCase):
         p = angr.Project(bin_path, auto_load_libs=False)
         cfg = p.analyses.CFGFast(normalize=True)
         p.analyses.CompleteCallingConventions()
-        dec = p.analyses.Decompiler(p.kb.functions[p.entry], cfg=cfg, options=decompiler_options)
+
+        # we alter the function prototype of f1 and entry to make this test case work as expected
+        f1 = p.kb.functions["f1"]
+        assert f1 is not None and f1.prototype is not None
+        f1.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
+        entry = p.kb.functions[p.entry]
+        assert entry is not None and entry.prototype is not None
+        entry.prototype.returnty = SimTypeLongLong(signed=True).with_arch(p.arch)
+
+        dec = p.analyses.Decompiler(entry, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         text = dec.codegen.text
 

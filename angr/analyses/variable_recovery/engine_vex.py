@@ -8,12 +8,13 @@ from archinfo.arch_arm import is_arm_arch
 
 from angr.block import Block
 from angr.errors import SimMemoryMissingError
-from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
+from angr.calling_conventions import SimRegArg, SimStackArg, SimTypeFunction, default_cc
 from angr.engines.vex.claripy.datalayer import value as claripy_value
 from angr.engines.light import SimEngineNostmtVEX
 from angr.knowledge_plugins import Function
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.analyses.typehoon import typevars, typeconsts
+from angr.sim_type import SimTypeBottom
 from .engine_base import SimEngineVRBase, RichR
 from .irsb_scanner import VEXIRSBScanner
 
@@ -222,23 +223,38 @@ class SimEngineVRVEX(
 
     def _process_block_end(self, stmt_result, whitelist):
         # handles block-end calls
+        has_call = False
         current_addr = self.state.block_addr
         for target_func in self.call_info.get(current_addr, []):
             self._handle_function_concrete(target_func)
+            has_call = True
 
-        if self.block.vex.jumpkind == "Ijk_Call":
+        if has_call or self.block.vex.jumpkind == "Ijk_Call":
             # emulates return values from calls
             cc = None
+            proto: SimTypeFunction | None = None
             for target_func in self.call_info.get(self.state.block_addr, []):
                 if target_func.calling_convention is not None:
                     cc = target_func.calling_convention
+                    proto = target_func.prototype
                     break
             if cc is None:
                 cc = default_cc(self.arch.name, platform=self.project.simos.name)(self.arch)
-            if isinstance(cc.RETURN_VAL, SimRegArg):
-                reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
+
+            if proto is not None and not isinstance(proto.returnty, SimTypeBottom):
+                ret_reg = cc.return_val(proto.returnty)
+            else:
+                ret_reg = cc.RETURN_VAL
+            if isinstance(ret_reg, SimRegArg):
+                reg_offset, reg_size = self.arch.registers[ret_reg.reg_name]
                 data = self._top(reg_size * self.arch.byte_width)
                 self._assign_to_register(reg_offset, data, reg_size, create_variable=False)
+
+                # handle tail-call optimizations
+                if self.block.vex.jumpkind == "Ijk_Boring":
+                    self.state.ret_val_size = (
+                        reg_size if self.state.ret_val_size is None else max(self.state.ret_val_size, reg_size)
+                    )
 
         elif self.block.vex.jumpkind == "Ijk_Ret":
             # handles return statements

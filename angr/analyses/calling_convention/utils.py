@@ -9,7 +9,9 @@ from angr.calling_conventions import SimCC
 l = logging.getLogger(__name__)
 
 
-def is_sane_register_variable(arch: archinfo.Arch, reg_offset: int, reg_size: int, def_cc: SimCC | None = None) -> bool:
+def is_sane_register_variable(
+    arch: archinfo.Arch, reg_offset: int, reg_size: int, def_cc: SimCC | type[SimCC] | None = None
+) -> bool:
     """
     Filters all registers that are surly not members of function arguments.
     This can be seen as a workaround, since VariableRecoveryFast sometimes gives input variables of cc_ndep (which

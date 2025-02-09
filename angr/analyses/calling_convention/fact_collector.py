@@ -90,7 +90,7 @@ binop_handler = SimEngineNostmtVEX[FactCollectorState, claripy.ast.BV, FactColle
 
 class SimEngineFactCollectorVEX(
     SimEngineNostmtVEX[FactCollectorState, SpOffset | RegisterOffset | int, None],
-    SimEngineLight[type[FactCollectorState], SpOffset | RegisterOffset | int, Block, None],
+    SimEngineLight[FactCollectorState, SpOffset | RegisterOffset | int, Block, None],
 ):
     """
     THe engine for FactCollector.
@@ -101,7 +101,7 @@ class SimEngineFactCollectorVEX(
         super().__init__(project)
 
     def _process_block_end(self, stmt_result: list, whitelist: set[int] | None) -> None:
-        if self.block.vex.jumpkind == "Ijk_Call":
+        if self.block.vex.jumpkind == "Ijk_Call" and self.arch.ret_offset is not None:
             self.state.register_written(self.arch.ret_offset, self.arch.bytes)
 
     def _top(self, bits: int):
@@ -110,7 +110,7 @@ class SimEngineFactCollectorVEX(
     def _is_top(self, expr: Any) -> bool:
         raise NotImplementedError
 
-    def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: pyvex.IRExpr) -> Any:
+    def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: pyvex.expr.IRExpr) -> Any:
         return None
 
     def _handle_stmt_Put(self, stmt):
@@ -142,9 +142,9 @@ class SimEngineFactCollectorVEX(
         return expr.con.value
 
     def _handle_expr_GSPTR(self, expr):
-        return None
+        return 0
 
-    def _handle_expr_Get(self, expr) -> SpOffset | None:
+    def _handle_expr_Get(self, expr) -> SpOffset | RegisterOffset:
         if expr.offset == self.arch.sp_offset:
             return SpOffset(self.arch.bits, self.state.sp_value, is_base=False)
         if expr.offset == self.arch.bp_offset and not self.bp_as_gpr:
@@ -304,7 +304,10 @@ class FactCollector(Analysis):
 
     def _handle_function(self, state: FactCollectorState, func: Function) -> None:
         try:
-            arg_locs = func.calling_convention.arg_locs(func.prototype)
+            if func.calling_convention is not None and func.prototype is not None:
+                arg_locs = func.calling_convention.arg_locs(func.prototype)
+            else:
+                return
         except (TypeError, ValueError):
             return
 
@@ -355,6 +358,7 @@ class FactCollector(Analysis):
 
                 if isinstance(node, BlockNode) and node.size == 0:
                     continue
+
                 if isinstance(node, HookNode):
                     # attempt to convert it into a function
                     if self.kb.functions.contains_addr(node.addr):
@@ -369,17 +373,43 @@ class FactCollector(Analysis):
                         and not isinstance(node.prototype.returnty, SimTypeBottom)
                     ):
                         # assume the function overwrites the return variable
-                        retval_size = (
-                            node.prototype.returnty.with_arch(self.project.arch).size // self.project.arch.byte_width
-                        )
+                        returnty_size = node.prototype.returnty.with_arch(self.project.arch).size
+                        assert returnty_size is not None
+                        retval_size = returnty_size // self.project.arch.byte_width
                         retval_sizes.append(retval_size)
                     continue
+
+                # if this block ends with a call to a function, we process the function first
+                func_succs = [
+                    succ
+                    for succ in func_graph.successors(node)
+                    if isinstance(succ, (Function, HookNode)) or self.kb.functions.contains_addr(succ.addr)
+                ]
+                if len(func_succs) == 1:
+                    func_succ = func_succs[0]
+                    if isinstance(func_succ, (BlockNode, HookNode)) and self.kb.functions.contains_addr(func_succ.addr):
+                        # attempt to convert it into a function
+                        func_succ = self.kb.functions.get_by_addr(func_succ.addr)
+                    if isinstance(func_succ, Function):
+                        if (
+                            func_succ.calling_convention is not None
+                            and func_succ.prototype is not None
+                            and func_succ.prototype.returnty is not None
+                            and not isinstance(func_succ.prototype.returnty, SimTypeBottom)
+                        ):
+                            # assume the function overwrites the return variable
+                            returnty_size = func_succ.prototype.returnty.with_arch(self.project.arch).size
+                            assert returnty_size is not None
+                            retval_size = returnty_size // self.project.arch.byte_width
+                            retval_sizes.append(retval_size)
+                        continue
 
                 block = self.project.factory.block(node.addr, size=node.size)
                 # scan the block statements backwards to find writes to the return value register
                 retval_size = None
                 for stmt in reversed(block.vex.statements):
                     if isinstance(stmt, pyvex.IRStmt.Put):
+                        assert block.vex.tyenv is not None
                         size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
                         if stmt.offset == retreg_offset:
                             retval_size = max(size, 1)
@@ -391,9 +421,9 @@ class FactCollector(Analysis):
                 for pred, _, data in func_graph.in_edges(node, data=True):
                     edge_type = data.get("type")
                     if pred not in traversed and depth + 1 <= self._max_depth:
-                        if edge_type == "fake_return":
+                        if edge_type == "call":
                             continue
-                        if edge_type in {"transition", "call"}:
+                        if edge_type in {"transition", "fake_return"}:
                             queue.append((depth + 1, pred))
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
@@ -472,6 +502,7 @@ class FactCollector(Analysis):
                                 ):
                                     tmps[stmt.tmp] = "sp"
                     if isinstance(stmt, pyvex.IRStmt.Put):
+                        assert block.vex.tyenv is not None
                         size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
                         # is the data loaded from the stack?
                         if (
@@ -532,13 +563,8 @@ class FactCollector(Analysis):
                 ):
                     continue
                 reg_offset_created.add(offset)
-                if self.project.arch.name in {"AMD64", "X86"} and size < self.project.arch.bytes:
-                    # use complete registers on AMD64 and X86
-                    reg_name = self.project.arch.translate_register_name(offset, size=self.project.arch.bytes)
-                    arg = SimRegArg(reg_name, self.project.arch.bytes)
-                else:
-                    reg_name = self.project.arch.translate_register_name(offset, size=size)
-                    arg = SimRegArg(reg_name, size)
+                reg_name = self.project.arch.translate_register_name(offset, size=size)
+                arg = SimRegArg(reg_name, size)
                 self.input_args.append(arg)
 
         stack_offset_created = set()
