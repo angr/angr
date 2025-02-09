@@ -154,7 +154,7 @@ class ReturnDuplicatorBase:
                     dup_pred_nodes.append(pred_node)
 
             dup_count = len(dup_pred_nodes)
-            dup_all = dup_count >= len(in_edges) - 2
+            dup_all = dup_count >= len(in_edges) - 2 > 0
             if dup_all:
                 for pred_node in sorted((in_edge[0] for in_edge in in_edges), key=lambda x: x.addr)[:-1]:
                     # every eligible pred gets a new region copy
