@@ -23,12 +23,12 @@ class SimOS:
     A class describing OS/arch-level configuration.
     """
 
-    name: str
+    name: str | None
 
-    def __init__(self, project: angr.Project, name=None):
+    def __init__(self, project: angr.Project, name: str | None = None):
         self.arch = project.arch
         self.project = project
-        self.name = name if name is not None else self.__class__.__name__
+        self.name = name
         self.return_deadend = None
         self.unresolvable_jump_target = None
         self.unresolvable_call_target = None
