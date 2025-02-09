@@ -2492,6 +2492,13 @@ class TestDecompiler(unittest.TestCase):
             assert f"case {case_}:" in d.codegen.text
         assert "default:" in d.codegen.text
 
+        # ensure "v14 = fmt(stdin, "-");" shows up before "optind < a0"
+        lines = d.codegen.text.split("\n")
+        fmt_line = next(i for i, line in enumerate(lines) if 'fmt(stdin, "-");' in line)
+        optind_line = next(i for i, line in enumerate(lines) if "optind < a0" in line)
+        return_line = next(i for i, line in enumerate(lines) if "do not return" not in line and "return " in line)
+        assert 0 <= fmt_line < optind_line < return_line
+
     @structuring_algo("sailr")
     def test_reverting_switch_clustering_and_lowering_mv_o2_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
@@ -4573,8 +4580,14 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(analyze_callsites=True)
 
         f = proj.kb.functions["main"]
+        # this test case only matters when we do not duplicate returns
+        all_optimization_passes = DECOMPILATION_PRESETS["fast"].get_optimization_passes(
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
+        )
         # flipping is enabled by default, if this fails, and it's off, turn it on!
-        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses.Decompiler(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         self._print_decompilation_result(d)
         assert d.codegen is not None and isinstance(d.codegen.text, str)
 
