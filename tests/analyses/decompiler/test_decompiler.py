@@ -4580,8 +4580,14 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(analyze_callsites=True)
 
         f = proj.kb.functions["main"]
+        # this test case only matters when we do not duplicate returns
+        all_optimization_passes = DECOMPILATION_PRESETS["fast"].get_optimization_passes(
+            "AMD64", "linux", disable_opts=DUPLICATING_OPTS
+        )
         # flipping is enabled by default, if this fails, and it's off, turn it on!
-        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses.Decompiler(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         self._print_decompilation_result(d)
         assert d.codegen is not None and isinstance(d.codegen.text, str)
 

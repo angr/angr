@@ -156,7 +156,7 @@ class ReturnDuplicatorBase:
             dup_count = len(dup_pred_nodes)
             dup_all = dup_count >= len(in_edges) - 2 > 0
             if dup_all:
-                for pred_node in sorted((in_edge[0] for in_edge in in_edges), key=lambda x: x.addr)[:-1]:
+                for pred_node in sorted((in_edge[0] for in_edge in in_edges), key=lambda x: x.addr):
                     # every eligible pred gets a new region copy
                     self._copy_region([pred_node], region_head, region, graph)
                     graph_changed = True
