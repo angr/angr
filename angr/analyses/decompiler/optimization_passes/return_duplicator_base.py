@@ -141,16 +141,24 @@ class ReturnDuplicatorBase:
 
         # refresh the supergraph
         self._supergraph = to_ail_supergraph(graph)
+        # duplicate the entire region if any in-edge for the region head is deemed should be duplicated
         for region_head, (in_edges, region) in endnode_regions.items():
             is_single_const_ret_region = self._is_simple_return_graph(region)
+            should_duplicate = False
             for in_edge in in_edges:
                 pred_node = in_edge[0]
                 if self._should_duplicate_dst(
                     pred_node, region_head, graph, dst_is_const_ret=is_single_const_ret_region
                 ):
+                    should_duplicate = True
+                    break
+
+            if should_duplicate:
+                for in_edge in in_edges:
+                    pred_node = in_edge[0]
                     # every eligible pred gets a new region copy
                     self._copy_region([pred_node], region_head, region, graph)
-                    graph_changed = True
+                graph_changed = True
 
             if region_head in graph and graph.in_degree(region_head) == 0:
                 graph.remove_nodes_from(region)
