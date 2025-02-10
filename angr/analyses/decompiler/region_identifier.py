@@ -126,7 +126,7 @@ class RegionIdentifier(Analysis):
                     if isinstance(node, Block):
                         children_blocks.append((node.addr, node.idx))
                     elif isinstance(node, MultiNode):
-                        children_blocks += [(n.addr, n.idx) for n in node.nodes]
+                        children_blocks += [(n.addr, node.idx) for n in node.nodes]
                     elif isinstance(node, GraphRegion):
                         if node not in seen_regions:
                             children_regions.append(node)
