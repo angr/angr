@@ -258,10 +258,13 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     continue
 
                 # RULE 4: the default case should not reach other case nodes in the subregion
-                default_addr = next((case.target for case in cases if case.value == "default"), None)
-                if default_addr is None:
+                default_addr_and_idx = next(
+                    ((case.target, case.target_idx) for case in cases if case.value == "default"), None
+                )
+                if default_addr_and_idx is None:
                     continue
-                default_node = self._get_block(default_addr)
+                default_addr, default_idx = default_addr_and_idx
+                default_node = self._get_block(default_addr, idx=default_idx)
                 default_reachable_from_case = False
                 for case in cases:
                     if case.value == "default":
