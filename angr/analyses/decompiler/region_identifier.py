@@ -106,7 +106,7 @@ class RegionIdentifier(Analysis):
         # make regions into block address lists
         self.regions_by_block_addrs = self._make_regions_by_block_addrs()
 
-    def _make_regions_by_block_addrs(self) -> list[list[int]]:
+    def _make_regions_by_block_addrs(self) -> list[list[tuple[int, int | None]]]:
         """
         Creates a list of addr lists representing each region without recursion. A single region is defined
         as a set of only blocks, no Graphs containing nested regions. The list contains the address of each
@@ -124,13 +124,15 @@ class RegionIdentifier(Analysis):
                 children_blocks = []
                 for node in region.graph.nodes:
                     if isinstance(node, Block):
-                        children_blocks.append(node.addr)
+                        children_blocks.append((node.addr, node.idx))
                     elif isinstance(node, MultiNode):
-                        children_blocks += [n.addr for n in node.nodes]
+                        children_blocks += [(n.addr, n.idx) for n in node.nodes]
                     elif isinstance(node, GraphRegion):
                         if node not in seen_regions:
                             children_regions.append(node)
-                            children_blocks.append(node.head.addr)
+                            children_blocks.append(
+                                (node.head.addr, node.head.idx if hasattr(node.head, "idx") else None)
+                            )
                             seen_regions.add(node)
                     else:
                         continue

@@ -950,7 +950,9 @@ class DuplicationReverter(StructuringOptimizationPass):
     #
 
     def _share_subregion(self, blocks: list[Block]) -> bool:
-        return any(all(block.addr in region for block in blocks) for region in self._ri.regions_by_block_addrs)
+        return any(
+            all((block.addr, block.idx) in region for block in blocks) for region in self._ri.regions_by_block_addrs
+        )
 
     def _is_valid_candidate(self, b0, b1):
         # blocks must have statements
