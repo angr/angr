@@ -1,38 +1,39 @@
-# pylint:disable=wrong-import-position,wrong-import-order
 from __future__ import annotations
-import enum
-from typing import TYPE_CHECKING, Any, Literal, cast
-from collections.abc import Sequence
-from collections import defaultdict, OrderedDict
-import logging
-import functools
 
-import pyvex
+import enum
+import functools
+import logging
+from collections import OrderedDict, defaultdict
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Literal, cast
+
 import claripy
+import pyvex
 from archinfo.arch_arm import is_arm_arch
 from claripy.annotation import UninitializedAnnotation
 
+from angr import BP, BP_AFTER, BP_BEFORE
 from angr import sim_options as o
-from angr import BP, BP_BEFORE, BP_AFTER
-from angr.misc.ux import once
+from angr.analyses.propagator.top_checker_mixin import ClaripyDataVEXEngineMixin
+from angr.analyses.propagator.vex_vars import VEXReg
+from angr.annocfg import AnnotatedCFG
+from angr.blade import Blade
 from angr.code_location import CodeLocation
 from angr.concretization_strategies import SimConcretizationStrategyAny
-from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.engines.light import RegisterOffset, SimEngineNostmtVEX, SpOffset
 from angr.engines.vex.claripy import ccall
-from angr.engines.light import SimEngineNostmtVEX, SpOffset, RegisterOffset
+from angr.engines.vex.claripy.datalayer import value
 from angr.errors import AngrError, SimError
-from angr.blade import Blade
-from angr.annocfg import AnnotatedCFG
-from angr.exploration_techniques.slicecutor import Slicecutor
-from angr.exploration_techniques.local_loop_seer import LocalLoopSeer
 from angr.exploration_techniques.explorer import Explorer
+from angr.exploration_techniques.local_loop_seer import LocalLoopSeer
+from angr.exploration_techniques.slicecutor import Slicecutor
+from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from angr.misc.ux import once
 from angr.project import Project
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.analyses.propagator.vex_vars import VEXReg
-from angr.analyses.propagator.top_checker_mixin import ClaripyDataVEXEngineMixin
-from angr.engines.vex.claripy.datalayer import value
-from .resolver import IndirectJumpResolver
+
 from .propagator_utils import PropagatorLoadCallback
+from .resolver import IndirectJumpResolver
 
 try:
     from angr.engines import pcode
