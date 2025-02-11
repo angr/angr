@@ -1380,7 +1380,9 @@ class AILSimplifier(Analysis):
                 if not isinstance(def_.codeloc, ExternalCodeLocation):
                     assert def_.codeloc.block_addr is not None
                     assert def_.codeloc.stmt_idx is not None
-                stmts_to_keep_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
+                    stmts_to_keep_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
+                        def_.codeloc.stmt_idx
+                    )
 
         # find all phi variables that rely on variables that no longer exist
         all_removed_var_ids = self._removed_vvar_ids.copy()
@@ -1503,8 +1505,36 @@ class AILSimplifier(Analysis):
 
         return simplified
 
+    @staticmethod
+    def _get_vvar_used_by(
+        vvar_id: int, rd: SRDAModel, blocks_dict: dict[tuple[int, int | None], Block]
+    ) -> set[int | None]:
+        """
+        Get all atoms that use a specified virtual variable. The atoms are in the form of virtual variable ID or None
+        (indicating the virtual variable is used by another statement like Store).
+
+        :param vvar_id:     ID of the virtual variable.
+        :param rd:          The SRDA model.
+        :return:            The set of vvar use atoms.
+        """
+
+        vvar = rd.varid_to_vvar[vvar_id]
+        used_by: set[int | None] = set()
+        for used_vvar, loc in rd.all_vvar_uses[vvar]:
+            if used_vvar is None:
+                # no explicit reference
+                used_by.add(None)
+            elif loc.block_addr is not None:
+                assert loc.stmt_idx is not None
+                stmt = blocks_dict[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    used_by.add(stmt.dst.varid)
+                else:
+                    used_by.add(None)
+        return used_by
+
     def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel) -> set[int]:
-        blocks_dict = {(bb.addr, bb.idx): bb for bb in self.func_graph}
+        blocks_dict: dict[tuple[int, int | None], Block] = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
         # find dirty vvars and vexccall vvars
         dirty_vvar_ids = set()
@@ -1520,25 +1550,14 @@ class AILSimplifier(Analysis):
 
         phi_and_dirty_vvar_ids = rd.phi_vvar_ids | dirty_vvar_ids
 
-        vvar_used_by: dict[int, set[int]] = defaultdict(set)
+        vvar_used_by: dict[int, set[int | None]] = defaultdict(set)
         for var_id in phi_and_dirty_vvar_ids:
             if var_id in rd.phivarid_to_varids:
                 for used_by_varid in rd.phivarid_to_varids[var_id]:
-                    vvar_used_by[used_by_varid].add(var_id)
-
-            vvar = rd.varid_to_vvar[var_id]
-            used_by = set()
-            for used_vvar, loc in rd.all_vvar_uses[vvar]:
-                if used_vvar is None:
-                    # no explicit reference
-                    used_by.add(None)
-                else:
-                    stmt = blocks_dict[loc.block_addr, loc.block_idx].statements[loc.stmt_idx]
-                    if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                        used_by.add(stmt.dst.varid)
-                    else:
-                        used_by.add(None)
-            vvar_used_by[var_id] |= used_by
+                    if used_by_varid not in vvar_used_by:
+                        vvar_used_by[used_by_varid] |= self._get_vvar_used_by(used_by_varid, rd, blocks_dict)
+                    vvar_used_by[used_by_varid].add(var_id)  # probably unnecessary
+            vvar_used_by[var_id] |= self._get_vvar_used_by(var_id, rd, blocks_dict)
 
         g = networkx.DiGraph()
         dummy_vvar_id = -1
@@ -1557,8 +1576,12 @@ class AILSimplifier(Analysis):
 
             bail = False
             for varid in scc:
-                # if this vvar is a phi var, ensure this vvar is not used by anything else outside the scc
-                if varid in rd.phi_vvar_ids:
+                # ensure this vvar is not used by anything else outside the scc (regardless of whether this vvar is a
+                # phi variable or not)
+                if varid in vvar_used_by and None in vvar_used_by[varid]:
+                    bail = True
+                    break
+                if bail is False:
                     succs = list(g.successors(varid))
                     if any(succ_varid not in scc for succ_varid in succs):
                         bail = True
