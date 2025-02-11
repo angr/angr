@@ -257,6 +257,24 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                     _l.debug("Skipping switch-case conversion due to too few distinct cases for %s", real_cases[0])
                     continue
 
+                # RULE 4: the default case should not reach other case nodes in the subregion
+                default_addr_and_idx = next(
+                    ((case.target, case.target_idx) for case in cases if case.value == "default"), None
+                )
+                if default_addr_and_idx is None:
+                    continue
+                default_addr, default_idx = default_addr_and_idx
+                default_node = self._get_block(default_addr, idx=default_idx)
+                default_reachable_from_case = False
+                for case in cases:
+                    if case.value == "default":
+                        continue
+                    if self._node_reachable_from_node_in_region(case.original_node, default_node):
+                        default_reachable_from_case = True
+                        break
+                if default_reachable_from_case:
+                    continue
+
                 original_nodes = [case.original_node for case in real_cases]
                 original_head: Block = original_nodes[0]
                 original_nodes = original_nodes[1:]
@@ -623,6 +641,27 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             varhash_to_caselists[v] = [item for item in caselists if item is not None]
 
         return varhash_to_caselists
+
+    def _node_reachable_from_node_in_region(self, to_node, from_node) -> bool:
+        # find the region that contains the to_node
+        to_node_region = None
+        from_node_region = None
+        for region in self._ri.regions_by_block_addrs:
+            if (to_node.addr, to_node.idx) in region:
+                to_node_region = region
+            if (from_node.addr, from_node.idx) in region:
+                from_node_region = region
+
+        if to_node_region is None or from_node_region is None:
+            return False
+        if to_node_region != from_node_region:
+            return False
+
+        # get a subgraph
+        all_nodes = [self._get_block(a, idx=idx) for a, idx in to_node_region]
+        subgraph = self._graph.subgraph(all_nodes)
+
+        return networkx.has_path(subgraph, from_node, to_node)
 
     @staticmethod
     def _find_switch_variable_comparison_type_a(
