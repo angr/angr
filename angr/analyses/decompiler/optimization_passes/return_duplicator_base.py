@@ -222,10 +222,10 @@ class ReturnDuplicatorBase:
 
         return end_node_regions
 
-    def _copy_region(self, pred_nodes, region_head, region, graph):
+    def _copy_region(self, pred_nodes: list[Block], region_head, region, graph):
         # copy the entire return region
         copies: dict[Block, Block] = {}
-        queue = [(pred_node, region_head) for pred_node in pred_nodes]
+        queue: list[tuple[Block, Block]] = [(pred_node, region_head) for pred_node in pred_nodes]
         vvar_mapping: dict[int, int] = {}
         while queue:
             pred, node = queue.pop(0)
@@ -247,12 +247,33 @@ class ReturnDuplicatorBase:
                 last_stmt = ConditionProcessor.get_last_statement(pred)
                 if isinstance(last_stmt, Jump):
                     if isinstance(last_stmt.target, Const) and last_stmt.target.value == node_copy.addr:
-                        last_stmt.target_idx = node_copy.idx
+                        updated_last_stmt = Jump(
+                            last_stmt.idx, last_stmt.target, target_idx=node_copy.idx, **last_stmt.tags
+                        )
+                        pred.statements[-1] = updated_last_stmt
                 elif isinstance(last_stmt, ConditionalJump):
                     if isinstance(last_stmt.true_target, Const) and last_stmt.true_target.value == node_copy.addr:
-                        last_stmt.true_target_idx = node_copy.idx
+                        updated_last_stmt = ConditionalJump(
+                            last_stmt.idx,
+                            last_stmt.condition,
+                            last_stmt.true_target,
+                            last_stmt.false_target,
+                            true_target_idx=node_copy.idx,
+                            false_target_idx=last_stmt.false_target_idx,
+                            **last_stmt.tags,
+                        )
+                        pred.statements[-1] = updated_last_stmt
                     elif isinstance(last_stmt.false_target, Const) and last_stmt.false_target.value == node_copy.addr:
-                        last_stmt.false_target_idx = node_copy.idx
+                        updated_last_stmt = ConditionalJump(
+                            last_stmt.idx,
+                            last_stmt.condition,
+                            last_stmt.true_target,
+                            last_stmt.false_target,
+                            true_target_idx=last_stmt.true_target_idx,
+                            false_target_idx=node_copy.idx,
+                            **last_stmt.tags,
+                        )
+                        pred.statements[-1] = updated_last_stmt
             except EmptyBlockNotice:
                 pass
 
