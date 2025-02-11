@@ -2547,7 +2547,9 @@ class TestDecompiler(unittest.TestCase):
         assert lines[-2].startswith("return ")
         assert lines[-2].endswith(";")
         # extract the variable from the return statement
-        retvar = re.search(r"(v\d+)", lines[-2]).group(1)
+        found = re.search(r"(v\d+)", lines[-2])
+        assert found is not None, "Cannot find the variable in the return statement"
+        retvar = found.group(1)
         assert retvar, "Cannot find the variable in the return statement"
         # somewhere above the return statement, there should be a line defining the variable
         assert any(f"{retvar} &= " in line and "do_move(v" in line for line in lines[:-2])
