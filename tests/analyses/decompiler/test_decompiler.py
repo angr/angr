@@ -2505,6 +2505,7 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions()
         all_optimization_passes = DECOMPILATION_PRESETS["fast"].get_optimization_passes(
             "AMD64",
             "linux",
@@ -2534,6 +2535,50 @@ class TestDecompiler(unittest.TestCase):
         for case_ in cases:
             assert f"case {case_}:" in d.codegen.text
         assert "default:" in d.codegen.text
+
+        # we test a few other things
+        # 1. after proper structuring, the function should end with a return statement; the return statement uses a
+        #    variable (e.g., "return v55 ^ 1;"), and this variable must be defined above it like the following:
+        #        v55 &= do_move(v1, v58, v5, *((long long *)&v6), v3);
+        #    The assignment of v55 could have been removed due to the incorrect logic in
+        #    _find_cyclic_dependent_phis_and_dirty_vvars()
+        lines = [line.strip() for line in d.codegen.text.split("\n") if line.strip()]
+        assert lines[-1] == "}"
+        assert lines[-2].startswith("return ")
+        assert lines[-2].endswith(";")
+        # extract the variable from the return statement
+        retvar = re.search(r"(v\d+)", lines[-2]).group(1)
+        assert retvar, "Cannot find the variable in the return statement"
+        # somewhere above the return statement, there should be a line defining the variable
+        assert any(f"{retvar} &= " in line and "do_move(v" in line for line in lines[:-2])
+
+        # 2. the last do-while loop ends with a call to rpl_free(), and there is no goto statement after
+        #    we were adding an extra goto statement after the do-while loop due to assignment re-use in
+        #    RedundantLableRemover.
+        #         v52 = 1;
+        #         v53 = 0;
+        #         v3 = &v7;
+        #         do
+        #         {
+        #             v54 = v35;
+        #             v53 += 1;
+        #             v23 = v53 == v34;
+        #             v55 = &v54[1];
+        #             v2 = v54[0];
+        #             v56 = file_name_concat(v30, last_component(v54[0]), v3);
+        #             strip_trailing_slashes(*((long long *)&v7));
+        #             v52 &= (int)do_move(v2, v56, v6, *((long long *)&v7), v4);
+        #             rpl_free(v56);
+        #         } while (v53 < v34);
+        #     }
+        rpl_free_line_id = next(i for i, line in enumerate(lines) if "rpl_free(" in line)
+        assert lines[rpl_free_line_id + 1].startswith("} while (")
+        assert lines[rpl_free_line_id + 2] == "}"
+
+        # 3. there are no var_xxx in the decompilation output; all virtual variables must be converted to variables
+        #    this bug was caused by the incorrect logic in _find_cyclic_dependent_phis_and_dirty_vvars, where
+        #    the two assignments above the last do-while loop were incorrectly removed.
+        assert "vvar_" not in d.codegen.text
 
     @structuring_algo("sailr")
     def test_comma_separated_statement_expression_whoami(self, decompiler_options=None):
