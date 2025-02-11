@@ -97,6 +97,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._func_args,
             vvar_id_start=vvar_id_start,
         )
+        self.secondary_stackvars = rewriter.secondary_stackvars
         self.out_graph = rewriter.out_graph
         self.max_vvar_id = rewriter.max_vvar_id
 

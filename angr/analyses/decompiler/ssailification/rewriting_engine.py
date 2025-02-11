@@ -71,6 +71,8 @@ class SimEngineSSARewriting(
         self.rewrite_tmps = rewrite_tmps
         self.ail_manager = ail_manager
 
+        self.secondary_stackvars: set[int] = set()
+
         self._current_vvar_id = vvar_id_start
 
     @property
@@ -198,6 +200,7 @@ class SimEngineSSARewriting(
                     self.block.addr, self.block.idx, self.stmt_idx, stmt, force_size=full_size
                 )
                 if existing_full_vvar is not None and vvar_full is not None:
+                    self.secondary_stackvars.add(vvar_full.varid)
                     full_data = self._partial_update_expr(
                         existing_full_vvar, stmt.addr.offset, full_size, vvar, stmt.addr.offset, stmt.size
                     )

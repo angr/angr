@@ -75,6 +75,10 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         self._analyze()
 
         self.def_to_vvid: dict[tuple[int, int | None, int, DefExprType, AT], int] = self._engine_ail.def_to_vvid
+        # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
+        # actual stack variables. these secondary stack variables can be safely eliminated during dead assignment
+        # elimination if not used by anything else.
+        self.secondary_stackvars: set[int] = self._engine_ail.secondary_stackvars
         self.out_graph = self._make_new_graph(ail_graph)
 
     @property

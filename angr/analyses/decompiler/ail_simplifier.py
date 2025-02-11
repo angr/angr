@@ -99,6 +99,7 @@ class AILSimplifier(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         avoid_vvar_ids: set[int] | None = None,
+        secondary_stackvars: set[int] | None = None,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -119,6 +120,7 @@ class AILSimplifier(Analysis):
         self._arg_vvars = arg_vvars
         self._avoid_vvar_ids = avoid_vvar_ids
         self._propagator_dead_vvar_ids: set[int] = set()
+        self._secondary_stackvars: set[int] = secondary_stackvars if secondary_stackvars is not None else set()
 
         self._calls_to_remove: set[CodeLocation] = set()
         self._assignments_to_remove: set[CodeLocation] = set()
@@ -1347,6 +1349,9 @@ class AILSimplifier(Analysis):
                     if not self._remove_dead_memdefs:
                         if rd.is_phi_vvar_id(def_.atom.varid):
                             # we always remove unused phi variables
+                            pass
+                        elif def_.atom.varid in self._secondary_stackvars:
+                            # secondary stack variables are potentially removable
                             pass
                         elif stackarg_offsets is not None:
                             # we always remove definitions for stack arguments

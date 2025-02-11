@@ -154,6 +154,9 @@ class Clinic(Analysis):
         self._mode = mode
         self.vvar_id_start = vvar_id_start
         self.vvar_to_vvar: dict[int, int] | None = None
+        # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
+        # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
+        self.secondary_stackvars: set[int] = set()
 
         # inlining help
         self._sp_shift = sp_shift
@@ -1239,6 +1242,7 @@ class Clinic(Analysis):
             rewrite_ccalls=rewrite_ccalls,
             removed_vvar_ids=removed_vvar_ids,
             arg_vvars=arg_vvars,
+            secondary_stackvars=self.secondary_stackvars,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -1364,6 +1368,7 @@ class Clinic(Analysis):
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
+        self.secondary_stackvars = ssailification.secondary_stackvars
         return ssailification.out_graph
 
     @timethis
