@@ -248,6 +248,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if expr.operands[0].likes(expr.operands[1]):
                 return expr.operands[0]
 
+        elif expr.op == "Xor":
+            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+                return Const(expr.idx, None, expr.operands[0].value ^ expr.operands[1].value, expr.bits, **expr.tags)
+
         elif expr.op in {"CmpEQ", "CmpLE", "CmpGE"}:
             if expr.operands[0].likes(expr.operands[1]):
                 # x == x => 1
