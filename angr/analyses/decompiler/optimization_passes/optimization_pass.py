@@ -1,8 +1,9 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
 import logging
-from typing import Any, TYPE_CHECKING
+from collections import namedtuple
 from collections.abc import Generator
+from typing import Any, TYPE_CHECKING
 from enum import Enum
 
 import networkx
@@ -10,6 +11,7 @@ import networkx
 import ailment
 
 from angr.analyses.decompiler import RegionIdentifier
+from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
@@ -22,6 +24,9 @@ if TYPE_CHECKING:
 
 
 _l = logging.getLogger(__name__)
+
+
+BlockCache = namedtuple("BlockCache", ("rd", "prop"))
 
 
 class MultipleBlocksException(Exception):
@@ -130,6 +135,7 @@ class OptimizationPass(BaseOptimizationPass):
         complete_successors: bool = False,
         avoid_vvar_ids: set[int] | None = None,
         arg_vvars: set[int] | None = None,
+        peephole_optimizations=None,
         **kwargs,
     ):
         super().__init__(func)
@@ -150,6 +156,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._force_loop_single_exit = force_loop_single_exit
         self._complete_successors = complete_successors
         self._avoid_vvar_ids = avoid_vvar_ids or set()
+        self._peephole_optimizations = peephole_optimizations
 
         # output
         self.out_graph: networkx.DiGraph | None = None
@@ -267,9 +274,77 @@ class OptimizationPass(BaseOptimizationPass):
     def _is_sub(expr):
         return isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Sub"
 
+    def _simplify_blocks(
+        self,
+        ail_graph: networkx.DiGraph,
+        cache: dict | None = None,
+    ):
+        """
+        Simplify all blocks in self._blocks.
+
+        :param ail_graph:               The AIL function graph.
+        :param cache:                   A block-level cache that stores reaching definition analysis results and
+                                        propagation results.
+        :return:                        None
+        """
+
+        blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = {}
+
+        for ail_block in ail_graph.nodes():
+            simplified = self._simplify_block(
+                ail_block,
+                cache=cache,
+            )
+            key = ail_block.addr, ail_block.idx
+            blocks_by_addr_and_idx[key] = simplified
+
+        # update blocks_map to allow node_addr to node lookup
+        def _replace_node_handler(node):
+            key = node.addr, node.idx
+            if key in blocks_by_addr_and_idx:
+                return blocks_by_addr_and_idx[key]
+            return None
+
+        AILGraphWalker(ail_graph, _replace_node_handler, replace_nodes=True).walk()
+
+        return ail_graph
+
+    def _simplify_block(self, ail_block, cache=None):
+        """
+        Simplify a single AIL block.
+
+        :param ailment.Block ail_block: The AIL block to simplify.
+        :return:                        A simplified AIL block.
+        """
+
+        cached_rd, cached_prop = None, None
+        cache_item = None
+        cache_key = ail_block.addr, ail_block.idx
+        if cache:
+            cache_item = cache.get(cache_key, None)
+            if cache_item:
+                # cache hit
+                cached_rd = cache_item.rd
+                cached_prop = cache_item.prop
+
+        simp = self.project.analyses.AILBlockSimplifier(
+            ail_block,
+            self._func.addr,
+            peephole_optimizations=self._peephole_optimizations,
+            cached_reaching_definitions=cached_rd,
+            cached_propagator=cached_prop,
+        )
+        # update the cache
+        if cache is not None:
+            if cache_item:
+                del cache[cache_key]
+            cache[cache_key] = BlockCache(simp._reaching_definitions, simp._propagator)
+        return simp.result_block
+
     def _simplify_graph(self, graph):
         MAX_SIMP_ITERATION = 8
         for _ in range(MAX_SIMP_ITERATION):
+            self._simplify_blocks(graph)
             simp = self.project.analyses.AILSimplifier(
                 self._func,
                 func_graph=graph,

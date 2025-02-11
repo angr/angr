@@ -500,6 +500,7 @@ class Decompiler(Analysis):
                 scratch=self._optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
                 complete_successors=self._complete_successors,
+                peephole_optimizations=self._peephole_optimizations,
                 **kwargs,
             )
 
