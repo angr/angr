@@ -283,14 +283,12 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
     @staticmethod
     def _prepend_stmt(block, stmt):
-        # TODO: This insertion breaks the assumption that all phi statements appear before any assignments. We must
-        # TODO: fix the assumption elsewhere in the code base.
-        first_nonlabel_idx = len(block.statements)
+        first_nonlabel_nonphi_idx = len(block.statements)
         for i, s in enumerate(block.statements):
-            if not isinstance(s, Label):
-                first_nonlabel_idx = i
+            if not isinstance(s, Label) and not is_phi_assignment(s):
+                first_nonlabel_nonphi_idx = i
                 break
-        block.statements.insert(first_nonlabel_idx, stmt)
+        block.statements.insert(first_nonlabel_nonphi_idx, stmt)
 
     @staticmethod
     def _used_in_phi(dst_block, src_block, vvar_id: int) -> bool:

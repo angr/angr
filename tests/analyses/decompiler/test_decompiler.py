@@ -2565,17 +2565,17 @@ class TestDecompiler(unittest.TestCase):
         #             v54 = v35;
         #             v53 += 1;
         #             v23 = v53 == v34;
-        #             v55 = &v54[1];
         #             v2 = v54[0];
         #             v56 = file_name_concat(v30, last_component(v54[0]), v3);
         #             strip_trailing_slashes(*((long long *)&v7));
         #             v52 &= (int)do_move(v2, v56, v6, *((long long *)&v7), v4);
         #             rpl_free(v56);
+        #             v35 = &v54[1];
         #         } while (v53 < v34);
         #     }
         rpl_free_line_id = next(i for i, line in enumerate(lines) if "rpl_free(" in line)
-        assert lines[rpl_free_line_id + 1].startswith("} while (")
-        assert lines[rpl_free_line_id + 2] == "}"
+        assert lines[rpl_free_line_id + 2].startswith("} while (")
+        assert lines[rpl_free_line_id + 3] == "}"
 
         # 3. there are no var_xxx in the decompilation output; all virtual variables must be converted to variables
         #    this bug was caused by the incorrect logic in _find_cyclic_dependent_phis_and_dirty_vvars, where

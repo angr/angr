@@ -118,7 +118,7 @@ class AILSimplifier(Analysis):
         self._should_rewrite_ccalls = rewrite_ccalls
         self._removed_vvar_ids = removed_vvar_ids if removed_vvar_ids is not None else set()
         self._arg_vvars = arg_vvars
-        self._avoid_vvar_ids = avoid_vvar_ids
+        self._avoid_vvar_ids = avoid_vvar_ids if avoid_vvar_ids is not None else set()
         self._propagator_dead_vvar_ids: set[int] = set()
         self._secondary_stackvars: set[int] = secondary_stackvars if secondary_stackvars is not None else set()
 
