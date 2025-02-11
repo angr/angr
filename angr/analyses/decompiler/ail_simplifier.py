@@ -1380,7 +1380,9 @@ class AILSimplifier(Analysis):
                 if not isinstance(def_.codeloc, ExternalCodeLocation):
                     assert def_.codeloc.block_addr is not None
                     assert def_.codeloc.stmt_idx is not None
-                stmts_to_keep_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
+                    stmts_to_keep_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
+                        def_.codeloc.stmt_idx
+                    )
 
         # find all phi variables that rely on variables that no longer exist
         all_removed_var_ids = self._removed_vvar_ids.copy()
@@ -1517,13 +1519,14 @@ class AILSimplifier(Analysis):
         """
 
         vvar = rd.varid_to_vvar[vvar_id]
-        used_by = set()
+        used_by: set[int | None] = set()
         for used_vvar, loc in rd.all_vvar_uses[vvar]:
             if used_vvar is None:
                 # no explicit reference
                 used_by.add(None)
-            else:
-                stmt = blocks_dict[loc.block_addr, loc.block_idx].statements[loc.stmt_idx]
+            elif loc.block_addr is not None:
+                assert loc.stmt_idx is not None
+                stmt = blocks_dict[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     used_by.add(stmt.dst.varid)
                 else:
@@ -1531,7 +1534,7 @@ class AILSimplifier(Analysis):
         return used_by
 
     def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel) -> set[int]:
-        blocks_dict = {(bb.addr, bb.idx): bb for bb in self.func_graph}
+        blocks_dict: dict[tuple[int, int | None], Block] = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
         # find dirty vvars and vexccall vvars
         dirty_vvar_ids = set()
@@ -1547,7 +1550,7 @@ class AILSimplifier(Analysis):
 
         phi_and_dirty_vvar_ids = rd.phi_vvar_ids | dirty_vvar_ids
 
-        vvar_used_by: dict[int, set[int]] = defaultdict(set)
+        vvar_used_by: dict[int, set[int | None]] = defaultdict(set)
         for var_id in phi_and_dirty_vvar_ids:
             if var_id in rd.phivarid_to_varids:
                 for used_by_varid in rd.phivarid_to_varids[var_id]:
