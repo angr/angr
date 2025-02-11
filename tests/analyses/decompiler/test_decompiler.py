@@ -2582,6 +2582,11 @@ class TestDecompiler(unittest.TestCase):
         #    the two assignments above the last do-while loop were incorrectly removed.
         assert "vvar_" not in d.codegen.text
 
+        # 4. there are no existence of "& 0xffffffff00000000". these masking expressions were the result of redundant
+        #    full stack variables that were created during SSA and previously not eliminated only because they were
+        #    stack variables.
+        assert "0xffffffff00000000" not in d.codegen.text
+
     @structuring_algo("sailr")
     def test_comma_separated_statement_expression_whoami(self, decompiler_options=None):
         # nested switch-cases
