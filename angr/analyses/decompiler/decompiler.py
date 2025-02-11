@@ -135,6 +135,7 @@ class Decompiler(Analysis):
         self.unoptimized_ail_graph: networkx.DiGraph | None = None
         self.ail_graph: networkx.DiGraph | None = None
         self.vvar_id_start = None
+        self._copied_var_ids: set[int] = set()
         self._optimization_scratch: dict[str, Any] = {}
         self.expr_collapse_depth = expr_collapse_depth
 
@@ -267,6 +268,7 @@ class Decompiler(Analysis):
         self._variable_kb = clinic.variable_kb
         self._update_progress(70.0, text="Identifying regions")
         self.vvar_id_start = clinic.vvar_id_start
+        self._copied_var_ids = clinic.copied_var_ids
 
         if clinic.graph is None:
             # the function is empty
@@ -501,6 +503,7 @@ class Decompiler(Analysis):
                 force_loop_single_exit=self._force_loop_single_exit,
                 complete_successors=self._complete_successors,
                 peephole_optimizations=self._peephole_optimizations,
+                avoid_vvar_ids=self._copied_var_ids,
                 **kwargs,
             )
 

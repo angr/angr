@@ -170,6 +170,7 @@ class Clinic(Analysis):
 
         self._register_save_areas_removed: bool = False
         self.edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] = []
+        self.copied_var_ids: set[int] = set()
 
         self._new_block_addrs = set()
 
@@ -632,6 +633,7 @@ class Clinic(Analysis):
         self.cc_graph = self.copy_graph(ail_graph)
         self.externs = self._collect_externs(ail_graph, variable_kb)
         self.vvar_to_vvar = vvar2vvar
+        self.copied_var_ids = copied_vvar_ids
         return ail_graph
 
     def _analyze_for_data_refs(self):
