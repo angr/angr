@@ -210,8 +210,20 @@ class Sketch:
         # sub <: super
         if not isinstance(constraint, Subtype):
             return
-        subtype = self.flatten_typevar(constraint.sub_type)
-        supertype = self.flatten_typevar(constraint.super_type)
+        subtype, _ = self.flatten_typevar(constraint.sub_type)
+        supertype, try_maxsize = self.flatten_typevar(constraint.super_type)
+
+        if (
+            try_maxsize
+            and isinstance(subtype, TypeVariable)
+            and subtype in self.solver.stackvar_max_sizes
+            and not isinstance(supertype, BottomType)
+        ):
+            basetype = supertype
+            max_size = self.solver.stackvar_max_sizes.get(subtype, None)
+            if max_size not in {0, None} and max_size // basetype.size > 0:
+                supertype = Array(element=basetype, count=max_size // basetype.size)
+
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             supertype, PRIMITIVE_TYPES
         ):
@@ -228,10 +240,10 @@ class Sketch:
             if sub_node is not None:
                 sub_node.upper_bound = self.solver.meet(sub_node.upper_bound, supertype)
 
-    @staticmethod
     def flatten_typevar(
+        self,
         derived_typevar: TypeVariable | TypeConstant | DerivedTypeVariable,
-    ) -> DerivedTypeVariable | TypeVariable | TypeConstant:
+    ) -> tuple[DerivedTypeVariable | TypeVariable | TypeConstant, bool]:
         # pylint:disable=too-many-boolean-expressions
         if (
             isinstance(derived_typevar, DerivedTypeVariable)
@@ -243,8 +255,9 @@ class Sketch:
             and derived_typevar.labels[1].offset == 0
             and derived_typevar.labels[1].bits == MAX_POINTSTO_BITS
         ):
-            return derived_typevar.type_var.basetype
-        return derived_typevar
+            bt = derived_typevar.type_var.basetype
+            return bt, True
+        return derived_typevar, False
 
 
 #
@@ -366,13 +379,14 @@ class SimpleSolver:
     improvements.
     """
 
-    def __init__(self, bits: int, constraints, typevars):
+    def __init__(self, bits: int, constraints, typevars, stackvar_max_sizes: dict[TypeVariable, int] | None = None):
         if bits not in (32, 64):
             raise ValueError(f"Pointer size {bits} is not supported. Expect 32 or 64.")
 
         self.bits = bits
         self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
         self._typevars: set[TypeVariable] = typevars
+        self.stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
         self._base_lattice = BASE_LATTICES[bits]
         self._base_lattice_inverted = networkx.DiGraph()
         for src, dst in self._base_lattice.edges:

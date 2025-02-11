@@ -1592,6 +1592,13 @@ class Clinic(Analysis):
             if vartype is not None:
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
+        # get maximum sizes of each stack variable, regardless of its original type
+        stackvar_max_sizes = var_manager.get_stackvar_max_sizes()
+        tv_max_sizes = {}
+        for v, s in stackvar_max_sizes.items():
+            if v in vr.var_to_typevars:
+                for tv in vr.var_to_typevars[v]:
+                    tv_max_sizes[tv] = s
         # clean up existing types for this function
         var_manager.remove_types()
         # TODO: Type inference for global variables
@@ -1612,6 +1619,7 @@ class Clinic(Analysis):
                 var_mapping=vr.var_to_typevars,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
+                stackvar_max_sizes=tv_max_sizes,
             )
             # tp.pp_constraints()
             # tp.pp_solution()

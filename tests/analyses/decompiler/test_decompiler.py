@@ -47,6 +47,7 @@ from angr.analyses.decompiler.optimization_passes import (
 from angr.analyses.decompiler.decompilation_options import get_structurer_option, PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, PhoenixStructurer, SAILRStructurer
 from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
+from angr.sim_variable import SimStackVariable
 from angr.misc.testing import is_testing
 from angr.utils.library import convert_cproto_to_py
 
@@ -562,6 +563,19 @@ class TestDecompiler(unittest.TestCase):
 
         assert "= sprintf" not in code, "Failed to remove the unused return value of sprintf()"
 
+        # the stack variable at bp-0x58 is a char array of 64 bytes
+        v2 = next(
+            iter(
+                v for v in dec.codegen.cfunc.variables_in_use if isinstance(v, SimStackVariable) and v.offset == -0x58
+            ),
+            None,
+        )
+        assert v2 is not None
+        cv2 = dec.codegen.cfunc.variables_in_use[v2]
+        assert isinstance(cv2.type, SimTypeArray)
+        assert isinstance(cv2.type.elem_type, SimTypeChar)
+        assert cv2.type.length == 64
+
     @for_all_structuring_algos
     def test_decompiling_1after909_doit(self, decompiler_options=None):
         """
@@ -597,10 +611,10 @@ class TestDecompiler(unittest.TestCase):
             access_count == 2
         ), f"The decompilation should contain 2 calls to access(), but instead {access_count} calls are present."
 
-        m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) == -1\)", code)
+        m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == -1\)", code)
         if m is None:
             # Try without call folding
-            m = re.search(r"(\w+) = access\(&\w+, 0\);\s*if \(\1 == -1\)", code)
+            m = re.search(r"(\w+) = access\(\w+, 0\);\s*if \(\1 == -1\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
         # Arguments to the convert call should be fully folded into the call statement itself
