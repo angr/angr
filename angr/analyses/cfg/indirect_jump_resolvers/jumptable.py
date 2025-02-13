@@ -183,7 +183,11 @@ class ConstantValueManager:
         # determine blocks to run FCP on
 
         # - include at most three levels of superblock successors from the entrypoint
+        self.mapping = {}
         startpoint = self.func.startpoint
+        if startpoint is None:
+            return
+
         blocks = set()
         succ_and_levels = [(startpoint, 0)]
         while succ_and_levels:
