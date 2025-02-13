@@ -4679,6 +4679,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["main"]
         dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None
         self._print_decompilation_result(dec)
         out_0 = dec.codegen.text
 
@@ -4686,6 +4687,7 @@ class TestDecompiler(unittest.TestCase):
         assert len(f.prototype.args) == 2
         # reflow it
         func_typevar = proj.kb.decompilations[(f.addr, "pseudocode")].func_typevar
+        assert func_typevar is not None
         dec.reflow_variable_types({func_typevar: set()}, func_typevar, {}, dec.codegen)
 
         self._print_decompilation_result(dec)
