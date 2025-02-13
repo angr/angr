@@ -782,6 +782,8 @@ class Clinic(Analysis):
         :return: None
         """
 
+        attempted_funcs: set[int] = set()
+
         for node in self.function.transition_graph:
             if (
                 isinstance(node, BlockNode)
@@ -793,7 +795,12 @@ class Clinic(Analysis):
             elif isinstance(node, Function):
                 target_func = node
             else:
+                # TODO: Enable call-site analysis for indirect calls
                 continue
+
+            if target_func.addr in attempted_funcs:
+                continue
+            attempted_funcs.add(target_func.addr)
 
             # case 0: the calling convention and prototype are available
             if target_func.calling_convention is not None and target_func.prototype is not None:
@@ -813,6 +820,7 @@ class Clinic(Analysis):
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
+                    target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 3: the callee is a PLT function
@@ -821,6 +829,7 @@ class Clinic(Analysis):
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
+                    target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 4: fall back to call site analysis
