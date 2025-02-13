@@ -165,6 +165,18 @@ class CallingConventionAnalysis(Analysis):
             ):
                 return
 
+            if (
+                hooker is not None
+                and hooker.cc is not None
+                and hooker.is_function
+                and not hooker.guessed_prototype
+                and hooker.prototype is not None
+            ):
+                # copy the calling convention and prototype from the SimProcedure instance
+                self.cc = hooker.cc
+                self.prototype = hooker.prototype
+                return
+
             if self._function.prototype is None:
                 # try our luck
                 # we set ignore_binary_name to True because the binary name SimProcedures is "cle##externs" and does not
@@ -309,14 +321,8 @@ class CallingConventionAnalysis(Analysis):
                 if self.project.is_hooked(real_func.addr):
                     # prioritize the hooker
                     hooker = self.project.hooked_by(real_func.addr)
-                    if (
-                        hooker is not None
-                        and not hooker.is_stub
-                        and hooker.is_function
-                        and not hooker.guessed_prototype
-                    ):
+                    if hooker is not None and hooker.is_function and not hooker.guessed_prototype:
                         # we only take the prototype from the SimProcedure if
-                        # - the SimProcedure is not a stub (for stubs, we take the prototype from the real function)
                         # - the SimProcedure is a function
                         # - the prototype of the SimProcedure is not guessed
                         return cc, hooker.prototype
