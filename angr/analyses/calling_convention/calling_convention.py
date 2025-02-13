@@ -175,6 +175,7 @@ class CallingConventionAnalysis(Analysis):
                 # copy the calling convention and prototype from the SimProcedure instance
                 self.cc = hooker.cc
                 self.prototype = hooker.prototype
+                self.prototype_libname = hooker.library_name
                 return
 
             if self._function.prototype is None:

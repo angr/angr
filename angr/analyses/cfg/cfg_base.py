@@ -2538,6 +2538,34 @@ class CFGBase(Analysis):
     #
 
     @staticmethod
+    def _is_noop_jump_block(block) -> bool:
+        """
+        Check if the block does nothing but jumping to a constant address.
+
+        :param block:   The block instance. We assume the block is already optimized.
+        :return:        True if the entire block is a jump to a constant address, False otherwise.
+        """
+
+        vex = block.vex
+        if vex.jumpkind != "Ijk_Boring":
+            return False
+        if isinstance(vex.next, pyvex.expr.IRConst):
+            return all(isinstance(stmt, pyvex.stmt.IMark) for stmt in vex.statements)
+        if isinstance(vex.next, pyvex.expr.RdTmp):
+            next_tmp = vex.next.tmp
+            return all(
+                isinstance(stmt, pyvex.stmt.IMark)
+                or (
+                    isinstance(stmt, pyvex.stmt.WrTmp)
+                    and stmt.tmp == next_tmp
+                    and isinstance(stmt.data, pyvex.expr.Load)
+                    and isinstance(stmt.data.addr, pyvex.expr.Const)
+                )
+                for stmt in vex.statements
+            )
+        return False
+
+    @staticmethod
     def _is_noop_block(arch: archinfo.Arch, block) -> bool:
         """
         Check if the block is a no-op block by checking VEX statements.

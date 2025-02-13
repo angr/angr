@@ -2083,6 +2083,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             cfg_job.src_node is not None
             and cfg_job.src_node.addr not in self.kb.labels
             and cfg_job.jumpkind == "Ijk_Boring"
+            and self._is_noop_jump_block(cfg_job.src_node.block)
         ):
             # the caller node is very likely to be a PLT stub
             if not self.functions.contains_addr(cfg_job.src_node.addr):
