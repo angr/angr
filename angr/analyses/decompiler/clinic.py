@@ -972,7 +972,29 @@ class Clinic(Analysis):
             return ailment.Block(block_node.addr, 0, statements=[])
 
         block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
-        return self._convert_vex(block)
+        converted = self._convert_vex(block)
+
+        # architecture-specific setup
+        if block.addr == self.function.addr and self.project.arch.name in {"X86", "AMD64"}:
+            # setup dflag; this is a hack for most sane ABIs. we may move this logic elsewhere if there are adversarial
+            # binaries that mess with dflags and pass them across functions
+            dflag_offset, dflag_size = self.project.arch.registers["d"]
+            dflag = ailment.Expr.Register(
+                self._ail_manager.next_atom(),
+                None,
+                dflag_offset,
+                dflag_size * self.project.arch.byte_width,
+                ins_addr=block.addr,
+            )
+            forward = ailment.Expr.Const(
+                self._ail_manager.next_atom(), None, 1, dflag_size * self.project.arch.byte_width, ins_addr=block.addr
+            )
+            dflag_assignment = ailment.Stmt.Assignment(
+                self._ail_manager.next_atom(), dflag, forward, ins_addr=block.addr
+            )
+            converted.statements.insert(0, dflag_assignment)
+
+        return converted
 
     def _convert_vex(self, block):
         if block.vex.jumpkind not in {"Ijk_Call", "Ijk_Boring", "Ijk_Ret"} and not block.vex.jumpkind.startswith(
