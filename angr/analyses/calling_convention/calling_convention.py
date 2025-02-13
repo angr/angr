@@ -309,9 +309,16 @@ class CallingConventionAnalysis(Analysis):
                 if self.project.is_hooked(real_func.addr):
                     # prioritize the hooker
                     hooker = self.project.hooked_by(real_func.addr)
-                    if hooker is not None and (
-                        not hooker.is_stub or (hooker.is_function and not hooker.guessed_prototype)
+                    if (
+                        hooker is not None
+                        and not hooker.is_stub
+                        and hooker.is_function
+                        and not hooker.guessed_prototype
                     ):
+                        # we only take the prototype from the SimProcedure if
+                        # - the SimProcedure is not a stub (for stubs, we take the prototype from the real function)
+                        # - the SimProcedure is a function
+                        # - the prototype of the SimProcedure is not guessed
                         return cc, hooker.prototype
                 if real_func.prototype is not None:
                     return cc, real_func.prototype

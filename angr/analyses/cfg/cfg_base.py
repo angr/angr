@@ -2151,6 +2151,11 @@ class CFGBase(Analysis):
             f = self.kb.functions.function(addr=addr)
             assert f is not None
 
+            # copy over existing metadata
+            if known_functions.contains_addr(addr):
+                kf = known_functions.get_by_addr(addr)
+                f.is_plt = kf.is_plt
+
             blockaddr_to_function[addr] = f
 
             function_is_returning = False

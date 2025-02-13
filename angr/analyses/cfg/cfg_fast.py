@@ -2081,13 +2081,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         if (
             cfg_job.src_node is not None
-            and self.functions.contains_addr(cfg_job.src_node.addr)
-            and self.functions[cfg_job.src_node.addr].is_default_name
             and cfg_job.src_node.addr not in self.kb.labels
             and cfg_job.jumpkind == "Ijk_Boring"
         ):
-            # assign a name to the caller function that jumps to this procedure
-            self.functions[cfg_job.src_node.addr].name = procedure.display_name
+            # the caller node is very likely to be a PLT stub
+            if not self.functions.contains_addr(cfg_job.src_node.addr):
+                src_func = self.functions.function(addr=cfg_job.src_node.addr, create=True)
+            else:
+                src_func = self.functions.get_by_addr(cfg_job.src_node.addr)
+            if len(src_func.block_addrs_set) <= 1 and src_func.is_default_name:
+                # assign a name to the caller function that jumps to this procedure
+                src_func.name = procedure.display_name
+                # mark it as PLT
+                src_func.is_plt = True
 
         if procedure.ADDS_EXITS:
             # Get two blocks ahead

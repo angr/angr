@@ -4761,6 +4761,45 @@ class TestDecompiler(unittest.TestCase):
         # second loop
         assert _check_rep_stosq(lines, 32, 8) ^ _check_rep_stosq(lines, 32, 1)
 
+    def test_decompiling_fprintf_multiple_format_string_args(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "fc7a8e64d88ad1d8c7446c606731901063706fd2fb6f9e237dda4cb4c966665b",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+        memcpy = proj.kb.functions[0x4043C0]
+        # ensure this PLT function stub is properly named; we weren't naming it because it was first seen as part of
+        # sub_404350
+        assert memcpy.name == "memcpy"
+
+        f = proj.kb.functions[0x402EE0]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None
+        self._print_decompilation_result(dec)
+
+        fprintf = proj.kb.functions[0x404430]
+        assert fprintf.is_plt is True
+        assert fprintf.prototype is not None
+        assert fprintf.prototype.variadic is True
+
+        all_strings = [
+            '"Argument domain error (DOMAIN)"',
+            '"Argument singularity (SIGN)"',
+            '"Overflow range error (OVERFLOW)"',
+            '"The result is too small to be represented (UNDERFLOW)"',
+            '"Total loss of significance (TLOSS)"',
+            '"Partial loss of significance (PLOSS)"',
+            '"Unknown error"',
+        ]
+        assert "fprintf(" in dec.codegen.text
+        # strings would have gone missing if we could not correctly resolve the prototype of fprintf
+        for s in all_strings:
+            assert s in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
