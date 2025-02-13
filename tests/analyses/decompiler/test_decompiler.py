@@ -4695,6 +4695,72 @@ class TestDecompiler(unittest.TestCase):
 
         assert out_0 == out_1
 
+    def test_decompiling_rep_stosq(self, decompiler_options=None):
+
+        def _check_rep_stosq(lines: list[str], count: int, increment: int) -> bool:
+            """
+            Example:
+
+
+            for (v7 = 32; v7; v6 += 1)
+            {
+                v7 -= 1;
+                *(v6) = 0;
+            }
+            """
+
+            count_line_idx, count_line = next(
+                iter((i, line) for i, line in enumerate(lines) if re.search(f"(v\\d+) = {count}", line)), (None, None)
+            )
+            if count_line is None or count_line_idx is None:
+                return False
+            m = re.search(f"(v\\d+) = {count}", count_line)
+            assert m is not None
+            count_var = m.group(1)
+            next_for_loop_idx = next(
+                iter(i for i, line in enumerate(lines[count_line_idx:]) if line.startswith("for (")), None
+            )
+            if next_for_loop_idx is None:
+                return False
+            next_for_loop_idx += count_line_idx
+
+            for_loop_lines = lines[next_for_loop_idx : next_for_loop_idx + 5]
+            if for_loop_lines[1] != "{" or for_loop_lines[4] != "}":
+                return False
+
+            # check header
+            m = re.match(f"for [^;]+; {count_var}; (v\\d+) \\+= {increment}\\)", for_loop_lines[0])
+            if m is None:
+                return False
+            ptr_var = m.group(1)
+            if for_loop_lines[2] != f"{count_var} -= 1;":
+                return False
+
+            m = re.match(f"\\*[^;]*{ptr_var}[^;]* = 0;", for_loop_lines[3])
+            return m is not None
+
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "fc7a8e64d88ad1d8c7446c606731901063706fd2fb6f9e237dda4cb4c966665b",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+
+        f = proj.kb.functions[0x403670]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # rep stosq are transformed into for-loops. check the existence of them
+        lines = [line.strip() for line in dec.codegen.text.split("\n")]
+        # first loop
+        assert _check_rep_stosq(lines, 48, 8) ^ _check_rep_stosq(lines, 48, 1)
+        # second loop
+        assert _check_rep_stosq(lines, 32, 8) ^ _check_rep_stosq(lines, 32, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

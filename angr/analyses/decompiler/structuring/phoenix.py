@@ -14,7 +14,7 @@ from ailment.statement import Statement, ConditionalJump, Jump, Label, Return
 from ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from angr.utils.graph import GraphUtils
-from angr.utils.ail import is_phi_assignment
+from angr.utils.ail import is_phi_assignment, is_head_controlled_loop_block
 from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from angr.utils.graph import dominates, to_acyclic_graph, dfs_back_edges
@@ -312,11 +312,11 @@ class PhoenixStructurer(StructurerBase):
                     and head_block.nodes
                     and isinstance(head_block.nodes[0], Block)
                     and head_block.nodes[0].statements
-                    and isinstance(first_nonlabel_nonphi_statement(head_block.nodes[0]), ConditionalJump)
+                    and is_head_controlled_loop_block(head_block.nodes[0])
                 ) or (
                     isinstance(head_block, Block)
                     and head_block.statements
-                    and isinstance(first_nonlabel_nonphi_statement(head_block), ConditionalJump)
+                    and is_head_controlled_loop_block(head_block)
                 ):
                     # it's a while loop if the conditional jump (or the head block) is at the beginning of node
                     loop_type = "while" if head_block_idx == 0 else "do-while"
