@@ -6,6 +6,7 @@ from .structured_codegen import BaseStructuredCodeGenerator
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.optimization_passes.expr_op_swapper import OpDescriptor
+    from angr.analyses.typehoon.typevars import TypeVariable, TypeConstraint
 
 
 class DecompilationCache:
@@ -29,7 +30,7 @@ class DecompilationCache:
     def __init__(self, addr):
         self.parameters: dict[str, Any] = {}
         self.addr = addr
-        self.type_constraints: set | None = None
+        self.type_constraints: dict[TypeVariable, set[TypeConstraint]] | None = None
         self.func_typevar = None
         self.var_to_typevar: dict | None = None
         self.codegen: BaseStructuredCodeGenerator | None = None

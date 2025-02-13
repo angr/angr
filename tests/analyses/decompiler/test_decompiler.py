@@ -4671,6 +4671,28 @@ class TestDecompiler(unittest.TestCase):
         bad_flipped_returns = re.findall(r"if \(!*v[0-9]{1,5}\)\s+return .+?;", code)
         assert len(bad_flipped_returns) == 0
 
+    def test_decompiler_type_reflowing_no_changes(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+
+        f = proj.kb.functions["main"]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(dec)
+        out_0 = dec.codegen.text
+
+        assert f.prototype is not None
+        assert len(f.prototype.args) == 2
+        # reflow it
+        func_typevar = proj.kb.decompilations[(f.addr, "pseudocode")].func_typevar
+        dec.reflow_variable_types({func_typevar: set()}, func_typevar, {}, dec.codegen)
+
+        self._print_decompilation_result(dec)
+        out_1 = dec.codegen.text
+
+        assert out_0 == out_1
+
 
 if __name__ == "__main__":
     unittest.main()

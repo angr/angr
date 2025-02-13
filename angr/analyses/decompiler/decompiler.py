@@ -31,6 +31,7 @@ from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
     from .peephole_optimizations import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
+    from angr.analyses.typehoon.typevars import TypeVariable, TypeConstraint
 
 l = logging.getLogger(name=__name__)
 
@@ -549,7 +550,9 @@ class Decompiler(Analysis):
                     SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
                 )
 
-    def reflow_variable_types(self, type_constraints: set, func_typevar, var_to_typevar: dict, codegen):
+    def reflow_variable_types(
+        self, type_constraints: dict[TypeVariable, set[TypeConstraint]], func_typevar, var_to_typevar: dict, codegen
+    ):
         """
         Re-run type inference on an existing variable recovery result, then rerun codegen to generate new results.
 
@@ -609,7 +612,9 @@ class Decompiler(Analysis):
                     var = arg.variable
                     new_type = var_manager.get_variable_type(var)
                     if new_type is not None:
-                        self.func.prototype.args[i] = new_type
+                        self.func.prototype.args = (
+                            self.func.prototype.args[:i] + (new_type,) + self.func.prototype.args[i + 1 :]
+                        )
         except Exception:  # pylint:disable=broad-except
             l.warning(
                 "Typehoon analysis failed. Variables will not have types. Please report to GitHub.", exc_info=True
