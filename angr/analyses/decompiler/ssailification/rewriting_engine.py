@@ -91,9 +91,9 @@ class SimEngineSSARewriting(
 
     def process(
         self, state: RewritingState, *, block: Block | None = None, whitelist: set[int] | None = None, **kwargs
-    ) -> RewritingState:
+    ) -> None:
         self.head_controlled_loop_outstate = None
-        return super().process(state, block=block, whitelist=whitelist, **kwargs)
+        super().process(state, block=block, whitelist=whitelist, **kwargs)
 
     def _top(self, bits):
         assert False, "Unreachable"

@@ -4712,7 +4712,7 @@ class TestDecompiler(unittest.TestCase):
             count_line_idx, count_line = next(
                 iter((i, line) for i, line in enumerate(lines) if re.search(f"(v\\d+) = {count}", line)), (None, None)
             )
-            if count_line is None:
+            if count_line is None or count_line_idx is None:
                 return False
             m = re.search(f"(v\\d+) = {count}", count_line)
             assert m is not None
@@ -4751,7 +4751,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x403670]
         dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
-        assert dec.codegen is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
         self._print_decompilation_result(dec)
 
         # rep stosq are transformed into for-loops. check the existence of them
