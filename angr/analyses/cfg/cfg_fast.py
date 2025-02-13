@@ -1782,7 +1782,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self.project.loader.discard_ro_memview()
 
         # Clean up
-        self._traced_addresses = None
+        self._traced_addresses = None  # type: ignore
         self._lifter_deregister_readonly_regions()
         self._function_returns = None
 
@@ -1838,6 +1838,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 xrefs = self.kb.xrefs.get_xrefs_by_dst(security_cookie_addr)
                 tested_func_addrs = set()
                 for xref in xrefs:
+                    assert xref.block_addr is not None
                     cfg_node = self.model.get_any_node(xref.block_addr)
                     if cfg_node is None:
                         continue
@@ -3721,7 +3722,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
     #
 
     def _graph_add_edge(
-        self, cfg_node: CFGNode, src_node: CFGNode | None, src_jumpkind: str, src_ins_addr: int, src_stmt_idx: int
+        self,
+        cfg_node: CFGNode,
+        src_node: CFGNode | None,
+        src_jumpkind: str,
+        src_ins_addr: int | None,
+        src_stmt_idx: int | None,
     ):
         """
         Add edge between nodes, or add node if entry point
@@ -4591,6 +4597,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 elif (
                     lifted_block is not None
                     and is_x86_x64_arch
+                    and lifted_block.bytes is not None
                     and len(lifted_block.bytes) - irsb_size > 2
                     and lifted_block.bytes[irsb_size : irsb_size + 2]
                     in {
@@ -4666,7 +4673,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     self._seg_list.occupy(real_addr + irsb_size, nodecode_size, "nodecode")
 
             # Occupy the block in segment list
-            if irsb.size > 0:
+            if irsb is not None and irsb.size > 0:
                 self._seg_list.occupy(real_addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
@@ -4976,6 +4983,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         for assumption_addr in to_remove:
             # remove this assumption from the graph (since we may have new relationships formed later)
+            assert self._decoding_assumption_relations is not None
             if assumption_addr in self._decoding_assumption_relations:
                 self._decoding_assumption_relations.remove_node(assumption_addr)
 
@@ -5166,6 +5174,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     target_func = edges[0][1]
                     if isinstance(target_func, (HookNode, Function)) and self.project.is_hooked(target_func.addr):
                         hooker = self.project.hooked_by(target_func.addr)
+                        assert hooker is not None
                         if hooker.DYNAMIC_RET:
                             return self._is_call_returning(callsite_cfgnode, target_func.addr)
 
