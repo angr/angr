@@ -202,7 +202,8 @@ class Function(Serializable):
         if is_plt is not None:
             self.is_plt = is_plt
         else:
-            # Whether this function is a PLT entry or not is fully relying on the PLT detection in CLE
+            # Whether this function is a PLT entry or not is primarily relying on the PLT detection in CLE; it may also
+            # be updated (to True) during CFG recovery.
             if self.project is None:
                 raise ValueError(
                     "'is_plt' must be specified if you do not specify a function manager for this new function."

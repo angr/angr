@@ -383,7 +383,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
             return (
                 cc_analysis.cc,
                 cc_analysis.prototype,
-                func.prototype_libname,
+                cc_analysis.prototype_libname if cc_analysis.prototype_libname is not None else func.prototype_libname,
                 self.kb.variables.get_function_manager(func_addr),
             )
         _l.info("Cannot determine calling convention for %r.", func)
