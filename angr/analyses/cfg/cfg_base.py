@@ -11,7 +11,7 @@ import pyvex
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource, Hex, Coff, SRec, XBE
 from cle.backends import NamedRegion
 import archinfo
-from archinfo.arch_soot import SootAddressDescriptor
+from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
@@ -129,7 +129,7 @@ class CFGBase(Analysis):
 
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
-        self._updated_nonreturning_functions: set[int] | None = None
+        self._updated_nonreturning_functions: set[int | SootMethodDescriptor] | None = None
 
         self._normalize = normalize
 
@@ -246,7 +246,7 @@ class CFGBase(Analysis):
             )
 
         self._regions_size = sum((end - start) for start, end in regions)
-        self._regions: dict[int, int] = SortedDict(regions)
+        self._regions: SortedDict = SortedDict(regions)
 
         l.debug("CFG recovery covers %d regions:", len(self._regions))
         for start, end in self._regions.items():
@@ -1556,6 +1556,7 @@ class CFGBase(Analysis):
                     self.kb.functions[func_addr].alignment = True
                     continue
                 node = function.get_node(block.addr)
+                assert node is not None
                 successors = list(function.graph.successors(node))
                 if len(successors) == 1 and successors[0].addr == node.addr:
                     # self loop. mark this function as a function alignment
@@ -2549,7 +2550,7 @@ class CFGBase(Analysis):
         vex = block.vex
         if vex.jumpkind != "Ijk_Boring":
             return False
-        if isinstance(vex.next, pyvex.expr.IRConst):
+        if isinstance(vex.next, pyvex.expr.Const):
             return all(isinstance(stmt, pyvex.stmt.IMark) for stmt in vex.statements)
         if isinstance(vex.next, pyvex.expr.RdTmp):
             next_tmp = vex.next.tmp
@@ -2788,7 +2789,7 @@ class CFGBase(Analysis):
         cfg_node: CFGNode,
         irsb: pyvex.IRSB,
         func_addr: int,
-        stmt_idx: int | str = DEFAULT_STATEMENT,
+        stmt_idx: int = DEFAULT_STATEMENT,
     ) -> tuple[bool, set[int], IndirectJump | None]:
         """
         Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
