@@ -4778,7 +4778,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x402EE0]
         dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
-        assert dec.codegen is not None and dec.codegen.text is not None
+        assert dec.codegen is not None and dec.codegen.text is not None and dec.codegen.cfunc is not None
 
         # there are only two variables in the decompilation; more variables probably means RegisterSaveAreaSimplifier
         # failed, and we kept xmm-spilling statements around.
