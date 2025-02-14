@@ -4907,6 +4907,17 @@ class TestDecompiler(unittest.TestCase):
         # ensure decompling this function should not take over 30 seconds - it was taking at least two minutes before
         # recent optimizations
 
+    def test_fastfail_intrinsic(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "windows", "fastfail.exe")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+        dec = proj.analyses.Decompiler(
+            proj.kb.functions["fastfail_with_code_if_lt_10"], cfg=cfg, options=decompiler_options
+        )
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "__fastfail(a0)" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
