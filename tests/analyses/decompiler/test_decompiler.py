@@ -4779,6 +4779,17 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions[0x402EE0]
         dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
+
+        # there are only two variables in the decompilation; more variables probably means RegisterSaveAreaSimplifier
+        # failed, and we kept xmm-spilling statements around.
+        # we also ensure the jump table address is not displayed as an extern variable (which is why it's excluded from
+        # .variables_in_use).
+        assert {v.ident for v in dec.codegen.cfunc.variables_in_use} == {
+            "arg_0",
+            "ir_0",
+            "ir_1",
+        }
+
         self._print_decompilation_result(dec)
 
         fprintf = proj.kb.functions[0x404430]
