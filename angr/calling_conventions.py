@@ -1433,7 +1433,7 @@ class SimCCX86LinuxSyscall(SimCCSyscall):
 
 class SimCCX86WindowsSyscall(SimCCSyscall):
     # TODO: Make sure the information is correct
-    ARG_REGS = []
+    ARG_REGS = ["ecx"]
     FP_ARG_REGS = []
     RETURN_VAL = SimRegArg("eax", 4)
     RETURN_ADDR = SimRegArg("ip_at_syscall", 4)
@@ -1673,7 +1673,7 @@ class SimCCAMD64LinuxSyscall(SimCCSyscall):
 
 class SimCCAMD64WindowsSyscall(SimCCSyscall):
     # TODO: Make sure the information is correct
-    ARG_REGS = []
+    ARG_REGS = ["rcx"]
     FP_ARG_REGS = []
     RETURN_VAL = SimRegArg("rax", 8)
     RETURN_ADDR = SimRegArg("ip_at_syscall", 8)
