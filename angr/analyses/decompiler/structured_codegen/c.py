@@ -539,6 +539,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         if self.codegen.show_externs and self.codegen.cexterns:
             for v in sorted(self.codegen.cexterns, key=lambda v: str(v.variable.name)):
+                if v.variable not in self.variables_in_use:
+                    continue
                 varname = v.c_repr() if v.type is None else v.variable.name
                 yield "extern ", None
                 yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
@@ -2581,7 +2583,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
-            self._variable(v, 1)
+            self._variable(v, 1, mark_used=False)
             for v in self.externs
             if v not in self._inlined_strings and v not in self._function_pointers
         }
@@ -2698,7 +2700,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return _mapping.get(n)(signed=signed).with_arch(self.project.arch)
         return SimTypeNum(n, signed=signed).with_arch(self.project.arch)
 
-    def _variable(self, variable: SimVariable, fallback_type_size: int | None, vvar_id: int | None = None) -> CVariable:
+    def _variable(
+        self, variable: SimVariable, fallback_type_size: int | None, vvar_id: int | None = None, mark_used: bool = True
+    ) -> CVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
         # TODO: for each variable it links into the fucking ail. then we can remove fallback_type_size.
         unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
@@ -2710,7 +2714,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 (fallback_type_size or self.project.arch.bytes) * self.project.arch.byte_width
             )
         cvar = CVariable(variable, unified_variable=unified, variable_type=variable_type, codegen=self, vvar_id=vvar_id)
-        self._variables_in_use[variable] = cvar
+        if mark_used:
+            self._variables_in_use[variable] = cvar
         return cvar
 
     def _get_variable_reference(self, cvar: CVariable) -> CExpression:
