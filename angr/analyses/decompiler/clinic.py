@@ -1052,7 +1052,11 @@ class Clinic(Analysis):
                 node = self._cfg.get_any_node(block.addr)
                 if node is None:
                     continue
-                successors = self._cfg.get_successors(node, excluding_fakeret=True, jumpkind="Ijk_Call")
+                successors = [
+                    node
+                    for node, jk in self._cfg.get_successors_and_jumpkinds(node)
+                    if jk == "Ijk_Call" or jk.startswith("Ijk_Sys")
+                ]
                 if len(successors) == 1:
                     succ_addr = successors[0].addr
                     if not self.project.is_hooked(succ_addr) or not isinstance(
