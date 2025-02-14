@@ -20,6 +20,8 @@ lib.add_all_from_dict(P["win32_kernel"])
 lib.set_library_names("ntoskrnl.exe")
 prototypes = \
     {
+        # int 29h
+        '__fastfail': SimTypeFunction([SimTypeInt(signed=False, label="Int")], SimTypeBottom(label="void"), arg_names=["code"]),
         #
         'NtQueryObject': SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="Int"), label="IntPtr", offset=0), SimTypeInt(signed=False, label="OBJECT_INFORMATION_CLASS"), SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0)], SimTypeInt(signed=True, label="Int32"), arg_names=["Handle", "ObjectInformationClass", "ObjectInformation", "ObjectInformationLength", "ReturnLength"]),
         #

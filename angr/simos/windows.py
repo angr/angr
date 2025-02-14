@@ -15,6 +15,7 @@ from angr import sim_options as o
 from angr.tablespecs import StringTableSpec
 from angr.procedures import SIM_LIBRARIES as L
 from angr.procedures.definitions import load_win32api_definitions
+from angr.calling_conventions import SYSCALL_CC
 from .simos import SimOS
 
 _l = logging.getLogger(name=__name__)
@@ -48,6 +49,11 @@ class SimWindows(SimOS):
         self.acmdln_ptr = None
         self.wcmdln_ptr = None
 
+        self.fastfail = L["ntoskrnl.exe"].get("__fastfail", self.arch)
+        self.fastfail.addr = self._find_or_make(self.fastfail.display_name)
+        self.fastfail.cc = SYSCALL_CC[self.arch.name]["Win32"](self.arch)
+        self._syscall_handlers = {self.fastfail.addr: self.fastfail}
+
     def configure_project(self):
         super().configure_project()
 
@@ -65,6 +71,8 @@ class SimWindows(SimOS):
         self.commode_ptr = self._find_or_make("_commode")
         self.acmdln_ptr = self._find_or_make("_acmdln")
         self.wcmdln_ptr = self._find_or_make("_wcmdln")
+
+        self.project.hook(self.fastfail.addr, self.fastfail)
 
         self.is_dump = isinstance(self.project.loader.main_object, cle.backends.Minidump)
 
@@ -419,6 +427,35 @@ class SimWindows(SimOS):
         # we want to use a true guard here. if it's not true, then it's already been added in windup.
         successors.add_successor(exc_state, self._exception_handler, claripy.true(), "Ijk_Exception")
         successors.processed = True
+
+    def syscall(self, state, allow_unsupported=True):
+        """
+        Given a state, return the procedure corresponding to the current syscall.
+        This procedure will have .syscall_number, .display_name, and .addr set.
+
+        :param state:               The state to get the syscall number from
+        :param allow_unsupported:   Whether to return a "dummy" sycall instead of raising an unsupported exception
+        """
+        if state.block(state.history.jump_source).bytes.hex() == "cd29":  # int 29h
+            return self.fastfail
+        return None
+
+    def is_syscall_addr(self, addr):
+        """
+        Return whether or not the given address corresponds to a syscall implementation.
+        """
+        return addr in self._syscall_handlers
+
+    def syscall_from_addr(self, addr, allow_unsupported=True):
+        """
+        Get a syscall SimProcedure from an address.
+
+        :param addr: The address to convert to a syscall SimProcedure
+        :param allow_unsupported: Whether to return a dummy procedure for an unsupported syscall instead of raising an
+                                  exception.
+        :return: The SimProcedure for the syscall, or None if the address is not a syscall address.
+        """
+        return self._syscall_handlers.get(addr, None)
 
     # these two methods load and store register state from a struct CONTEXT
     # https://www.nirsoft.net/kernel_struct/vista/CONTEXT.html
