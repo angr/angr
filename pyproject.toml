@@ -1,6 +1,99 @@
 [build-system]
-requires = ["setuptools>=59", "wheel", "pyvex==9.2.144.dev0", "unicorn==2.0.1.post1"]
+requires = ["setuptools>=61.2", "wheel", "pyvex==9.2.144.dev0", "unicorn==2.0.1.post1"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "angr"
+description = "A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries"
+license = {text = "BSD-2-Clause"}
+classifiers = [
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+urls = {Homepage = "https://github.com/angr/angr"}
+requires-python = ">=3.10"
+dependencies = [
+    "CppHeaderParser",
+    "GitPython",
+    "ailment==9.2.144.dev0",
+    "archinfo==9.2.144.dev0",
+    "cachetools",
+    "capstone==5.0.3",
+    "cffi>=1.14.0",
+    "claripy==9.2.144.dev0",
+    "cle==9.2.144.dev0",
+    "mulpyplexer",
+    "nampa",
+    "networkx!=2.8.1,>=2.0",
+    "protobuf>=5.28.2",
+    "psutil",
+    "pycparser>=2.18",
+    "pydemumble",
+    "pyformlang",
+    "pyvex==9.2.144.dev0",
+    "rich>=13.1.0",
+    "sortedcontainers",
+    "sympy",
+    "unicorn==2.0.1.post1",
+    "unique-log-filter",
+    "colorama;platform_system=='Windows'",
+]
+dynamic = ["version"]
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.optional-dependencies]
+angrdb = ["sqlalchemy"]
+docs = [
+    "furo",
+    "myst-parser",
+    "sphinx",
+    "sphinx-autodoc-typehints",
+]
+pcode = ["pypcode~=3.0"]
+telemetry = ["opentelemetry-api"]
+testing = [
+    "keystone-engine",
+    "pypcode~=3.0",
+    "pytest",
+    "pytest-split",
+    "pytest-xdist",
+    "sqlalchemy",
+]
+
+[project.scripts]
+angr = "angr.__main__:main"
+
+[tool.setuptools]
+include-package-data = true
+license-files = ["LICENSE"]
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+angr = [
+    "py.typed",
+    "lib/*",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "angr.__version__"}
+
+[tool.uv.sources]
+archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
+pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
+cle = { git = "https://github.com/angr/cle.git", branch = "master" }
+claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
+ailment = { git = "https://github.com/angr/ailment.git", branch = "master" }
 
 [tool.black]
 line-length = 120
