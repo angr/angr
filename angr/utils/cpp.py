@@ -14,4 +14,4 @@ def is_cpp_funcname_ctor(name: str) -> bool:
     if "::" not in name:
         return False
     parts = name.split("::")
-    return len(parts) == 2 and parts[0] and parts[0] + "()" == parts[1]
+    return bool(len(parts) == 2 and parts[0] and parts[0] + "()" == parts[1])
