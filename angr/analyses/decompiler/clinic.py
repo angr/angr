@@ -2472,6 +2472,19 @@ class Clinic(Analysis):
                                     last_stmt.target.value = succs[0].addr
                                 elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
                                     patch_conditional_jump_target(last_stmt, node.addr, succs[0].addr)
+                                    # if both branches jump to the same location, we replace it with a jump
+                                    if (
+                                        isinstance(last_stmt.true_target, ailment.Expr.Const)
+                                        and isinstance(last_stmt.false_target, ailment.Expr.Const)
+                                        and last_stmt.true_target.value == last_stmt.false_target.value
+                                    ):
+                                        last_stmt = ailment.Stmt.Jump(
+                                            last_stmt.idx,
+                                            last_stmt.true_target,
+                                            target_idx=last_stmt.true_target.idx,
+                                            ins_addr=last_stmt.ins_addr,
+                                        )
+                                        pred.statements[-1] = last_stmt
                                 first_cond_jump = first_conditional_jump(pred)
                                 if first_cond_jump is not None and first_cond_jump is not last_stmt:
                                     patch_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
