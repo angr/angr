@@ -9,6 +9,7 @@ from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.utils.cpp import is_cpp_funcname_ctor
 from . import Analysis, VtableFinder, CFGFast, ReachingDefinitionsAnalysis
 
 if TYPE_CHECKING:
@@ -109,7 +110,7 @@ class NewFunctionHandler(FunctionHandler):
         else:
             if self.project.kb.functions.contains_addr(function_address):
                 func = self.project.kb.functions.get_by_addr(function_address)
-                if func is not None and "ctor" in func.demangled_name:
+                if func is not None and is_cpp_funcname_ctor(func.demangled_name):
                     # check if rdi has a possible this pointer/ object address, if so then we can assign this object
                     # this class
                     # also if the func is a constructor(not stripped binaries)
