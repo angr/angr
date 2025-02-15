@@ -4811,6 +4811,36 @@ class TestDecompiler(unittest.TestCase):
         for s in all_strings:
             assert s in dec.codegen.text
 
+    def test_decompiling_vcstdlib_test_condjump_to_jump(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "vcstdlib_test.exe",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions[0x1400117E4]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        # bad output:
+        #     else if (g_14002bf04)
+        #     {
+        #         v2 = GetCurrentThreadId();
+        #         if ((Not (Not (Load(addr=0x14002bf04<64>, size=4, endness=Iend_LE) == vvar_20{reg 16}))))
+        #           { Goto None } else { Goto None }
+        #         return;
+        #     }
+        #
+        # good output:
+        #     else if (g_14002bf04)
+        #     {
+        #         return GetCurrentThreadId();
+        #     }
+        assert "None" not in dec.codegen.text
+        assert "return GetCurrentThreadId();" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
