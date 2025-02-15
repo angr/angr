@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from angr.sim_type import SimCppClass, SimTypeCppFunction
 from angr.analyses import AnalysesHub
+from angr.utils.cpp import is_cpp_funcname_ctor
 from . import Analysis, CFGFast, VtableFinder
 
 
@@ -33,17 +35,13 @@ class ClassIdentifier(Analysis):
             class_name = class_name.removeprefix("non-virtual thunk for ")
             if col_ind != -1:
                 if class_name not in self.classes:
-                    ctor = False
-                    if func.demangled_name.find("{ctor}"):
-                        ctor = True
+                    ctor = is_cpp_funcname_ctor(func.demangled_name)
                     function_members = {func.addr: SimTypeCppFunction([], None, label=func.demangled_name, ctor=ctor)}
                     new_class = SimCppClass(name=class_name, function_members=function_members)
                     self.classes[class_name] = new_class
 
                 else:
-                    ctor = False
-                    if func.demangled_name.find("{ctor}"):
-                        ctor = True
+                    ctor = is_cpp_funcname_ctor(func.demangled_name)
                     cur_class = self.classes[class_name]
                     cur_class.function_members[func.addr] = SimTypeCppFunction(
                         [], None, label=func.demangled_name, ctor=ctor
@@ -55,7 +53,10 @@ class ClassIdentifier(Analysis):
                 vtable_calling_func = self.project.kb.functions.floor_func(ref.ins_addr)
                 tmp_col_ind = vtable_calling_func.demangled_name.rfind("::")
                 possible_constructor_class_name = vtable_calling_func.demangled_name[:tmp_col_ind]
-                if "ctor" in vtable_calling_func.demangled_name and possible_constructor_class_name in self.classes:
+                if (
+                    is_cpp_funcname_ctor(vtable_calling_func.demangled_name)
+                    and possible_constructor_class_name in self.classes
+                ):
                     self.classes[possible_constructor_class_name].vtable_ptrs.append(vtable.vaddr)
 
 
