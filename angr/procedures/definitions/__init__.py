@@ -7,8 +7,7 @@ import inspect
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-import itanium_demangler
-
+import pydemumble
 import archinfo
 
 from angr.errors import AngrMissingTypeError
@@ -345,14 +344,8 @@ class SimCppLibrary(SimLibrary):
 
     @staticmethod
     def _try_demangle(name):
-        if name[0:2] == "_Z":
-            try:
-                ast = itanium_demangler.parse(name)
-            except NotImplementedError:
-                return name
-            if ast:
-                return str(ast)
-        return name
+        ast = pydemumble.demangle(name)
+        return ast if ast else name
 
     @staticmethod
     def _proto_from_demangled_name(name: str) -> SimTypeFunction | None:
