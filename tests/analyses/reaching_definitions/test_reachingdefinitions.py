@@ -108,7 +108,7 @@ class TestReachingDefinitions(TestCase):
             for pos, n in enumerate(page.content):
                 if n is not None and (type(n) is not set or len(n) == 1):
                     addr = page_id * 4096 + pos
-                    if type(n) is set:
+                    if isinstance(n, set):
                         mo: SimMemoryObject = next(iter(n))
                     else:
                         mo: SimMemoryObject = n
