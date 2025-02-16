@@ -53,10 +53,7 @@ class LibcStringHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_strcpy(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         src_atom = state.deref(data.args_atoms[1], DerefSize.NULL_TERMINATE)
-        if src_atom is None:
-            src_str = None
-        else:
-            src_str = state.get_values(src_atom)
+        src_str = state.get_values(src_atom) if src_atom is not None else None
         if src_str is None:
             src_str = state.top(state.arch.bits)
             if src_atom is not None:
