@@ -333,9 +333,11 @@ class ConstraintGraphNode:
             else:
                 prefix = DerivedTypeVariable(self.typevar.type_var, None, labels=self.typevar.labels[:-1])
             variance = Variance.COVARIANT if self.variance == last_label.variance else Variance.CONTRAVARIANT
-            assert isinstance(
-                prefix, (TypeVariable, DerivedTypeVariable)
-            )  # FIXME: THIS ASSERTION MAY FAIL. INVESTIGATE
+            if not isinstance(prefix, (TypeVariable, DerivedTypeVariable)):
+                # we may see incorrectly generated type constraints that attempt to load from an int:
+                #   int64.load
+                # we don't want to entertain such constraints
+                return None
             return (
                 ConstraintGraphNode(prefix, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN),
                 self.typevar.labels[-1],
