@@ -16,6 +16,7 @@ from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
+from angr.analyses.reaching_definitions.function_handler_library import LibcHandlers
 from angr.block import Block
 from angr.engines.light import SpOffset
 from angr.knowledge_plugins.key_definitions import DerefSize
@@ -56,7 +57,10 @@ class InsnAndNodeObserveTestingUtils:
         )
 
         state = ReachingDefinitionsState(
-            CodeLocation(main_function.addr, None), project.arch, reaching_definitions.subject, analysis=None
+            CodeLocation(main_function.addr, None),
+            project.arch,
+            reaching_definitions.subject,
+            analysis=reaching_definitions,
         )
 
         return (project, main_function, reaching_definitions, state)
@@ -90,6 +94,8 @@ class TestReachingDefinitions(TestCase):
         #    pickle.dump(result, result_file)
         with open(result_path, "rb") as result_file:
             expected_result = pickle.load(result_file)
+        # with open(result_path, "wb") as result_file:
+        #     result_file.write(pickle.dumps(result))
 
         self.assertListEqual(result, expected_result)
 
@@ -102,7 +108,7 @@ class TestReachingDefinitions(TestCase):
             for pos, n in enumerate(page.content):
                 if n is not None and (type(n) is not set or len(n) == 1):
                     addr = page_id * 4096 + pos
-                    if type(n) is set:
+                    if isinstance(n, set):
                         mo: SimMemoryObject = next(iter(n))
                     else:
                         mo: SimMemoryObject = n
@@ -228,6 +234,40 @@ class TestReachingDefinitions(TestCase):
             InsnAndNodeObserveTestingUtils.assert_for_live_definitions(self.assertEqual, x[0], x[1])
             for x in zip(results, expected_results)
         ]
+
+    def test_insn_observe_after_a_function_call(self):
+        # Test that the result of a function call is correctly observed
+        bin_path = _binary_path("all")
+        project = angr.Project(bin_path, auto_load_libs=False)
+        cfg = project.analyses[CFGFast].prep()()
+        main_func = cfg.functions["main"]
+        strlen_func = cfg.functions["strlen"]
+
+        strlen_edges = main_func.transition_graph.in_edges(strlen_func)
+
+        # Only one call site for strlen in the `all` binary
+        strlen_call_site = next(cfg.get_any_node(edge_to.addr).instruction_addrs[-1] for edge_to, _ in strlen_edges)
+
+        observation_points = [("insn", strlen_call_site, OP_AFTER)]
+        handler = LibcHandlers()
+
+        rda: ReachingDefinitionsAnalysis = project.analyses[ReachingDefinitionsAnalysis].prep()(
+            subject=main_func,
+            observation_points=observation_points,
+            track_tmps=False,
+            track_consts=False,
+            dep_graph=True,
+            function_handler=handler,
+        )
+
+        live_def = rda.observed_results[observation_points[0]]
+        call_data = next(iter(rda.callsites_to(strlen_func)))
+
+        # strlen value should be concrete after the call in this binary
+        strlen_result = live_def.get_concrete_value(call_data.ret_defns)
+
+        target_string = b"THIS IS A STRING\n"
+        self.assertEqual(strlen_result, len(target_string))
 
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path("all")
