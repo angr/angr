@@ -500,7 +500,8 @@ class VMDeobfuscation(Analysis):
                  decomp_function_addresses=None, decomp_function_prototypes=None,
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
-                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False):
+                 max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
+                 symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -515,6 +516,7 @@ class VMDeobfuscation(Analysis):
         self.vpc_mem_loc = vpc_mem_loc
         self.draw_graph_flag = False
         self.allow_global_mem_simplifications = allow_global_mem_simplifications
+        self.nodes_to_prune = nodes_to_prune
         calls_as_rets = {}
 
         DUMP = "dump"
@@ -596,8 +598,9 @@ class VMDeobfuscation(Analysis):
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         for symb_iter in range(max_symbolizer_iterations):
             proj.merger_top_dict_debug = {}
-            to_split_nodes = self.split_redundant_branch_themida(new_cfg)
-            new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
+            if themida_split_branches:
+                to_split_nodes = self.split_redundant_branch_themida(new_cfg)
+                new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"after_all_split.svg"))
 
             pickled_file_name = os.path.dirname(self.project.filename) + "/pickled_"+str(symb_iter) + "_all_symbolic_expr_location"
@@ -611,7 +614,7 @@ class VMDeobfuscation(Analysis):
             # correct variable. this is specifically in themida which has two conditionals jmp for every conditional jump
             _, symbolic_expr_locations= self.symbolizer(new_cfg, proj,
                                                                   start_addr, None,
-                                                                  start_state=None,
+                                                                  start_state=symbolizer_start_state,
                                                                   prev_symbolic_expr_locations=all_symbolic_expr_locations,
                                                                   prev_unroll_vm_addrs=prev_unroll_vm_addrs,
                                                                   constant_prop_level=constant_prop_level)
@@ -668,8 +671,9 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
             self.draw_graph_flag=False
 
-        to_split_nodes = self.split_redundant_branch_themida(new_cfg)
-        new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
+        if themida_split_branches:
+            to_split_nodes = self.split_redundant_branch_themida(new_cfg)
+            new_cfg = self.split_redundant_branch_obf(new_cfg, to_split_nodes)
 
         new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, None)
 
@@ -689,7 +693,7 @@ class VMDeobfuscation(Analysis):
         gc.collect()
         self.project.to_symbolize = defaultdict(dict)
         ## This is constant propgation along with finding non-constants
-        new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=None, prev_symbolic_expr_locations=None,
+        new_cfg, _ = self.symbolizer(new_cfg, proj, start_addr, None, start_state=symbolizer_start_state, prev_symbolic_expr_locations=None,
                                      prev_unroll_vm_addrs=prev_unroll_vm_addrs,do_replacements=True, constant_prop_level=constant_prop_level)
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
@@ -1316,6 +1320,10 @@ class VMDeobfuscation(Analysis):
                     succ_func.returning = True
                     succ_func.is_simprocedure = True
                     sim_proc_succ = new_cfg.get_successors(succ)
+
+                    #special check for exit() loops, which we ignore
+                    if sim_proc_succ[0] is succ and succ_func.name == "exit":
+                        continue
                     new_succ, calls_as_rets = self.create_new_node_with_block_id_addr(sim_proc_succ[0], decomp_model, new_cfg,
                                                                        new_block_id_embed_dict,
                                                                        end_node_block_ids,
@@ -1752,16 +1760,25 @@ class VMDeobfuscation(Analysis):
             initial_input_state.globals['no_constraints_solver'] = claripy.solvers.SolverReplacement(claripy.Solver(timeout=500000),
                                                                                       unsafe_replacement=True,
                                                                                       auto_replace=False)
-            if do_replacements:
-                initial_input_state.globals['is_constant_propagation'] = True
-                initial_input_state.globals['is_symbolizer'] = False
 
-            else:
-                initial_input_state.globals['is_constant_propagation'] = False
-                initial_input_state.globals['is_symbolizer'] = True
+            def preconstrain_return_value(state):
+                if state.inspect.simprocedure_name == "malloc" and state.inspect.simprocedure_result is not None and not state.solver.symbolic(
+                        state.inspect.simprocedure_result):
+                    value = state.solver.eval(state.inspect.simprocedure_result)
+                    state.inspect.simprocedure_result = state.solver.BVS("return_val", 64)
+                    state.preconstrainer.preconstrain(value, state.inspect.simprocedure_result)
+                return
 
+            ### preconstraining return values of library calls like malloc
+            initial_input_state.inspect.add_breakpoint('simprocedure', BP(BP_AFTER, action=preconstrain_return_value))
 
+        if do_replacements:
+            initial_input_state.globals['is_constant_propagation'] = True
+            initial_input_state.globals['is_symbolizer'] = False
 
+        else:
+            initial_input_state.globals['is_constant_propagation'] = False
+            initial_input_state.globals['is_symbolizer'] = True
 
         ####### Adding breakpoints
         def annotate_stack_read_value(state):
@@ -1775,17 +1792,6 @@ class VMDeobfuscation(Analysis):
                 state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr,
                                                                              StackTouchedAnnotation(1))
 
-
-        def preconstrain_return_value(state):
-            if state.inspect.simprocedure_name == "malloc" and state.inspect.simprocedure_result is not None and not state.solver.symbolic(
-                    state.inspect.simprocedure_result):
-                value = state.solver.eval(state.inspect.simprocedure_result)
-                state.inspect.simprocedure_result = state.solver.BVS("return_val", 64)
-                state.preconstrainer.preconstrain(value, state.inspect.simprocedure_result)
-            return
-
-        ### preconstraining return values of library calls like malloc
-        initial_input_state.inspect.add_breakpoint('simprocedure', BP(BP_AFTER, action=preconstrain_return_value))
 
         ## annotating and preconstraining the stack pointer
         # self.annotate_and_preconstrain_sp(initial_input_state)
@@ -1858,6 +1864,7 @@ class VMDeobfuscation(Analysis):
                                                start_deobfuscation_immediately=self.start_deobfuscation_immediately,
                                                deobfuscation_start_addr=self.deobfuscation_start_addr,
                                                deobfuscation_end_addr = self.deobfuscation_end_addr,
+                                               nodes_to_prune=self.nodes_to_prune,
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations = None
@@ -2425,7 +2432,7 @@ class VMDeobfuscation(Analysis):
         for node in new_cfg.graph.nodes():
             succs = new_cfg.get_successors(node)
             if len(succs) == 0 and node.input_state is not None:
-                final_state = node.input_state
+                final_state = node.final_states[0]
                 print(node)
                 print(final_state.posix.dumps(1))
         print("Done")
@@ -3103,12 +3110,22 @@ class VMDeobfuscation(Analysis):
                 elif isinstance(stmt, pyvex.stmt.Exit) and type(stmt.guard) == pyvex.expr.Const:
                     # Removing conditional statements that depend on a constant
                     if stmt.guard.con.value == 0:
+                        edge_to_remove_node = None
                         # Remove the edge that is no longer required
                         succs = list(dsa_new_model.graph.successors(node))
                         if len(succs) == 2:
                             for succ in succs:
                                 if succ.addr == stmt.dst.value and stmt.dst.block_id == succ.block_id:
                                     edge_to_remove_node = succ
+                            if not edge_to_remove_node:
+                                # this is probably some sort of vex error checking, to go back to the beginning of the inst
+                                # we remove it
+                                for succ in succs:
+                                    #double check
+                                    if succ.addr == stmt.dst.value:
+                                        import ipdb;ipdb.set_trace()
+                                continue
+
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
                         continue
                     elif stmt.guard.con.value == 1:
@@ -4161,6 +4178,7 @@ class VMDeobfuscation(Analysis):
                                         start_deobfuscation_immediately=self.start_deobfuscation_immediately,
                                         deobfuscation_start_addr=self.deobfuscation_start_addr,
                                         deobfuscation_end_addr=self.deobfuscation_end_addr,
+                                        nodes_to_prune=self.nodes_to_prune
                                         # enable_advanced_backward_slicing=True
                                         )
         self.release_memory(cfg, proj)
