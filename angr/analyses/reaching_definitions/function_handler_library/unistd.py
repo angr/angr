@@ -27,17 +27,10 @@ class LibcUnistdHandlers(FunctionHandler):
         size = state.get_concrete_value(data.args_atoms[2]) or 1
         dst_atom = state.deref(data.args_atoms[1], size)
         real_fd = state.get_concrete_value(data.args_atoms[0])
-        if real_fd is not None:
-            if real_fd == 0:
-                fd_atom = StdinAtom(data.function.name, size)
-            else:
-                fd_atom = FDAtom(real_fd, data.function.name, size)
-        else:
-            fd_atom = FDAtom(None, data.function.name, size)
-        if size is not None:
-            buf_data = state.top(size * 8)
-        else:
-            buf_data = state.top(state.arch.bits)
+
+        fd_atom = StdinAtom(data.function.name, size) if real_fd == 0 else FDAtom(real_fd, data.function.name, size)
+        buf_data = state.top(size*8) if size is not None else state.top(state.arch.bits)
+
         data.depends(dst_atom, fd_atom, value=buf_data)
 
     handle_impl_recv = handle_impl_recvfrom = handle_impl_read
