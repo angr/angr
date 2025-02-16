@@ -7,6 +7,7 @@ from ailment.statement import ConditionalJump, Statement
 from ailment.expression import Const, BinaryOp, VirtualVariable
 
 from angr.analyses.decompiler.region_identifier import RegionIdentifier
+from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -122,28 +123,46 @@ class ConditionConstantPropagation(OptimizationPass):
             if block.statements:
                 last_stmt = block.statements[-1]
                 if (
-                    not isinstance(last_stmt, ConditionalJump)
-                    or not isinstance(last_stmt.true_target, Const)
-                    or not isinstance(last_stmt.false_target, Const)
+                    isinstance(last_stmt, ConditionalJump)
+                    and isinstance(last_stmt.true_target, Const)
+                    and isinstance(last_stmt.false_target, Const)
                 ):
-                    continue
+                    self._extract_const_condition_from_stmt(last_stmt, cconds)
+                else:
+                    # also check the first non-phi statement; rep stos may generate blocks whose conditional checks
+                    # are at the beginning of the block
 
-                if isinstance(last_stmt.condition, BinaryOp):
-                    cond = last_stmt.condition
-                    op = cond.op
-                    op0, op1 = cond.operands
-                    if isinstance(op0, Const):
-                        op0, op1 = op1, op0
-                    if isinstance(op0, VirtualVariable) and isinstance(op1, Const) and op1.is_int:
-                        if op == "CmpEQ":
-                            ccond = ConstantCondition(
-                                op0.varid, op1, last_stmt.true_target.value, last_stmt.true_target_idx  # type: ignore
-                            )
-                            cconds.append(ccond)
-                        elif op == "CmpNE":
-                            ccond = ConstantCondition(
-                                op0.varid, op1, last_stmt.false_target.value, last_stmt.false_target_idx  # type: ignore
-                            )
-                            cconds.append(ccond)
+                    # we could have used is_head_controlled_loop_block, but at this point the block is simplified enough
+                    # that the first non-label, non-phi statement must be a ConditionalJump that controls the execution
+                    # of the loop body, so the following logic should work fine.
+
+                    first_stmt = first_nonlabel_nonphi_statement(block)
+                    if (
+                        first_stmt is not last_stmt
+                        and isinstance(first_stmt, ConditionalJump)
+                        and isinstance(first_stmt.true_target, Const)
+                        and isinstance(first_stmt.false_target, Const)
+                    ):
+                        self._extract_const_condition_from_stmt(first_stmt, cconds)
 
         return cconds
+
+    @staticmethod
+    def _extract_const_condition_from_stmt(stmt: ConditionalJump, cconds: list[ConstantCondition]) -> None:
+        if isinstance(stmt.condition, BinaryOp):
+            cond = stmt.condition
+            op = cond.op
+            op0, op1 = cond.operands
+            if isinstance(op0, Const):
+                op0, op1 = op1, op0
+            if isinstance(op0, VirtualVariable) and isinstance(op1, Const) and op1.is_int:
+                if op == "CmpEQ":
+                    ccond = ConstantCondition(
+                        op0.varid, op1, stmt.true_target.value, stmt.true_target_idx  # type: ignore
+                    )
+                    cconds.append(ccond)
+                elif op == "CmpNE":
+                    ccond = ConstantCondition(
+                        op0.varid, op1, stmt.false_target.value, stmt.false_target_idx  # type: ignore
+                    )
+                    cconds.append(ccond)

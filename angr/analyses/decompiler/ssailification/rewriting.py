@@ -14,9 +14,9 @@ from ailment.statement import Assignment, Label
 from angr.code_location import CodeLocation
 from angr.analyses import ForwardAnalysis
 from angr.analyses.forward_analysis import FunctionGraphVisitor
+from angr.utils.ail import is_head_controlled_loop_block
 from .rewriting_engine import SimEngineSSARewriting, DefExprType, AT
 from .rewriting_state import RewritingState
-
 
 l = logging.getLogger(__name__)
 
@@ -71,6 +71,14 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         self._visited_blocks: set[Any] = set()
         self.out_blocks = {}
         self.out_states = {}
+        # loop_states stores states at the beginning of a loop block *after a loop iteration*, where the block is the
+        # following:
+        #    0x4036df | t4 = (rcx<8> == 0x0<64>)
+        #    0x4036df | if (t4) { Goto 0x4036e2<64> } else { Goto 0x4036df<64> }
+        #    0x4036df | STORE(addr=t3, data=t2, size=8, endness=Iend_LE, guard=None)
+        #    0x4036df | rdi<8> = t8
+        #
+        self.head_controlled_loop_outstates = {}
 
         self._analyze()
 
@@ -177,8 +185,12 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         else:
             node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
 
-    def _reg_predicate(self, node_, *, reg_offset: int, reg_size: int) -> tuple[bool, Any]:
-        out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
+    def _reg_predicate(self, node_: Block, *, reg_offset: int, reg_size: int) -> tuple[bool, Any]:
+        out_state: RewritingState = (
+            self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
+            if is_head_controlled_loop_block(node_)
+            else self.out_states[(node_.addr, node_.idx)]
+        )
         if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
             existing_var = out_state.registers[reg_offset][reg_size]
             if existing_var is None:
@@ -189,8 +201,12 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             return True, vvar
         return False, None
 
-    def _stack_predicate(self, node_, *, stack_offset: int, stackvar_size: int) -> tuple[bool, Any]:
-        out_state: RewritingState = self.out_states[(node_.addr, node_.idx)]
+    def _stack_predicate(self, node_: Block, *, stack_offset: int, stackvar_size: int) -> tuple[bool, Any]:
+        out_state: RewritingState = (
+            self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
+            if is_head_controlled_loop_block(node_)
+            else self.out_states[(node_.addr, node_.idx)]
+        )
         if stack_offset in out_state.stackvars and stackvar_size in out_state.stackvars[stack_offset]:
             existing_var = out_state.stackvars[stack_offset][stackvar_size]
             if existing_var is None:
@@ -262,18 +278,32 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         )
 
         self._visited_blocks.add(block_key)
-        self.out_states[block_key] = state
+        # get the output state (which is the input state for the successor node)
+        # if head_controlled_loop_outstate is set, then it is the output state of the successor node; in this case, the
+        # input state for the head-controlled loop block itself is out.state.
+        # otherwise (if head_controlled_loop_outstate is not set), engine.state is the input state of the successor
+        # node.
+        if engine.head_controlled_loop_outstate is None:
+            # this is a normal block
+            out_state = state
+        else:
+            # this is a head-controlled loop block
+            out_state = engine.head_controlled_loop_outstate
+            self.head_controlled_loop_outstates[block_key] = state
+        self.out_states[block_key] = out_state
+        # the final block is always in state
+        out_block = state.out_block
 
-        if state.out_block is not None:
-            assert state.out_block.addr == block.addr
+        if out_block is not None:
+            assert out_block.addr == block.addr
 
-            if self.out_blocks.get(block_key, None) == state.out_block:
-                return True, state
-            self.out_blocks[block_key] = state.out_block
-            state.out_block = None
-            return True, state
+            if self.out_blocks.get(block_key, None) == out_block:
+                return True, out_state
+            self.out_blocks[block_key] = out_block
+            out_state.out_block = None
+            return True, out_state
 
-        return True, state
+        return True, out_state
 
     def _intra_analysis(self):
         pass

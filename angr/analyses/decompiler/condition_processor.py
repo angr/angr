@@ -16,6 +16,7 @@ from angr.utils.graph import GraphUtils
 from angr.utils.lazy_import import lazy_import
 from angr.utils import is_pyinstaller
 from angr.utils.graph import dominates, inverted_idoms
+from angr.utils.ail import is_head_controlled_loop_block
 from angr.block import Block, BlockNode
 from angr.errors import AngrRuntimeError
 from .peephole_optimizations import InvertNegatedLogicalConjunctionsAndDisjunctions, RemoveRedundantNots
@@ -34,7 +35,7 @@ from .structuring.structurer_nodes import (
     IncompleteSwitchCaseNode,
 )
 from .graph_region import GraphRegion
-from .utils import first_nonlabel_nonphi_statement, peephole_optimize_expr
+from .utils import peephole_optimize_expr
 
 if is_pyinstaller():
     # PyInstaller is not happy with lazy import
@@ -671,12 +672,11 @@ class ConditionProcessor:
             return claripy.true()
 
         # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
-        if (
-            isinstance(src_block, ailment.Block)
-            and src_block.statements
-            and isinstance(first_nonlabel_nonphi_statement(src_block), ailment.Stmt.ConditionalJump)
-        ):
-            last_stmt = first_nonlabel_nonphi_statement(src_block)
+        if isinstance(src_block, ailment.Block) and src_block.statements and is_head_controlled_loop_block(src_block):
+            last_stmt = next(
+                iter(stmt for stmt in src_block.statements[:-1] if isinstance(stmt, ailment.Stmt.ConditionalJump)), None
+            )
+            assert last_stmt is not None
         else:
             last_stmt = self.get_last_statement(src_block)
 

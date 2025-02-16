@@ -782,6 +782,8 @@ class Clinic(Analysis):
         :return: None
         """
 
+        attempted_funcs: set[int] = set()
+
         for node in self.function.transition_graph:
             if (
                 isinstance(node, BlockNode)
@@ -793,7 +795,12 @@ class Clinic(Analysis):
             elif isinstance(node, Function):
                 target_func = node
             else:
+                # TODO: Enable call-site analysis for indirect calls
                 continue
+
+            if target_func.addr in attempted_funcs:
+                continue
+            attempted_funcs.add(target_func.addr)
 
             # case 0: the calling convention and prototype are available
             if target_func.calling_convention is not None and target_func.prototype is not None:
@@ -813,6 +820,7 @@ class Clinic(Analysis):
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
+                    target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 3: the callee is a PLT function
@@ -821,6 +829,7 @@ class Clinic(Analysis):
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
                     target_func.prototype = cc.prototype
+                    target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 4: fall back to call site analysis
@@ -972,7 +981,29 @@ class Clinic(Analysis):
             return ailment.Block(block_node.addr, 0, statements=[])
 
         block = self.project.factory.block(block_node.addr, block_node.size, cross_insn_opt=False)
-        return self._convert_vex(block)
+        converted = self._convert_vex(block)
+
+        # architecture-specific setup
+        if block.addr == self.function.addr and self.project.arch.name in {"X86", "AMD64"}:
+            # setup dflag; this is a hack for most sane ABIs. we may move this logic elsewhere if there are adversarial
+            # binaries that mess with dflags and pass them across functions
+            dflag_offset, dflag_size = self.project.arch.registers["d"]
+            dflag = ailment.Expr.Register(
+                self._ail_manager.next_atom(),
+                None,
+                dflag_offset,
+                dflag_size * self.project.arch.byte_width,
+                ins_addr=block.addr,
+            )
+            forward = ailment.Expr.Const(
+                self._ail_manager.next_atom(), None, 1, dflag_size * self.project.arch.byte_width, ins_addr=block.addr
+            )
+            dflag_assignment = ailment.Stmt.Assignment(
+                self._ail_manager.next_atom(), dflag, forward, ins_addr=block.addr
+            )
+            converted.statements.insert(0, dflag_assignment)
+
+        return converted
 
     def _convert_vex(self, block):
         if block.vex.jumpkind not in {"Ijk_Call", "Ijk_Boring", "Ijk_Ret"} and not block.vex.jumpkind.startswith(
@@ -2441,6 +2472,19 @@ class Clinic(Analysis):
                                     last_stmt.target.value = succs[0].addr
                                 elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
                                     patch_conditional_jump_target(last_stmt, node.addr, succs[0].addr)
+                                    # if both branches jump to the same location, we replace it with a jump
+                                    if (
+                                        isinstance(last_stmt.true_target, ailment.Expr.Const)
+                                        and isinstance(last_stmt.false_target, ailment.Expr.Const)
+                                        and last_stmt.true_target.value == last_stmt.false_target.value
+                                    ):
+                                        last_stmt = ailment.Stmt.Jump(
+                                            last_stmt.idx,
+                                            last_stmt.true_target,
+                                            target_idx=last_stmt.true_target.idx,
+                                            ins_addr=last_stmt.ins_addr,
+                                        )
+                                        pred.statements[-1] = last_stmt
                                 first_cond_jump = first_conditional_jump(pred)
                                 if first_cond_jump is not None and first_cond_jump is not last_stmt:
                                     patch_conditional_jump_target(first_cond_jump, node.addr, succs[0].addr)
