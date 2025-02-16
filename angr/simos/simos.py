@@ -46,7 +46,7 @@ class SimOS:
         self.unresolvable_call_target = self.project.loader.extern_object.allocate()
         self.project.hook(self.unresolvable_call_target, P["stubs"]["UnresolvableCallTarget"]())
 
-        def irelative_resolver(resolver_addr):
+        def irelative_resolver(resolver_addr: int) -> int | None:
             # autohooking runs before this does, might have provided this already
             # in that case, we want to advertise the _resolver_ address, since it is now
             # providing the behavior of the actual function
@@ -70,7 +70,7 @@ class SimOS:
                 _l.error("Resolver at %#x failed to resolve!", resolver_addr)
                 return None
 
-            return val.concrete_value
+            return val.concrete_value if val.concrete else None
 
         self.project.loader.perform_irelative_relocs(irelative_resolver)
 
