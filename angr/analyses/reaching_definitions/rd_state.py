@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, overload
+from typing import Any, TYPE_CHECKING, overload, Dict
 from collections.abc import Iterable, Iterator
 import logging
 from typing_extensions import Self
@@ -216,12 +216,12 @@ class ReachingDefinitionsState:
         return self.live_definitions.tmp_uses
 
     @property
-    def register_uses(self):
-        return self.live_definitions.register_uses
-
-    @property
     def registers(self) -> MultiValuedMemory:
         return self.live_definitions.registers
+
+    @property
+    def register_uses(self):
+        return self.live_definitions.register_uses
 
     @property
     def stack(self) -> MultiValuedMemory:
@@ -240,12 +240,16 @@ class ReachingDefinitionsState:
         return self.live_definitions.heap_uses
 
     @property
+    def memory(self) -> MultiValuedMemory:
+        return self.live_definitions.memory
+
+    @property
     def memory_uses(self):
         return self.live_definitions.memory_uses
 
     @property
-    def memory(self) -> MultiValuedMemory:
-        return self.live_definitions.memory
+    def others(self) -> Dict[Atom, MultiValues]:
+        return self.live_definitions.others
 
     @property
     def uses_by_codeloc(self):

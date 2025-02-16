@@ -7,7 +7,7 @@ import claripy
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
 from angr.knowledge_plugins.key_definitions.atoms import Atom
 from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
-
+from angr.knowledge_plugins.key_definitions.definition import Definition
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
@@ -75,7 +75,7 @@ class LibcStdlibHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_calloc(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         nmemb = state.get_concrete_value(data.args_atoms[0]) or 48
-        size = state.get_concrete_value(data.args_atoms[0]) or 1
+        size = state.get_concrete_value(data.args_atoms[1]) or 1
         heap_ptr = state.heap_address(state.heap_allocator.allocate(nmemb * size))
         data.depends(state.deref(heap_ptr, nmemb * size), value=0)
         data.depends(data.ret_atoms, value=heap_ptr)
