@@ -57,7 +57,7 @@ class InsnAndNodeObserveTestingUtils:
         )
 
         state = ReachingDefinitionsState(
-            CodeLocation(main_function.addr, None), project.arch, reaching_definitions.subject, analysis=None
+            CodeLocation(main_function.addr, None), project.arch, reaching_definitions.subject, analysis=reaching_definitions
         )
 
         return (project, main_function, reaching_definitions, state)
@@ -246,7 +246,7 @@ class TestReachingDefinitions(TestCase):
         strlen_call_site = [cfg.get_any_node(edge_to.addr).instruction_addrs[-1] for edge_to, _ in strlen_edges][0]
 
         observation_points = [("insn", strlen_call_site, OP_AFTER)]
-        handler = LibcHandlers(extra_impls=[LibcHandlers])
+        handler = LibcHandlers()
 
         rda: ReachingDefinitionsAnalysis = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_func,
