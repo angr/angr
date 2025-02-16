@@ -221,16 +221,16 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     Typechecks be gone!
     """
 
-    address_multi: MultiValues | None
-    address: int | None
+    address_multi: MultiValues
+    address: int
     symbol: Symbol
-    function: Function | None
-    name: str | None
-    cc: SimCC | None
-    prototype: SimTypeFunction | None
-    args_atoms: list[set[Atom]] | None
-    args_values: list[MultiValues] | None
-    ret_atoms: set[Atom] | None
+    function: Function
+    name: str
+    cc: SimCC
+    prototype: SimTypeFunction
+    args_atoms: list[set[Atom]]
+    args_values: list[MultiValues]
+    ret_atoms: set[Atom]
 
     def __init__(self, inner: FunctionCallData):
         d = dict(inner.__dict__)
