@@ -94,6 +94,8 @@ class LibcStdlibHandlers(FunctionHandler):
         # but also it should be able to be picked up by NULL_TERMINATE reads
         heap_atom = None
         env_atom = None
+        heap_ptr = None
+        sources = []
         if name_value is not None:
             name_value = name_value.strip(b"\0").decode()
             for env_atom, env_value in state.others.items():
@@ -110,17 +112,22 @@ class LibcStdlibHandlers(FunctionHandler):
             else:
                 heap_value = None
 
-        if name_value is None or heap_value is None:
+        if name_value is None or heap_value is None or heap_atom is None or env_atom is None:
             heap_ptr = state.heap_allocator.allocate(length)
             heap_atom = state.deref(heap_ptr, length)
             heap_value = claripy.BVS("weh", 8)
             env_atom = EnvironAtom(length, name_value)
-            heap_value = state.annotate_with_def(heap_value, Definition(heap_atom, state.codeloc))
+            if heap_atom is not None:
+                heap_value = state.annotate_with_def(heap_value, Definition(heap_atom, state.codeloc))
             heap_value = heap_value.concat(claripy.BVV(0, 8))
             data.depends(env_atom, value=heap_value)  # Puts the env_atom in the others dict
 
         data.depends(heap_atom, env_atom, value=heap_value)
-        data.depends(data.ret_atoms, name_atom, heap_atom, env_atom, value=state.heap_address(heap_ptr))
+        sources = [heap_atom, env_atom]
+        if name_atom is not None:
+            sources.append(name_atom)
+
+        data.depends(data.ret_atoms, *sources, value=state.heap_address(heap_ptr))
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_setenv(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
