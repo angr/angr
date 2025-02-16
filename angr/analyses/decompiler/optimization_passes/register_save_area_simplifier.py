@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 from collections.abc import Iterable
 import logging
@@ -94,14 +95,26 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 isinstance(stmt, ailment.Stmt.Store)
                 and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
                 and isinstance(stmt.addr.offset, int)
-                and isinstance(stmt.data, ailment.Expr.VirtualVariable)
-                and stmt.data.was_reg
             ):
-                # it's storing registers to the stack!
-                stack_offset = stmt.addr.offset
-                reg_offset = stmt.data.reg_offset
-                codeloc = CodeLocation(first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.ins_addr)
-                results.append((reg_offset, stack_offset, codeloc))
+                if isinstance(stmt.data, ailment.Expr.VirtualVariable) and stmt.data.was_reg:
+                    # it's storing registers to the stack!
+                    stack_offset = stmt.addr.offset
+                    reg_offset = stmt.data.reg_offset
+                    codeloc = CodeLocation(first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.ins_addr)
+                    results.append((reg_offset, stack_offset, codeloc))
+                elif (
+                    self.project.arch.name == "AMD64"
+                    and isinstance(stmt.data, ailment.Expr.Convert)
+                    and isinstance(stmt.data.operand, ailment.Expr.VirtualVariable)
+                    and stmt.data.operand.was_reg
+                    and stmt.data.from_bits == 256
+                    and stmt.data.to_bits == 128
+                ):
+                    # storing xmm registers to the stack
+                    stack_offset = stmt.addr.offset
+                    reg_offset = stmt.data.operand.reg_offset
+                    codeloc = CodeLocation(first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.ins_addr)
+                    results.append((reg_offset, stack_offset, codeloc))
 
         return results
 

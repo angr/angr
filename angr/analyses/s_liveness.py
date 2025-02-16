@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import networkx
 from ailment.expression import VirtualVariable
-from ailment.statement import Assignment, Call
+from ailment.statement import Assignment, Call, ConditionalJump
 
 from angr.analyses import Analysis, register_analysis
+from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src
 
 
@@ -69,8 +70,14 @@ class SLivenessAnalysis(Analysis):
             block_key = block.addr, block.idx
             changed = False
 
+            head_controlled_loop = is_head_controlled_loop_block(block)
+
             live = set()
             for succ in graph.successors(block):
+                if head_controlled_loop and (block.addr, block.idx) == (succ.addr, succ.idx):
+                    # this is a head-controlled loop block; we ignore the self-loop edge because all variables defined
+                    # in the block after the conditional jump will be dead after leaving the current block
+                    continue
                 edge = (block.addr, block.idx), (succ.addr, succ.idx)
                 if edge in live_on_edges:
                     live |= live_on_edges[edge]
@@ -81,8 +88,18 @@ class SLivenessAnalysis(Analysis):
                 changed = True
                 live_outs[block_key] = live.copy()
 
+            if head_controlled_loop:
+                # this is a head-controlled loop block; we start scanning from the first condition jump backwards
+                condjump_idx = next(
+                    iter(i for i, stmt in enumerate(block.statements) if isinstance(stmt, ConditionalJump)), None
+                )
+                assert condjump_idx is not None
+                stmts = block.statements[: condjump_idx + 1]
+            else:
+                stmts = block.statements
+
             live_in_by_pred = {}
-            for stmt in reversed(block.statements):
+            for stmt in reversed(stmts):
                 # handle assignments: a defined vvar is not live before the assignment
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     live.discard(stmt.dst.varid)
@@ -92,6 +109,10 @@ class SLivenessAnalysis(Analysis):
                 phi_expr = phi_assignment_get_src(stmt)
                 if phi_expr is not None:
                     for src, vvar in phi_expr.src_and_vvars:
+                        if head_controlled_loop and src == (block.addr, block.idx):
+                            # this is a head-controlled loop block; we ignore the self-loop edge
+                            continue
+
                         if src not in live_in_by_pred:
                             live_in_by_pred[src] = live.copy()
                         if vvar is not None:
@@ -99,9 +120,15 @@ class SLivenessAnalysis(Analysis):
                         live_in_by_pred[src].discard(stmt.dst.varid)
 
                 # handle the statement: add used vvars to the live set
-                vvar_use_collector = VVarUsesCollector()
-                vvar_use_collector.walk_statement(stmt)
-                live |= vvar_use_collector.vvars
+                if head_controlled_loop and is_phi_assignment(stmt):
+                    for src, vvar in stmt.src.src_and_vvars:
+                        # this is a head-controlled loop block; we ignore the self-loop edge
+                        if src != (block.addr, block.idx) and vvar is not None:
+                            live |= {vvar.varid}
+                else:
+                    vvar_use_collector = VVarUsesCollector()
+                    vvar_use_collector.walk_statement(stmt)
+                    live |= vvar_use_collector.vvars
 
             if live_ins[block_key] != live:
                 live_ins[block_key] = live
@@ -135,7 +162,18 @@ class SLivenessAnalysis(Analysis):
 
         for block in self.func_graph.nodes():
             live = self.model.live_outs[(block.addr, block.idx)].copy()
-            for stmt in reversed(block.statements):
+
+            if is_head_controlled_loop_block(block):
+                # this is a head-controlled loop block; we start scanning from the first condition jump backwards
+                condjump_idx = next(
+                    iter(i for i, stmt in enumerate(block.statements) if isinstance(stmt, ConditionalJump)), None
+                )
+                assert condjump_idx is not None
+                stmts = block.statements[: condjump_idx + 1]
+            else:
+                stmts = block.statements
+
+            for stmt in reversed(stmts):
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     def_vvar = stmt.dst.varid
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):

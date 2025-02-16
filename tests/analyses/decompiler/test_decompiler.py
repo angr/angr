@@ -4695,6 +4695,152 @@ class TestDecompiler(unittest.TestCase):
 
         assert out_0 == out_1
 
+    def test_decompiling_rep_stosq(self, decompiler_options=None):
+
+        def _check_rep_stosq(lines: list[str], count: int, increment: int) -> bool:
+            """
+            Example:
+
+
+            for (v7 = 32; v7; v6 += 1)
+            {
+                v7 -= 1;
+                *(v6) = 0;
+            }
+            """
+
+            count_line_idx, count_line = next(
+                iter((i, line) for i, line in enumerate(lines) if re.search(f"(v\\d+) = {count}", line)), (None, None)
+            )
+            if count_line is None or count_line_idx is None:
+                return False
+            m = re.search(f"(v\\d+) = {count}", count_line)
+            assert m is not None
+            count_var = m.group(1)
+            next_for_loop_idx = next(
+                iter(i for i, line in enumerate(lines[count_line_idx:]) if line.startswith("for (")), None
+            )
+            if next_for_loop_idx is None:
+                return False
+            next_for_loop_idx += count_line_idx
+
+            for_loop_lines = lines[next_for_loop_idx : next_for_loop_idx + 5]
+            if for_loop_lines[1] != "{" or for_loop_lines[4] != "}":
+                return False
+
+            # check header
+            m = re.match(f"for [^;]+; {count_var}; (v\\d+) \\+= {increment}\\)", for_loop_lines[0])
+            if m is None:
+                return False
+            ptr_var = m.group(1)
+            if for_loop_lines[2] != f"{count_var} -= 1;":
+                return False
+
+            m = re.match(f"\\*[^;]*{ptr_var}[^;]* = 0;", for_loop_lines[3])
+            return m is not None
+
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "fc7a8e64d88ad1d8c7446c606731901063706fd2fb6f9e237dda4cb4c966665b",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+
+        f = proj.kb.functions[0x403670]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # rep stosq are transformed into for-loops. check the existence of them
+        lines = [line.strip() for line in dec.codegen.text.split("\n")]
+        # first loop
+        assert _check_rep_stosq(lines, 48, 8) ^ _check_rep_stosq(lines, 48, 1)
+        # second loop
+        assert _check_rep_stosq(lines, 32, 8) ^ _check_rep_stosq(lines, 32, 1)
+
+    def test_decompiling_fprintf_multiple_format_string_args(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "fc7a8e64d88ad1d8c7446c606731901063706fd2fb6f9e237dda4cb4c966665b",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+        memcpy = proj.kb.functions[0x4043C0]
+        # ensure this PLT function stub is properly named; we weren't naming it because it was first seen as part of
+        # sub_404350
+        assert memcpy.name == "memcpy"
+
+        f = proj.kb.functions[0x402EE0]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None and dec.codegen.cfunc is not None
+
+        # there are only two variables in the decompilation; more variables probably means RegisterSaveAreaSimplifier
+        # failed, and we kept xmm-spilling statements around.
+        # we also ensure the jump table address is not displayed as an extern variable (which is why it's excluded from
+        # .variables_in_use).
+        assert {v.ident for v in dec.codegen.cfunc.variables_in_use} == {
+            "arg_0",
+            "ir_0",
+            "ir_1",
+        }
+
+        self._print_decompilation_result(dec)
+
+        fprintf = proj.kb.functions[0x404430]
+        assert fprintf.is_plt is True
+        assert fprintf.prototype is not None
+        assert fprintf.prototype.variadic is True
+
+        all_strings = [
+            '"Argument domain error (DOMAIN)"',
+            '"Argument singularity (SIGN)"',
+            '"Overflow range error (OVERFLOW)"',
+            '"The result is too small to be represented (UNDERFLOW)"',
+            '"Total loss of significance (TLOSS)"',
+            '"Partial loss of significance (PLOSS)"',
+            '"Unknown error"',
+        ]
+        assert "fprintf(" in dec.codegen.text
+        # strings would have gone missing if we could not correctly resolve the prototype of fprintf
+        for s in all_strings:
+            assert s in dec.codegen.text
+
+    def test_decompiling_vcstdlib_test_condjump_to_jump(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "vcstdlib_test.exe",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions[0x1400117E4]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        # bad output:
+        #     else if (g_14002bf04)
+        #     {
+        #         v2 = GetCurrentThreadId();
+        #         if ((Not (Not (Load(addr=0x14002bf04<64>, size=4, endness=Iend_LE) == vvar_20{reg 16}))))
+        #           { Goto None } else { Goto None }
+        #         return;
+        #     }
+        #
+        # good output:
+        #     else if (g_14002bf04)
+        #     {
+        #         return GetCurrentThreadId();
+        #     }
+        assert "None" not in dec.codegen.text
+        assert "return GetCurrentThreadId();" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

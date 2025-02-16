@@ -9,7 +9,7 @@ import contextlib
 from typing import overload
 
 import networkx
-from itanium_demangler import parse
+import pydemumble
 
 from cle.backends.symbol import Symbol
 from archinfo.arch_arm import get_real_address_if_arm
@@ -202,7 +202,8 @@ class Function(Serializable):
         if is_plt is not None:
             self.is_plt = is_plt
         else:
-            # Whether this function is a PLT entry or not is fully relying on the PLT detection in CLE
+            # Whether this function is a PLT entry or not is primarily relying on the PLT detection in CLE; it may also
+            # be updated (to True) during CFG recovery.
             if self.project is None:
                 raise ValueError(
                     "'is_plt' must be specified if you do not specify a function manager for this new function."
@@ -1568,14 +1569,8 @@ class Function(Serializable):
 
     @property
     def demangled_name(self):
-        if self.name[0:2] == "_Z":
-            try:
-                ast = parse(self.name)
-            except (NotImplementedError, KeyError):  # itanium demangler is not the most robust package in the world
-                return self.name
-            if ast:
-                return ast.__str__()
-        return self.name
+        ast = pydemumble.demangle(self.name)
+        return ast if ast else self.name
 
     def get_unambiguous_name(self, display_name: str | None = None) -> str:
         """

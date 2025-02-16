@@ -4,6 +4,7 @@ from typing import Literal
 import logging
 
 from archinfo import Endness
+from ailment.block import Block
 from ailment.manager import Manager
 from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement, Jump
 from ailment.expression import (
@@ -70,6 +71,7 @@ class SimEngineSSARewriting(
         self.phiid_to_loc = phiid_to_loc
         self.rewrite_tmps = rewrite_tmps
         self.ail_manager = ail_manager
+        self.head_controlled_loop_outstate: RewritingState | None = None
 
         self.secondary_stackvars: set[int] = set()
 
@@ -86,6 +88,12 @@ class SimEngineSSARewriting(
     #
     # Handlers
     #
+
+    def process(
+        self, state: RewritingState, *, block: Block | None = None, whitelist: set[int] | None = None, **kwargs
+    ) -> None:
+        self.head_controlled_loop_outstate = None
+        super().process(state, block=block, whitelist=whitelist, **kwargs)
 
     def _top(self, bits):
         assert False, "Unreachable"
@@ -235,6 +243,11 @@ class SimEngineSSARewriting(
         new_cond = self._expr(stmt.condition)
         new_true_target = self._expr(stmt.true_target) if stmt.true_target is not None else None
         new_false_target = self._expr(stmt.false_target) if stmt.false_target is not None else None
+
+        if self.stmt_idx != len(self.block.statements) - 1:
+            # the conditional jump is in the middle of the block (e.g., the block generated from lifting rep stosq).
+            # we need to make a copy of the state and use the state of this point in its successor
+            self.head_controlled_loop_outstate = self.state.copy()
 
         if new_cond is not None or new_true_target is not None or new_false_target is not None:
             return ConditionalJump(
