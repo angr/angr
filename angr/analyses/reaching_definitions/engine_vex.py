@@ -101,9 +101,12 @@ class SimEngineRDVEX(
 
         # take care of OP_AFTER during statement processing for function calls in a block
         if self.state.analysis and function_handled:
-            self.state.analysis.stmt_observe(self.stmt_idx, self.block.vex.statements[-1], self.block, self.state, OP_AFTER)
-            self.state.analysis.insn_observe(self.ins_addr, self.block.vex.statements[-1], self.block, self.state, OP_AFTER)
-
+            self.state.analysis.stmt_observe(
+                self.stmt_idx, self.block.vex.statements[-1], self.block, self.state, OP_AFTER
+            )
+            self.state.analysis.insn_observe(
+                self.ins_addr, self.block.vex.statements[-1], self.block, self.state, OP_AFTER
+            )
 
         return self.state
 
