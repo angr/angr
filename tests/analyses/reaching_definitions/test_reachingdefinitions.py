@@ -13,7 +13,6 @@ import claripy
 import angr
 from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
 from angr.code_location import CodeLocation, ExternalCodeLocation
-from angr.analyses.reaching_definitions import FunctionHandler
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
@@ -139,7 +138,7 @@ class TestReachingDefinitions(TestCase):
             function = cfg.kb.functions["main"]
 
             self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
-    
+
     def test_reaching_definition_analysis_visited_blocks(self):
         def _result_extractor(rda):
             return sorted(rda.visited_blocks, key=lambda b: b.addr)
@@ -250,7 +249,12 @@ class TestReachingDefinitions(TestCase):
         handler = LibcHandlers(extra_impls=[LibcHandlers])
 
         rda: ReachingDefinitionsAnalysis = project.analyses[ReachingDefinitionsAnalysis].prep()(
-            subject=main_func, observation_points=observation_points, track_tmps=False, track_consts=False, dep_graph=True, function_handler=handler
+            subject=main_func,
+            observation_points=observation_points,
+            track_tmps=False,
+            track_consts=False,
+            dep_graph=True,
+            function_handler=handler,
         )
 
         live_def = rda.observed_results[observation_points[0]]
