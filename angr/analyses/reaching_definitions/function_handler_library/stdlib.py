@@ -92,6 +92,8 @@ class LibcStdlibHandlers(FunctionHandler):
         # store a buffer, registering it as an output of this function
         # we store this two-byte mixed value because we don't want the value to be picked up by get_concrete_value()
         # but also it should be able to be picked up by NULL_TERMINATE reads
+        heap_atom = None
+        env_atom = None
         if name_value is not None:
             name_value = name_value.strip(b"\0").decode()
             for env_atom, env_value in state.others.items():
