@@ -246,7 +246,7 @@ class TestReachingDefinitions(TestCase):
         strlen_edges = main_func.transition_graph.in_edges(strlen_func)
 
         # Only one call site for strlen in the `all` binary
-        strlen_call_site = [cfg.get_any_node(edge_to.addr).instruction_addrs[-1] for edge_to, _ in strlen_edges][0]
+        strlen_call_site = next(cfg.get_any_node(edge_to.addr).instruction_addrs[-1] for edge_to, _ in strlen_edges)
 
         observation_points = [("insn", strlen_call_site, OP_AFTER)]
         handler = LibcHandlers()
@@ -261,7 +261,7 @@ class TestReachingDefinitions(TestCase):
         )
 
         live_def = rda.observed_results[observation_points[0]]
-        call_data = list(rda.callsites_to(strlen_func))[0]
+        call_data = next(iter(rda.callsites_to(strlen_func)))
 
         # strlen value should be concrete after the call in this binary
         strlen_result = live_def.get_concrete_value(call_data.ret_defns)
