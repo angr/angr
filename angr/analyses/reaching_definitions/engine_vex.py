@@ -77,12 +77,15 @@ class SimEngineRDVEX(
     def _process_block_end(self, stmt_result, whitelist):
         self.stmt_idx = DEFAULT_STATEMENT
         self._set_codeloc()
+
+        function_handled = False
         if self.block.vex.jumpkind == "Ijk_Call":
             # it has to be a function
             block_next = self.block.vex.next
             assert isinstance(block_next, pyvex.expr.IRExpr)
             addr = self._expr_bv(block_next)
             self._handle_function(addr)
+            function_handled = True
         elif self.block.vex.jumpkind == "Ijk_Boring":
             # test if the target addr is a function or not
             block_next = self.block.vex.next
@@ -94,6 +97,13 @@ class SimEngineRDVEX(
                 if addr_int in self.functions:
                     # yes it's a jump to a function
                     self._handle_function(addr)
+                    function_handled = True
+
+        # take care of OP_AFTER during statement processing for function calls in a block
+        if self.state.analysis and function_handled:
+            self.state.analysis.stmt_observe(self.stmt_idx, self.block.vex.statements[-1], self.block, self.state, OP_AFTER)
+            self.state.analysis.insn_observe(self.ins_addr, self.block.vex.statements[-1], self.block, self.state, OP_AFTER)
+
 
         return self.state
 
