@@ -362,6 +362,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                  start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None,
                  deobfuscation_end_addr=None,
+                 nodes_to_prune=[],
                  ):
         """
         All parameters are optional.
@@ -423,6 +424,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._graph = None
         self._model = None
         self.saved_call_stack = None
+        self.nodes_to_prune = nodes_to_prune
 
         self.vm_pc_skip_list = set()
 
@@ -1685,6 +1687,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     l.debug("Successor: " + str(successor))
                     l.debug("Guard: " + str(successor.scratch.guard.shallow_repr()))
                     l.debug("Guard annotations: " + str(successor.scratch.guard.annotations))
+
+                    if not successor.ip.symbolic and successor.addr in self.nodes_to_prune:
+                        continue
 
                     # we don't add fake returns when in a vm because it could just be a random call that never returns
                     # don't do this for non vm parts becasue it messes up the callstack, so we just skip all the fakret jobs anyway
