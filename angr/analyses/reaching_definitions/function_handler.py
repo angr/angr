@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast, Literal, Type
+from typing import TYPE_CHECKING, cast, Literal
 from collections.abc import Iterable, Callable
 from dataclasses import dataclass, field
 import logging
@@ -282,7 +282,7 @@ class FunctionHandler:
     A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
 
-    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable[Type[FunctionHandler]] | None = None):
+    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable[type[FunctionHandler]] | None = None):
         """
         :param interfunction_level: Maximum depth in to continue local function exploration
         :param extra_impls: FunctionHandler classes to implement beyond what's implemented in function_handler_library
@@ -518,7 +518,9 @@ class FunctionHandler:
         assert data.prototype is not None
         if data.prototype.returnty is not None:
             if not isinstance(data.prototype.returnty, SimTypeBottom):
-                data.ret_values = MultiValues(state.top(data.prototype.returnty.with_arch(state.arch).size or state.arch.bits))
+                data.ret_values = MultiValues(
+                    state.top(data.prototype.returnty.with_arch(state.arch).size or state.arch.bits)
+                )
             else:
                 data.ret_values = MultiValues(state.top(state.arch.bits))
         if data.guessed_prototype:
