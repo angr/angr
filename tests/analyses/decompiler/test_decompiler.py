@@ -4444,6 +4444,36 @@ class TestDecompiler(unittest.TestCase):
             'read_int("What do you want for r9?")',
         ]
 
+    def test_decompiling_livectf_dc30_shell_me_maybe_read_int(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "livectf-dc30-shell-me-maybe")
+
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        f = proj.kb.functions["read_int"]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        self._print_decompilation_result(d)
+
+        # there is only one variable
+        # it's a char buffer of 256 bytes; it should not overlap with the stored base pointer
+        assert d.codegen is not None and d.codegen.cfunc is not None and d.codegen.text is not None
+        local_vars = [v for v in d.codegen.cfunc.variables_in_use.values() if v.variable.ident.startswith("is")]
+        assert len(local_vars) == 1
+        variable = local_vars[0]
+        assert isinstance(variable.type, SimTypeArray)
+        assert isinstance(variable.type.elem_type, SimTypeChar)
+        assert variable.type.length == 256
+        # there are two stack items: saved base pointer and the return address
+        assert d.clinic is not None
+        assert len(d.clinic.stack_items) == 2
+        assert -8 in d.clinic.stack_items and d.clinic.stack_items[-8].name == "saved_bp"
+        assert 0 in d.clinic.stack_items and d.clinic.stack_items[0].name == "ret_addr"
+        # also check we are accessing the variable by indexing into it
+        variable_name = variable.name
+        assert f"{variable_name}[strcspn(" in d.codegen.text
+
     @for_all_structuring_algos
     def test_call_expr_folding_call_order(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding_call_order.o")

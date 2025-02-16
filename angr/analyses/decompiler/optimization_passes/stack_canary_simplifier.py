@@ -6,6 +6,7 @@ import logging
 import ailment
 
 from angr.utils.bits import s2u
+from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -167,6 +168,11 @@ class StackCanarySimplifier(OptimizationPass):
             first_block_copy = first_block.copy()
             first_block_copy.statements.pop(stmt_idx)
             self._update_block(first_block, first_block_copy)
+
+            # update stack_items
+            self.stack_items[store_offset] = StackItem(
+                store_offset, canary_init_stmt.dst.size, "canary", StackItemType.STACK_CANARY
+            )
 
         # Done!
 

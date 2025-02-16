@@ -13,7 +13,6 @@ import capstone
 
 import ailment
 
-from angr.analyses.decompiler.ssailification.ssailification import Ssailification
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
@@ -39,6 +38,8 @@ from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+from .ssailification.ssailification import Ssailification
+from .stack_item import StackItem, StackItemType
 from .return_maker import ReturnMaker
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .optimization_passes import (
@@ -182,6 +183,10 @@ class Clinic(Analysis):
             self._optimization_passes = optimization_passes
         else:
             self._optimization_passes = []
+
+        self.stack_items: dict[int, StackItem] = {}
+        if self.project.arch.call_pushes_ret:
+            self.stack_items[0] = StackItem(0, self.project.arch.bytes, "ret_addr", StackItemType.RET_ADDR)
 
         if self._mode == ClinicMode.DECOMPILE:
             self._analyze_for_decompiling()
@@ -503,7 +508,7 @@ class Clinic(Analysis):
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
         ail_graph = self._run_simplification_passes(
-            ail_graph, stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
+            ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
         )
 
         # Simplify the entire function for the first time
@@ -566,7 +571,9 @@ class Clinic(Analysis):
 
         # Run simplification passes
         self._update_progress(65.0, text="Running simplifications 3 ")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
+        ail_graph = self._run_simplification_passes(
+            ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+        )
 
         # Simplify the entire function for the third time
         self._update_progress(70.0, text="Simplifying function 3")
@@ -1289,6 +1296,7 @@ class Clinic(Analysis):
         ail_graph,
         stage: OptimizationPassStage = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
         variable_kb=None,
+        stack_items: dict[int, StackItem] | None = None,
         **kwargs,
     ):
         addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
@@ -1334,6 +1342,8 @@ class Clinic(Analysis):
                     # clear the cached RDA result
                     self.reaching_definitions = None
                 self.vvar_id_start = a.vvar_id_start
+            if stack_items is not None and a.stack_items:
+                stack_items.update(a.stack_items)
 
         return ail_graph
 
@@ -1593,7 +1603,7 @@ class Clinic(Analysis):
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
         # get maximum sizes of each stack variable, regardless of its original type
-        stackvar_max_sizes = var_manager.get_stackvar_max_sizes()
+        stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
         tv_max_sizes = {}
         for v, s in stackvar_max_sizes.items():
             if v in vr.var_to_typevars:

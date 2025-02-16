@@ -21,6 +21,7 @@ from angr.project import Project
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+    from angr.analyses.decompiler.stack_item import StackItem
 
 
 _l = logging.getLogger(__name__)
@@ -160,6 +161,7 @@ class OptimizationPass(BaseOptimizationPass):
 
         # output
         self.out_graph: networkx.DiGraph | None = None
+        self.stack_items: dict[int, StackItem] = {}
 
     @property
     def blocks_by_addr(self) -> dict[int, set[ailment.Block]]:

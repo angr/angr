@@ -4,6 +4,7 @@ import logging
 
 import ailment
 
+from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -62,10 +63,15 @@ class BasePointerSaveSimplifier(OptimizationPass):
             return
 
         # update the first block
-        block, stmt_idx, _ = save_stmt
+        block, stmt_idx, save_dst = save_stmt
         block_copy = block.copy()
         block_copy.statements.pop(stmt_idx)
         self._update_block(block, block_copy)
+
+        # update stack_items
+        self.stack_items[save_dst.stack_offset] = StackItem(
+            save_dst.stack_offset, save_dst.size, "saved_bp", StackItemType.SAVED_BP
+        )
 
         # update all endpoint blocks
         if restore_stmts:
@@ -74,7 +80,7 @@ class BasePointerSaveSimplifier(OptimizationPass):
                 block_copy.statements.pop(stmt_idx)
                 self._update_block(block, block_copy)
 
-    def _find_baseptr_save_stmt(self):
+    def _find_baseptr_save_stmt(self) -> tuple[ailment.Block, int, ailment.Expr.VirtualVariable] | None:
         """
         Find the AIL statement that saves the base pointer to a stack slot.
 
