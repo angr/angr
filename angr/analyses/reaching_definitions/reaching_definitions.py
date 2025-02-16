@@ -505,6 +505,11 @@ class ReachingDefinitionsAnalysis(
             engine = self._engine_vex
             block_key = node.addr
         elif isinstance(node, CFGNode):
+            if node.is_simprocedure and len(self._graph_visitor.successors(node)) == 1 and \
+                    self._graph_visitor.successors(node)[0] is node and \
+                    node.name == "exit":
+                # possibly a call to exit() that has a self loop
+                return False, state.copy(discard_tmpdefs=True)
             if node.is_simprocedure or node.is_syscall:
                 return False, state.copy(discard_tmpdefs=True)
             block = node.block
