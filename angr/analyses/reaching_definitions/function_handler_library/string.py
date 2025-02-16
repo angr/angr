@@ -50,7 +50,6 @@ class LibcStringHandlers(FunctionHandler):
         else:
             data.depends(data.ret_atoms, data.args_atoms[0])
 
-
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_strcpy(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         src_atom = state.deref(data.args_atoms[1], DerefSize.NULL_TERMINATE)
