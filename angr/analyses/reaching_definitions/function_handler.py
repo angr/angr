@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast, Literal
+from typing import TYPE_CHECKING, cast, Literal, Dict
 from collections.abc import Iterable, Callable
 from dataclasses import dataclass, field
 import logging
@@ -283,13 +283,20 @@ class FunctionHandler:
     """
 
     def __init__(self, interfunction_level: int = 0, extra_impls: Iterable[FunctionHandler] | None = None):
+        """
+        :param interfunction_level: Maximum depth in to continue local function exploration
+        :param extra_impls: Function Handlers to implement beyond what's implemented in function_handler_library
+        """
+
         self.interfunction_level: int = interfunction_level
 
         if extra_impls is not None:
             for extra_handler in extra_impls:
-                for name, func in vars(extra_handler).items():
-                    if name.startswith("handle_impl_"):
-                        setattr(self, name, _mk_wrapper(func, self))
+                for cls in extra_handler.__mro__:
+                    for name, func in vars(cls).items():
+                        if name.startswith("handle_impl_"):
+                            setattr(self, name, _mk_wrapper(func, self))
+
 
     def hook(self, analysis: ReachingDefinitionsAnalysis) -> FunctionHandler:
         """
