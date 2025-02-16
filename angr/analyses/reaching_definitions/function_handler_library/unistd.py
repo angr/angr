@@ -7,6 +7,7 @@ from angr.knowledge_plugins.key_definitions.atoms import Atom
 
 # pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
+
 class FDAtom(Atom):
     def __init__(self, fd: int | None, source: str, size: int = 1):
         self.source = source
@@ -18,6 +19,7 @@ class FDAtom(Atom):
         if self.fd is not None:
             return (self.fd,)
         return (self.nonce,)
+
 
 class LibcUnistdHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
@@ -33,7 +35,7 @@ class LibcUnistdHandlers(FunctionHandler):
         else:
             fd_atom = FDAtom(None, data.function.name, size)
         if size is not None:
-            buf_data = state.top(size*8)
+            buf_data = state.top(size * 8)
         else:
             buf_data = state.top(state.arch.bits)
         data.depends(dst_atom, fd_atom, value=buf_data)

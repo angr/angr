@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast, Literal, Dict
+from typing import TYPE_CHECKING, cast, Literal
 from collections.abc import Iterable, Callable
 from dataclasses import dataclass, field
 import logging
@@ -296,7 +296,6 @@ class FunctionHandler:
                     for name, func in vars(cls).items():
                         if name.startswith("handle_impl_"):
                             setattr(self, name, _mk_wrapper(func, self))
-
 
     def hook(self, analysis: ReachingDefinitionsAnalysis) -> FunctionHandler:
         """

@@ -5,6 +5,7 @@ from angr.analyses.reaching_definitions.function_handler import FunctionCallData
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
 from angr.knowledge_plugins.key_definitions.live_definitions import MultiValues
+
 # pylint: disable=no-self-use,missing-class-docstring,unused-argument
 
 
@@ -66,12 +67,12 @@ class LibcStringHandlers(FunctionHandler):
             tmp_atom = state.deref(data.args_atoms[1], 1)
             tmp_str = state.get_values(tmp_atom)
             val_defns = None if tmp_str is None else state.get_definitions(tmp_str)
-            if tmp_str is None or not val_defns: # There's no data at all or no valid definitions
-                src_str = state.top(state.arch.bits if n is None or n > state.arch.bytes else n*8)
+            if tmp_str is None or not val_defns:  # There's no data at all or no valid definitions
+                src_str = state.top(state.arch.bits if n is None or n > state.arch.bytes else n * 8)
                 for defn in state.get_definitions(src_atom):
                     src_str = state.annotate_with_def(src_str, defn)
                 src_str = MultiValues(src_str)
-            else: # We found some data, but it's not NULL_TERIMINATED or of size n
+            else:  # We found some data, but it's not NULL_TERIMINATED or of size n
                 src_atoms = set()
                 for defn in val_defns:
                     a = defn.atom
@@ -115,7 +116,7 @@ class LibcStringHandlers(FunctionHandler):
         if size is not None:
             dst_atom = state.deref(data.args_atoms[0], size)
             if c is not None:
-                value = MultiValues(claripy.BVV(chr(c)*size, size*8))
+                value = MultiValues(claripy.BVV(chr(c) * size, size * 8))
                 data.depends(dst_atom, data.args_atoms[1], value=value)
             else:
                 data.depends(dst_atom, data.args_atoms[1], value=state.get_values(data.args_atoms[1]))

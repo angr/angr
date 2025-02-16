@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING, overload, Dict
+from typing import Any, TYPE_CHECKING, overload
 from collections.abc import Iterable, Iterator
 import logging
 from typing_extensions import Self
@@ -248,7 +248,7 @@ class ReachingDefinitionsState:
         return self.live_definitions.memory_uses
 
     @property
-    def others(self) -> Dict[Atom, MultiValues]:
+    def others(self) -> dict[Atom, MultiValues]:
         return self.live_definitions.others
 
     @property

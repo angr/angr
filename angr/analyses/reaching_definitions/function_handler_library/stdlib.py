@@ -115,7 +115,7 @@ class LibcStdlibHandlers(FunctionHandler):
             env_atom = EnvironAtom(length, name_value)
             heap_value = state.annotate_with_def(heap_value, Definition(heap_atom, state.codeloc))
             heap_value = heap_value.concat(claripy.BVV(0, 8))
-            data.depends(env_atom, value=heap_value) # Puts the env_atom in the others dict
+            data.depends(env_atom, value=heap_value)  # Puts the env_atom in the others dict
 
         data.depends(heap_atom, env_atom, value=heap_value)
         data.depends(data.ret_atoms, name_atom, heap_atom, env_atom, value=state.heap_address(heap_ptr))
