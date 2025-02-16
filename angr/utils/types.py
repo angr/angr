@@ -9,12 +9,23 @@ def unpack_typeref(ty):
     return ty
 
 
-def unpack_pointer(ty, iterative: bool = False) -> SimType | None:
+def unpack_pointer(ty: SimType, iterative: bool = False) -> SimType | None:
     if isinstance(ty, SimTypePointer):
         if iterative:
             inner = unpack_pointer(ty.pts_to, iterative=True)
             return inner if inner is not None else ty.pts_to
         return ty.pts_to
+    return None
+
+
+def unpack_pointer_and_array(ty: SimType, iterative: bool = False) -> SimType | None:
+    if isinstance(ty, SimTypePointer):
+        if iterative:
+            inner = unpack_pointer(ty.pts_to, iterative=True)
+            return inner if inner is not None else ty.pts_to
+        return ty.pts_to
+    if isinstance(ty, SimTypeArray):
+        return ty.elem_type
     return None
 
 

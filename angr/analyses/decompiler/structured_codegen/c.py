@@ -40,7 +40,7 @@ from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariabl
 from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
-from angr.utils.types import unpack_typeref, unpack_pointer
+from angr.utils.types import unpack_typeref, unpack_pointer_and_array
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
@@ -2781,7 +2781,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # expr must express a POINTER to the base
         # returns a value which has a simtype of data_type as if it were dereferenced out of expr
         data_type = unpack_typeref(data_type)
-        base_type = unpack_typeref(unpack_pointer(expr.type))
+        base_type = unpack_typeref(unpack_pointer_and_array(expr.type))
         if base_type is None:
             # well, not much we can do
             if data_type is None:
@@ -2904,7 +2904,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     ) -> CExpression:
         # same rule as _access_constant_offset wrt pointer expressions
         data_type = unpack_typeref(data_type)
-        base_type = unpack_pointer(expr.type)
+        base_type = unpack_pointer_and_array(expr.type)
         if base_type is None:
             # use the fallback from above
             return self._access_constant_offset(expr, 0, data_type, lvalue, renegotiate_type)
@@ -2964,7 +2964,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         kernel = None
         while i < len(terms):
             c, t = terms[i]
-            if isinstance(unpack_typeref(t.type), SimTypePointer):
+            if isinstance(unpack_typeref(t.type), (SimTypePointer, SimTypeArray)):
                 if kernel is not None:
                     l.warning("Summing two different pointers together. Uh oh!")
                     return bail_out()
@@ -2987,7 +2987,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         # suffering.
         while terms:
-            kernel_type = unpack_typeref(unpack_pointer(kernel.type))
+            kernel_type = unpack_typeref(unpack_pointer_and_array(kernel.type))
             assert kernel_type
 
             if kernel_type.size is None:
@@ -3054,7 +3054,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     kernel = inner.operand
                 else:
                     kernel = CUnaryOp("Reference", inner, codegen=self)
-                if unpack_typeref(unpack_pointer(kernel.type)) == kernel_type:
+                if unpack_typeref(unpack_pointer_and_array(kernel.type)) == kernel_type:
                     # we are not making progress
                     pass
                 else:

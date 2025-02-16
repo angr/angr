@@ -32,6 +32,7 @@ from angr.knowledge_plugins.types import TypesStore
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.stack_item import StackItem
     from angr.code_location import CodeLocation
 
 l = logging.getLogger(name=__name__)
@@ -1140,6 +1141,32 @@ class VariableManagerInternal(Serializable):
                 if not is_phi_assignment(stmt):
                     return False
         return True
+
+    def get_stackvar_max_sizes(self, stack_items: dict[int, StackItem]) -> dict[SimStackVariable, int]:
+        """
+        Get the maximum size of each stack variable regardless of the type of each stack variable, under the assumption
+        that stack variables do not overlap.
+
+        :return:        A dictionary from SimStackVariable to its maximum size.
+        """
+
+        stackvars_by_offset = defaultdict(list)
+        for v in self._variables:
+            if isinstance(v, SimStackVariable):
+                offset = v.offset
+                stackvars_by_offset[offset].append(v)
+
+        max_sizes = {}
+        offsets = sorted(list(stackvars_by_offset) + list(stack_items))
+        for i, offset in enumerate(offsets):
+            if i + 1 < len(offsets):
+                next_off = offsets[i + 1]
+                sz = next_off - offset
+                if offset in stackvars_by_offset:
+                    for v in stackvars_by_offset[offset]:
+                        max_sizes[v] = max(v.size, sz)
+
+        return max_sizes
 
 
 class VariableManager(KnowledgeBasePlugin):

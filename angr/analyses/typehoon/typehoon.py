@@ -37,6 +37,7 @@ class Typehoon(Analysis):
         ground_truth=None,
         var_mapping: dict[SimVariable, set[TypeVariable]] | None = None,
         must_struct: set[TypeVariable] | None = None,
+        stackvar_max_sizes: dict[TypeVariable, int] | None = None,
     ):
         """
 
@@ -52,6 +53,7 @@ class Typehoon(Analysis):
         self._ground_truth: dict[TypeVariable, SimType] | None = ground_truth
         self._var_mapping = var_mapping
         self._must_struct = must_struct
+        self._stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
 
         self.bits = self.project.arch.bits
         self.solution = None
@@ -163,7 +165,7 @@ class Typehoon(Analysis):
                         typevars.add(constraint.sub_type)
                     if isinstance(constraint.super_type, TypeVariable):
                         typevars.add(constraint.super_type)
-        solver = SimpleSolver(self.bits, self._constraints, typevars)
+        solver = SimpleSolver(self.bits, self._constraints, typevars, stackvar_max_sizes=self._stackvar_max_sizes)
         self.solution = solver.solution
 
     def _specialize(self):

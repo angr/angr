@@ -8,6 +8,7 @@ import ailment
 
 from angr.calling_conventions import SimRegArg
 from angr.code_location import CodeLocation
+from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -82,6 +83,14 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
             new_block.statements = [stmt for stmt in new_block.statements if stmt is not None]
             # update it
             self._update_block(old_block, new_block)
+
+        if updated_blocks:
+            # update stack_items
+            for data in info.values():
+                for stack_offset, _ in data["stored"]:
+                    self.stack_items[stack_offset] = StackItem(
+                        stack_offset, self.project.arch.bytes, "regs", StackItemType.SAVED_REGS
+                    )
 
     def _find_registers_stored_on_stack(self) -> list[tuple[int, int, CodeLocation]]:
         first_block = self._get_block(self._func.addr)
