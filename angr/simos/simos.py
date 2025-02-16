@@ -46,7 +46,7 @@ class SimOS:
         self.unresolvable_call_target = self.project.loader.extern_object.allocate()
         self.project.hook(self.unresolvable_call_target, P["stubs"]["UnresolvableCallTarget"]())
 
-        def irelative_resolver(resolver_addr):
+        def irelative_resolver(resolver_addr: int) -> int | None:
             # autohooking runs before this does, might have provided this already
             # in that case, we want to advertise the _resolver_ address, since it is now
             # providing the behavior of the actual function
@@ -70,7 +70,7 @@ class SimOS:
                 _l.error("Resolver at %#x failed to resolve!", resolver_addr)
                 return None
 
-            return val.concrete_value
+            return val.concrete_value if val is not None and val.concrete else None
 
         self.project.loader.perform_irelative_relocs(irelative_resolver)
 
@@ -79,7 +79,7 @@ class SimOS:
 
         if sym is not None:
             addr, _ = self.prepare_function_symbol(name, basic_addr=sym.rebased_addr)
-            if self.project.is_hooked(addr) and not self.project.hooked_by(addr).is_stub:
+            if self.project.is_hooked(addr) and not self.project.hooked_by(addr).is_stub:  # type: ignore
                 return
             self.project.hook(addr, hook)
 
@@ -242,7 +242,7 @@ class SimOS:
         return self.state_entry(**kwargs)
 
     def state_call(self, addr, *args, **kwargs):
-        cc = kwargs.pop("cc", default_cc(self.arch.name, platform=self.name)(self.project.arch))
+        cc = kwargs.pop("cc", default_cc(self.arch.name, platform=self.name)(self.project.arch))  # type: ignore
         state = kwargs.pop("base_state", None)
         toc = kwargs.pop("toc", None)
 
@@ -329,7 +329,7 @@ class SimOS:
     def syscall(self, state, allow_unsupported=True):
         return None
 
-    def syscall_abi(self, state) -> str:
+    def syscall_abi(self, state) -> str | None:
         return None
 
     def syscall_cc(self, state) -> angr.calling_conventions.SimCCSyscall | None:
