@@ -1377,7 +1377,7 @@ class AILSimplifier(Analysis):
                 # remove uses where vvars are going to be removed
                 filtered_uses_count = 0
                 for _, loc in uses:
-                    if loc in dead_vvar_codelocs:
+                    if loc in dead_vvar_codelocs and loc.block_addr is not None and loc.stmt_idx is not None:
                         stmt = blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
                         if not self._statement_has_call_exprs(stmt) and not isinstance(stmt, (DirtyStatement, Call)):
                             continue
