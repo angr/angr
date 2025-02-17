@@ -7,6 +7,7 @@ import ailment
 import cle
 
 from angr.utils.funcid import is_function_security_check_cookie
+from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -62,7 +63,9 @@ class WinStackCanarySimplifier(OptimizationPass):
         first_block, canary_init_stmt_ids = init_stmts
         canary_init_stmt = first_block.statements[canary_init_stmt_ids[-1]]
         # where is the stack canary stored?
-        if not isinstance(canary_init_stmt.addr, ailment.Expr.StackBaseOffset):
+        if not isinstance(canary_init_stmt, ailment.Stmt.Store) or not isinstance(
+            canary_init_stmt.addr, ailment.Expr.StackBaseOffset
+        ):
             _l.debug(
                 "Unsupported canary storing location %s. Expects an ailment.Expr.StackBaseOffset.",
                 canary_init_stmt.addr,
@@ -142,6 +145,11 @@ class WinStackCanarySimplifier(OptimizationPass):
             for stmt_idx in sorted(canary_init_stmt_ids, reverse=True):
                 first_block_copy.statements.pop(stmt_idx)
             self._update_block(first_block, first_block_copy)
+
+            # update stack_items
+            self.stack_items[store_offset] = StackItem(
+                store_offset, canary_init_stmt.size, "canary", StackItemType.STACK_CANARY
+            )
 
     def _find_canary_init_stmt(self):
         first_block = self._get_block(self._func.addr)

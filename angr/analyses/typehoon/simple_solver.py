@@ -185,7 +185,9 @@ class Sketch:
             return self.node_mapping[typevar]
         node: SketchNodeBase | None = None
         if isinstance(typevar, DerivedTypeVariable):
-            node = self.node_mapping[SimpleSolver._to_typevar_or_typeconst(typevar.type_var)]
+            t = SimpleSolver._to_typevar_or_typeconst(typevar.type_var)
+            assert isinstance(t, TypeVariable)
+            node = self.node_mapping[t]
             for label in typevar.labels:
                 succs = []
                 for _, dst, data in self.graph.out_edges(node, data=True):
@@ -210,11 +212,26 @@ class Sketch:
         # sub <: super
         if not isinstance(constraint, Subtype):
             return
-        subtype = self.flatten_typevar(constraint.sub_type)
-        supertype = self.flatten_typevar(constraint.super_type)
+        subtype, _ = self.flatten_typevar(constraint.sub_type)
+        supertype, try_maxsize = self.flatten_typevar(constraint.super_type)
+
+        if (
+            try_maxsize
+            and isinstance(subtype, TypeVariable)
+            and subtype in self.solver.stackvar_max_sizes
+            and isinstance(supertype, TypeConstant)
+            and not isinstance(supertype, BottomType)
+        ):
+            basetype = supertype
+            assert basetype.size is not None
+            max_size = self.solver.stackvar_max_sizes.get(subtype, None)
+            if max_size not in {0, None} and max_size // basetype.size > 0:  # type: ignore
+                supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore
+
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             supertype, PRIMITIVE_TYPES
         ):
+            assert isinstance(supertype, (TypeVariable, DerivedTypeVariable))
             super_node = self.lookup(supertype)
             assert super_node is None or isinstance(super_node, SketchNode)
             if super_node is not None:
@@ -222,6 +239,7 @@ class Sketch:
         elif SimpleSolver._typevar_inside_set(supertype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             subtype, PRIMITIVE_TYPES
         ):
+            assert isinstance(subtype, (TypeVariable, DerivedTypeVariable))
             sub_node = self.lookup(subtype)
             assert sub_node is None or isinstance(sub_node, SketchNode)
             # assert sub_node is not None
@@ -231,7 +249,7 @@ class Sketch:
     @staticmethod
     def flatten_typevar(
         derived_typevar: TypeVariable | TypeConstant | DerivedTypeVariable,
-    ) -> DerivedTypeVariable | TypeVariable | TypeConstant:
+    ) -> tuple[DerivedTypeVariable | TypeVariable | TypeConstant, bool]:
         # pylint:disable=too-many-boolean-expressions
         if (
             isinstance(derived_typevar, DerivedTypeVariable)
@@ -243,8 +261,10 @@ class Sketch:
             and derived_typevar.labels[1].offset == 0
             and derived_typevar.labels[1].bits == MAX_POINTSTO_BITS
         ):
-            return derived_typevar.type_var.basetype
-        return derived_typevar
+            bt = derived_typevar.type_var.basetype
+            assert bt is not None
+            return bt, True
+        return derived_typevar, False
 
 
 #
@@ -313,6 +333,11 @@ class ConstraintGraphNode:
             else:
                 prefix = DerivedTypeVariable(self.typevar.type_var, None, labels=self.typevar.labels[:-1])
             variance = Variance.COVARIANT if self.variance == last_label.variance else Variance.CONTRAVARIANT
+            if not isinstance(prefix, (TypeVariable, DerivedTypeVariable)):
+                # we may see incorrectly generated type constraints that attempt to load from an int:
+                #   int64.load
+                # we don't want to entertain such constraints
+                return None
             return (
                 ConstraintGraphNode(prefix, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN),
                 self.typevar.labels[-1],
@@ -330,6 +355,7 @@ class ConstraintGraphNode:
             raise TypeError(f"Unsupported type {type(self.typevar)}")
         variance = Variance.COVARIANT if self.variance == label.variance else Variance.CONTRAVARIANT
         var = typevar if not labels else DerivedTypeVariable(typevar, None, labels=labels)
+        assert isinstance(var, (TypeVariable, DerivedTypeVariable))
         return ConstraintGraphNode(var, variance, self.tag, FORGOTTEN.PRE_FORGOTTEN)
 
     def inverse(self) -> ConstraintGraphNode:
@@ -366,13 +392,14 @@ class SimpleSolver:
     improvements.
     """
 
-    def __init__(self, bits: int, constraints, typevars):
+    def __init__(self, bits: int, constraints, typevars, stackvar_max_sizes: dict[TypeVariable, int] | None = None):
         if bits not in (32, 64):
             raise ValueError(f"Pointer size {bits} is not supported. Expect 32 or 64.")
 
         self.bits = bits
         self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
         self._typevars: set[TypeVariable] = typevars
+        self.stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
         self._base_lattice = BASE_LATTICES[bits]
         self._base_lattice_inverted = networkx.DiGraph()
         for src, dst in self._base_lattice.edges:
@@ -1289,7 +1316,7 @@ class SimpleSolver:
             for _, succ, data in out_edges:
                 if isinstance(succ, RecursiveRefNode):
                     ref = succ
-                    succ: SketchNode | None = sketch.lookup(succ.target)
+                    succ: SketchNode | None = sketch.lookup(succ.target)  # type: ignore
                     if succ is None:
                         # failed to resolve...
                         _l.warning(
