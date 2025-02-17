@@ -127,7 +127,8 @@ class LibcStdlibHandlers(FunctionHandler):
         if name_atom is not None:
             sources.append(name_atom)
 
-        data.depends(data.ret_atoms, *sources, value=state.heap_address(heap_ptr))
+        value = state.heap_address(heap_ptr) if heap_ptr is not None else state.top(state.arch.bits)
+        data.depends(data.ret_atoms, *sources, value=value)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_setenv(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
