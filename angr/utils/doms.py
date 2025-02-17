@@ -1,75 +1,78 @@
 from __future__ import annotations
 from typing import Any
+from collections import defaultdict
 
 import networkx
+
+from angr.utils.graph import shallow_reverse
 
 
 class IncrementalDominators:
     """
-    This class implements a simple algorithm that incrementally calculates dominators and post-dominators for acyclic
-    graphs.
-
-    The graph must only be modified by replacing or removing nodes, not adding nodes or edges.
+    This class allows for incrementally updating dominators and post-dominators for graphs. The graph must only be
+    modified by replacing nodes, not adding nodes or edges.
     """
 
     def __init__(self, graph: networkx.DiGraph, start, post: bool = False):
         self.graph = graph
         self.start = start
-        self._post: bool = post  # calculate dominators
-        self._pre: bool = not post  # calculate post-dominators
+        self._post: bool = post  # calculate post-dominators if True
+        self._pre: bool = not post  # calculate dominators
 
-        self._idepths: dict[Any, int] = {start: 0}
+        self._doms: dict[Any, Any] = {}
+        self._inverted_dom_tree: dict[Any, Any] | None = None  # initialized on demand
+        self.initialize()
 
-    def idepth(self, node: Any) -> int:
-        """
-        Get the immediate dominator or post-dominator depth of a node.
-        """
+    def initialize(self):
+        if self._post:
+            t = shallow_reverse(self.graph)
+            self._doms = networkx.immediate_dominators(t, self.start)
+        else:
+            self._doms = networkx.immediate_dominators(self.graph, self.start)
 
-        assert node in self.graph
-        if node is self.start:
-            return 0
-        if node not in self._idepths:
-            _preds = self.graph.predecessors(node) if self._pre else self.graph.successors(node)
-            preds = [p for p in _preds if p is not node]
-            self._idepths[node] = 0 if not preds else max(self.idepth(p) for p in preds) + 1
-        return self._idepths[node]
+    def _update_inverted_domtree(self):
+        # recalculate the dominators for dominatees of replaced nodes
+        if self._inverted_dom_tree is None:
+            self._inverted_dom_tree = defaultdict(list)
+            for dtee, dtor in self._doms.items():
+                self._inverted_dom_tree[dtor].append(dtee)
 
-    def idom_lca(self, node: Any, rhs: Any) -> Any | None:
-        if rhs is None:
-            return node
-        lhs = node
-        while lhs is not rhs:
-            comp = self.idepth(lhs) - self.idepth(rhs)
-            if comp >= 0:
-                lhs = self.idom(lhs) if lhs is not self.start else lhs
-            if comp <= 0:
-                rhs = self.idom(rhs) if rhs is not self.start else rhs
-        return lhs
+    def graph_updated(self, new_node: Any, replaced_nodes: set[Any], replaced_head: Any):
+        if self.start in replaced_nodes:
+            self.start = new_node
 
-    def idom(self, node: Any) -> Any | None:
+        self._update_inverted_domtree()
+
+        # recalculate the dominators for impacted nodes
+        new_dom = self._doms[replaced_head]
+        for rn in replaced_nodes:
+            if rn not in self._inverted_dom_tree:
+                continue
+            for dtee in self._inverted_dom_tree[rn]:
+                self._doms[dtee] = new_dom
+        self._doms[new_node] = new_dom
+
+        # keep inverted dom tree up-to-date
+        for rn in replaced_nodes:
+            if rn in self._doms:
+                del self._doms[rn]
+            if rn in self._inverted_dom_tree:
+                del self._inverted_dom_tree[rn]
+
+    def idom(self, node: Any, visited: set[Any] | None = None) -> Any | None:
         """
         Get the immediate dominator of a given node.
         """
 
-        if node not in self.graph:
-            return None
-        pred_func = self.graph.predecessors if self._pre else self.graph.successors
-        preds = list(pred_func(node))  # type: ignore
-        if not preds:
-            return None
-        if len(preds) == 1:
-            return preds[0]
-        lca = preds[0]
-        for pred in preds[1:]:
-            if pred is node:
-                continue
-            lca = self.idom_lca(pred, lca)
-        return lca
+        return self._doms.get(node, None)
 
     def df(self, node: Any):
         """
         Generate the dominance frontier of a node.
         """
+        if node not in self.graph:
+            return set()
+
         df = set()
         _succ = self.graph.successors if self._pre else self.graph.predecessors
         queue = list(_succ(node))  # type: ignore

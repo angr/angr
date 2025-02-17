@@ -24,7 +24,7 @@ class TestDoms(TestCase):
         )
 
         doms = IncrementalDominators(g, 1)
-        assert doms.idom(1) is None
+        assert doms.idom(1) == 1
         assert doms.idom(2) == 1
         assert doms.idom(3) == 1
         assert doms.idom(4) == 3
@@ -48,7 +48,7 @@ class TestDoms(TestCase):
         )
 
         postdoms = IncrementalDominators(g, 7, post=True)
-        assert postdoms.idom(7) is None
+        assert postdoms.idom(7) == 7
         assert postdoms.idom(6) == 7
         assert postdoms.idom(5) == 6
         assert postdoms.idom(2) == 5
@@ -93,6 +93,7 @@ class TestDoms(TestCase):
         # getting rid of the switch-case
         g.remove_nodes_from([7, 8, 9, 10, 11, 12])
         g.add_edges_from([(5, 13), (6, 13)])
+        doms.graph_updated(5, {7, 8, 9, 10, 11, 12}, 7)
         assert doms.idom(13) == 5
 
     def test_nonexistent_nodes(self):
@@ -110,6 +111,26 @@ class TestDoms(TestCase):
         assert doms.idom(3) == 1
         assert doms.idom(4) is None
         assert doms.idom(5) is None
+
+    def test_cycles(self):
+        g = networkx.DiGraph()
+        g.add_edges_from(
+            [
+                (1, 2),
+                (1, 3),
+                (3, 4),
+                (4, 5),
+                (2, 5),
+                (5, 2),
+            ]
+        )
+
+        doms = IncrementalDominators(g, 1)
+        assert doms.idom(1) == 1
+        assert doms.idom(2) == 1
+        assert doms.idom(3) == 1
+        assert doms.idom(4) == 3
+        assert doms.idom(5) == 1
 
 
 if __name__ == "__main__":

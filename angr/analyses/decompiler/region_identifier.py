@@ -790,6 +790,8 @@ class RegionIdentifier(Analysis):
                         # graph_copy internally.
                         if graph_copy is not graph:
                             self._update_graph(graph_copy, region, replaced_nodes)
+                        doms.graph_updated(region, replaced_nodes, region.head)
+                        postdoms.graph_updated(region, replaced_nodes, region.head)
                         # break out of the inner loop
                         break
 
