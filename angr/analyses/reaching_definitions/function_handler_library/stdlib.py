@@ -7,7 +7,7 @@ import claripy
 from angr.analyses.reaching_definitions.function_handler import FunctionCallDataUnwrapped, FunctionHandler
 from angr.knowledge_plugins.key_definitions.atoms import Atom
 from angr.knowledge_plugins.key_definitions.live_definitions import DerefSize
-
+from angr.knowledge_plugins.key_definitions.definition import Definition
 
 if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
@@ -75,7 +75,7 @@ class LibcStdlibHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_calloc(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         nmemb = state.get_concrete_value(data.args_atoms[0]) or 48
-        size = state.get_concrete_value(data.args_atoms[0]) or 1
+        size = state.get_concrete_value(data.args_atoms[1]) or 1
         heap_ptr = state.heap_address(state.heap_allocator.allocate(nmemb * size))
         data.depends(state.deref(heap_ptr, nmemb * size), value=0)
         data.depends(data.ret_atoms, value=heap_ptr)
@@ -84,18 +84,51 @@ class LibcStdlibHandlers(FunctionHandler):
     def handle_impl_getenv(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         name_atom = state.deref(data.args_atoms[0], DerefSize.NULL_TERMINATE)
         name_value = state.get_concrete_value(name_atom, cast_to=bytes)
-        if name_value is not None:
-            name_value = name_value.strip(b"\0").decode()
+        length = 2
+        heap_value = None
+
         data.depends(None, name_atom)
 
         # store a buffer, registering it as an output of this function
         # we store this two-byte mixed value because we don't want the value to be picked up by get_concrete_value()
         # but also it should be able to be picked up by NULL_TERMINATE reads
-        heap_ptr = state.heap_allocator.allocate(2)
-        heap_atom = state.deref(heap_ptr, 2)
-        heap_value = claripy.BVS("weh", 8).concat(claripy.BVV(0, 8))
-        data.depends(heap_atom, EnvironAtom(2, name_value), value=heap_value)
-        data.depends(data.ret_atoms, value=state.heap_address(heap_ptr))
+        heap_atom = None
+        env_atom = None
+        heap_ptr = None
+        sources = []
+        if name_value is not None:
+            name_value = name_value.strip(b"\0").decode()
+            for env_atom, env_value in state.others.items():
+                if not isinstance(env_atom, EnvironAtom) or env_atom.name != name_value:
+                    continue
+
+                # There exists an environment variable with this name
+                heap_value = env_value
+                length = env_atom.size
+                heap_ptr = state.heap_allocator.allocate(length)
+                heap_atom = state.deref(heap_ptr, length)
+                break
+
+            else:
+                heap_value = None
+
+        if name_value is None or heap_value is None or heap_atom is None or env_atom is None:
+            heap_ptr = state.heap_allocator.allocate(length)
+            heap_atom = state.deref(heap_ptr, length)
+            heap_value = claripy.BVS("weh", 8)
+            env_atom = EnvironAtom(length, name_value)
+            if heap_atom is not None:
+                heap_value = state.annotate_with_def(heap_value, Definition(heap_atom, state.codeloc))
+            heap_value = heap_value.concat(claripy.BVV(0, 8))
+            data.depends(env_atom, value=heap_value)  # Puts the env_atom in the others dict
+
+        data.depends(heap_atom, env_atom, value=heap_value)
+        sources = [heap_atom, env_atom]
+        if name_atom is not None:
+            sources.append(name_atom)
+
+        value = state.heap_address(heap_ptr) if heap_ptr is not None else state.top(state.arch.bits)
+        data.depends(data.ret_atoms, *sources, value=value)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_setenv(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
@@ -107,9 +140,9 @@ class LibcStdlibHandlers(FunctionHandler):
 
         src_atom = state.deref(data.args_atoms[1], DerefSize.NULL_TERMINATE)
         src_value = state.get_values(src_atom)
-        data.depends(
-            EnvironAtom(len(src_value) // 8 if src_value is not None else 1, name_value), src_atom, value=src_value
-        )
+
+        env_atom = EnvironAtom(len(src_value) // 8 if src_value is not None else 1, name_value)
+        data.depends(env_atom, src_atom, value=src_value)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_system(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):

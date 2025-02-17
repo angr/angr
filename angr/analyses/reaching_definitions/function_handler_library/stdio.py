@@ -202,6 +202,7 @@ def handle_printf(
                 for defn in state.get_definitions(atom):
                     top_val = state.annotate_with_def(top_val, defn)
                 buf_data = MultiValues(top_val)
+                buf_atoms = atom
         elif fmt == "%u":
             buf_atoms = atom
             buf_data = state.get_concrete_value(buf_atoms)

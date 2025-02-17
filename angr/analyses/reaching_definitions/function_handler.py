@@ -121,9 +121,9 @@ class FunctionCallData:
             return False
         if isinstance(dest, MemoryLocation) and isinstance(dest.addr, SpOffset):
             for effect in self.effects:
-                if not isinstance(effect.dest, MemoryLocation) or not isinstance(effect.dest.addr, SpOffset):
-                    continue
                 stkarg = effect.dest
+                if not isinstance(stkarg, MemoryLocation) or not isinstance(stkarg.addr, SpOffset):
+                    continue
                 if (
                     dest.addr.offset + dest.size <= stkarg.addr.offset
                     or stkarg.addr.offset + stkarg.size <= dest.addr.offset
@@ -282,12 +282,20 @@ class FunctionHandler:
     A mechanism for summarizing a function call's effect on a program for ReachingDefinitionsAnalysis.
     """
 
-    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable[FunctionHandler] | None = None):
+    def __init__(self, interfunction_level: int = 0, extra_impls: Iterable[type[FunctionHandler]] | None = None):
+        """
+        :param interfunction_level: Maximum depth in to continue local function exploration
+        :param extra_impls: FunctionHandler classes to implement beyond what's implemented in function_handler_library
+        """
+
         self.interfunction_level: int = interfunction_level
 
-        if extra_impls is not None:
-            for extra_handler in extra_impls:
-                for name, func in vars(extra_handler).items():
+        if extra_impls is None:
+            return
+
+        for extra_handler in extra_impls:
+            for cls in extra_handler.__mro__:
+                for name, func in vars(cls).items():
                     if name.startswith("handle_impl_"):
                         setattr(self, name, _mk_wrapper(func, self))
 
@@ -398,9 +406,13 @@ class FunctionHandler:
                     for typelib_name in prototype_lib.type_collection_names:
                         type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
             if type_collections:
-                data.prototype = dereference_simtype(data.prototype, type_collections).with_arch(state.arch)
+                prototype = dereference_simtype(data.prototype, type_collections).with_arch(state.arch)
+                data.prototype = cast(SimTypeFunction, prototype)
 
-        args_atoms_from_values = data.reset_prototype(data.prototype, state, soft_reset=True)
+        if isinstance(data.prototype, SimTypeFunction):
+            args_atoms_from_values = data.reset_prototype(data.prototype, state, soft_reset=True)
+        else:
+            args_atoms_from_values = set()
 
         # PROCESS
         state.move_codelocs(data.function_codeloc)
@@ -506,7 +518,9 @@ class FunctionHandler:
         assert data.prototype is not None
         if data.prototype.returnty is not None:
             if not isinstance(data.prototype.returnty, SimTypeBottom):
-                data.ret_values = MultiValues(state.top(data.prototype.returnty.with_arch(state.arch).size))
+                data.ret_values = MultiValues(
+                    state.top(data.prototype.returnty.with_arch(state.arch).size or state.arch.bits)
+                )
             else:
                 data.ret_values = MultiValues(state.top(state.arch.bits))
         if data.guessed_prototype:
@@ -567,7 +581,7 @@ class FunctionHandler:
         sub_rda = state.analysis.project.analyses.ReachingDefinitions(
             data.function,
             observe_all=state.analysis._observe_all,
-            observation_points=(state.analysis._observation_points or []) + return_observation_points,
+            observation_points=list(state.analysis._observation_points or []).extend(return_observation_points),
             observe_callback=state.analysis._observe_callback,
             dep_graph=state.dep_graph,
             function_handler=self,

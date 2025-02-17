@@ -216,12 +216,12 @@ class ReachingDefinitionsState:
         return self.live_definitions.tmp_uses
 
     @property
-    def register_uses(self):
-        return self.live_definitions.register_uses
-
-    @property
     def registers(self) -> MultiValuedMemory:
         return self.live_definitions.registers
+
+    @property
+    def register_uses(self):
+        return self.live_definitions.register_uses
 
     @property
     def stack(self) -> MultiValuedMemory:
@@ -240,12 +240,16 @@ class ReachingDefinitionsState:
         return self.live_definitions.heap_uses
 
     @property
+    def memory(self) -> MultiValuedMemory:
+        return self.live_definitions.memory
+
+    @property
     def memory_uses(self):
         return self.live_definitions.memory_uses
 
     @property
-    def memory(self) -> MultiValuedMemory:
-        return self.live_definitions.memory
+    def others(self) -> dict[Atom, MultiValues]:
+        return self.live_definitions.others
 
     @property
     def uses_by_codeloc(self):
@@ -493,7 +497,7 @@ class ReachingDefinitionsState:
             self.live_definitions.add_memory_use_by_def(definition, self.codeloc, expr=expr)
 
     def get_definitions(
-        self, atom: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]]
+        self, atom: Atom | Definition[Atom] | Iterable[Atom] | Iterable[Definition[Atom]] | MultiValues
     ) -> set[Definition[Atom]]:
         return self.live_definitions.get_definitions(atom)
 
