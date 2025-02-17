@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 from unittest import main, TestCase
 
@@ -22,14 +23,14 @@ class TestDoms(TestCase):
             ]
         )
 
-        id = IncrementalDominators(g, 1)
-        assert id.idom(1) is None
-        assert id.idom(2) == 1
-        assert id.idom(3) == 1
-        assert id.idom(4) == 3
-        assert id.idom(5) == 1
-        assert id.idom(6) == 5
-        assert id.idom(7) == 6
+        doms = IncrementalDominators(g, 1)
+        assert doms.idom(1) is None
+        assert doms.idom(2) == 1
+        assert doms.idom(3) == 1
+        assert doms.idom(4) == 3
+        assert doms.idom(5) == 1
+        assert doms.idom(6) == 5
+        assert doms.idom(7) == 6
 
     def test_simple_postdoms(self):
 
@@ -46,14 +47,14 @@ class TestDoms(TestCase):
             ]
         )
 
-        id = IncrementalDominators(g, 7, post=True)
-        assert id.idom(7) is None
-        assert id.idom(6) == 7
-        assert id.idom(5) == 6
-        assert id.idom(2) == 5
-        assert id.idom(4) == 5
-        assert id.idom(3) == 4
-        assert id.idom(1) == 5
+        postdoms = IncrementalDominators(g, 7, post=True)
+        assert postdoms.idom(7) is None
+        assert postdoms.idom(6) == 7
+        assert postdoms.idom(5) == 6
+        assert postdoms.idom(2) == 5
+        assert postdoms.idom(4) == 5
+        assert postdoms.idom(3) == 4
+        assert postdoms.idom(1) == 5
 
     def test_doms_on_changed_graphs(self):
         g = networkx.DiGraph()
@@ -85,14 +86,14 @@ class TestDoms(TestCase):
             ]
         )
 
-        id = IncrementalDominators(g, 1)
-        assert id.idom(13) == 7
-        assert id.idom(5) == 3
+        doms = IncrementalDominators(g, 1)
+        assert doms.idom(13) == 7
+        assert doms.idom(5) == 3
 
         # getting rid of the switch-case
         g.remove_nodes_from([7, 8, 9, 10, 11, 12])
         g.add_edges_from([(5, 13), (6, 13)])
-        assert id.idom(13) == 5
+        assert doms.idom(13) == 5
 
     def test_nonexistent_nodes(self):
         g = networkx.DiGraph()
@@ -105,10 +106,10 @@ class TestDoms(TestCase):
         )
         g.add_node(4)
 
-        id = IncrementalDominators(g, 1)
-        assert id.idom(3) == 1
-        assert id.idom(4) is None
-        assert id.idom(5) is None
+        doms = IncrementalDominators(g, 1)
+        assert doms.idom(3) == 1
+        assert doms.idom(4) is None
+        assert doms.idom(5) is None
 
 
 if __name__ == "__main__":
