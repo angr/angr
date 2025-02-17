@@ -91,13 +91,15 @@ class SRDAModel:
                     )
         return defs
 
-    def get_vvar_uses(self, obj: atoms.VirtualVariable) -> set[CodeLocation]:
+    def get_vvar_uses(self, obj: VirtualVariable | atoms.VirtualVariable) -> set[CodeLocation]:
         the_vvar = self.varid_to_vvar.get(obj.varid, None)
         if the_vvar is not None:
             return {loc for _, loc in self.all_vvar_uses[the_vvar]}
         return set()
 
-    def get_vvar_uses_with_expr(self, obj: atoms.VirtualVariable) -> set[tuple[CodeLocation, VirtualVariable]]:
+    def get_vvar_uses_with_expr(
+        self, obj: VirtualVariable | atoms.VirtualVariable
+    ) -> set[tuple[CodeLocation, VirtualVariable]]:
         the_vvar = self.varid_to_vvar.get(obj.varid, None)
         if the_vvar is not None:
             return {(loc, expr) for expr, loc in self.all_vvar_uses[the_vvar]}
