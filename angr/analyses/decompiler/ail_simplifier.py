@@ -132,12 +132,10 @@ class AILSimplifier(Analysis):
     def _simplify(self):
         if self._narrow_expressions:
             _l.debug("Removing dead assignments before narrowing expressions")
-            r = self._remove_dead_assignments()
+            r = self._iteratively_remove_dead_assignments()
             if r:
                 _l.debug("... dead assignments removed")
                 self.simplified = True
-                self._rebuild_func_graph()
-                self._clear_cache()
 
             _l.debug("Narrowing expressions")
             narrowed_exprs = self._narrow_exprs()
@@ -170,12 +168,10 @@ class AILSimplifier(Analysis):
 
         if self._unify_vars:
             _l.debug("Removing dead assignments")
-            r = self._remove_dead_assignments()
+            r = self._iteratively_remove_dead_assignments()
             if r:
                 _l.debug("... dead assignments removed")
                 self.simplified = True
-                self._rebuild_func_graph()
-                self._clear_cache()
 
             _l.debug("Unifying local variables")
             r = self._unify_local_variables()
@@ -194,11 +190,10 @@ class AILSimplifier(Analysis):
                 self._clear_cache()
 
         _l.debug("Removing dead assignments")
-        r = self._remove_dead_assignments()
+        r = self._iteratively_remove_dead_assignments()
         if r:
             _l.debug("... dead assignments removed")
             self.simplified = True
-            self._rebuild_func_graph()
 
     def _rebuild_func_graph(self):
         def _handler(node):
@@ -1319,14 +1314,27 @@ class AILSimplifier(Analysis):
 
         return False, None
 
+    def _iteratively_remove_dead_assignments(self) -> bool:
+        anything_removed = False
+        while True:
+            r = self._remove_dead_assignments()
+            if not r:
+                return anything_removed
+            self._rebuild_func_graph()
+            self._clear_cache()
+
     def _remove_dead_assignments(self) -> bool:
 
         # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
-        # cases where a statement defines more than one atoms, e.g., a call statement that defines both the return
+        # cases where a statement defines more than one atom, e.g., a call statement that defines both the return
         # value and the floating-point return value.
         stmts_to_remove_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         stmts_to_keep_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         dead_vvar_ids: set[int] = set()
+        dead_vvar_codelocs: set[CodeLocation] = set()
+        blocks: dict[tuple[int, int | None], Block] = {
+            (node.addr, node.idx): self.blocks.get(node, node) for node in self.func_graph.nodes()
+        }
 
         # Find all statements that should be removed
         mask = (1 << self.project.arch.bits) - 1
@@ -1335,59 +1343,64 @@ class AILSimplifier(Analysis):
         stackarg_offsets = (
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
         )
-        for def_ in rd.all_definitions:
-            if def_.dummy:
-                continue
-            # we do not remove references to global memory regions no matter what
-            if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(def_.atom.addr, int):
-                continue
-            if isinstance(def_.atom, atoms.VirtualVariable):
-                if def_.atom.varid in self._propagator_dead_vvar_ids:
+        while True:
+            new_dead_vars_found = False
+            for vvar, codeloc in rd.all_vvar_definitions.items():
+                if vvar.varid in dead_vvar_ids:
+                    continue
+                if vvar.varid in self._propagator_dead_vvar_ids:
                     # we are definitely removing this variable if it has no uses
-                    uses = rd.get_vvar_uses(def_.atom)
-                elif def_.atom.was_stack:
+                    uses = rd.all_vvar_uses[vvar]
+                elif vvar.was_stack:
                     if not self._remove_dead_memdefs:
-                        if rd.is_phi_vvar_id(def_.atom.varid):
+                        if rd.is_phi_vvar_id(vvar.varid):
                             # we always remove unused phi variables
                             pass
-                        elif def_.atom.varid in self._secondary_stackvars:
+                        elif vvar.varid in self._secondary_stackvars:
                             # secondary stack variables are potentially removable
                             pass
                         elif stackarg_offsets is not None:
                             # we always remove definitions for stack arguments
-                            assert def_.atom.stack_offset is not None
-                            if (def_.atom.stack_offset & mask) not in stackarg_offsets:
+                            assert vvar.stack_offset is not None
+                            if (vvar.stack_offset & mask) not in stackarg_offsets:
                                 continue
                         else:
                             continue
-                    uses = rd.get_vvar_uses(def_.atom)
+                    uses = rd.all_vvar_uses[vvar]
 
-                elif def_.atom.was_tmp or def_.atom.was_reg or def_.atom.was_parameter:
-                    uses = rd.get_vvar_uses(def_.atom)
+                elif vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
+                    uses = rd.all_vvar_uses[vvar]
 
                 else:
                     uses = set()
 
-            else:
-                continue
+                # remove uses where vvars are going to be removed
+                filtered_uses_count = 0
+                for _, loc in uses:
+                    if loc in dead_vvar_codelocs:
+                        stmt = blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
+                        if not self._statement_has_call_exprs(stmt) and not isinstance(stmt, (DirtyStatement, Call)):
+                            continue
+                    filtered_uses_count += 1
 
-            if not uses:
-                if isinstance(def_.atom, atoms.VirtualVariable):
-                    dead_vvar_ids.add(def_.atom.varid)
+                if filtered_uses_count == 0:
+                    new_dead_vars_found = True
+                    dead_vvar_ids.add(vvar.varid)
+                    dead_vvar_codelocs.add(codeloc)
+                    if not isinstance(codeloc, ExternalCodeLocation):
+                        assert codeloc.block_addr is not None
+                        assert codeloc.stmt_idx is not None
+                        stmts_to_remove_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
+                        stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].discard(codeloc.stmt_idx)
+                else:
+                    if not isinstance(codeloc, ExternalCodeLocation):
+                        assert codeloc.block_addr is not None
+                        assert codeloc.stmt_idx is not None
+                        stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
 
-                if not isinstance(def_.codeloc, ExternalCodeLocation):
-                    assert def_.codeloc.block_addr is not None
-                    assert def_.codeloc.stmt_idx is not None
-                    stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
-                        def_.codeloc.stmt_idx
-                    )
-            else:
-                if not isinstance(def_.codeloc, ExternalCodeLocation):
-                    assert def_.codeloc.block_addr is not None
-                    assert def_.codeloc.stmt_idx is not None
-                    stmts_to_keep_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(
-                        def_.codeloc.stmt_idx
-                    )
+            if not new_dead_vars_found:
+                # nothing more is found. let's end the loop
+                break
 
         # find all phi variables that rely on variables that no longer exist
         all_removed_var_ids = self._removed_vvar_ids.copy()
@@ -1462,6 +1475,7 @@ class AILSimplifier(Analysis):
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
                             simplified = True
+                            self._assignments_to_remove.discard(codeloc)
                             continue
 
                         if self._statement_has_call_exprs(stmt):
@@ -1489,6 +1503,7 @@ class AILSimplifier(Analysis):
                         codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
+                            self._calls_to_remove.discard(codeloc)
                             simplified = True
                             continue
 
