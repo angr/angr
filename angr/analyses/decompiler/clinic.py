@@ -12,6 +12,7 @@ import networkx
 import capstone
 
 import ailment
+from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -22,6 +23,7 @@ from angr.utils import timethis
 from angr.utils.graph import GraphUtils
 from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from angr.sim_type import (
+    dereference_simtype,
     SimTypeChar,
     SimTypeInt,
     SimTypeLongLong,
@@ -306,7 +308,7 @@ class Clinic(Analysis):
             self._update_progress(29.0, text="Recovering calling conventions (AIL mode)")
             self._recover_calling_conventions(func_graph=ail_graph)
 
-        return ail_graph
+        return self._apply_callsite_prototype_and_calling_convention(ail_graph)
 
     def _slice_variables(self, ail_graph):
         assert self.variable_kb is not None and self._desired_variables is not None
@@ -1143,6 +1145,74 @@ class Clinic(Analysis):
                         else:
                             stmt = ailment.Stmt.Call(None, target, **last_stmt.tags)
                             block.statements[-1] = stmt
+
+        return ail_graph
+
+    def _apply_callsite_prototype_and_calling_convention(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        for block in ail_graph.nodes():
+            if not block.statements:
+                continue
+
+            last_stmt = block.statements[-1]
+            if not isinstance(last_stmt, ailment.Stmt.Call):
+                continue
+
+            cc = last_stmt.calling_convention
+            prototype = last_stmt.prototype
+            if cc and prototype:
+                continue
+
+            # manually-specified call-site prototype
+            has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(block.addr)
+            if has_callsite_prototype:
+                manually_specified = self.kb.callsite_prototypes.get_prototype_type(block.addr)
+                if manually_specified:
+                    cc = self.kb.callsite_prototypes.get_cc(block.addr)
+                    prototype = self.kb.callsite_prototypes.get_prototype(block.addr)
+
+            # function-specific prototype
+            func = None
+            if cc is None or prototype is None:
+                target = None
+                if isinstance(last_stmt.target, ailment.Expr.Const):
+                    target = last_stmt.target.value
+
+                if target is not None and target in self.kb.functions:
+                    # function-specific logic when the calling target is known
+                    func = self.kb.functions[target]
+                    if func.prototype is None:
+                        func.find_declaration()
+                    cc = func.calling_convention
+                    prototype = func.prototype
+
+            # automatically recovered call-site prototype
+            if (cc is None or prototype is None) and has_callsite_prototype:
+                cc = self.kb.callsite_prototypes.get_cc(block.addr)
+                prototype = self.kb.callsite_prototypes.get_prototype(block.addr)
+
+            # ensure the prototype has been resolved
+            if prototype is not None and func is not None:
+                # make sure the function prototype is resolved.
+                # TODO: Cache resolved function prototypes globally
+                prototype_libname = func.prototype_libname
+                type_collections = []
+                if prototype_libname is not None:
+                    prototype_lib = SIM_LIBRARIES[prototype_libname]
+                    if prototype_lib.type_collection_names:
+                        for typelib_name in prototype_lib.type_collection_names:
+                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                if type_collections:
+                    prototype = dereference_simtype(prototype, type_collections).with_arch(  # type: ignore
+                        self.project.arch
+                    )
+
+            if cc is None:
+                l.warning("Call site %#x (callee %s) has an unknown calling convention.", block.addr, repr(func))
+
+            new_last_stmt = last_stmt.copy()
+            new_last_stmt.calling_convention = cc
+            new_last_stmt.prototype = prototype
+            block.statements[-1] = new_last_stmt
 
         return ail_graph
 
