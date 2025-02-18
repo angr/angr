@@ -8,9 +8,9 @@ from ailment.statement import ConditionalJump, Statement
 from ailment.expression import Const, BinaryOp, VirtualVariable
 
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement
-from .optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.utils.graph import dominates
 from angr.utils.timing import timethis
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
     from angr.analyses.s_reaching_definitions import SRDAModel
