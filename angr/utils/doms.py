@@ -1,3 +1,4 @@
+# pylint:disable=consider-using-dict-items
 from __future__ import annotations
 from typing import Any
 from collections import defaultdict
@@ -80,7 +81,7 @@ class IncrementalDominators:
 
         return self._doms.get(node, None)
 
-    def df(self, node: Any):
+    def df(self, node: Any) -> set[Any]:
         """
         Generate the dominance frontier of a node.
         """
@@ -89,16 +90,33 @@ class IncrementalDominators:
             return set()
 
         _pred = self.graph.predecessors if self._pre else self.graph.successors
+        _succ = self.graph.successors if self._pre else self.graph.predecessors
         df = set()
-        for u in self._doms:
+
+        visited = {node}
+        queue = [node]
+
+        while queue:
+            u = queue.pop(0)
             preds = list(_pred(u))  # type: ignore
+            added = False
             if len(preds) >= 2:
                 for v in preds:
                     if v in self._doms:
                         while v != self._doms[u]:
                             if v is node:
                                 df.add(u)
+                                added = True
+                                break
                             v = self._doms[v]
+                    if added:
+                        break
+
+            if not added:
+                for v in _succ(u):  # type: ignore
+                    if v not in visited:
+                        visited.add(v)
+                        queue.append(v)
         return df
 
     def dominates(self, dominator_node: Any, node: Any) -> bool:

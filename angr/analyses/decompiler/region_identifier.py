@@ -826,22 +826,29 @@ class RegionIdentifier(Analysis):
 
         # if the exit node is the header of a loop that contains the start node, the dominance frontier should only
         # contain the exit node.
+        start_node_frontier = None
+        end_node_frontier = None
+
         if not doms.dominates(start_node, end_node):
-            frontier = doms.df(start_node)
-            for node in frontier:
+            start_node_frontier = doms.df(start_node)
+            for node in start_node_frontier:
                 if node is not start_node and node is not end_node:
                     return False
 
         # no edges should enter the region.
-        for node in doms.df(end_node):
+        end_node_frontier = doms.df(end_node)
+        for node in end_node_frontier:
             if doms.dominates(start_node, node) and node is not end_node:
                 return False
 
+        if start_node_frontier is None:
+            start_node_frontier = doms.df(start_node)
+
         # no edges should leave the region.
-        for node in doms.df(start_node):
+        for node in start_node_frontier:
             if node is start_node or node is end_node:
                 continue
-            if node not in doms.df(end_node):
+            if node not in end_node_frontier:
                 return False
             for pred in graph.predecessors(node):
                 if doms.dominates(start_node, pred) and not doms.dominates(end_node, pred):
