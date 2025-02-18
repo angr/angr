@@ -216,7 +216,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     def _analyze(self, cache=None):
         variablehash_to_cases = self._find_cascading_switch_variable_comparisons()
 
-        if not variablehash_to_cases:
+        if not variablehash_to_cases or all(not caselists for caselists in variablehash_to_cases.values()):
             return False
 
         graph_copy = networkx.DiGraph(self._graph)

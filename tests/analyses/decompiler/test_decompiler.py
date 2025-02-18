@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import logging
 import os
 import re
+import time
 import unittest
 from functools import wraps
 
@@ -4867,6 +4868,7 @@ class TestDecompiler(unittest.TestCase):
         func = proj.kb.functions[0x1400117E4]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
 
         # bad output:
         #     else if (g_14002bf04)
@@ -4884,6 +4886,26 @@ class TestDecompiler(unittest.TestCase):
         #     }
         assert "None" not in dec.codegen.text
         assert "return GetCurrentThreadId();" in dec.codegen.text
+
+    def test_decompiling_many_consecutive_regions(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "decompiler",
+            "test_many_regions",
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        func = proj.kb.functions["main"]
+        start = time.time()
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model, options=decompiler_options)
+        elapsed = time.time() - start
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+        assert elapsed <= 45, f"Decompiling the main function took {elapsed} seconds, which is longer than expected"
+
+        # ensure decompling this function should not take over 30 seconds - it was taking at least two minutes before
+        # recent optimizations
 
 
 if __name__ == "__main__":
