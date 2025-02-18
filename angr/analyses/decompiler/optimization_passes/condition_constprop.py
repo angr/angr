@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 import networkx
 
@@ -6,9 +7,13 @@ from ailment import AILBlockWalker, Block
 from ailment.statement import ConditionalJump, Statement
 from ailment.expression import Const, BinaryOp, VirtualVariable
 
-from angr.analyses.decompiler.region_identifier import RegionIdentifier
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.utils.graph import dominates
+from angr.utils.timing import timethis
+
+if TYPE_CHECKING:
+    from angr.analyses.s_reaching_definitions import SRDAModel
 
 
 class ConstantCondition:
@@ -79,6 +84,7 @@ class ConditionConstantPropagation(OptimizationPass):
             return False, None
         return True, {"cconds": cconds}
 
+    @timethis
     def _analyze(self, cache=None):
         if not cache or cache.get("cconds", None) is None:  # noqa: SIM108
             cconds = self._find_const_conditions()
@@ -99,23 +105,27 @@ class ConditionConstantPropagation(OptimizationPass):
         # calculate a dominance frontier for each block
         entry_node_addr, entry_node_idx = self.entry_node_addr
         entry_node = self._get_block(entry_node_addr, idx=entry_node_idx)
-        df = networkx.algorithms.dominance_frontiers(self._graph, entry_node)
+        idoms = networkx.algorithms.immediate_dominators(self._graph, entry_node)
+        rda: SRDAModel = self.project.analyses.SReachingDefinitions(self._func, func_graph=self._graph).model
 
         for src, cconds in cconds_by_src.items():
             head_block = self._get_block(src[0], idx=src[1])
             if head_block is None:
                 continue
-            frontier = df.get(head_block)
-            if frontier is None:
-                continue
-            graph_slice = RegionIdentifier.slice_graph(self._graph, head_block, frontier, include_frontier=False)
-            for ccond in cconds:
-                walker = CCondPropBlockWalker(ccond.vvar_id, ccond.value)
-                for block in graph_slice:
-                    new_block = walker.walk(block)
-                    if new_block is not None:
-                        self._update_block(block, new_block)
 
+            for ccond in cconds:
+                for _, loc in rda.all_vvar_uses[rda.varid_to_vvar[ccond.vvar_id]]:
+                    loc_block = self._get_block(loc.block_addr, idx=loc.block_idx)
+                    if loc_block is None:
+                        continue
+                    if dominates(idoms, head_block, loc_block):
+                        # the constant condition dominates the use site
+                        walker = CCondPropBlockWalker(ccond.vvar_id, ccond.value)
+                        new_block = walker.walk(loc_block)
+                        if new_block is not None:
+                            self._update_block(loc_block, new_block)
+
+    @timethis
     def _find_const_conditions(self) -> list[ConstantCondition]:
         cconds = []
 
