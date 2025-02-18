@@ -10,6 +10,7 @@ from .arm_elf_fast import ArmElfFastResolver
 from .const_resolver import ConstantResolver
 from .amd64_pe_iat import AMD64PeIatResolver
 from .memload_resolver import MemoryLoadResolver
+from .syscall_resolver import SyscallResolver
 
 
 __all__ = (
@@ -21,6 +22,7 @@ __all__ = (
     "MemoryLoadResolver",
     "MipsElfFastResolver",
     "MipsElfGotResolver",
+    "SyscallResolver",
     "X86ElfPicPltResolver",
     "X86PeIatResolver",
 )

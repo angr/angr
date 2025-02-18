@@ -2736,7 +2736,7 @@ class CFGBase(Analysis):
             relifted = self.project.factory.block(block.addr, size=block.size, opt_level=1, cross_insn_opt=True).vex
         except SimError:
             return False, []
-        if isinstance(relifted.next, pyvex.IRExpr.Const):
+        if not relifted.jumpkind.startswith("Ijk_Sys") and isinstance(relifted.next, pyvex.IRExpr.Const):
             # yes!
             return True, [relifted.next.con.value]
 

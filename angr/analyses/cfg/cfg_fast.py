@@ -31,13 +31,10 @@ from angr import sim_options as o
 from angr.errors import (
     AngrCFGError,
     AngrSkipJobNotice,
-    AngrUnsupportedSyscallError,
     SimEngineError,
     SimMemoryError,
     SimTranslationError,
     SimValueError,
-    SimOperationError,
-    SimError,
     SimIRSBNoDecodeError,
 )
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -2576,38 +2573,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         jobs: list[CFGJob] = []
 
         if is_syscall:
-            # Fix the target_addr for syscalls
-            tmp_state = self.project.factory.blank_state(
-                mode="fastpath",
-                addr=cfg_node.addr,
-                add_options={o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS},
+            resolved, resolved_targets, ij = self._indirect_jump_encountered(
+                addr, cfg_node, irsb, current_function_addr, stmt_idx
             )
-            # Find the first successor with a syscall jumpkind
-            successors = self._simulate_block_with_resilience(tmp_state)
-            if successors is not None:
-                succ = next(
-                    iter(
-                        succ
-                        for succ in successors.flat_successors
-                        if succ.history.jumpkind and succ.history.jumpkind.startswith("Ijk_Sys")
-                    ),
-                    None,
-                )
+            target_addr = None
+            if resolved:
+                if len(resolved_targets) == 1:
+                    (target_addr,) = resolved_targets
             else:
-                succ = None
-            if succ is None:
-                # For some reason, there is no such successor with a syscall jumpkind
-                target_addr = self._unresolvable_call_target_addr
-            else:
-                try:
-                    syscall_stub = self.project.simos.syscall(succ)
-                    if syscall_stub:  # can be None if simos is not a subclass of SimUserspace
-                        syscall_addr = syscall_stub.addr
-                        target_addr = syscall_addr
-                    else:
-                        target_addr = self._unresolvable_call_target_addr
-                except AngrUnsupportedSyscallError:
-                    target_addr = self._unresolvable_call_target_addr
+                if ij is not None:
+                    self._indirect_jumps_to_resolve.add(ij)
 
         new_function_addr = target_addr.method if isinstance(target_addr, SootAddressDescriptor) else target_addr
 
@@ -2731,30 +2706,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     self._register_analysis_job(current_function_addr, ce)
 
         return jobs
-
-    def _simulate_block_with_resilience(self, state):
-        """
-        Execute a basic block with "On Error Resume Next". Give up when there is no way moving forward.
-
-        :param SimState state:  The initial state to start simulation with.
-        :return:                A SimSuccessors instance or None if we are unable to resume execution with resilience.
-        :rtype:                 SimSuccessors or None
-        """
-
-        stmt_idx = 0
-        successors = None  # make PyCharm's linting happy
-
-        while True:
-            try:
-                successors = self.project.factory.successors(state, skip_stmts=stmt_idx)
-                break
-            except SimOperationError as ex:
-                stmt_idx = ex.stmt_idx + 1
-                continue
-            except SimError:
-                return None
-
-        return successors
 
     def _is_branching_to_outside(self, src_addr, target_addr, current_function_addr):
         """
@@ -3236,7 +3187,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if jump.jumpkind == "Ijk_Boring":
             unresolvable_target_addr = self._unresolvable_jump_target_addr
             simprocedure_name = "UnresolvableJumpTarget"
-        elif jump.jumpkind == "Ijk_Call":
+        elif jump.jumpkind == "Ijk_Call" or jump.jumpkind.startswith("Ijk_Sys"):
             unresolvable_target_addr = self._unresolvable_call_target_addr
             simprocedure_name = "UnresolvableCallTarget"
         else:

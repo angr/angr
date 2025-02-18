@@ -11,6 +11,7 @@ from . import ConstantResolver
 from . import ArmElfFastResolver
 from . import AMD64PeIatResolver
 from . import MipsElfGotResolver
+from . import SyscallResolver
 
 DEFAULT_RESOLVERS = {
     "X86": {
@@ -58,7 +59,7 @@ DEFAULT_RESOLVERS = {
             ArmElfFastResolver,
         ]
     },
-    "ALL": [MemoryLoadResolver, JumpTableResolver, ConstantResolver],
+    "ALL": [MemoryLoadResolver, JumpTableResolver, ConstantResolver, SyscallResolver],
 }
 
 
