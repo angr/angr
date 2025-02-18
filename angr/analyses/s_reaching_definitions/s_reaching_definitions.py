@@ -131,28 +131,27 @@ class SReachingDefinitionsAnalysis(Analysis):
                     stmt if isinstance(stmt, Call) else stmt.src if isinstance(stmt, Assignment) else stmt.ret_exprs[0]
                 )
                 assert isinstance(call, Call)
-                if call.prototype is None:
-                    # without knowing the prototype, we must conservatively add uses to all registers that are
-                    # potentially used here
-                    if call.calling_convention is not None:
-                        cc = call.calling_convention
-                    else:
-                        # just use all registers in the default calling convention because we don't know anything about
-                        # the calling convention yet
-                        cc_cls = default_cc(self.project.arch.name)
-                        assert cc_cls is not None
-                        cc = cc_cls(self.project.arch)
 
-                    codeloc = CodeLocation(block_addr, stmt_idx, block_idx=block_idx, ins_addr=stmt.ins_addr)
-                    arg_locs = list(cc.ARG_REGS)
-                    if cc.FP_ARG_REGS:
-                        arg_locs += [r_name for r_name in cc.FP_ARG_REGS if r_name not in arg_locs]
+                # conservatively add uses to all registers that are potentially used here
+                if call.calling_convention is not None:
+                    cc = call.calling_convention
+                else:
+                    # just use all registers in the default calling convention because we don't know anything about
+                    # the calling convention yet
+                    cc_cls = default_cc(self.project.arch.name)
+                    assert cc_cls is not None
+                    cc = cc_cls(self.project.arch)
 
-                    for arg_reg_name in arg_locs:
-                        reg_offset = self.project.arch.registers[arg_reg_name][0]
-                        if reg_offset in reg_to_vvarids:
-                            vvarid = reg_to_vvarids[reg_offset]
-                            self.model.add_vvar_use(vvarid, None, codeloc)
+                codeloc = CodeLocation(block_addr, stmt_idx, block_idx=block_idx, ins_addr=stmt.ins_addr)
+                arg_locs = list(cc.ARG_REGS)
+                if cc.FP_ARG_REGS:
+                    arg_locs += [r_name for r_name in cc.FP_ARG_REGS if r_name not in arg_locs]
+
+                for arg_reg_name in arg_locs:
+                    reg_offset = self.project.arch.registers[arg_reg_name][0]
+                    if reg_offset in reg_to_vvarids:
+                        vvarid = reg_to_vvarids[reg_offset]
+                        self.model.add_vvar_use(vvarid, None, codeloc)
 
         if self._track_tmps:
             # track tmps
