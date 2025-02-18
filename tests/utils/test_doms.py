@@ -91,10 +91,11 @@ class TestDoms(TestCase):
         assert doms.idom(5) == 3
 
         # getting rid of the switch-case
-        g.remove_nodes_from([7, 8, 9, 10, 11, 12])
-        g.add_edges_from([(5, 13), (6, 13)])
-        doms.graph_updated(5, {7, 8, 9, 10, 11, 12}, 7)
-        assert doms.idom(13) == 5
+        g.remove_nodes_from([7, 8, 9, 10, 11, 12, 13])
+        g.add_edges_from([(5, 14), (6, 14)])
+        doms.graph_updated(14, {7, 8, 9, 10, 11, 12, 13}, 7)
+        assert doms.idom(13) is None  # 13 is no longer in the graph
+        assert doms.idom(14) == 5
 
     def test_nonexistent_nodes(self):
         g = networkx.DiGraph()
