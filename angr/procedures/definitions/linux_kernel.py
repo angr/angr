@@ -3,6 +3,7 @@ import logging
 
 from angr.sim_type import SimTypeFunction, SimTypePointer, SimTypeLong, SimStruct, SimTypeInt, SimTypeChar, SimTypeBottom, SimTypeFd, SimTypeLongLong
 from angr.procedures import SIM_PROCEDURES as P
+from angr.calling_conventions import SYSCALL_CC
 from . import SimSyscallLibrary
 
 _l = logging.getLogger(__name__)
@@ -11,6 +12,10 @@ _l = logging.getLogger(__name__)
 lib = SimSyscallLibrary()
 lib.set_library_names('linux')
 lib.add_all_from_dict(P['linux_kernel'])
+for arch, os_name_to_cc in SYSCALL_CC.items():
+    linux_syscall_cc = os_name_to_cc.get("Linux")
+    if linux_syscall_cc:
+        lib.set_default_cc(arch, linux_syscall_cc)
 
 lib.add('open', P['posix']['open'])
 lib.add('read', P['posix']['read'])
