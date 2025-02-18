@@ -126,7 +126,7 @@ class SPropagatorAnalysis(Analysis):
         # update vvar_deflocs using function arguments
         if self.func_args:
             for func_arg in self.func_args:
-                vvar_deflocs[func_arg] = ExternalCodeLocation()
+                vvar_deflocs[func_arg.varid] = func_arg, ExternalCodeLocation()
 
         # find all ret sites and indirect jump sites
         retsites: set[tuple[int, int | None, int]] = set()
@@ -143,11 +143,11 @@ class SPropagatorAnalysis(Analysis):
         # find constant and other propagatable assignments
         vvarid_to_vvar = {}
         const_vvars: dict[int, Const] = {}
-        for vvar, defloc in vvar_deflocs.items():
+        for vvar_id, (vvar, defloc) in vvar_deflocs.items():
             if not vvar.was_reg and not vvar.was_parameter:
                 continue
 
-            vvarid_to_vvar[vvar.varid] = vvar
+            vvarid_to_vvar[vvar_id] = vvar
             if isinstance(defloc, ExternalCodeLocation):
                 continue
 
@@ -160,8 +160,8 @@ class SPropagatorAnalysis(Analysis):
             if r:
                 # replace wherever it's used
                 assert v is not None
-                const_vvars[vvar.varid] = v
-                for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
+                const_vvars[vvar_id] = v
+                for vvar_at_use, useloc in vvar_uselocs[vvar_id]:
                     replacements[useloc][vvar_at_use] = v
                 continue
 
@@ -189,10 +189,10 @@ class SPropagatorAnalysis(Analysis):
         if self.mode == "function":
             assert self.func_graph is not None
 
-            for vvar, defloc in vvar_deflocs.items():
-                if vvar.varid not in vvar_uselocs:
+            for vvar_id, (vvar, defloc) in vvar_deflocs.items():
+                if vvar_id not in vvar_uselocs:
                     continue
-                if vvar.varid in const_vvars:
+                if vvar_id in const_vvars:
                     continue
                 if isinstance(defloc, ExternalCodeLocation):
                     continue
@@ -215,35 +215,31 @@ class SPropagatorAnalysis(Analysis):
                     #       v1 = v0 + 1;
                     #    }
                     can_replace = True
-                    for _, vvar_useloc in vvar_uselocs[vvar.varid]:
+                    for _, vvar_useloc in vvar_uselocs[vvar_id]:
                         if has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc):
                             can_replace = False
 
                     if can_replace:
                         # we can propagate this load because there is no store between its def and use
-                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                        for vvar_used, vvar_useloc in vvar_uselocs[vvar_id]:
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
-                if (
-                    (vvar.was_reg or vvar.was_stack)
-                    and len(vvar_uselocs[vvar.varid]) == 2
-                    and not is_phi_assignment(stmt)
-                ):
+                if (vvar.was_reg or vvar.was_stack) and len(vvar_uselocs[vvar_id]) == 2 and not is_phi_assignment(stmt):
                     # a special case: in a typical switch-case construct, a variable may be used once for comparison
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
-                    uselocs = {loc for _, loc in vvar_uselocs[vvar.varid]}
+                    uselocs = {loc for _, loc in vvar_uselocs[vvar_id]}
                     if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks):
-                        for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                        for vvar_used, vvar_useloc in vvar_uselocs[vvar_id]:
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         # mark the vvar as dead and should be removed
                         self.model.dead_vvar_ids.add(vvar.varid)
                         continue
 
                 if vvar.was_reg or vvar.was_parameter:
-                    if len(vvar_uselocs[vvar.varid]) == 1:
-                        vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar.varid]))
+                    if len(vvar_uselocs[vvar_id]) == 1:
+                        vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar_id]))
                         if is_const_vvar_load_assignment(stmt) and not has_store_stmt_in_between_stmts(
                             self.func_graph, blocks, defloc, vvar_useloc
                         ):

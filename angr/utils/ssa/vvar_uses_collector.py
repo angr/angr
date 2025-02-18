@@ -18,7 +18,7 @@ class VVarUsesCollector(AILBlockWalkerBase):
     def __init__(self):
         super().__init__()
 
-        self.vvar_and_uselocs: dict[int, set[tuple[VirtualVariable, CodeLocation]]] = defaultdict(set)
+        self.vvar_and_uselocs: dict[int, list[tuple[VirtualVariable, CodeLocation]]] = defaultdict(list)
         self.vvars: set[int] = set()
 
     def _handle_VirtualVariable(
@@ -31,7 +31,7 @@ class VVarUsesCollector(AILBlockWalkerBase):
                 # avoid phi loops
                 return
         if block is not None:
-            self.vvar_and_uselocs[expr.varid].add(
+            self.vvar_and_uselocs[expr.varid].append(
                 (expr, CodeLocation(block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx))
             )
         self.vvars.add(expr.varid)

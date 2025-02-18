@@ -63,7 +63,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             case _:
                 raise NotImplementedError
 
-        phi_vvars = {}
+        phi_vvars: dict[int, set[int]] = {}
         # find all vvar definitions
         vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
         # find all explicit vvar uses
@@ -72,34 +72,32 @@ class SReachingDefinitionsAnalysis(Analysis):
         # update vvar definitions using function arguments
         if self.func_args:
             for vvar in self.func_args:
-                if vvar not in vvar_deflocs:
-                    vvar_deflocs[vvar] = ExternalCodeLocation()
+                if vvar.varid not in vvar_deflocs:
+                    vvar_deflocs[vvar.varid] = vvar, ExternalCodeLocation()
             self.model.func_args = self.func_args
 
         # update model
-        for vvar, defloc in vvar_deflocs.items():
-            self.model.varid_to_vvar[vvar.varid] = vvar
+        for vvar_id, (vvar, defloc) in vvar_deflocs.items():
+            self.model.varid_to_vvar[vvar_id] = vvar
             self.model.all_vvar_definitions[vvar] = defloc
 
             for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
                 self.model.all_vvar_uses[vvar].add((vvar_at_use, useloc))
 
-        self.model.phi_vvar_ids = {vvar.varid for vvar in phi_vvars}
+        self.model.phi_vvar_ids = set(phi_vvars)
         self.model.phivarid_to_varids = {}
-        for vvar, src_vvars in phi_vvars.items():
-            self.model.phivarid_to_varids[vvar.varid] = {
-                src_vvar.varid for src_vvar in src_vvars if src_vvar is not None
-            }
+        for vvar_id, src_vvars in phi_vvars.items():
+            self.model.phivarid_to_varids[vvar_id] = src_vvars
 
         if self.mode == "function":
             # fix register definitions for arguments
-            defined_vvarids = {vvar.varid for vvar in vvar_deflocs}
+            defined_vvarids = set(vvar_deflocs)
             undefined_vvarids = set(vvar_uselocs.keys()).difference(defined_vvarids)
             for vvar_id in undefined_vvarids:
                 used_vvar = next(iter(vvar_uselocs[vvar_id]))[0]
                 self.model.varid_to_vvar[used_vvar.varid] = used_vvar
                 self.model.all_vvar_definitions[used_vvar] = ExternalCodeLocation()
-                self.model.all_vvar_uses[used_vvar] |= vvar_uselocs[vvar_id]
+                self.model.all_vvar_uses[used_vvar] |= set(vvar_uselocs[vvar_id])
 
             srda_view = SRDAView(self.model)
 
