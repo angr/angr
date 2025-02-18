@@ -3,7 +3,7 @@ import inspect
 import copy
 import itertools
 import logging
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import claripy
 from cle import SymbolType
@@ -339,7 +339,7 @@ class SimProcedure:
     ALT_NAMES = None  # alternative names
     local_vars: tuple[str, ...] = ()
 
-    def run(self, *args, **kwargs):  # pylint: disable=unused-argument
+    def run(self, *args, **kwargs) -> Any:  # pylint: disable=unused-argument
         """
         Implement the actual procedure here!
         """
