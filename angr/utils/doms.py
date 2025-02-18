@@ -67,7 +67,9 @@ class IncrementalDominators:
         self._inverted_dom_tree[new_node] = new_node_doms
         for rn in replaced_nodes:
             if rn in self._doms:
+                d = self._doms[rn]
                 del self._doms[rn]
+                self._inverted_dom_tree[d].remove(rn)
             if rn in self._inverted_dom_tree:
                 del self._inverted_dom_tree[rn]
 
@@ -82,18 +84,21 @@ class IncrementalDominators:
         """
         Generate the dominance frontier of a node.
         """
+
         if node not in self.graph:
             return set()
 
+        _pred = self.graph.predecessors if self._pre else self.graph.successors
         df = set()
-        _succ = self.graph.successors if self._pre else self.graph.predecessors
-        queue = list(_succ(node))  # type: ignore
-        while queue:
-            u = queue.pop(0)
-            if self.idom(u) is not node:
-                df.add(u)
-            else:
-                queue += list(_succ(u))  # type: ignore
+        for u in self._doms:
+            preds = list(_pred(u))  # type: ignore
+            if len(preds) >= 2:
+                for v in preds:
+                    if v in self._doms:
+                        while v != self._doms[u]:
+                            if v is node:
+                                df.add(u)
+                            v = self._doms[v]
         return df
 
     def dominates(self, dominator_node: Any, node: Any) -> bool:
