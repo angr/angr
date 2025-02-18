@@ -4916,6 +4916,7 @@ class TestDecompiler(unittest.TestCase):
             proj.kb.functions["fastfail_with_code_if_lt_10"], cfg=cfg, options=decompiler_options
         )
         assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
         assert "__fastfail(a0)" in dec.codegen.text
 
 
