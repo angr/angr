@@ -4916,7 +4916,23 @@ class TestDecompiler(unittest.TestCase):
             proj.kb.functions["fastfail_with_code_if_lt_10"], cfg=cfg, options=decompiler_options
         )
         assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
         assert "__fastfail(a0)" in dec.codegen.text
+
+    def test_condition_constant_propagation_duplicated_conditions(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "10c073e1a9a94b1589e7d39acb11c3273ce8c9b66cb5379277a78394e91368fd"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+
+        start = time.time()
+        dec = proj.analyses.Decompiler(proj.kb.functions[0x100062F0], cfg=cfg, options=decompiler_options)
+        elapsed = time.time() - start
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+        assert elapsed < 45, f"Decompiling the function took {elapsed} seconds, which is longer than expected"
 
 
 if __name__ == "__main__":

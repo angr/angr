@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+from collections import defaultdict
 
 import networkx
 
@@ -80,19 +81,9 @@ class ConditionConstantPropagation(OptimizationPass):
 
     def _check(self):
         cconds = self._find_const_conditions()
+
         if not cconds:
             return False, None
-        return True, {"cconds": cconds}
-
-    @timethis
-    def _analyze(self, cache=None):
-        if not cache or cache.get("cconds", None) is None:  # noqa: SIM108
-            cconds = self._find_const_conditions()
-        else:
-            cconds = cache["cconds"]
-
-        if not cconds:
-            return
 
         # group cconds according to their sources
         cconds_by_src: dict[tuple[int, int | None], list[ConstantCondition]] = {}
@@ -101,6 +92,36 @@ class ConditionConstantPropagation(OptimizationPass):
             if src not in cconds_by_src:
                 cconds_by_src[src] = []
             cconds_by_src[src].append(ccond)
+
+        # eliminate conflicting conditions
+        for src in list(cconds_by_src):
+            cconds = cconds_by_src[src]
+            vvar_id_to_values = defaultdict(set)
+            ccond_dict = {}  # keyed by vvar_id; used for deduplication
+            for ccond in cconds:
+                vvar_id_to_values[ccond.vvar_id].add(ccond.value)
+                ccond_dict[ccond.vvar_id] = ccond
+            new_cconds = []
+            for vid, vvalues in vvar_id_to_values.items():
+                if len(vvalues) == 1:
+                    new_cconds.append(ccond_dict[vid])
+            if new_cconds:
+                cconds_by_src[src] = new_cconds
+            else:
+                del cconds_by_src[src]
+
+        if not cconds_by_src:
+            return False, None
+        return True, {"cconds_by_src": cconds_by_src}
+
+    @timethis
+    def _analyze(self, cache=None):
+        if not cache or cache.get("cconds_by_src", None) is None:
+            return
+        cconds_by_src = cache["cconds_by_src"]
+
+        if not cconds_by_src:
+            return
 
         # calculate a dominance frontier for each block
         entry_node_addr, entry_node_idx = self.entry_node_addr
