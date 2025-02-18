@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 import struct
 
@@ -13,6 +14,9 @@ from angr.calling_conventions import default_cc
 from angr.procedures import SIM_PROCEDURES as P
 from angr import sim_options as o
 from angr.storage.file import SimFileStream, SimFileBase
+
+if TYPE_CHECKING:
+    from angr.sim_procedure import SimProcedure
 
 
 _l = logging.getLogger(name=__name__)
@@ -326,22 +330,22 @@ class SimOS:
     # Dummy stuff to allow this API to be used freely
 
     # pylint: disable=unused-argument, no-self-use
-    def syscall(self, state, allow_unsupported=True):
+    def syscall(self, state: SimState, allow_unsupported: bool = True) -> SimProcedure | None:
         return None
 
-    def syscall_abi(self, state) -> str | None:
+    def syscall_abi(self, state: SimState) -> str | None:
         return None
 
-    def syscall_cc(self, state) -> angr.calling_conventions.SimCCSyscall | None:
+    def syscall_cc(self, state: SimState) -> angr.calling_conventions.SimCCSyscall | None:
         raise NotImplementedError
 
-    def is_syscall_addr(self, addr):
+    def is_syscall_addr(self, addr) -> bool:
         return False
 
-    def syscall_from_addr(self, addr, allow_unsupported=True):
+    def syscall_from_addr(self, addr, allow_unsupported=True) -> SimProcedure | None:
         return None
 
-    def syscall_from_number(self, number, allow_unsupported=True, abi=None):
+    def syscall_from_number(self, number, allow_unsupported=True, abi=None) -> SimProcedure | None:
         return None
 
     def setup_gdt(self, state, gdt):
