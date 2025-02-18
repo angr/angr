@@ -214,6 +214,19 @@ def switch_extract_switch_expr_from_jump_target(target: ailment.Expr.Expression)
                     target = target.operands[0]
                 else:
                     return None
+            elif target.op == "And":
+                # it must be and-ing the target expr with a constant
+                if (
+                    isinstance(target.operands[1], ailment.Expr.VirtualVariable)
+                    and isinstance(target.operands[0], ailment.Expr.Const)
+                ) or (
+                    isinstance(target.operands[0], ailment.Expr.VirtualVariable)
+                    and isinstance(target.operands[1], ailment.Expr.Const)
+                ):
+                    break
+                return None
+            else:
+                return None
         elif isinstance(target, ailment.Expr.Load):
             # we want the address!
             found_load = True
