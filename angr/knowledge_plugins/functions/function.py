@@ -237,21 +237,7 @@ class Function(Serializable):
 
             self._returning = self._get_initial_returning()
 
-        # Determine a calling convention
-        # If it is a SimProcedure it might have a CC already defined which can be used
-        if self.is_simprocedure and self.project is not None and self.addr in self.project._sim_procedures:
-            simproc = self.project._sim_procedures[self.addr]
-            cc = simproc.cc
-            if cc is None:
-                arch = self.project.arch
-                if self.project.arch.name in DEFAULT_CC:
-                    cc = default_cc(
-                        arch.name, platform=self.project.simos.name if self.project.simos is not None else None
-                    )(arch)
-
-            self.calling_convention: SimCC | None = cc
-        else:
-            self.calling_convention: SimCC | None = None
+        self._init_prototype_and_calling_convention()
 
     @property
     @deprecated(".is_alignment")
@@ -767,6 +753,34 @@ class Function(Serializable):
 
         # Cannot determine
         return None
+
+    def _init_prototype_and_calling_convention(self) -> None:
+        """
+        Initialize prototype and calling convention from a SimProcedure, if available.
+        """
+        hooker = None
+        if self.is_syscall and self.project is not None and self.project.simos.is_syscall_addr(self.addr):
+            hooker = self.project.simos.syscall_from_addr(self.addr)
+        elif self.is_simprocedure and self.project is not None:
+            hooker = self.project.hooked_by(self.addr)
+        if hooker is None or hooker.guessed_prototype:
+            return
+
+        if hooker.prototype:
+            self.prototype_libname = hooker.library_name
+            self.prototype = hooker.prototype
+            self.is_prototype_guessed = False
+
+        cc = hooker.cc
+        if cc is None and self.project is not None:
+            arch = self.project.arch
+            if arch.name in DEFAULT_CC:
+                cc_cls = default_cc(
+                    arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+                )
+                if cc_cls is not None:
+                    cc = cc_cls(arch)
+        self.calling_convention = cc
 
     def _clear_transition_graph(self):
         self._block_sizes = {}
