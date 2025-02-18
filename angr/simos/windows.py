@@ -76,10 +76,12 @@ class SimWindows(SimOS):
 
         self.project.hook(self.fastfail.addr, self.fastfail)
 
-        self.is_dump = isinstance(self.project.loader.main_object, cle.backends.Minidump)
-
         if not self.is_dump:
             self.project.loader.tls.new_thread()
+
+    @property
+    def is_dump(self) -> bool:
+        return isinstance(self.project.loader.main_object, cle.backends.Minidump)
 
     def _find_or_make(self, name):
         sym = self.project.loader.find_symbol(name)
