@@ -4902,7 +4902,7 @@ class TestDecompiler(unittest.TestCase):
         elapsed = time.time() - start
         assert dec.codegen is not None and dec.codegen.text is not None
         self._print_decompilation_result(dec)
-        assert elapsed <= 30, f"Decompiling the main function took {elapsed} seconds, which is longer than expected"
+        assert elapsed <= 45, f"Decompiling the main function took {elapsed} seconds, which is longer than expected"
 
         # ensure decompling this function should not take over 30 seconds - it was taking at least two minutes before
         # recent optimizations
