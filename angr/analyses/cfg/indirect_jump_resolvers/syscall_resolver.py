@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import logging
 
 from angr import sim_options as o
+from angr import BP, BP_AFTER
 from angr.errors import (
     AngrUnsupportedSyscallError,
     SimOperationError,
@@ -11,6 +12,7 @@ from angr.errors import (
 )
 
 from .resolver import IndirectJumpResolver
+from .constant_value_manager import ConstantValueManager
 
 if TYPE_CHECKING:
     from angr import Block
@@ -36,15 +38,23 @@ class SyscallResolver(IndirectJumpResolver):
     def resolve(  # pylint:disable=unused-argument
         self, cfg, addr: int, func_addr: int, block: Block, jumpkind: str, func_graph_complete: bool = True, **kwargs
     ):
-        stub = self._resolve_syscall_to_stub(cfg, addr, block)
+        stub = self._resolve_syscall_to_stub(cfg, addr, func_addr, block)
         return (True, [stub.addr]) if stub else (False, [])
 
-    def _resolve_syscall_to_stub(self, cfg, addr: int, block: Block) -> SimProcedure | None:
+    def _resolve_syscall_to_stub(self, cfg, addr: int, func_addr: int, block: Block) -> SimProcedure | None:
+        if not cfg.functions.contains_addr(func_addr):
+            return None
+        func = cfg.functions.get_by_addr(func_addr)
+
+        cv_manager = ConstantValueManager(self.project, cfg.kb, func, addr)
+        constant_value_reg_read_bp = BP(when=BP_AFTER, enabled=True, action=cv_manager.reg_read_callback)
+
         state = self.project.factory.blank_state(
             mode="fastpath",
             addr=block.addr,
             add_options={o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS},
         )
+        state.inspect.add_breakpoint("reg_read", constant_value_reg_read_bp)
 
         successors = self._simulate_block_with_resilience(state)
         if successors:
