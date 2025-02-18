@@ -36,6 +36,7 @@ from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.errors import AngrRuntimeError
 from angr.analyses import Analysis, AnalysesHub
+from angr.utils.timing import timethis
 from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExprNarrowingInfo, NarrowingInfoExtractor, ExpressionNarrower
 from .block_simplifier import BlockSimplifier
@@ -202,6 +203,7 @@ class AILSimplifier(Analysis):
         AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
         self.blocks = {}
 
+    @timethis
     def _compute_reaching_definitions(self) -> SRDAModel:
         # Computing reaching definitions or return the cached one
         if self._reaching_definitions is not None:
@@ -281,6 +283,7 @@ class AILSimplifier(Analysis):
     # Expression narrowing
     #
 
+    @timethis
     def _narrow_exprs(self) -> bool:
         """
         A register may be used with full width even when only the lower bytes are really needed. This results in the
@@ -659,6 +662,7 @@ class AILSimplifier(Analysis):
     # Unifying local variables
     #
 
+    @timethis
     def _unify_local_variables(self) -> bool:
         """
         Find variables that are definitely equivalent and then eliminate unnecessary copies.
@@ -1110,6 +1114,7 @@ class AILSimplifier(Analysis):
         walker.walk_statement(stmt)
         return len(walker.temps) > 0
 
+    @timethis
     def _fold_call_exprs(self) -> bool:
         """
         Fold a call expression (statement) into other statements if the return value of the call expression (statement)
@@ -1314,6 +1319,7 @@ class AILSimplifier(Analysis):
 
         return False, None
 
+    @timethis
     def _iteratively_remove_dead_assignments(self) -> bool:
         anything_removed = False
         while True:
@@ -1323,6 +1329,7 @@ class AILSimplifier(Analysis):
             self._rebuild_func_graph()
             self._clear_cache()
 
+    @timethis
     def _remove_dead_assignments(self) -> bool:
 
         # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
