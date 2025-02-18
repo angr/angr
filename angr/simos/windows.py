@@ -27,6 +27,8 @@ VS_SECURITY_COOKIES = {"AMD64": _VS_Security_Cookie(0x2B992DDFA232, 48), "X86": 
 
 
 class SecurityCookieInit(enum.Enum):
+    """Security cooke initialization value initialization method."""
+
     NONE = 0
     RANDOM = 1
     STATIC = 2
