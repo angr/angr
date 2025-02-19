@@ -220,9 +220,9 @@ class CallingConventionAnalysis(Analysis):
                 self.prototype = prototype  # type: ignore
             return
         if self._function.is_plt:
-            r = self._analyze_plt()
-            if r is not None:
-                self.cc, self.prototype, self.prototype_libname = r
+            r_plt = self._analyze_plt()
+            if r_plt is not None:
+                self.cc, self.prototype, self.prototype_libname = r_plt
             return
 
         r = self._analyze_function()
@@ -282,7 +282,7 @@ class CallingConventionAnalysis(Analysis):
         """
         Get the calling convention for a PLT stub.
 
-        :return:    A calling convention.
+        :return:    A calling convention, the function type, as well as the library name if available.
         """
         assert self._function is not None
 
