@@ -192,6 +192,14 @@ class ITERegionConverter(OptimizationPass):
         if region_head not in self._graph or region_tail not in self._graph:
             return False
 
+        # ensure all phi statements in region_tail have valid source vvars
+        for stmt in region_tail.statements:
+            if not is_phi_assignment(stmt):
+                continue
+            for _, vvar in stmt.src.src_and_vvars:
+                if vvar is None:
+                    return False
+
         #
         # create a new region_head
         #
