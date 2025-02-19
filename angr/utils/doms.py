@@ -21,11 +21,10 @@ class IncrementalDominators:
         self._pre: bool = not post  # calculate dominators
 
         self._doms: dict[Any, Any] = {}
-        self._dfs: dict[Any, set[Any]] = {}
+        self._dfs: dict[Any, set[Any]] | None = None  # initialized on-demand
         self._inverted_dom_tree: dict[Any, Any] | None = None  # initialized on demand
 
         self._doms = self.init_doms()
-        self._dfs = self.init_dfs()
 
     def init_doms(self) -> dict[Any, Any]:
         if self._post:
@@ -80,16 +79,17 @@ class IncrementalDominators:
                 new_node_doms.append(dtee)
         self._doms[new_node] = new_dom
 
-        # update dominance frontiers
-        if replaced_head in self._dfs:
-            self._dfs[new_node] = self._dfs[replaced_head]
-        for rn in replaced_nodes:
-            if rn in self._dfs:
-                del self._dfs[rn]
-            for df in self._dfs.values():
-                if rn in df:
-                    df.remove(rn)
-                    df.add(new_node)
+        if self._dfs is not None:
+            # update dominance frontiers
+            if replaced_head in self._dfs:
+                self._dfs[new_node] = self._dfs[replaced_head]
+            for rn in replaced_nodes:
+                if rn in self._dfs:
+                    del self._dfs[rn]
+                for df in self._dfs.values():
+                    if rn in df:
+                        df.remove(rn)
+                        df.add(new_node)
 
         # keep inverted dom tree up-to-date
         self._inverted_dom_tree[new_dom].append(new_node)
@@ -113,6 +113,8 @@ class IncrementalDominators:
         """
         Generate the dominance frontier of a node.
         """
+        if self._dfs is None:
+            self._dfs = self.init_dfs()
         return self._dfs.get(node, set())
 
     def dominates(self, dominator_node: Any, node: Any) -> bool:
