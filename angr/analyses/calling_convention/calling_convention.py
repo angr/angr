@@ -222,7 +222,7 @@ class CallingConventionAnalysis(Analysis):
         if self._function.is_plt:
             r = self._analyze_plt()
             if r is not None:
-                self.cc, self.prototype = r
+                self.cc, self.prototype, self.prototype_libname = r
             return
 
         r = self._analyze_function()
@@ -278,7 +278,7 @@ class CallingConventionAnalysis(Analysis):
         self.cc = cc
         self.prototype = prototype
 
-    def _analyze_plt(self) -> tuple[SimCC, SimTypeFunction | None] | None:
+    def _analyze_plt(self) -> tuple[SimCC, SimTypeFunction | None, str | None] | None:
         """
         Get the calling convention for a PLT stub.
 
@@ -326,11 +326,11 @@ class CallingConventionAnalysis(Analysis):
                         # we only take the prototype from the SimProcedure if
                         # - the SimProcedure is a function
                         # - the prototype of the SimProcedure is not guessed
-                        return cc, hooker.prototype
+                        return cc, hooker.prototype, hooker.library_name
                 if real_func.prototype is not None:
-                    return cc, real_func.prototype
+                    return cc, real_func.prototype, real_func.prototype_libname
             else:
-                return cc, real_func.prototype
+                return cc, real_func.prototype, real_func.prototype_libname
 
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
@@ -344,7 +344,7 @@ class CallingConventionAnalysis(Analysis):
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
             )
-            return cc, prototype
+            return cc, prototype, None
 
         return None
 
