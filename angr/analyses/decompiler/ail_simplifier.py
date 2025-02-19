@@ -1496,6 +1496,7 @@ class AILSimplifier(Analysis):
                         if self._statement_has_call_exprs(stmt):
                             if codeloc in self._calls_to_remove:
                                 # it has a call and must be removed
+                                self._calls_to_remove.discard(codeloc)
                                 simplified = True
                                 continue
                             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
