@@ -185,7 +185,10 @@ class SRDAView:
                             vvars.append(func_arg)
         # there might be multiple vvars; we prioritize the one whose size fits the best
         for v in vvars:
-            if v.stack_offset == stack_offset and v.size == size:
+            if (
+                (v.was_stack and v.stack_offset == stack_offset)
+                or (v.was_parameter and v.parameter_stack_offset == stack_offset)
+            ) and v.size == size:
                 return v
         return vvars[0] if vvars else None
 
