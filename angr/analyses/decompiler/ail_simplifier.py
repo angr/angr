@@ -1337,7 +1337,7 @@ class AILSimplifier(Analysis):
         # value and the floating-point return value.
         stmts_to_remove_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         stmts_to_keep_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
-        dead_vvar_ids: set[int] = set()
+        dead_vvar_ids: set[int] = self._removed_vvar_ids.copy()
         dead_vvar_codelocs: set[CodeLocation] = set()
         blocks: dict[tuple[int, int | None], Block] = {
             (node.addr, node.idx): self.blocks.get(node, node) for node in self.func_graph.nodes()
@@ -1350,8 +1350,11 @@ class AILSimplifier(Analysis):
         stackarg_offsets = (
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
         )
+
         while True:
             new_dead_vars_found = False
+
+            # traverse all virtual variable definitions
             for vvar, codeloc in rd.all_vvar_definitions.items():
                 if vvar.varid in dead_vvar_ids:
                     continue
@@ -1405,35 +1408,35 @@ class AILSimplifier(Analysis):
                         assert codeloc.stmt_idx is not None
                         stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
 
+            # find all phi variables that rely on variables that no longer exist
+            removed_vvar_ids = self._removed_vvar_ids
+            while True:
+                new_removed_vvar_ids = set()
+                for phi_varid, phi_use_varids in rd.phivarid_to_varids.items():
+                    if phi_varid not in dead_vvar_ids and any(vvarid in removed_vvar_ids for vvarid in phi_use_varids):
+                        loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
+                        assert loc.block_addr is not None and loc.stmt_idx is not None
+                        if loc.stmt_idx not in stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)]:
+                            stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
+                            new_removed_vvar_ids.add(phi_varid)
+                            dead_vvar_ids.add(phi_varid)
+                            new_dead_vars_found = True
+                if not new_removed_vvar_ids:
+                    break
+                removed_vvar_ids = new_removed_vvar_ids
+
             if not new_dead_vars_found:
                 # nothing more is found. let's end the loop
                 break
 
-        # find all phi variables that rely on variables that no longer exist
-        all_removed_var_ids = self._removed_vvar_ids.copy()
-        removed_vvar_ids = self._removed_vvar_ids
-        while True:
-            new_removed_vvar_ids = set()
-            for phi_varid, phi_use_varids in rd.phivarid_to_varids.items():
-                if phi_varid not in all_removed_var_ids and any(
-                    vvarid in removed_vvar_ids for vvarid in phi_use_varids
-                ):
-                    loc = rd.all_vvar_definitions[rd.varid_to_vvar[phi_varid]]
-                    assert loc.block_addr is not None and loc.stmt_idx is not None
-                    stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
-                    new_removed_vvar_ids.add(phi_varid)
-                    all_removed_var_ids.add(phi_varid)
-            if not new_removed_vvar_ids:
-                break
-            removed_vvar_ids = new_removed_vvar_ids
-
         # find all phi variables that are only ever used by other phi variables
-        redundant_phi_and_dirty_varids = self._find_cyclic_dependent_phis_and_dirty_vvars(rd)
+        redundant_phi_and_dirty_varids = self._find_cyclic_dependent_phis_and_dirty_vvars(rd, dead_vvar_ids)
         for varid in redundant_phi_and_dirty_varids:
             loc = rd.all_vvar_definitions[rd.varid_to_vvar[varid]]
             assert loc.block_addr is not None and loc.stmt_idx is not None
-            stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
-            stmts_to_keep_per_block[(loc.block_addr, loc.block_idx)].discard(loc.stmt_idx)
+            if loc.stmt_idx not in stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)]:
+                stmts_to_remove_per_block[(loc.block_addr, loc.block_idx)].add(loc.stmt_idx)
+                stmts_to_keep_per_block[(loc.block_addr, loc.block_idx)].discard(loc.stmt_idx)
 
         for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
@@ -1560,7 +1563,7 @@ class AILSimplifier(Analysis):
                     used_by.add(None)
         return used_by
 
-    def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel) -> set[int]:
+    def _find_cyclic_dependent_phis_and_dirty_vvars(self, rd: SRDAModel, dead_vvar_ids: set[int]) -> set[int]:
         blocks_dict: dict[tuple[int, int | None], Block] = {(bb.addr, bb.idx): bb for bb in self.func_graph}
 
         # find dirty vvars and vexccall vvars
@@ -1575,16 +1578,21 @@ class AILSimplifier(Analysis):
                 ):
                     dirty_vvar_ids.add(stmt.dst.varid)
 
-        phi_and_dirty_vvar_ids = rd.phi_vvar_ids | dirty_vvar_ids
+        phi_and_dirty_vvar_ids = (rd.phi_vvar_ids | dirty_vvar_ids).difference(dead_vvar_ids)
 
         vvar_used_by: dict[int, set[int | None]] = defaultdict(set)
         for var_id in phi_and_dirty_vvar_ids:
             if var_id in rd.phivarid_to_varids:
                 for used_by_varid in rd.phivarid_to_varids[var_id]:
+                    if used_by_varid in dead_vvar_ids:
+                        # this variable no longer exists
+                        continue
                     if used_by_varid not in vvar_used_by:
-                        vvar_used_by[used_by_varid] |= self._get_vvar_used_by(used_by_varid, rd, blocks_dict)
+                        vvar_used_by[used_by_varid] |= self._get_vvar_used_by(
+                            used_by_varid, rd, blocks_dict
+                        ).difference(dead_vvar_ids)
                     vvar_used_by[used_by_varid].add(var_id)  # probably unnecessary
-            vvar_used_by[var_id] |= self._get_vvar_used_by(var_id, rd, blocks_dict)
+            vvar_used_by[var_id] |= self._get_vvar_used_by(var_id, rd, blocks_dict).difference(dead_vvar_ids)
 
         g = networkx.DiGraph()
         dummy_vvar_id = -1
