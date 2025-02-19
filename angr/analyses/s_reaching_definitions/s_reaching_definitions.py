@@ -79,10 +79,10 @@ class SReachingDefinitionsAnalysis(Analysis):
         # update model
         for vvar_id, (vvar, defloc) in vvar_deflocs.items():
             self.model.varid_to_vvar[vvar_id] = vvar
-            self.model.all_vvar_definitions[vvar] = defloc
-
-            for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
-                self.model.all_vvar_uses[vvar].add((vvar_at_use, useloc))
+            self.model.all_vvar_definitions[vvar_id] = defloc
+            if vvar_id in vvar_uselocs:
+                for useloc in vvar_uselocs[vvar_id]:
+                    self.model.add_vvar_use(vvar_id, *useloc)
 
         self.model.phi_vvar_ids = set(phi_vvars)
         self.model.phivarid_to_varids = {}
@@ -90,14 +90,17 @@ class SReachingDefinitionsAnalysis(Analysis):
             self.model.phivarid_to_varids[vvar_id] = src_vvars
 
         if self.mode == "function":
+
             # fix register definitions for arguments
             defined_vvarids = set(vvar_deflocs)
             undefined_vvarids = set(vvar_uselocs.keys()).difference(defined_vvarids)
             for vvar_id in undefined_vvarids:
                 used_vvar = next(iter(vvar_uselocs[vvar_id]))[0]
-                self.model.varid_to_vvar[used_vvar.varid] = used_vvar
-                self.model.all_vvar_definitions[used_vvar] = ExternalCodeLocation()
-                self.model.all_vvar_uses[used_vvar] |= set(vvar_uselocs[vvar_id])
+                self.model.varid_to_vvar[vvar_id] = used_vvar
+                self.model.all_vvar_definitions[vvar_id] = ExternalCodeLocation()
+                if vvar_id in vvar_uselocs:
+                    for vvar_useloc in vvar_uselocs[vvar_id]:
+                        self.model.add_vvar_use(vvar_id, *vvar_useloc)
 
             srda_view = SRDAView(self.model)
 
@@ -149,8 +152,7 @@ class SReachingDefinitionsAnalysis(Analysis):
                         reg_offset = self.project.arch.registers[arg_reg_name][0]
                         if reg_offset in reg_to_vvarids:
                             vvarid = reg_to_vvarids[reg_offset]
-                            vvar = self.model.varid_to_vvar[vvarid]
-                            self.model.all_vvar_uses[vvar].add((None, codeloc))
+                            self.model.add_vvar_use(vvarid, None, codeloc)
 
         if self._track_tmps:
             # track tmps

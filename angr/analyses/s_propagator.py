@@ -200,11 +200,13 @@ class SPropagatorAnalysis(Analysis):
                 assert defloc.block_addr is not None
                 assert defloc.stmt_idx is not None
 
+                vvar_uselocs_set = set(vvar_uselocs[vvar_id])  # deduplicate
+
                 block = blocks[(defloc.block_addr, defloc.block_idx)]
                 stmt = block.statements[defloc.stmt_idx]
                 if (
                     (vvar.was_reg or vvar.was_parameter)
-                    and len(vvar_uselocs[vvar.varid]) <= 2
+                    and len(vvar_uselocs_set) <= 2
                     and isinstance(stmt, Assignment)
                     and isinstance(stmt.src, Load)
                 ):
@@ -215,31 +217,31 @@ class SPropagatorAnalysis(Analysis):
                     #       v1 = v0 + 1;
                     #    }
                     can_replace = True
-                    for _, vvar_useloc in vvar_uselocs[vvar_id]:
+                    for _, vvar_useloc in vvar_uselocs_set:
                         if has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc):
                             can_replace = False
 
                     if can_replace:
                         # we can propagate this load because there is no store between its def and use
-                        for vvar_used, vvar_useloc in vvar_uselocs[vvar_id]:
+                        for vvar_used, vvar_useloc in vvar_uselocs_set:
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         continue
 
-                if (vvar.was_reg or vvar.was_stack) and len(vvar_uselocs[vvar_id]) == 2 and not is_phi_assignment(stmt):
+                if (vvar.was_reg or vvar.was_stack) and len(vvar_uselocs_set) == 2 and not is_phi_assignment(stmt):
                     # a special case: in a typical switch-case construct, a variable may be used once for comparison
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
-                    uselocs = {loc for _, loc in vvar_uselocs[vvar_id]}
+                    uselocs = {loc for _, loc in vvar_uselocs_set}
                     if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks):
-                        for vvar_used, vvar_useloc in vvar_uselocs[vvar_id]:
+                        for vvar_used, vvar_useloc in vvar_uselocs_set:
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         # mark the vvar as dead and should be removed
                         self.model.dead_vvar_ids.add(vvar.varid)
                         continue
 
                 if vvar.was_reg or vvar.was_parameter:
-                    if len(vvar_uselocs[vvar_id]) == 1:
-                        vvar_used, vvar_useloc = next(iter(vvar_uselocs[vvar_id]))
+                    if len(vvar_uselocs_set) == 1:
+                        vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
                         if is_const_vvar_load_assignment(stmt) and not has_store_stmt_in_between_stmts(
                             self.func_graph, blocks, defloc, vvar_useloc
                         ):
@@ -269,14 +271,14 @@ class SPropagatorAnalysis(Analysis):
                     else:
                         non_exitsite_uselocs = [
                             loc
-                            for _, loc in vvar_uselocs[vvar.varid]
+                            for _, loc in vvar_uselocs_set
                             if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in (retsites | jumpsites)
                         ]
                         if is_const_and_vvar_assignment(stmt):
                             if len(non_exitsite_uselocs) == 1:
                                 # this vvar is used once if we exclude its uses at ret sites or jump sites. we can
                                 # propagate it
-                                for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                                for vvar_used, vvar_useloc in vvar_uselocs_set:
                                     replacements[vvar_useloc][vvar_used] = stmt.src
                                 continue
 
@@ -288,7 +290,7 @@ class SPropagatorAnalysis(Analysis):
                                 if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
                                     # remove duplicate use locs (e.g., if the variable is used multiple times by the
                                     # same statement) - but ensure stmt is simple enough
-                                    for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                                    for vvar_used, vvar_useloc in vvar_uselocs_set:
                                         replacements[vvar_useloc][vvar_used] = stmt.src
                                     continue
 
@@ -305,7 +307,7 @@ class SPropagatorAnalysis(Analysis):
                         and isinstance(stmt_src.addr.value, int)
                     ):
                         gv_updated = False
-                        for _vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                        for _vvar_used, vvar_useloc in vvar_uselocs_set:
                             gv_updated |= self.is_global_variable_updated(
                                 self.func_graph,
                                 blocks,
@@ -316,12 +318,13 @@ class SPropagatorAnalysis(Analysis):
                                 vvar_useloc,
                             )
                         if not gv_updated:
-                            for vvar_used, vvar_useloc in vvar_uselocs[vvar.varid]:
+                            for vvar_used, vvar_useloc in vvar_uselocs_set:
                                 replacements[vvar_useloc][vvar_used] = stmt.src
                             continue
 
         for vvar_id, uselocs in vvar_uselocs.items():
             vvar = next(iter(uselocs))[0] if vvar_id not in vvarid_to_vvar else vvarid_to_vvar[vvar_id]
+            vvar_uselocs_set = set(uselocs)  # deduplicate
 
             if self._sp_tracker is not None and vvar.category == VirtualVariableCategory.REGISTER:
                 if vvar.oident == self.project.arch.sp_offset:
@@ -330,7 +333,7 @@ class SPropagatorAnalysis(Analysis):
                         if "sp" in self.project.arch.registers
                         else None
                     )
-                    for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
+                    for vvar_at_use, useloc in vvar_uselocs_set:
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
                         if sb_offset is not None:
                             v = StackBaseOffset(None, self.project.arch.bits, sb_offset)
@@ -345,7 +348,7 @@ class SPropagatorAnalysis(Analysis):
                         if "bp" in self.project.arch.registers
                         else None
                     )
-                    for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
+                    for vvar_at_use, useloc in vvar_uselocs_set:
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
                         if sb_offset is not None:
                             v = StackBaseOffset(None, self.project.arch.bits, sb_offset)

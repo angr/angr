@@ -135,7 +135,7 @@ class ConditionConstantPropagation(OptimizationPass):
                 continue
 
             for ccond in cconds:
-                for _, loc in rda.all_vvar_uses[rda.varid_to_vvar[ccond.vvar_id]]:
+                for _, loc in rda.all_vvar_uses[ccond.vvar_id]:
                     loc_block = self._get_block(loc.block_addr, idx=loc.block_idx)
                     if loc_block is None:
                         continue
