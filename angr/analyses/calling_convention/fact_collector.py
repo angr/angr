@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import pyvex
 import claripy
@@ -14,8 +14,11 @@ from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
-from angr.sim_type import SimTypeBottom, dereference_simtype
+from angr.sim_type import SimTypeBottom, dereference_simtype, SimTypeFunction
 from .utils import is_sane_register_variable
+
+if TYPE_CHECKING:
+    from angr.codenode import CodeNode
 
 
 class FactCollectorState:
@@ -225,9 +228,12 @@ class FactCollector(Analysis):
         callee_restored_regs = self._analyze_endpoints_for_restored_regs()
         self._determine_input_args(end_states, callee_restored_regs)
 
-    def _analyze_startpoint(self):
+    def _analyze_startpoint(self) -> list[FactCollectorState]:
         func_graph = self.function.transition_graph
         startpoint = self.function.startpoint
+        if startpoint is None:
+            return []
+
         bp_as_gpr = self.function.info.get("bp_as_gpr", False)
         engine = SimEngineFactCollectorVEX(self.project, bp_as_gpr)
         init_state = FactCollectorState()
@@ -236,9 +242,9 @@ class FactCollector(Analysis):
         init_state.bp_value = init_state.sp_value
 
         traversed = set()
-        queue: list[tuple[int, FactCollectorState, BlockNode | HookNode | Function, BlockNode | HookNode | None]] = [
-            (0, init_state, startpoint, None)
-        ]
+        queue: list[
+            tuple[int, FactCollectorState, CodeNode | BlockNode | HookNode | Function, BlockNode | HookNode | None]
+        ] = [(0, init_state, startpoint, None)]
         end_states: list[FactCollectorState] = []
         while queue:
             depth, state, node, retnode = queue.pop(0)
@@ -409,6 +415,7 @@ class FactCollector(Analysis):
                                         type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
                                     proto = dereference_simtype(proto, type_collections)
 
+                            assert isinstance(proto, SimTypeFunction) and proto.returnty is not None
                             returnty_size = proto.returnty.with_arch(self.project.arch).size
                             if returnty_size is None:
                                 # it may be None if somehow we cannot resolve a SimTypeRef; we fall back to the full
