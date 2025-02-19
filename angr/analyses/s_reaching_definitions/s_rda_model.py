@@ -20,26 +20,35 @@ class SRDAModel:
         self.func_args = func_args
         self.arch = arch
         self.varid_to_vvar: dict[int, VirtualVariable] = {}
-        self.all_vvar_definitions: dict[VirtualVariable, CodeLocation] = {}
-        self.all_vvar_uses: dict[VirtualVariable, set[tuple[VirtualVariable | None, CodeLocation]]] = defaultdict(set)
+        self.all_vvar_definitions: dict[int, CodeLocation] = {}
+        self.all_vvar_uses: dict[int, list[tuple[VirtualVariable | None, CodeLocation]]] = defaultdict(list)
         self.all_tmp_definitions: dict[CodeLocation, dict[atoms.Tmp, int]] = defaultdict(dict)
         self.all_tmp_uses: dict[CodeLocation, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
         self.phi_vvar_ids: set[int] = set()
         self.phivarid_to_varids: dict[int, set[int]] = {}
+        self.vvar_uses_by_loc: dict[CodeLocation, list[int]] = {}
+
+    def add_vvar_use(self, vvar_id: int, expr: VirtualVariable | None, loc: CodeLocation) -> None:
+        self.all_vvar_uses[vvar_id].append((expr, loc))
+        if loc not in self.vvar_uses_by_loc:
+            self.vvar_uses_by_loc[loc] = []
+        self.vvar_uses_by_loc[loc].append(vvar_id)
 
     @property
     def all_definitions(self) -> Generator[Definition]:
-        for vvar, defloc in self.all_vvar_definitions.items():
-            yield Definition(atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident), defloc)
+        for vvar_id, defloc in self.all_vvar_definitions.items():
+            vvar = self.varid_to_vvar[vvar_id]
+            yield Definition(atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident), defloc)
 
     def is_phi_vvar_id(self, idx: int) -> bool:
         return idx in self.phi_vvar_ids
 
     def get_all_definitions(self, block_loc: CodeLocation) -> set[Definition]:
         s = set()
-        for vvar, codeloc in self.all_vvar_definitions.items():
+        for vvar_id, codeloc in self.all_vvar_definitions.items():
+            vvar = self.varid_to_vvar[vvar_id]
             if codeloc.block_addr == block_loc.block_addr and codeloc.block_idx == block_loc.block_idx:
-                s.add(Definition(atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident), codeloc))
+                s.add(Definition(atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident), codeloc))
         return s | self.get_all_tmp_definitions(block_loc)
 
     def get_all_tmp_definitions(self, block_loc: CodeLocation) -> set[Definition]:
@@ -65,14 +74,18 @@ class SRDAModel:
         """
         if exprs:
             defs: set[tuple[Definition, Any]] = set()
-            for vvar, uses in self.all_vvar_uses.items():
-                for expr, loc_ in uses:
+            if loc not in self.vvar_uses_by_loc:
+                return defs
+            for vvar_id in self.vvar_uses_by_loc[loc]:
+                vvar = self.varid_to_vvar[vvar_id]
+                uses = self.all_vvar_uses[vvar_id]
+                for expr, loc_ in set(uses):
                     if loc_ == loc:
                         defs.add(
                             (
                                 Definition(
-                                    atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident),
-                                    self.all_vvar_definitions[vvar],
+                                    atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident),
+                                    self.all_vvar_definitions[vvar_id],
                                 ),
                                 expr,
                             )
@@ -80,29 +93,28 @@ class SRDAModel:
             return defs
 
         defs: set[Definition] = set()
-        for vvar, uses in self.all_vvar_uses.items():
-            for _, loc_ in uses:
-                if loc_ == loc:
-                    defs.add(
-                        Definition(
-                            atoms.VirtualVariable(vvar.varid, vvar.size, vvar.category, vvar.oident),
-                            self.all_vvar_definitions[vvar],
-                        )
-                    )
+        if loc not in self.vvar_uses_by_loc:
+            return defs
+        for vvar_id in self.vvar_uses_by_loc[loc]:
+            vvar = self.varid_to_vvar[vvar_id]
+            defs.add(
+                Definition(
+                    atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident),
+                    self.all_vvar_definitions[vvar_id],
+                )
+            )
         return defs
 
     def get_vvar_uses(self, obj: VirtualVariable | atoms.VirtualVariable) -> set[CodeLocation]:
-        the_vvar = self.varid_to_vvar.get(obj.varid, None)
-        if the_vvar is not None:
-            return {loc for _, loc in self.all_vvar_uses[the_vvar]}
+        if obj.varid in self.all_vvar_uses:
+            return {loc for _, loc in self.all_vvar_uses[obj.varid]}
         return set()
 
     def get_vvar_uses_with_expr(
         self, obj: VirtualVariable | atoms.VirtualVariable
-    ) -> set[tuple[CodeLocation, VirtualVariable]]:
-        the_vvar = self.varid_to_vvar.get(obj.varid, None)
-        if the_vvar is not None:
-            return {(loc, expr) for expr, loc in self.all_vvar_uses[the_vvar]}
+    ) -> set[tuple[VirtualVariable | None, CodeLocation]]:
+        if obj.varid in self.all_vvar_uses:
+            return set(self.all_vvar_uses[obj.varid])
         return set()
 
     def get_tmp_uses(self, obj: atoms.Tmp, block_loc: CodeLocation) -> set[CodeLocation]:

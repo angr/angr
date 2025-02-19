@@ -79,41 +79,42 @@ def get_reg_offset_base(reg_offset, arch, size=None, resilient=True):
 
 
 def get_vvar_deflocs(
-    blocks, phi_vvars: dict[VirtualVariable, set[VirtualVariable]] | None = None
-) -> dict[VirtualVariable, CodeLocation]:
-    vvar_to_loc: dict[VirtualVariable, CodeLocation] = {}
-
+    blocks, phi_vvars: dict[int, set[int]] | None = None
+) -> dict[int, tuple[VirtualVariable, CodeLocation]]:
+    vvar_to_loc: dict[int, tuple[VirtualVariable, CodeLocation]] = {}
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                vvar_to_loc[stmt.dst] = CodeLocation(block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
+                vvar_to_loc[stmt.dst.varid] = stmt.dst, CodeLocation(
+                    block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx
+                )
                 if phi_vvars is not None and isinstance(stmt.src, Phi):
-                    phi_vvars[stmt.dst] = {vvar_ for src, vvar_ in stmt.src.src_and_vvars}
+                    phi_vvars[stmt.dst.varid] = {
+                        vvar_.varid for src, vvar_ in stmt.src.src_and_vvars if vvar_ is not None
+                    }
             elif isinstance(stmt, Call):
                 if isinstance(stmt.ret_expr, VirtualVariable):
-                    vvar_to_loc[stmt.ret_expr] = CodeLocation(
+                    vvar_to_loc[stmt.ret_expr.varid] = stmt.ret_expr, CodeLocation(
                         block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx
                     )
                 if isinstance(stmt.fp_ret_expr, VirtualVariable):
-                    vvar_to_loc[stmt.fp_ret_expr] = CodeLocation(
+                    vvar_to_loc[stmt.fp_ret_expr.varid] = stmt.fp_ret_expr, CodeLocation(
                         block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx
                     )
 
     return vvar_to_loc
 
 
-def get_vvar_uselocs(blocks) -> dict[int, set[tuple[VirtualVariable, CodeLocation]]]:
-    vvar_to_loc: dict[int, set[tuple[VirtualVariable, CodeLocation]]] = defaultdict(set)
-
+def get_vvar_uselocs(blocks) -> dict[int, list[tuple[VirtualVariable, CodeLocation]]]:
+    vvar_to_loc: dict[int, list[tuple[VirtualVariable, CodeLocation]]] = defaultdict(list)
     for block in blocks:
         collector = VVarUsesCollector()
         collector.walk(block)
         for vvar_idx, vvar_and_uselocs in collector.vvar_and_uselocs.items():
             if vvar_idx not in vvar_to_loc:
-                vvar_to_loc[vvar_idx] = vvar_and_uselocs
+                vvar_to_loc[vvar_idx] = list(vvar_and_uselocs)
             else:
-                vvar_to_loc[vvar_idx] |= vvar_and_uselocs
-
+                vvar_to_loc[vvar_idx] += vvar_and_uselocs
     return vvar_to_loc
 
 
