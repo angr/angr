@@ -139,10 +139,11 @@ class IncrementalDominators:
                 print(f"{k!r}: {true_doms[k]!r} {self._doms[k]!r}")
                 raise ValueError("dominators do not match")
 
-        dfs = self.init_dfs()
-        if len(dfs) != len(self._dfs):
-            raise ValueError("dfs do not match")
-        for k in dfs:
-            if dfs[k] != self._dfs[k]:
-                print(f"{k!r}: {dfs[k]!r} {self._dfs[k]!r}")
+        if self._dfs is not None:
+            dfs = self.init_dfs()
+            if len(dfs) != len(self._dfs):
                 raise ValueError("dfs do not match")
+            for k in dfs:
+                if dfs[k] != self._dfs[k]:
+                    print(f"{k!r}: {dfs[k]!r} {self._dfs[k]!r}")
+                    raise ValueError("dfs do not match")
