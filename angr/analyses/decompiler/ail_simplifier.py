@@ -514,7 +514,7 @@ class AILSimplifier(Analysis):
             atom = atom_queue.pop(0)
             seen.add(atom)
 
-            use_and_exprs = rd.get_vvar_uses_with_expr(atom)
+            use_and_exprs = rd.all_vvar_uses[atom.varid]
 
             for loc, expr in use_and_exprs:
                 old_block = block_dict.get((loc.block_addr, loc.block_idx), None)
