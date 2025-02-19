@@ -5,6 +5,7 @@ from typing import Any
 import pyvex
 import claripy
 
+from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 from angr.utils.bits import s2u, u2s
 from angr.block import Block
 from angr.analyses.analysis import Analysis
@@ -13,7 +14,7 @@ from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimTypeBottom, dereference_simtype
 from .utils import is_sane_register_variable
 
 
@@ -398,9 +399,23 @@ class FactCollector(Analysis):
                             and not isinstance(func_succ.prototype.returnty, SimTypeBottom)
                         ):
                             # assume the function overwrites the return variable
-                            returnty_size = func_succ.prototype.returnty.with_arch(self.project.arch).size
-                            assert returnty_size is not None
-                            retval_size = returnty_size // self.project.arch.byte_width
+                            proto = func_succ.prototype
+                            if func_succ.prototype_libname is not None:
+                                # we need to deref the prototype in case it uses SimTypeRef internally
+                                type_collections = []
+                                prototype_lib = SIM_LIBRARIES[func_succ.prototype_libname]
+                                if prototype_lib.type_collection_names:
+                                    for typelib_name in prototype_lib.type_collection_names:
+                                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                                    proto = dereference_simtype(proto, type_collections)
+
+                            returnty_size = proto.returnty.with_arch(self.project.arch).size
+                            if returnty_size is None:
+                                # it may be None if somehow we cannot resolve a SimTypeRef; we fall back to the full
+                                # machine word size
+                                retval_size = self.project.arch.bytes
+                            else:
+                                retval_size = returnty_size // self.project.arch.byte_width
                             retval_sizes.append(retval_size)
                         continue
 
