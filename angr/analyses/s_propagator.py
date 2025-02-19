@@ -26,6 +26,7 @@ from angr.utils.ssa import (
     get_vvar_deflocs,
     has_ite_expr,
     has_ite_stmt,
+    has_tmp_expr,
     is_phi_assignment,
     is_const_assignment,
     is_const_and_vvar_assignment,
@@ -237,7 +238,7 @@ class SPropagatorAnalysis(Analysis):
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
                     uselocs = {loc for _, loc in vvar_uselocs_set}
-                    if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks):
+                    if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks) and not has_tmp_expr(stmt.src):
                         for vvar_used, vvar_useloc in vvar_uselocs_set:
                             replacements[vvar_useloc][vvar_used] = stmt.src
                         # mark the vvar as dead and should be removed
@@ -247,14 +248,16 @@ class SPropagatorAnalysis(Analysis):
                 if vvar.was_reg or vvar.was_parameter:
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
-                        if is_const_vvar_load_assignment(stmt) and not has_store_stmt_in_between_stmts(
-                            self.func_graph, blocks, defloc, vvar_useloc
+                        if (
+                            is_const_vvar_load_assignment(stmt)
+                            and not has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc)
+                            and not has_tmp_expr(stmt.src)
                         ):
                             # we can propagate this load because there is no store between its def and use
                             replacements[vvar_useloc][vvar_used] = stmt.src
                             continue
 
-                        if is_const_and_vvar_assignment(stmt):
+                        if is_const_and_vvar_assignment(stmt) and not has_tmp_expr(stmt.src):
                             # if the useloc is a phi assignment statement, ensure that stmt.src is the same as the phi
                             # variable
                             assert vvar_useloc.block_addr is not None
@@ -287,7 +290,11 @@ class SPropagatorAnalysis(Analysis):
                                     replacements[vvar_useloc][vvar_used] = stmt.src
                                 continue
 
-                            if len(set(non_exitsite_uselocs)) == 1 and not has_ite_expr(stmt.src):
+                            if (
+                                len(set(non_exitsite_uselocs)) == 1
+                                and not has_ite_expr(stmt.src)
+                                and not has_tmp_expr(stmt.src)
+                            ):
                                 useloc = non_exitsite_uselocs[0]
                                 assert useloc.block_addr is not None
                                 assert useloc.stmt_idx is not None
@@ -301,7 +308,7 @@ class SPropagatorAnalysis(Analysis):
 
                 # special logic for global variables: if it's used once or multiple times, and the variable is never
                 # updated before it's used, we will propagate the load
-                if (vvar.was_reg or vvar.was_parameter) and isinstance(stmt, Assignment):
+                if (vvar.was_reg or vvar.was_parameter) and isinstance(stmt, Assignment) and not has_tmp_expr(stmt.src):
                     stmt_src = stmt.src
                     # unpack conversions
                     while isinstance(stmt_src, Convert):

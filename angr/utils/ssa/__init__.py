@@ -257,6 +257,12 @@ def has_ite_stmt(stmt: Statement) -> bool:
     return walker.has_blacklisted_exprs
 
 
+def has_tmp_expr(expr: Expression) -> bool:
+    walker = AILBlacklistExprTypeWalker((Tmp,))
+    walker.walk_expression(expr)
+    return walker.has_blacklisted_exprs
+
+
 def check_in_between_stmts(
     graph: networkx.DiGraph,
     blocks: dict[tuple[int, int | None], Block],
