@@ -21,6 +21,7 @@ class IncrementalDominators:
         self._pre: bool = not post  # calculate dominators
 
         self._doms: dict[Any, Any] = {}
+        self._dfs: dict[Any, set[Any]] | None = None  # initialized on-demand
         self._inverted_dom_tree: dict[Any, Any] | None = None  # initialized on demand
 
         self._doms = self.init_doms()
@@ -32,6 +33,21 @@ class IncrementalDominators:
         else:
             doms = networkx.immediate_dominators(self.graph, self.start)
         return doms
+
+    def init_dfs(self) -> dict[Any, set[Any]]:
+        _pred = self.graph.predecessors if self._pre else self.graph.successors
+        df: dict = {}
+        for u in self._doms:
+            _preds = list(_pred(u))  # type:ignore
+            if len(_preds) >= 2:
+                for v in _preds:
+                    if v in self._doms:
+                        while v is not self._doms[u]:
+                            if v not in df:
+                                df[v] = set()
+                            df[v].add(u)
+                            v = self._doms[v]
+        return df
 
     def _update_inverted_domtree(self):
         # recalculate the dominators for dominatees of replaced nodes
@@ -63,6 +79,18 @@ class IncrementalDominators:
                 new_node_doms.append(dtee)
         self._doms[new_node] = new_dom
 
+        if self._dfs is not None:
+            # update dominance frontiers
+            if replaced_head in self._dfs:
+                self._dfs[new_node] = self._dfs[replaced_head]
+            for rn in replaced_nodes:
+                if rn in self._dfs:
+                    del self._dfs[rn]
+                for df in self._dfs.values():
+                    if rn in df:
+                        df.remove(rn)
+                        df.add(new_node)
+
         # keep inverted dom tree up-to-date
         self._inverted_dom_tree[new_dom].append(new_node)
         self._inverted_dom_tree[new_node] = new_node_doms
@@ -85,39 +113,9 @@ class IncrementalDominators:
         """
         Generate the dominance frontier of a node.
         """
-
-        if node not in self.graph:
-            return set()
-
-        _pred = self.graph.predecessors if self._pre else self.graph.successors
-        _succ = self.graph.successors if self._pre else self.graph.predecessors
-        df = set()
-
-        visited = {node}
-        queue = [node]
-
-        while queue:
-            u = queue.pop(0)
-            preds = list(_pred(u))  # type: ignore
-            added = False
-            if len(preds) >= 2:
-                for v in preds:
-                    if v in self._doms:
-                        while v != self._doms[u]:
-                            if v is node:
-                                df.add(u)
-                                added = True
-                                break
-                            v = self._doms[v]
-                    if added:
-                        break
-
-            if not added:
-                for v in _succ(u):  # type: ignore
-                    if v not in visited:
-                        visited.add(v)
-                        queue.append(v)
-        return df
+        if self._dfs is None:
+            self._dfs = self.init_dfs()
+        return self._dfs.get(node, set())
 
     def dominates(self, dominator_node: Any, node: Any) -> bool:
         """
@@ -140,3 +138,12 @@ class IncrementalDominators:
             if true_doms[k] != self._doms[k]:
                 print(f"{k!r}: {true_doms[k]!r} {self._doms[k]!r}")
                 raise ValueError("dominators do not match")
+
+        if self._dfs is not None:
+            dfs = self.init_dfs()
+            if len(dfs) != len(self._dfs):
+                raise ValueError("dfs do not match")
+            for k in dfs:
+                if dfs[k] != self._dfs[k]:
+                    print(f"{k!r}: {dfs[k]!r} {self._dfs[k]!r}")
+                    raise ValueError("dfs do not match")
