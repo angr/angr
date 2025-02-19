@@ -186,6 +186,14 @@ class SequenceWalker:
         new_condition = (
             self._handle(node.condition, parent=node, label="condition") if node.condition is not None else None
         )
+
+        # note that initializer and iterator are both statements, so they can return empty tuples
+        # TODO: Handle the case where multiple statements are returned
+        if new_initializer == ():
+            new_initializer = None
+        if new_iterator == ():
+            new_iterator = None
+
         seq_node = self._handle(node.sequence_node, parent=node, label="body", index=0)
         if seq_node is not None or new_initializer is not None or new_iterator is not None or new_condition is not None:
             return LoopNode(
