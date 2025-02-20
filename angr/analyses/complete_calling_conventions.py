@@ -143,6 +143,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
             # get an ordering of functions based on the call graph
             # note that the call graph is a multi-digraph. we convert it to a digraph to speed up topological sort
             directed_callgraph = networkx.DiGraph(self.kb.functions.callgraph)
+        assert isinstance(directed_callgraph, networkx.DiGraph)
         sorted_funcs = GraphUtils.quasi_topological_sort_nodes(directed_callgraph)
 
         total_funcs = 0
@@ -158,7 +159,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                     continue
 
                 if self._max_function_size is not None:
-                    func_size = sum(block.size for block in func.blocks)
+                    func_size = sum(block.size for block in func.blocks if block.size is not None)
                     if func_size > self._max_function_size:
                         _l.info(
                             "Skipping variable recovery for %r since its size (%d) is greater than the cutoff "
@@ -199,6 +200,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def work(self):
         total_funcs = self._total_funcs
+        assert total_funcs is not None
         if self._workers == 0:
             self._update_progress(0)
             for idx, func_addr in enumerate(self._func_addrs):
@@ -221,6 +223,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
             self._finish_progress()
 
         else:
+            assert self._remaining_funcs is not None and self._func_queue is not None
             self._remaining_funcs.value = len(self._func_addrs)
 
             # generate a call tree (obviously, it's acyclic)
