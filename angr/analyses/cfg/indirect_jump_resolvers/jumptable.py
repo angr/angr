@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from collections import defaultdict, OrderedDict
 import logging
 import functools
+import contextlib
 
 import pyvex
 import claripy
@@ -1798,7 +1799,9 @@ class JumpTableResolver(IndirectJumpResolver):
                         # swap the two tmps
                         jump_base_addr.tmp, jump_base_addr.tmp_1 = jump_base_addr.tmp_1, jump_base_addr.tmp
                     # Load the concrete base address
-                    jump_base_addr.base_addr = state.solver.eval(state.scratch.temps[jump_base_addr.tmp_1])
+                    with contextlib.suppress(SimError):
+                        # silently eat the claripy exception
+                        jump_base_addr.base_addr = state.solver.eval(state.scratch.temps[jump_base_addr.tmp_1])
             else:
                 # We do not support the cases where the base address involves more than one addition.
                 # One such case exists in libc-2.27.so shipped with Ubuntu x86 where esi is used as the address of the
