@@ -518,7 +518,7 @@ class AILSimplifier(Analysis):
 
             expr_and_uses = rd.all_vvar_uses[atom.varid]
 
-            for expr, loc in expr_and_uses:
+            for expr, loc in set(expr_and_uses):
                 old_block = block_dict.get((loc.block_addr, loc.block_idx), None)
                 if old_block is None:
                     # missing a block for whatever reason
@@ -537,6 +537,7 @@ class AILSimplifier(Analysis):
                     )
                     if new_atom not in seen:
                         atom_queue.append(new_atom)
+                        seen.add(new_atom)
                 else:
                     result.append((atom, loc, expr))
         return result, phi_vars
