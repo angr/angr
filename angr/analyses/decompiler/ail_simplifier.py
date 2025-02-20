@@ -1307,6 +1307,11 @@ class AILSimplifier(Analysis):
                 # check its predecessors
                 succ_predecessors = list(self.func_graph.predecessors(succ))
                 if len(succ_predecessors) == 1:
+                    if succ in lst:
+                        # we are about to form a loop - bad!
+                        # example: binary ce1897b492c80bf94083dd783aefb413ab1f6d8d4981adce8420f6669d0cb3e1, block
+                        # 0x2976EF7.
+                        break
                     lst.append(succ)
                 else:
                     break
