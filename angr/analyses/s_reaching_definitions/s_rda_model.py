@@ -73,24 +73,21 @@ class SRDAModel:
         :return:        A set of definitions that are used at the given location.
         """
         if exprs:
-            defs: set[tuple[Definition, Any]] = set()
+            def_with_exprs: set[tuple[Definition, Any]] = set()
             if loc not in self.vvar_uses_by_loc:
-                return defs
+                return def_with_exprs
             for vvar_id in self.vvar_uses_by_loc[loc]:
                 vvar = self.varid_to_vvar[vvar_id]
-                uses = self.all_vvar_uses[vvar_id]
-                for expr, loc_ in set(uses):
-                    if loc_ == loc:
-                        defs.add(
-                            (
-                                Definition(
-                                    atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident),
-                                    self.all_vvar_definitions[vvar_id],
-                                ),
-                                expr,
-                            )
-                        )
-            return defs
+                def_with_exprs.add(
+                    (
+                        Definition(
+                            atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident),
+                            self.all_vvar_definitions[vvar_id],
+                        ),
+                        vvar,
+                    )
+                )
+            return def_with_exprs
 
         defs: set[Definition] = set()
         if loc not in self.vvar_uses_by_loc:
