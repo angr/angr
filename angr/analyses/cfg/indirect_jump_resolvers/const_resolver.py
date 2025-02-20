@@ -43,11 +43,22 @@ class ConstantResolver(IndirectJumpResolver):
     be resolved to a constant value. This resolver must be run after all other more specific resolvers.
     """
 
-    def __init__(self, project):
+    def __init__(self, project, max_func_nodes: int = 512):
         super().__init__(project, timeless=False)
+        self.max_func_nodes = max_func_nodes
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
+        if not cfg.functions.contains_addr(func_addr):
+            # the function does not exist
+            return False
+
+        # for performance, we don't run constant resolver if the function is too large
+        func = cfg.functions.get_by_addr(func_addr)
+        if len(func.block_addrs_set) > self.max_func_nodes:
+            return False
+
         # we support both an indirect call and jump since the value can be resolved
+
         return jumpkind in {"Ijk_Boring", "Ijk_Call"}
 
     def resolve(  # pylint:disable=unused-argument
