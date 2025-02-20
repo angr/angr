@@ -578,8 +578,12 @@ class SimCC:
     # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0  # The amount of stack space reserved for the return address
     CALLER_SAVED_REGS: list[str] = []  # Caller-saved registers
-    RETURN_ADDR: SimFunctionArgument  # The location where the return address is stored, as a SimFunctionArgument
-    RETURN_VAL: SimFunctionArgument  # The location where the return value is stored, as a SimFunctionArgument
+    RETURN_ADDR: SimFunctionArgument | None = (
+        None  # The location where the return address is stored, as a SimFunctionArgument
+    )
+    RETURN_VAL: SimFunctionArgument | None = (
+        None  # The location where the return value is stored, as a SimFunctionArgument
+    )
     OVERFLOW_RETURN_VAL: SimFunctionArgument | None = (
         None  # The second half of the location where a double-length return value is stored
     )
