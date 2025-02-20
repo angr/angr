@@ -254,7 +254,7 @@ class SimFunctionArgument:
             if self.size not in (4, 8):
                 raise ValueError(f"What do I do with a float {self.size} bytes long")
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
-        return value.raw_to_bv()
+        return value.raw_to_bv()  # type:ignore
 
     def check_value_get(self, value):
         if self.is_fp:
@@ -770,7 +770,11 @@ class SimCC:
         return (
             isinstance(val, (float, claripy.ast.FP))
             or (isinstance(val, claripy.ast.Base) and val.op.startswith("fp"))  # type: ignore
-            or (isinstance(val, claripy.ast.Base) and val.op == "Reverse" and val.args[0].op.startswith("fp"))
+            or (
+                isinstance(val, claripy.ast.Base)
+                and val.op == "Reverse"  # type:ignore
+                and val.args[0].op.startswith("fp")  # type:ignore
+            )
         )
 
     @staticmethod
@@ -926,8 +930,10 @@ class SimCC:
         allocator.apply(state, alloc_base)
 
         for loc, val in zip(arg_locs, vals):
+            assert loc is not None
             loc.set_value(state, val, stack_base=stack_base)
-        self.return_addr.set_value(state, ret_addr, stack_base=stack_base)
+        if self.return_addr is not None:
+            self.return_addr.set_value(state, ret_addr, stack_base=stack_base)
 
     def teardown_callsite(self, state, return_val=None, prototype=None, force_callee_cleanup=False):
         """
@@ -947,10 +953,10 @@ class SimCC:
             self.set_return_val(state, return_val, prototype.returnty)
             # ummmmmmmm hack
             loc = self.return_val(prototype.returnty)
-            if isinstance(loc, SimReferenceArgument):
+            if self.RETURN_VAL is not None and isinstance(loc, SimReferenceArgument):
                 self.RETURN_VAL.set_value(state, loc.ptr_loc.get_value(state))
 
-        ret_addr = self.return_addr.get_value(state)
+        ret_addr = self.return_addr.get_value(state) if self.return_addr is not None else None
 
         if state.arch.sp_offset is not None and prototype is not None:
             if force_callee_cleanup or self.CALLEE_CLEANUP:
@@ -979,7 +985,7 @@ class SimCC:
 
             if arg.buffer:
                 if isinstance(arg.value, claripy.ast.Bits):
-                    real_value = arg.value.chop(state.arch.byte_width)
+                    real_value = arg.value.chop(state.arch.byte_width)  # type:ignore
                 elif type(arg.value) in (bytes, str):
                     real_value = claripy.BVV(arg.value).chop(8)
                 else:
