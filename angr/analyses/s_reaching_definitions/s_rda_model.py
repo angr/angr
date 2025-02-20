@@ -78,18 +78,15 @@ class SRDAModel:
                 return defs
             for vvar_id in self.vvar_uses_by_loc[loc]:
                 vvar = self.varid_to_vvar[vvar_id]
-                uses = self.all_vvar_uses[vvar_id]
-                for expr, loc_ in set(uses):
-                    if loc_ == loc:
-                        defs.add(
-                            (
-                                Definition(
-                                    atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident),
-                                    self.all_vvar_definitions[vvar_id],
-                                ),
-                                expr,
-                            )
-                        )
+                defs.add(
+                    (
+                        Definition(
+                            atoms.VirtualVariable(vvar_id, vvar.size, vvar.category, vvar.oident),
+                            self.all_vvar_definitions[vvar_id],
+                        ),
+                        vvar,
+                    )
+                )
             return defs
 
         defs: set[Definition] = set()

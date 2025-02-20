@@ -936,7 +936,11 @@ class AILSimplifier(Analysis):
                 for expr_and_use in all_uses:
                     used_expr, use_loc = expr_and_use
                     defs_and_exprs = rd.get_uses_by_location(use_loc, exprs=True)
-                    filtered_defs = {def_ for def_, expr_ in defs_and_exprs if expr_ == used_expr}
+                    filtered_defs = {
+                        def_
+                        for def_, expr_ in defs_and_exprs
+                        if expr_ is not None and used_expr is not None and expr_.varid == used_expr.varid
+                    }
                     if len(filtered_defs) == 1:
                         all_uses_with_unique_def.add(expr_and_use)
                     else:
