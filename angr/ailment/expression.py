@@ -274,6 +274,8 @@ class VirtualVariable(Atom):
         if self.was_reg:
             assert isinstance(self.oident, int)
             return self.oident
+        elif self.was_parameter and self.parameter_category == VirtualVariableCategory.REGISTER:
+            return self.parameter_reg_offset  # type: ignore
         raise TypeError("Is not a register")
 
     @property
@@ -281,6 +283,8 @@ class VirtualVariable(Atom):
         if self.was_stack:
             assert isinstance(self.oident, int)
             return self.oident
+        elif self.was_parameter and self.parameter_category == VirtualVariableCategory.STACK:
+            return self.parameter_stack_offset  # type: ignore
         raise TypeError("Is not a stack variable")
 
     @property
