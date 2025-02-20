@@ -212,9 +212,9 @@ class SimEngineVRAIL(
             # this is a dynamically calculated call target
             target_expr = self._expr(target)
             funcaddr_typevar = target_expr.typevar
-            assert funcaddr_typevar is not None
-            load_typevar = self._create_access_typevar(funcaddr_typevar, False, self.arch.bytes, 0)
-            self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
+            if funcaddr_typevar is not None:
+                load_typevar = self._create_access_typevar(funcaddr_typevar, False, self.arch.bytes, 0)
+                self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
 
         # discover the prototype
         prototype: SimTypeFunction | None = None
