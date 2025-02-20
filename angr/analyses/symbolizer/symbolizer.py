@@ -860,6 +860,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         self.symbolic_expr_locations = {}
         self._engine_ail = None
         self._prev_input_states = { }
+        self.project.simprocedures_to_remove = set()
         self._engine= PropagatorEmulatedEngine(project=self.project)
         self._analyze()
         self._initial_state = None
@@ -984,7 +985,10 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
         print(node)
         # if str(node) == "<CFGENode 0x140061ee8 ()vm-vpc:5368833178 [2]>":
         #     import ipdb;ipdb.set_trace()
-
+        if node.is_simprocedure and len(self._graph_visitor.successors(node)) == 1 and \
+                self._graph_visitor.successors(node)[0] is node and \
+                node.name == "exit":
+            return False, abstract_state
         concrete_states = abstract_state.get_concrete_state(node.block_id)
         l.debug("Total concrete states: "+str(len(concrete_states)))
         if len(concrete_states) == 0:
@@ -1069,8 +1073,15 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                             conc_state.registers.store(page_no + offset, sym_result,
                                                       endness=self.project.arch.register_endness)
 
+            if node.is_simprocedure and node.name == "read":
+                read_buf_addr = conc_state.regs.rsi
+                read_buf_size = conc_state.regs.edx
             sim_successors = engine.process(conc_state, opt_level=self._iropt_level, irsb=node.irsb)
 
+            if node.is_simprocedure and node.name == "read":
+                if not sim_successors.all_successors[0].solver.symbolic(sim_successors.all_successors[0].memory.load(read_buf_addr, read_buf_size)) and \
+                        not sim_successors.all_successors[0].solver.symbolic(sim_successors.all_successors[0].regs.rax):
+                    self.project.simprocedures_to_remove.add(node)
 
             # for my_succ in sim_successors.successors:
             #     if my_succ.solver.symbolic(my_succ.scratch.guard):
