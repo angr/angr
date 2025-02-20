@@ -588,7 +588,7 @@ class VMDeobfuscation(Analysis):
         pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
         cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
 
-        self.draw_graph_flag =True
+        # self.draw_graph_flag =True
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         self.draw_graph_flag = False
         new_cfg=cfg
@@ -659,6 +659,8 @@ class VMDeobfuscation(Analysis):
                 node.input_state = None
                 node.final_states = None
 
+            new_cfg = self.new_model_without_terminator_graph(new_cfg.graph, proj, 'without_path_terminator')
+
             new_cfg = self.keep_only_one_graph(new_cfg, start_addr)
 
             start_state_copy = start_state.copy()
@@ -667,7 +669,7 @@ class VMDeobfuscation(Analysis):
             pickled_file_name = os.path.dirname(self.project.filename) +"/"+str(symb_iter)+ "_symbolizer_cfg_pickle"
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
-            self.draw_graph_flag=True
+            # self.draw_graph_flag=True
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
             self.draw_graph_flag=False
 
@@ -677,7 +679,7 @@ class VMDeobfuscation(Analysis):
 
         new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, None)
 
-        self.draw_graph_flag = True
+        # self.draw_graph_flag = True
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "after_all_symb_and_split.svg"))
 
@@ -705,6 +707,7 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
         self.inst_count(new_cfg)
 
+        new_cfg = self.eliminate_dead_simprocedures(new_cfg, proj, self.project.simprocedures_to_remove)
 
         # important to perform this first before any other simplifiactions
         new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
@@ -759,6 +762,9 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"whole_cfg_deadassignment_elimination.svg"))
 
+        self.draw_graph_flag = True
+        self.draw_graph(new_cfg, os.path.join(folder_name, "mid_graph_result"))
+        self.draw_graph_flag = False
 
         for i in range(4):
             new_cfg = self._eliminate_dead_assignments(new_cfg, proj, keep_sp_changes_dae=keep_sp_changes_dae)
@@ -1281,6 +1287,9 @@ class VMDeobfuscation(Analysis):
                                                                    calls_as_rets=calls_as_rets)
             if str(cur_node) == traversal_start_node:
                 VM_1_func.startpoint = new_cur_node
+            if len(new_cfg.nodes()) == 1:
+                #ONLY ONE NODE IN THE FUNCTION
+                VM_1_func._register_nodes(True, new_cur_node)
             for succ in succs:
                 if succ.is_simprocedure:
                     succ_func = None
@@ -1398,7 +1407,8 @@ class VMDeobfuscation(Analysis):
         for node in VM_1_func.transition_graph.nodes():
             if len(list(VM_1_func.transition_graph.successors(node))) == 0:
                 VM_1_func._ret_sites.add(node)
-                VM_1_func._ret_sites.add(list(VM_1_func.transition_graph.predecessors(node))[0])
+                if len(list(VM_1_func.transition_graph.predecessors(node))) > 0:
+                    VM_1_func._ret_sites.add(list(VM_1_func.transition_graph.predecessors(node))[0])
 
         # self.create_virtualized_func_svg(VM_1_func, decomp_function_addresses)
 
@@ -1651,7 +1661,10 @@ class VMDeobfuscation(Analysis):
         return new_cur_node, calls_as_rets
 
     def convert_addr_to_int(self, addr, block_id, stmt_idx=0):
-        enc_addr = int.from_bytes(bytes(str(block_id.vm_vpc) + str(addr) + str(stmt_idx), 'utf-8'), "big")
+        if block_id:
+            enc_addr = int.from_bytes(bytes(str(block_id.vm_vpc) + str(addr) + str(stmt_idx), 'utf-8'), "big")
+        else:
+            enc_addr = int.from_bytes(bytes(str(addr) + str(stmt_idx), 'utf-8'), "big")
         self.project.enc_stmt_addr_to_original[enc_addr] = (addr, stmt_idx, block_id)
         return enc_addr
 
@@ -2841,6 +2854,11 @@ class VMDeobfuscation(Analysis):
         for node in list(dsa_new_model.graph.nodes()):
             if not node.is_simprocedure and len(list(dsa_new_model.graph.successors(node))) == 0:
                 leaf_nodes_list.append(('node', (node.addr, node.block_id), OP_AFTER))
+            elif node.is_simprocedure and node.name == "exit":
+                for pred_node in list(dsa_new_model.graph.predecessors(node)):
+                    if not (pred_node.is_simprocedure and pred_node.name == "exit"):
+                        leaf_nodes_list.append(('node', (pred_node.addr, pred_node.block_id), OP_AFTER))
+
 
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
                                                        track_tmps=True,
@@ -2968,8 +2986,47 @@ class VMDeobfuscation(Analysis):
         # return new_cfg
 
         return dsa_new_model
-    # Eliminates dead memdefs, tmpdefs and regdefs in a single basic block
 
+    def eliminate_dead_simprocedures(self, cfg, proj, simprocedures_to_remove):
+        for node in simprocedures_to_remove:
+            if node.is_simprocedure and node.name == "read":
+                if len(list(cfg.graph.successors(node))) >0:
+                    succ = cfg.graph.successors(node)
+                    succ = next(succ)
+                    preds = cfg.graph.predecessors(node)
+                    to_remove = False
+                    for pred in preds:
+                        pred_edge_data = cfg.graph.get_edge_data(pred, node)
+                        # Reassigning the next expression of the previous
+                        if not pred.is_simprocedure:
+                            next_val = None
+                            if self.project.arch.bits == 32:
+                                next_val = pyvex.expr.Const(
+                                    DataSensitiveU32(succ.addr,
+                                                     succ.block_id))
+                            elif self.project.arch.bits == 64:
+                                next_val = pyvex.expr.Const(
+                                    DataSensitiveU64(succ.addr,
+                                                     succ.block_id))
+                            cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
+                            if len(pred.irsb.statements) > 0 and isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
+                                if pred.irsb.statements[-1].dst.block_id == node.block_id:
+                                    pred.irsb.statements[-1].dst = next_val.con
+                                else:
+                                    pred.irsb.next = next_val
+                                if pred.irsb.next.con.block_id == pred.irsb.statements[-1].dst.block_id and pred.irsb.statements[-1].dst.value == pred.irsb.next.con.value:
+                                    # remove the redundant if cond, if both targets become same
+                                    pred.irsb.statements = pred.irsb.statements[:-1]
+                            else:
+                                pred.irsb.next = next_val
+                            to_remove = True
+                        else:
+                            print("Not removing this block, since there the previous block is a Sim Procedure")
+                    if to_remove:
+                        cfg.graph.remove_node(node)
+        return cfg
+
+    # Eliminates dead memdefs, tmpdefs and regdefs in a single basic block
     @logtime
     def _eliminate_dead_assignments(self, cfg, proj, keep_sp_changes_dae=False):
 
