@@ -501,7 +501,7 @@ class VMDeobfuscation(Analysis):
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
-                 symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False):
+                 symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -588,7 +588,7 @@ class VMDeobfuscation(Analysis):
         pickled_file_name = os.path.dirname(self.project.filename) + "/data_sens_cfg"
         cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
 
-        # self.draw_graph_flag =True
+        self.draw_graph_flag =True
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         self.draw_graph_flag = False
         new_cfg=cfg
@@ -669,7 +669,7 @@ class VMDeobfuscation(Analysis):
             pickled_file_name = os.path.dirname(self.project.filename) +"/"+str(symb_iter)+ "_symbolizer_cfg_pickle"
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
-            # self.draw_graph_flag=True
+            self.draw_graph_flag=True
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
             self.draw_graph_flag=False
 
@@ -679,7 +679,7 @@ class VMDeobfuscation(Analysis):
 
         new_cfg = self.convert_to_data_sensitive_irsb(new_cfg, proj, None)
 
-        # self.draw_graph_flag = True
+        self.draw_graph_flag = True
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "after_all_symb_and_split.svg"))
 
@@ -707,7 +707,8 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
         self.inst_count(new_cfg)
 
-        new_cfg = self.eliminate_dead_simprocedures(new_cfg, proj, self.project.simprocedures_to_remove)
+        if remove_dead_simprocedures:
+            new_cfg = self.eliminate_dead_simprocedures(new_cfg, proj, self.project.simprocedures_to_remove)
 
         # important to perform this first before any other simplifiactions
         new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
