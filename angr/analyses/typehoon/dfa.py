@@ -1,21 +1,22 @@
+# pylint:disable=import-outside-toplevel
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import networkx
 
 # FIXME: Remove the dependency on pyformlang
-from pyformlang.finite_automaton import Epsilon, EpsilonNFA, State, Symbol
 
 from angr.errors import AngrError
 from .typevars import BaseLabel, Subtype
 from .variance import Variance
 
 if TYPE_CHECKING:
+    from pyformlang.finite_automaton import EpsilonNFA
     from pyformlang.finite_automaton import DeterministicFiniteAutomaton
 
 
-START_STATE = State("START")
-END_STATE = State("END")
+START_STATE = None
+END_STATE = None
 
 
 class EmptyEpsilonNFAError(AngrError):
@@ -31,6 +32,15 @@ class DFAConstraintSolver:
 
     @staticmethod
     def graph_to_epsilon_nfa(graph: networkx.DiGraph, starts: set, ends: set) -> EpsilonNFA:
+        from pyformlang.finite_automaton import Epsilon, EpsilonNFA, State, Symbol  # delayed import
+
+        global START_STATE, END_STATE  # pylint:disable=global-statement
+
+        if START_STATE is None:
+            START_STATE = State("START")
+        if END_STATE is None:
+            END_STATE = State("END")
+
         enfa = EpsilonNFA()
 
         # print("Converting graph to eNFA")
