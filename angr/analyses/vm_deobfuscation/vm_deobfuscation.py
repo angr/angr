@@ -501,7 +501,8 @@ class VMDeobfuscation(Analysis):
                  decomp_main_func_prototype=None,  keep_sp_changes_dae=False, start_deobfuscation_immediately=False,
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
-                 symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False):
+                 symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
+                 ail_propagator_init_values=None):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -522,6 +523,15 @@ class VMDeobfuscation(Analysis):
         DUMP = "dump"
         LOAD = "load"
         THEMIDA = True
+
+        if only_verification_test:
+            pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
+            new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
+
+
+            verification_state_copy = verification_state.copy()
+            self.perform_semantic_verification(new_cfg, self.project, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=semantic_verf_hooks)
+            return
 
         if self.project.arch.bits == 32:
             start_state.registers.store(start_state.arch.registers['ss'][0], 0)
@@ -910,7 +920,7 @@ class VMDeobfuscation(Analysis):
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
                                decomp_main_func_prototype=decomp_main_func_prototype, calls_as_rets=calls_as_rets,
-                               allow_global_dead_ass_elim=allow_global_dead_ass_elim)
+                               allow_global_dead_ass_elim=allow_global_dead_ass_elim, ail_propagator_init_values=ail_propagator_init_values)
 
 
         # verification_state_copy = verification_state.copy()
@@ -1231,7 +1241,8 @@ class VMDeobfuscation(Analysis):
 
     @logtime
     def try_decompilation(self, new_cfg, decomp_start_end_node_str, decomp_function_addresses=None, decomp_function_prototypes=None,
-                          semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}, allow_global_dead_ass_elim=False):
+                          semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}, allow_global_dead_ass_elim=False,
+                          ail_propagator_init_values=None):
         visited_nodes = {}
 
         traversal_start_node = decomp_start_end_node_str[0][0]
@@ -1415,7 +1426,8 @@ class VMDeobfuscation(Analysis):
 
         self.project.new_block_id_embed_dict = new_block_id_embed_dict
 
-        dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim)
+        dec = self.project.analyses.Decompiler(VM_1_func, calls_as_rets=calls_as_rets, allow_global_dead_ass_elim=allow_global_dead_ass_elim,
+                                               ail_propagator_init_values=ail_propagator_init_values)
 
         # import ipdb;ipdb.set_trace()
         with open("last_decomp_result.c", "w") as f:
