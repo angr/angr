@@ -1,3 +1,4 @@
+# pylint:disable=import-outside-toplevel
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
@@ -33,7 +34,7 @@ class DFAConstraintSolver:
     def graph_to_epsilon_nfa(graph: networkx.DiGraph, starts: set, ends: set) -> EpsilonNFA:
         from pyformlang.finite_automaton import Epsilon, EpsilonNFA, State, Symbol  # delayed import
 
-        global START_STATE, END_STATE
+        global START_STATE, END_STATE  # pylint:disable=global-statement
 
         if START_STATE is None:
             START_STATE = State("START")
