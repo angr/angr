@@ -1,7 +1,7 @@
 # pylint:disable=abstract-method,arguments-differ,assignment-from-no-return
 from __future__ import annotations
 import logging
-from typing import Union, Any
+from typing import Any
 from collections.abc import Callable
 
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
@@ -13,7 +13,7 @@ from .cooperation import MemoryObjectSetMixin
 
 l = logging.getLogger(name=__name__)
 
-_MOTYPE = Union[SimMemoryObject, SimLabeledMemoryObject]
+_MOTYPE = SimMemoryObject | SimLabeledMemoryObject
 
 
 class MVListPage(

@@ -4,7 +4,7 @@ import contextlib
 import logging
 from collections import defaultdict
 from collections.abc import Sequence
-from typing import Union, Any
+from typing import Any
 
 import pyvex
 import archinfo
@@ -24,8 +24,8 @@ try:
     from angr.engines import pcode
     import pypcode
 
-    IRSBType = Union[pyvex.IRSB, pcode.lifter.IRSB]
-    IROpObjType = Union[pyvex.stmt.IRStmt, pypcode.PcodeOp]
+    IRSBType = pyvex.IRSB | pcode.lifter.IRSB
+    IROpObjType = pyvex.stmt.IRStmt | pypcode.PcodeOp
 except ImportError:
     pcode = None
     IRSBType = pyvex.IRSB
