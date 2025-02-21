@@ -15,7 +15,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-urls = {Homepage = "https://github.com/angr/angr"}
 requires-python = ">=3.10"
 dependencies = [
     "CppHeaderParser",
@@ -48,6 +47,10 @@ dynamic = ["version"]
 [project.readme]
 file = "README.md"
 content-type = "text/markdown"
+
+[project.urls]
+Homepage = "https://angr.io/"
+Repository = "https://github.com/angr/angr"
 
 [project.optional-dependencies]
 angrdb = ["sqlalchemy"]
