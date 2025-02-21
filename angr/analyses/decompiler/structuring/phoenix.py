@@ -1905,14 +1905,23 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                         # c = !c
                         last_if_jump = self._remove_last_statement_if_jump(start_node)
+                        cond_node_addr = (
+                            start_node.addr
+                            if is_empty_or_label_only_node(start_node)
+                            else last_if_jump.ins_addr if last_if_jump is not None else start_node.addr
+                        )
                         new_cond_node = ConditionNode(
-                            last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                            cond_node_addr,
                             None,
                             edge_cond_left,
                             left,
                             false_node=right,
                         )
-                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                        new_node = (
+                            SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                            if not is_empty_or_label_only_node(start_node)
+                            else new_cond_node
+                        )
 
                         if not left_succs:
                             # on the original graph
@@ -1947,14 +1956,23 @@ class PhoenixStructurer(StructurerBase):
                     if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                         # c = !c
                         last_if_jump = self._remove_last_statement_if_jump(start_node)
+                        cond_node_addr = (
+                            start_node.addr
+                            if is_empty_or_label_only_node(start_node)
+                            else last_if_jump.ins_addr if last_if_jump is not None else start_node.addr
+                        )
                         new_cond_node = ConditionNode(
-                            last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                            cond_node_addr,
                             None,
                             edge_cond_left,
                             left,
                             false_node=None,
                         )
-                        new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                        new_node = (
+                            SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                            if not is_empty_or_label_only_node(start_node)
+                            else new_cond_node
+                        )
 
                         # on the original graph
                         self.replace_nodes(graph, start_node, new_node, old_node_1=left)
@@ -1980,14 +1998,23 @@ class PhoenixStructurer(StructurerBase):
                 if claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right):  # type: ignore
                     # c = !c
                     last_if_jump = self._remove_last_statement_if_jump(start_node)
+                    cond_node_addr = (
+                        start_node.addr
+                        if is_empty_or_label_only_node(start_node)
+                        else last_if_jump.ins_addr if last_if_jump is not None else start_node.addr
+                    )
                     new_cond_node = ConditionNode(
-                        last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                        cond_node_addr,
                         None,
                         edge_cond_left,
                         left,
                         false_node=None,
                     )
-                    new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                    new_node = (
+                        SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                        if not is_empty_or_label_only_node(start_node)
+                        else new_cond_node
+                    )
 
                     # on the original graph
                     self.replace_nodes(graph, start_node, new_node, old_node_1=left)
@@ -2025,10 +2052,12 @@ class PhoenixStructurer(StructurerBase):
                         left,
                         false_node=None,
                     )
-                    new_nodes = [start_node, new_cond_node]
+                    new_nodes: list = [start_node, new_cond_node]
                     if full_graph.in_degree[right] == 1:
                         # only remove the if statement when it will no longer be used later
                         self._remove_last_statement_if_jump(start_node)
+                        if is_empty_or_label_only_node(start_node):
+                            new_nodes = [new_cond_node]
                         # add a goto node at the end
                         new_jump_node = Block(
                             new_cond_node.addr if new_cond_node.addr is not None else 0x7EFF_FFFF,
@@ -2166,7 +2195,11 @@ class PhoenixStructurer(StructurerBase):
             )
             new_cond_node = Block(start_node.addr, None, statements=[cond_jump])
             self._remove_last_statement_if_jump(start_node)
-            new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+            new_node = (
+                SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                if not is_empty_or_label_only_node(start_node)
+                else new_cond_node
+            )
 
             self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
             self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
@@ -2202,7 +2235,11 @@ class PhoenixStructurer(StructurerBase):
             )
             new_cond_node = Block(start_node.addr, None, statements=[cond_jump])
             self._remove_last_statement_if_jump(start_node)
-            new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+            new_node = (
+                SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                if not is_empty_or_label_only_node(start_node)
+                else new_cond_node
+            )
 
             self.replace_nodes(graph, start_node, new_node, old_node_1=right if right in graph else None)
             self.replace_nodes(full_graph, start_node, new_node, old_node_1=right)
@@ -2240,7 +2277,11 @@ class PhoenixStructurer(StructurerBase):
             )
             new_cond_node = Block(start_node.addr, None, statements=[cond_jump])
             self._remove_last_statement_if_jump(start_node)
-            new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+            new_node = (
+                SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                if not is_empty_or_label_only_node(start_node)
+                else new_cond_node
+            )
 
             self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
             self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
@@ -2278,7 +2319,11 @@ class PhoenixStructurer(StructurerBase):
             )
             new_cond_node = Block(start_node.addr, None, statements=[cond_jump])
             self._remove_last_statement_if_jump(start_node)
-            new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+            new_node = (
+                SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
+                if not is_empty_or_label_only_node(start_node)
+                else new_cond_node
+            )
 
             self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
             self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
