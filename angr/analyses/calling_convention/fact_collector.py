@@ -119,6 +119,26 @@ class SimEngineFactCollectorVEX(
 
     def _handle_stmt_Put(self, stmt):
         v = self._expr(stmt.data)
+        # there are cases like  VMOV.F32        S0, S0
+        # so we need to check if this register write is actually a no-op
+        if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+            t = self.state.tmps.get(stmt.data.tmp, None)
+            if isinstance(t, RegisterOffset) and t.reg == stmt.offset:
+                same_ins_read = False
+                for i in range(self.stmt_idx, -1, -1):
+                    if i >= self.block.vex.stmts_used:
+                        break
+                    prev_stmt = self.block.vex.statements[i]
+                    if isinstance(prev_stmt, pyvex.IRStmt.IMark):
+                        break
+                    if isinstance(prev_stmt, pyvex.IRStmt.WrTmp) and prev_stmt.tmp == stmt.data.tmp:
+                        same_ins_read = True
+                        break
+                if same_ins_read:
+                    # we need to revert the read operation as well
+                    self.state.reg_reads.pop(stmt.offset, None)
+                return
+
         if stmt.offset == self.arch.sp_offset and isinstance(v, SpOffset):
             self.state.sp_value = v.offset
         elif stmt.offset == self.arch.bp_offset and isinstance(v, SpOffset):
