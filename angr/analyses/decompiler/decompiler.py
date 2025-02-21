@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Optional, Union, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
@@ -35,9 +35,9 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-_PEEPHOLE_OPTIMIZATIONS_TYPE = Optional[
-    Iterable[Union[type["PeepholeOptimizationStmtBase"], type["PeepholeOptimizationExprBase"]]]
-]
+_PEEPHOLE_OPTIMIZATIONS_TYPE = (
+    Iterable[type["PeepholeOptimizationStmtBase"] | type["PeepholeOptimizationExprBase"]] | None
+)
 
 
 class Decompiler(Analysis):

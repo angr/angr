@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from collections import defaultdict
 from itertools import chain
@@ -14,11 +14,11 @@ if TYPE_CHECKING:
     from angr.code_location import CodeLocation
 
 
-LocationType = tuple[int, Optional[int], Optional[int]]  # block addr, block ID, stmt ID
+LocationType = tuple[int, int | None, int | None]  # block addr, block ID, stmt ID
 LocationWithPosType = tuple[
-    int, Optional[int], Optional[int], ObservationPointType
+    int, int | None, int | None, ObservationPointType
 ]  # block addr, block ID, stmt ID, before/after
-BlockAddrType = tuple[int, Optional[int]]  # block addr, block ID
+BlockAddrType = tuple[int, int | None]  # block addr, block ID
 
 
 class Liveness:

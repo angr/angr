@@ -1,6 +1,5 @@
 from __future__ import annotations
 from mmap import mmap
-from typing import Union
 from collections.abc import Generator
 import logging
 
@@ -9,7 +8,7 @@ import cle
 
 l = logging.getLogger(__name__)
 
-BackerType = Union[bytes, bytearray, list[int]]
+BackerType = bytes | bytearray | list[int]
 BackerIterType = Generator[tuple[int, BackerType], None, None]
 
 

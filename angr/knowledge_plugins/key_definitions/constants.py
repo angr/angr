@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, Union
+from typing import Literal
 import enum
 
 DEBUG = False
@@ -25,5 +25,5 @@ OP_BEFORE = ObservationPointType.OP_BEFORE
 OP_AFTER = ObservationPointType.OP_AFTER
 
 ObservationPoint = tuple[
-    Literal["insn", "node", "stmt", "exit"], Union[int, tuple[int, int], tuple[int, int, int]], ObservationPointType
+    Literal["insn", "node", "stmt", "exit"], int | tuple[int, int] | tuple[int, int, int], ObservationPointType
 ]
