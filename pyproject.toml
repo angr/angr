@@ -130,7 +130,9 @@ ignore = [
 	"E402", # Bottom imports
 	"E741", # Variable names
 	"RUF012", # FIXME: Annotate class variables
-  "UP038",  # Use `X | Y` in `isinstance` call instead of `(X, Y)`; it is slower
+	"UP038",  # Use `X | Y` in `isinstance` call instead of `(X, Y)`; it is slower
+	"RUF007", # Prefer `itertools.pairwise()` over `zip()` when iterating over successive pairs
+	"B905",  # Zip calls without an explicit strict parameter
 ]
 
 [tool.ruff.lint.per-file-ignores]
