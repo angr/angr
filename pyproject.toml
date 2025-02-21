@@ -125,11 +125,12 @@ extend-select = [
 	"TID252",
 	"UP",
 ]
-extend-ignore = [
+ignore = [
 	"B011", # Asserts
 	"E402", # Bottom imports
 	"E741", # Variable names
 	"RUF012", # FIXME: Annotate class variables
+  "UP038",  # Use `X | Y` in `isinstance` call instead of `(X, Y)`; it is slower
 ]
 
 [tool.ruff.lint.per-file-ignores]
