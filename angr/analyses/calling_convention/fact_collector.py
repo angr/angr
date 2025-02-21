@@ -210,7 +210,7 @@ class FactCollector(Analysis):
     decision on the calling convention and prototype of a function.
     """
 
-    def __init__(self, func: Function, max_depth: int = 5):
+    def __init__(self, func: Function, max_depth: int = 30):
         self.function = func
         self._max_depth = max_depth
 
@@ -285,14 +285,17 @@ class FactCollector(Analysis):
             for _, succ, data in func_graph.out_edges(node, data=True):
                 edge_type = data.get("type")
                 outside = data.get("outside", False)
-                if succ not in traversed and depth + 1 <= self._max_depth:
+                if depth + 1 <= self._max_depth:
                     if edge_type == "fake_return":
-                        ret_succ = succ
+                        if succ not in traversed:
+                            ret_succ = succ
                     elif edge_type == "transition" and not outside:
-                        successor_added = True
-                        queue.append((depth + 1, state.copy(), succ, None))
+                        if succ not in traversed:
+                            successor_added = True
+                            queue.append((depth + 1, state.copy(), succ, None))
                     elif edge_type == "call" or (edge_type == "transition" and outside):
                         # a call or a tail-call
+                        # note that it's ok to traverse a called function multiple times
                         if not isinstance(succ, Function):
                             if self.kb.functions.contains_addr(succ.addr):
                                 succ = self.kb.functions.get_by_addr(succ.addr)
