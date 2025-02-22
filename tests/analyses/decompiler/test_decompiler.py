@@ -4952,6 +4952,9 @@ class TestDecompiler(unittest.TestCase):
         assert f'{wndclass_var}.lpszClassName = "BOLHAS";' in dec.codegen.text
         assert f"{wndclass_var}.hIconSm = 0;" in dec.codegen.text
         assert f"if (!RegisterClassExA(&{wndclass_var}))" in dec.codegen.text
+        # ensure the bp saving statement is removed; as a result, the very first statement of this function should be
+        # "v4.cbSize = 48;"
+        assert f"\n\n    {wndclass_var}.cbSize = 48;" in dec.codegen.text
 
 
 if __name__ == "__main__":
