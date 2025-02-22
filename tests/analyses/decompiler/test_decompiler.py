@@ -4955,6 +4955,10 @@ class TestDecompiler(unittest.TestCase):
         # ensure the bp saving statement is removed; as a result, the very first statement of this function should be
         # "v4.cbSize = 48;"
         assert f"\n\n    {wndclass_var}.cbSize = 48;" in dec.codegen.text
+        # ensure the return statement is returning a field of v0
+        # this demonstrates the correct struct field inference of stack variables that we do not see during
+        # Ssalification Pass 1
+        assert re.search(r"return \S+.wParam;", dec.codegen.text) is not None
 
 
 if __name__ == "__main__":

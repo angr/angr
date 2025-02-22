@@ -130,7 +130,7 @@ class Clinic(Analysis):
         self.cc_graph: networkx.DiGraph | None = None
         self.unoptimized_graph: networkx.DiGraph | None = None
         self.arg_list = None
-        self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimRegArg]] | None = None
+        self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None
         self.variable_kb = variable_kb
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, list[DataRefDesc]] = {}  # data address to data reference description
@@ -307,7 +307,7 @@ class Clinic(Analysis):
         return ail_graph
 
     def _slice_variables(self, ail_graph):
-        assert self.variable_kb is not None
+        assert self.variable_kb is not None and self._desired_variables is not None
 
         nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
 
@@ -383,7 +383,7 @@ class Clinic(Analysis):
                     # replace the return statement with an assignment to the return register
                     blk.statements.pop(idx)
 
-                    if stmt.ret_exprs:
+                    if stmt.ret_exprs and self.project.arch.ret_offset is not None:
                         assign_to_retreg = ailment.Stmt.Assignment(
                             self._ail_manager.next_atom(),
                             ailment.Expr.Register(
@@ -430,14 +430,17 @@ class Clinic(Analysis):
         if callee_clinic.arg_vvars:
             for arg_idx in sorted(callee_clinic.arg_vvars.keys()):
                 param_vvar, reg_arg = callee_clinic.arg_vvars[arg_idx]
-                reg_offset = reg_arg.reg
-                stmt = ailment.Stmt.Assignment(
-                    self._ail_manager.next_atom(),
-                    param_vvar,
-                    ailment.Expr.Register(self._ail_manager.next_atom(), None, reg_offset, reg_arg.bits),
-                    ins_addr=caller_block.addr + caller_block.original_size,
-                )
-                caller_block.statements.append(stmt)
+                if isinstance(reg_arg, SimRegisterVariable):
+                    reg_offset = reg_arg.reg
+                    stmt = ailment.Stmt.Assignment(
+                        self._ail_manager.next_atom(),
+                        param_vvar,
+                        ailment.Expr.Register(self._ail_manager.next_atom(), None, reg_offset, reg_arg.bits),
+                        ins_addr=caller_block.addr + caller_block.original_size,
+                    )
+                    caller_block.statements.append(stmt)
+                else:
+                    raise NotImplementedError("Unsupported parameter type")
 
         ail_graph.add_edge(caller_block, callee_start)
 
@@ -669,6 +672,7 @@ class Clinic(Analysis):
         self._convert_all()
 
         # there must be at least one Load or one Store
+        assert self._blocks_by_addr_and_size is not None
         found_load_or_store = False
         for ail_block in self._blocks_by_addr_and_size.values():
             for stmt in ail_block.statements:
@@ -726,7 +730,7 @@ class Clinic(Analysis):
         self.arg_list = None
         self.variable_kb = None
         self.cc_graph = None
-        self.externs = None
+        self.externs = set()
         self.data_refs: dict[int, list[DataRefDesc]] = self._collect_data_refs(ail_graph)
 
     @staticmethod
@@ -765,6 +769,7 @@ class Clinic(Analysis):
         """
         Alignment blocks are basic blocks that only consist of nops. They should not be included in the graph.
         """
+        assert self._func_graph is not None
         for node in list(self._func_graph.nodes()):
             if self._func_graph.in_degree(node) == 0 and CFGBase._is_noop_block(
                 self.project.arch, self.project.factory.block(node.addr, node.size)
@@ -953,6 +958,7 @@ class Clinic(Analysis):
 
         :return:    None
         """
+        assert self._func_graph is not None
 
         for block_node in self._func_graph.nodes():
             ail_block = self._convert(block_node)
@@ -1063,6 +1069,7 @@ class Clinic(Analysis):
                         self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
                     ):
                         # found a single successor - replace the last statement
+                        assert isinstance(last_stmt.target, ailment.Expr.Expression)  # not a string
                         new_last_stmt = last_stmt.copy()
                         new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
                         block.statements[-1] = new_last_stmt
@@ -1105,7 +1112,7 @@ class Clinic(Analysis):
                     if self.kb.functions.contains_addr(target_addr):
                         # replace the statement
                         target_func = self.kb.functions.get_by_addr(target_addr)
-                        if target_func.returning:
+                        if target_func.returning and self.project.arch.ret_offset is not None:
                             ret_reg_offset = self.project.arch.ret_offset
                             ret_expr = ailment.Expr.Register(
                                 None,
@@ -1610,6 +1617,7 @@ class Clinic(Analysis):
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
         tv_max_sizes = {}
         for v, s in stackvar_max_sizes.items():
+            assert isinstance(v, SimStackVariable)
             if v in vr.var_to_typevars:
                 for tv in vr.var_to_typevars[v]:
                     tv_max_sizes[tv] = s
@@ -1676,13 +1684,9 @@ class Clinic(Analysis):
             func_blocks=list(ail_graph),
         )
 
-        # Link variables to each statement
+        # Link variables and struct member information to every statement and expression
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
-
-        # Link struct member info to Store statements
-        for block in ail_graph.nodes():
-            self._link_struct_member_info_on_block(block, tmp_kb)
 
         if self._cache is not None:
             self._cache.type_constraints = vr.type_constraints
@@ -1690,22 +1694,6 @@ class Clinic(Analysis):
             self._cache.var_to_typevar = vr.var_to_typevars
 
         return tmp_kb
-
-    def _link_struct_member_info_on_block(self, block, kb):
-        variable_manager = kb.variables[self.function.addr]
-        for stmt in block.statements:
-            if isinstance(stmt, ailment.Stmt.Store) and isinstance((var := stmt.variable), SimStackVariable):
-                offset = var.offset
-                if offset in variable_manager.stack_offset_to_struct_member_info:
-                    stmt.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[offset]
-            elif (
-                isinstance(stmt, ailment.Stmt.Assignment)
-                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-                and stmt.dst.was_stack
-            ):
-                offset = stmt.dst.stack_offset
-                if offset in variable_manager.stack_offset_to_struct_member_info:
-                    stmt.dst.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[offset]
 
     def _link_variables_on_block(self, block, kb):
         """
@@ -1741,6 +1729,12 @@ class Clinic(Analysis):
                             variable_manager, global_variables, block, stmt_idx, stmt, stmt.addr
                         )
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.data)
+
+                # link struct member info
+                if isinstance(stmt.variable, SimStackVariable):
+                    off = stmt.variable.offset
+                    if off in variable_manager.stack_offset_to_struct_member_info:
+                        stmt.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
 
             elif stmt_type is ailment.Stmt.Assignment:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
@@ -1809,6 +1803,11 @@ class Clinic(Analysis):
                 expr.variable = var
                 expr.variable_offset = offset
 
+                if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_stack:
+                    off = expr.stack_offset
+                    if off in variable_manager.stack_offset_to_struct_member_info:
+                        expr.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
+
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) == 0:
@@ -1842,6 +1841,11 @@ class Clinic(Analysis):
                 var, offset = next(iter(variables))
                 expr.variable = var
                 expr.variable_offset = offset
+
+                if isinstance(var, SimStackVariable):
+                    off = var.offset
+                    if off in variable_manager.stack_offset_to_struct_member_info:
+                        expr.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
