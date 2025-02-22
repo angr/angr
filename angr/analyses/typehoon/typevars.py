@@ -420,7 +420,7 @@ class TypeVariables:
         # )
         return f"{{TypeVars: {len(self._typevars)} items}}"
 
-    def add_type_variable(self, var: SimVariable, typevar: TypeType, latest: bool = True):
+    def add_type_variable(self, var: SimVariable, typevar: TypeVariable, latest: bool = True):
         if var not in self._typevars:
             self._typevars[var] = set()
         elif typevar in self._typevars[var]:

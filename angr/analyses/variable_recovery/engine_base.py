@@ -671,8 +671,6 @@ class SimEngineVRBase(
                 self.state.add_type_constraint(typevars.Subtype(data.typevar, store_typevar))
 
     def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], data: RichR, size: int):
-        addr_variable = richr_addr.variable
-
         # Storing data into a pointer
         if richr_addr.type_constraints:
             for tc in richr_addr.type_constraints:
@@ -689,8 +687,6 @@ class SimEngineVRBase(
                 field_offset = 0
 
             store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
-            if addr_variable is not None:
-                self.state.typevars.add_type_variable(addr_variable, typevar)
             data_typevar = data.typevar if data.typevar is not None else typeconsts.TopType()
             self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
 

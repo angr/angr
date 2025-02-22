@@ -76,16 +76,20 @@ class Typehoon(Analysis):
     def update_variable_types(
         self,
         func_addr: int | str,
-        var_to_typevars: dict[str, set[TypeVariable]],
+        var_to_typevars: dict[SimVariable, set[TypeVariable]],
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
     ) -> None:
+
+        if not self.simtypes_solution:
+            return
+
         for var, typevars in var_to_typevars.items():
             # if the variable is a stack variable, does the stack offset have any corresponding type variable?
             typevars_list = [("var", tv) for tv in sorted(typevars, key=lambda tv: tv.idx)]
             if stack_offset_tvs and isinstance(var, SimStackVariable) and var.offset in stack_offset_tvs:
                 typevars_list.append(("ref", stack_offset_tvs[var.offset]))
 
-            type_candidates = []
+            type_candidates: list[SimType] = []
             for kind, typevar in typevars_list:
                 type_ = self.simtypes_solution.get(typevar, None)
                 if type_ is not None:
@@ -114,7 +118,7 @@ class Typehoon(Analysis):
             if not type_candidates:
                 continue
             if len(type_candidates) > 1:
-                types_by_size = defaultdict(list)
+                types_by_size: dict[int, list[SimType]] = defaultdict(list)
                 for t in type_candidates:
                     if t.size is not None:
                         types_by_size[t.size].append(t)
@@ -215,6 +219,9 @@ class Typehoon(Analysis):
         - structs where every element is of the same type will be converted to an array of that element type.
         """
 
+        if not self.solution:
+            return
+
         for tv in list(self.solution.keys()):
             if self._must_struct and tv in self._must_struct:
                 continue
@@ -262,6 +269,9 @@ class Typehoon(Analysis):
         """
         Translate solutions in type variables to solutions in SimTypes.
         """
+
+        if not self.solution:
+            return
 
         simtypes_solution = {}
         translator = TypeTranslator(arch=self.project.arch)

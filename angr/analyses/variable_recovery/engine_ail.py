@@ -15,7 +15,7 @@ from angr.analyses.typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:
-    pass
+    from .variable_recovery_fast import VariableRecoveryFastState  # noqa: F401
 
 
 l = logging.getLogger(name=__name__)
