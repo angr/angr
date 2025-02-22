@@ -4919,6 +4919,24 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(dec)
         assert "__fastfail(a0)" in dec.codegen.text
 
+    def test_decompiling_48460c9633d06cad3e3b41c87de04177d129906610c5bbdebc7507a211100e98_winmain(
+        self, decompiler_options=None
+    ):
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "48460c9633d06cad3e3b41c87de04177d129906610c5bbdebc7507a211100e98"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        func = proj.kb.functions[0x4106F0]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # ensure cdq; sub eax, edx; sar eax, 1 is properly optimized into a division
+        assert "/ 2 - 305" in dec.codegen.text
+        assert "/ 2 - 200" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
