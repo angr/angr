@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import OrderedDict
 
 from ailment.statement import Call, Store, ConditionalJump
-from ailment.expression import Register, BinaryOp, StackBaseOffset, ITE, VEXCCallExpression, Tmp, DirtyExpression
+from ailment.expression import Register, BinaryOp, StackBaseOffset, ITE, VEXCCallExpression, Tmp, DirtyExpression, Load
 
 from angr.engines.light import SimEngineLightAIL
 from angr.project import Project
@@ -133,6 +133,22 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
 
             self.state.live_registers.add(base_offset)
 
+    def _handle_expr_Load(self, expr: Load):
+        self._expr(expr.addr)
+        if (
+            self.stackvars
+            and isinstance(expr.addr, StackBaseOffset)
+            and isinstance(expr.addr.offset, int)
+            and (expr.addr.offset, expr.size) not in self.state.live_stackvars
+        ):
+            # we must create this stack variable on the fly; we did not see its creation before it is first used
+            codeloc = self._codeloc()
+            self.def_to_loc.append((expr, codeloc))
+            if codeloc not in self.loc_to_defs:
+                self.loc_to_defs[codeloc] = OrderedSet()
+            self.loc_to_defs[codeloc].add(expr)
+            self.state.live_stackvars.add((expr.addr.offset, expr.size))
+
     def _handle_expr_Tmp(self, expr: Tmp):
         if self.use_tmps:
             codeloc = self._codeloc()
@@ -251,7 +267,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
 
     _handle_expr_VirtualVariable = _handle_Dummy
     _handle_expr_Phi = _handle_Dummy
-    _handle_expr_Load = _handle_Dummy
     _handle_expr_Const = _handle_Dummy
     _handle_expr_MultiStatementExpression = _handle_Dummy
     _handle_expr_StackBaseOffset = _handle_Dummy

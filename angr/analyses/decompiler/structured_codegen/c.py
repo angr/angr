@@ -3426,8 +3426,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return old_ty
 
         if expr.variable is not None:
-            cvar = self._variable(expr.variable, expr.size)
-            offset = expr.variable_offset or 0
+            if "struct_member_info" in expr.tags:
+                offset, var, _ = expr.struct_member_info
+                cvar = self._variable(var, var.size)
+            else:
+                cvar = self._variable(expr.variable, expr.size)
+                offset = expr.variable_offset or 0
+
             assert type(offset) is int  # I refuse to deal with the alternative
             return self._access_constant_offset(CUnaryOp("Reference", cvar, codegen=self), offset, ty, False, negotiate)
 
@@ -3649,8 +3654,24 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
 
     def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
-        if expr.variable:
-            cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
+        def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
+            # we do not allow returning a struct for a primitive type
+            if old_ty.size == proposed_ty.size and (
+                not isinstance(proposed_ty, SimStruct) or isinstance(old_ty, SimStruct)
+            ):
+                return proposed_ty
+            return old_ty
+
+        if expr.variable is not None:
+            if "struct_member_info" in expr.tags:
+                offset, var, _ = expr.struct_member_info
+                cbasevar = self._variable(var, expr.size)
+                cvar = self._access_constant_offset(
+                    self._get_variable_reference(cbasevar), offset, cbasevar.type, False, negotiate
+                )
+            else:
+                cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
+
             if expr.variable.size != expr.size:
                 l.warning(
                     "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",

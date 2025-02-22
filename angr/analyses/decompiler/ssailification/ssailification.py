@@ -5,7 +5,15 @@ from collections import defaultdict
 from itertools import count
 from bisect import bisect_left
 
-from ailment.expression import Expression, Register, StackBaseOffset, Tmp, VirtualVariable, VirtualVariableCategory
+from ailment.expression import (
+    Expression,
+    Register,
+    StackBaseOffset,
+    Tmp,
+    VirtualVariable,
+    VirtualVariableCategory,
+    Load,
+)
 from ailment.statement import Statement, Store
 
 from angr.knowledge_plugins.functions import Function
@@ -151,7 +159,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                     reg_bits = def_.size * self.project.arch.byte_width
                     udef_to_defs[("reg", def_.reg_offset, reg_bits)].add(def_)
                     udef_to_blockkeys[("reg", def_.reg_offset, reg_bits)].add((loc.block_addr, loc.block_idx))
-            elif isinstance(def_, Store):
+            elif isinstance(def_, (Store, Load)):
                 if isinstance(def_.addr, StackBaseOffset) and isinstance(def_.addr.offset, int):
                     idx_begin = bisect_left(sorted_stackvar_offs, def_.addr.offset)
                     for i in range(idx_begin, len(sorted_stackvar_offs)):

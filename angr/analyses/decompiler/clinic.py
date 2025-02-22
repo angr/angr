@@ -1676,13 +1676,9 @@ class Clinic(Analysis):
             func_blocks=list(ail_graph),
         )
 
-        # Link variables to each statement
+        # Link variables and struct member information to every statement and expression
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
-
-        # Link struct member info to Store statements
-        for block in ail_graph.nodes():
-            self._link_struct_member_info_on_block(block, tmp_kb)
 
         if self._cache is not None:
             self._cache.type_constraints = vr.type_constraints
@@ -1690,22 +1686,6 @@ class Clinic(Analysis):
             self._cache.var_to_typevar = vr.var_to_typevars
 
         return tmp_kb
-
-    def _link_struct_member_info_on_block(self, block, kb):
-        variable_manager = kb.variables[self.function.addr]
-        for stmt in block.statements:
-            if isinstance(stmt, ailment.Stmt.Store) and isinstance((var := stmt.variable), SimStackVariable):
-                offset = var.offset
-                if offset in variable_manager.stack_offset_to_struct_member_info:
-                    stmt.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[offset]
-            elif (
-                isinstance(stmt, ailment.Stmt.Assignment)
-                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-                and stmt.dst.was_stack
-            ):
-                offset = stmt.dst.stack_offset
-                if offset in variable_manager.stack_offset_to_struct_member_info:
-                    stmt.dst.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[offset]
 
     def _link_variables_on_block(self, block, kb):
         """
@@ -1741,6 +1721,12 @@ class Clinic(Analysis):
                             variable_manager, global_variables, block, stmt_idx, stmt, stmt.addr
                         )
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.data)
+
+                # link struct member info
+                if isinstance(stmt.variable, SimStackVariable):
+                    off = stmt.variable.offset
+                    if off in variable_manager.stack_offset_to_struct_member_info:
+                        stmt.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
 
             elif stmt_type is ailment.Stmt.Assignment:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
@@ -1809,6 +1795,11 @@ class Clinic(Analysis):
                 expr.variable = var
                 expr.variable_offset = offset
 
+                if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_stack:
+                    off = expr.stack_offset
+                    if off in variable_manager.stack_offset_to_struct_member_info:
+                        expr.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
+
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) == 0:
@@ -1842,6 +1833,11 @@ class Clinic(Analysis):
                 var, offset = next(iter(variables))
                 expr.variable = var
                 expr.variable_offset = offset
+
+                if isinstance(var, SimStackVariable):
+                    off = var.offset
+                    if off in variable_manager.stack_offset_to_struct_member_info:
+                        expr.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)

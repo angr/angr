@@ -698,6 +698,8 @@ class SimEngineSSARewriting(
             raise NotImplementedError("Store expressions are not supported in _replace_use_expr.")
         if isinstance(thing, Tmp) and self.rewrite_tmps:
             return self._replace_use_tmp(self.block.addr, self.block.idx, self.stmt_idx, thing)
+        if isinstance(thing, Load):
+            return self._replace_use_load(thing)
         return None
 
     def _replace_use_reg(self, reg_expr: Register) -> VirtualVariable | Expression:
