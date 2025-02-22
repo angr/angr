@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
+from collections import defaultdict
 
 import pyvex
 import claripy
@@ -30,6 +31,7 @@ class FactCollectorState:
         "bp_value",
         "callee_stored_regs",
         "reg_reads",
+        "reg_reads_count",
         "reg_writes",
         "simple_stack",
         "sp_value",
@@ -44,6 +46,7 @@ class FactCollectorState:
 
         self.callee_stored_regs: dict[int, int] = {}  # reg offset -> stack offset
         self.reg_reads = {}
+        self.reg_reads_count = defaultdict(int)
         self.reg_writes: set[int] = set()
         self.stack_reads = {}
         self.stack_writes: set[int] = set()
@@ -51,12 +54,21 @@ class FactCollectorState:
         self.bp_value = 0
 
     def register_read(self, offset: int, size_in_bytes: int):
+        self.reg_reads_count[offset] += 1
         if offset in self.reg_writes:
             return
         if offset not in self.reg_reads:
             self.reg_reads[offset] = size_in_bytes
         else:
             self.reg_reads[offset] = max(self.reg_reads[offset], size_in_bytes)
+
+    def register_read_undo(self, offset: int) -> None:
+        if offset not in self.reg_reads or offset not in self.reg_reads_count:
+            return
+        self.reg_reads_count[offset] -= 1
+        if self.reg_reads_count[offset] == 0:
+            self.reg_reads.pop(offset)
+            self.reg_reads_count.pop(offset)
 
     def register_written(self, offset: int, size_in_bytes: int):
         for o in range(size_in_bytes):
@@ -84,6 +96,7 @@ class FactCollectorState:
         new_state.sp_value = self.sp_value
         new_state.bp_value = self.bp_value
         new_state.simple_stack = self.simple_stack.copy()
+        new_state.reg_reads_count = self.reg_reads_count.copy()
         if with_tmps:
             new_state.tmps = self.tmps.copy()
         return new_state
@@ -119,6 +132,26 @@ class SimEngineFactCollectorVEX(
 
     def _handle_stmt_Put(self, stmt):
         v = self._expr(stmt.data)
+        # there are cases like  VMOV.F32        S0, S0
+        # so we need to check if this register write is actually a no-op
+        if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+            t = self.state.tmps.get(stmt.data.tmp, None)
+            if isinstance(t, RegisterOffset) and t.reg == stmt.offset:
+                same_ins_read = False
+                for i in range(self.stmt_idx, -1, -1):
+                    if i >= self.block.vex.stmts_used:
+                        break
+                    prev_stmt = self.block.vex.statements[i]
+                    if isinstance(prev_stmt, pyvex.IRStmt.IMark):
+                        break
+                    if isinstance(prev_stmt, pyvex.IRStmt.WrTmp) and prev_stmt.tmp == stmt.data.tmp:
+                        same_ins_read = True
+                        break
+                if same_ins_read:
+                    # we need to revert the read operation as well
+                    self.state.register_read_undo(stmt.offset)
+                return
+
         if stmt.offset == self.arch.sp_offset and isinstance(v, SpOffset):
             self.state.sp_value = v.offset
         elif stmt.offset == self.arch.bp_offset and isinstance(v, SpOffset):
@@ -210,7 +243,7 @@ class FactCollector(Analysis):
     decision on the calling convention and prototype of a function.
     """
 
-    def __init__(self, func: Function, max_depth: int = 5):
+    def __init__(self, func: Function, max_depth: int = 30):
         self.function = func
         self._max_depth = max_depth
 
@@ -285,14 +318,17 @@ class FactCollector(Analysis):
             for _, succ, data in func_graph.out_edges(node, data=True):
                 edge_type = data.get("type")
                 outside = data.get("outside", False)
-                if succ not in traversed and depth + 1 <= self._max_depth:
+                if depth + 1 <= self._max_depth:
                     if edge_type == "fake_return":
-                        ret_succ = succ
+                        if succ not in traversed:
+                            ret_succ = succ
                     elif edge_type == "transition" and not outside:
-                        successor_added = True
-                        queue.append((depth + 1, state.copy(), succ, None))
+                        if succ not in traversed:
+                            successor_added = True
+                            queue.append((depth + 1, state.copy(), succ, None))
                     elif edge_type == "call" or (edge_type == "transition" and outside):
                         # a call or a tail-call
+                        # note that it's ok to traverse a called function multiple times
                         if not isinstance(succ, Function):
                             if self.kb.functions.contains_addr(succ.addr):
                                 succ = self.kb.functions.get_by_addr(succ.addr)

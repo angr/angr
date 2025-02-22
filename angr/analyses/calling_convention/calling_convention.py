@@ -864,7 +864,19 @@ class CallingConventionAnalysis(Analysis):
                 else:
                     int_args.append(arg)
 
-        stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
+        initial_stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
+        # ensure stack args are consecutive if necessary
+        if cc.STACKARG_SP_DIFF is not None and initial_stack_args:
+            arg_by_offset = {a.stack_offset: a for a in initial_stack_args}
+            init_stackarg_offset = cc.STACKARG_SP_DIFF + cc.STACKARG_SP_BUFF
+            int_arg_size = self.project.arch.bytes
+            for stackarg_offset in range(init_stackarg_offset, max(arg_by_offset), int_arg_size):
+                if stackarg_offset not in arg_by_offset:
+                    arg_by_offset[stackarg_offset] = SimStackArg(stackarg_offset, int_arg_size)
+            stack_args = [arg_by_offset[offset] for offset in sorted(arg_by_offset)]
+        else:
+            stack_args = initial_stack_args
+
         stack_int_args = [a for a in stack_args if not a.is_fp]
         stack_fp_args = [a for a in stack_args if a.is_fp]
         # match int args first
