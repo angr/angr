@@ -693,7 +693,7 @@ class Return(Statement):
                 replaced = True
                 new_ret_exprs.append(replaced_expr)
             else:
-                new_ret_exprs.append(old_expr)
+                new_ret_exprs.append(expr)
 
         if replaced:
             return True, Return(
