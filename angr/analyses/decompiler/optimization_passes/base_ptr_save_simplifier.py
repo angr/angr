@@ -16,7 +16,7 @@ class BasePointerSaveSimplifier(OptimizationPass):
     """
 
     ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM", "MIPS32", "MIPS64"]
-    PLATFORMS = ["cgc", "linux"]
+    PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify base pointer saving"
     DESCRIPTION = __doc__.strip()
