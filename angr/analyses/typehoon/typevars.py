@@ -397,11 +397,13 @@ class DerivedTypeVariable(TypeVariable):
 class TypeVariables:
     __slots__ = (
         "_last_typevars",
+        "_typevar2var",
         "_typevars",
     )
 
     def __init__(self):
         self._typevars: dict[SimVariable, set[TypeVariable]] = {}
+        self._typevar2var: dict[TypeVariable, SimVariable] = {}
         self._last_typevars: dict[SimVariable, TypeVariable] = {}
 
     def copy(self):
@@ -418,22 +420,24 @@ class TypeVariables:
         # )
         return f"{{TypeVars: {len(self._typevars)} items}}"
 
-    def add_type_variable(self, var: SimVariable, codeloc, typevar: TypeType):  # pylint:disable=unused-argument
+    def add_type_variable(self, var: SimVariable, typevar: TypeVariable, latest: bool = True):
         if var not in self._typevars:
             self._typevars[var] = set()
         elif typevar in self._typevars[var]:
             return
         self._typevars[var].add(typevar)
-        self._last_typevars[var] = typevar
+        if latest:
+            self._last_typevars[var] = typevar
+        self._typevar2var[typevar] = var
 
-    def get_type_variable(self, var, codeloc):  # pylint:disable=unused-argument
+    def get_type_variable(self, var):  # pylint:disable=unused-argument
         return self._last_typevars[var]
 
-    def has_type_variable_for(self, var: SimVariable, codeloc):  # pylint:disable=unused-argument
+    def has_type_variable_for(self, var: SimVariable):  # pylint:disable=unused-argument
         return var in self._typevars
-        # if codeloc not in self._typevars[var]:
-        #     return False
-        # return True
+
+    def typevar_to_variable(self, typevar: TypeVariable) -> SimVariable | None:
+        return self._typevar2var.get(typevar, None)
 
     def __getitem__(self, var):
         return self._last_typevars[var]

@@ -1613,6 +1613,9 @@ class Clinic(Analysis):
             if v in vr.var_to_typevars:
                 for tv in vr.var_to_typevars[v]:
                     tv_max_sizes[tv] = s
+            if v.offset in vr.stack_offset_typevars:
+                tv = vr.stack_offset_typevars[v.offset]
+                tv_max_sizes[tv] = s
         # clean up existing types for this function
         var_manager.remove_types()
         # TODO: Type inference for global variables
@@ -1631,6 +1634,7 @@ class Clinic(Analysis):
                 kb=tmp_kb,
                 fail_fast=self._fail_fast,
                 var_mapping=vr.var_to_typevars,
+                stack_offset_tvs=vr.stack_offset_typevars,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
                 stackvar_max_sizes=tv_max_sizes,
@@ -1640,6 +1644,7 @@ class Clinic(Analysis):
             tp.update_variable_types(
                 self.function.addr,
                 {v: t for v, t in vr.var_to_typevars.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
+                vr.stack_offset_typevars,
             )
             tp.update_variable_types(
                 "global",

@@ -9,14 +9,13 @@ from unique_log_filter import UniqueLogFilter
 
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
-from angr.utils.constants import MAX_POINTSTO_BITS
 from angr.sim_type import SimTypeFunction, dereference_simtype
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:
-    pass
+    from .variable_recovery_fast import VariableRecoveryFastState  # noqa: F401
 
 
 l = logging.getLogger(name=__name__)
@@ -272,6 +271,8 @@ class SimEngineVRAIL(
                 if arg.typevar is not None:
                     arg_type = dereference_simtype(arg_type, type_collections).with_arch(arg_type._arch)
                     arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
+                    if isinstance(arg_ty, typevars.TypeConstraint) and isinstance(arg.typevar, typevars.TypeConstraint):
+                        continue
                     type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                     self.state.add_type_constraint(type_constraint)
 
@@ -399,28 +400,23 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
     def _handle_expr_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
-        ref_typevar = self.state.stack_offset_typevars.get(expr.offset, None)
-
-        if ref_typevar is None:
+        refbase_typevar = self.state.stack_offset_typevars.get(expr.offset, None)
+        if refbase_typevar is None:
             # allocate a new type variable
-            ref_typevar = typevars.TypeVariable()
-            self.state.stack_offset_typevars[expr.offset] = ref_typevar
+            refbase_typevar = typevars.TypeVariable()
+            self.state.stack_offset_typevars[expr.offset] = refbase_typevar
+
+        ref_typevar = typevars.TypeVariable()
+        access_derived_typevar = self._create_access_typevar(ref_typevar, False, None, 0)
+        load_constraint = typevars.Subtype(refbase_typevar, access_derived_typevar)
+        self.state.add_type_constraint(load_constraint)
 
         value_v = self.state.stack_address(expr.offset)
         richr = RichR(value_v, typevar=ref_typevar)
         codeloc = self._codeloc()
-        var_and_offsets = self._ensure_variable_existence(richr, codeloc, src_expr=expr)
+        self._ensure_variable_existence(richr, codeloc, src_expr=expr)
         if self._reference_spoffset:
             self._reference(richr, codeloc, src=expr)
-        for var, off_in_var in var_and_offsets:
-            if self.state.typevars.has_type_variable_for(var, codeloc):
-                var_typevar = self.state.typevars.get_type_variable(var, codeloc)
-                load_typevar = self._create_access_typevar(
-                    ref_typevar, False, MAX_POINTSTO_BITS // 8, 0 if off_in_var is None else off_in_var
-                )
-                type_constraint = typevars.Subtype(var_typevar, load_typevar)
-                self.state.add_type_constraint(type_constraint)
-
         return richr
 
     def _handle_expr_BasePointerOffset(self, expr):

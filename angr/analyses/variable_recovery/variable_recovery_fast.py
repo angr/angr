@@ -47,6 +47,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         analysis,
         arch,
         func,
+        project,
         stack_region=None,
         register_region=None,
         global_region=None,
@@ -55,7 +56,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         func_typevar=None,
         delayed_type_constraints=None,
         stack_offset_typevars=None,
-        project=None,
         ret_val_size=None,
     ):
         super().__init__(
@@ -63,6 +63,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             analysis,
             arch,
             func,
+            project,
             stack_region=stack_region,
             register_region=register_region,
             global_region=global_region,
@@ -71,12 +72,11 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             func_typevar=func_typevar,
             delayed_type_constraints=delayed_type_constraints,
             stack_offset_typevars=stack_offset_typevars,
-            project=project,
         )
         self.ret_val_size = ret_val_size
 
     def __repr__(self):
-        return f"<VRAbstractState@{self.block_addr:#x}: {len(self.register_region)} register variables, {len(self.stack_region)} stack variables>"
+        return f"<VRAbstractState@{self.block_addr:#x}"
 
     def __eq__(self, other):
         if type(other) is not VariableRecoveryFastState:
@@ -96,12 +96,14 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             type_constraints=self.type_constraints,
             func_typevar=self.func_typevar,
             delayed_type_constraints=self.delayed_type_constraints,
-            stack_offset_typevars=dict(self.stack_offset_typevars),
+            stack_offset_typevars=self.stack_offset_typevars,
             project=self.project,
             ret_val_size=self.ret_val_size,
         )
 
-    def merge(self, others: tuple[VariableRecoveryFastState], successor=None) -> tuple[VariableRecoveryFastState, bool]:
+    def merge(
+        self, others: tuple[VariableRecoveryFastState, ...], successor=None
+    ) -> tuple[VariableRecoveryFastState, bool]:
         """
         Merge two abstract states.
 
@@ -135,10 +137,10 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         # add subtype constraints for all replacements
         for v0, v1 in self.phi_variables.items():
             # v0 will be replaced by v1
-            if not typevars.has_type_variable_for(v1, None):
-                typevars.add_type_variable(v1, None, TypeVariable())
-            if not typevars.has_type_variable_for(v0, None):
-                typevars.add_type_variable(v0, None, TypeVariable())
+            if not typevars.has_type_variable_for(v1):
+                typevars.add_type_variable(v1, TypeVariable())
+            if not typevars.has_type_variable_for(v0):
+                typevars.add_type_variable(v0, TypeVariable())
             # Assuming v2 = phi(v0, v1), then we know that v0_typevar == v1_typevar == v2_typevar
             # However, it's possible that neither v0 nor v1 will ever be used in future blocks, which not only makes
             # this phi function useless, but also leads to the incorrect assumption that v1_typevar == v2_typevar.
@@ -146,7 +148,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             # when v1 (the new variable that will end up in the state) is ever used in the future.
 
             # create an equivalence relationship
-            equivalence = Equivalence(typevars.get_type_variable(v1, None), typevars.get_type_variable(v0, None))
+            equivalence = Equivalence(typevars.get_type_variable(v1), typevars.get_type_variable(v0))
             delayed_typeconstraints[v1].add(equivalence)
 
         stack_offset_typevars = {}
@@ -281,6 +283,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self.func_typevar = TypeVariable(name=func.name)
         self.delayed_type_constraints = None
         self.ret_val_size = None
+        self.stack_offset_typevars: dict[int, TypeVariable] = {}
 
         self._analyze()
 
@@ -328,6 +331,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             type_constraints=self.type_constraints,
             func_typevar=self.func_typevar,
             delayed_type_constraints=self.delayed_type_constraints,
+            stack_offset_typevars=self.stack_offset_typevars,
         )
         initial_sp = state.stack_address(self.project.arch.bytes if self.project.arch.call_pushes_ret else 0)
         if self.project.arch.sp_offset is not None:
@@ -439,20 +443,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
             block_key = node.addr
 
-        # if node.addr in self._instates:
-        #     prev_state: VariableRecoveryFastState = self._instates[node.addr]
-        #     if input_state == prev_state:
-        #         l.debug('Skip node %#x as we have reached a fixed-point', node.addr)
-        #         return False, input_state
-        #     else:
-        #         l.debug('Merging input state of node %#x with the previous state.', node.addr)
-        #         input_state, _ = prev_state.merge((input_state,), successor=node.addr)
-
         state = state.copy()
         state.block_addr = node.addr
         if isinstance(node, ailment.Block):
             state.block_idx = node.idx
-        # self._instates[node.addr] = state
 
         if self._node_iterations[block_key] >= self._max_iterations:
             l.debug("Skip node %#x as we have iterated %d times on it.", node.addr, self._node_iterations[node.addr])
@@ -491,10 +485,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             self.variable_manager[self.function.addr].unify_variables()
 
         # fill in var_to_typevars
+        assert self.typevars is not None
         for var, typevar_set in self.typevars._typevars.items():
             self.var_to_typevars[var] = typevar_set
 
         # unify type variables for global variables
+        assert self.type_constraints is not None
         for var, typevars in self.var_to_typevars.items():
             if len(typevars) > 1 and isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
                 sorted_typevars = sorted(typevars, key=lambda x: str(x))  # pylint:disable=unnecessary-lambda
@@ -600,7 +596,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             block = self._peephole_optimize(block)
 
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
-        processor.process(state, block=block, fail_fast=self._fail_fast)
+        processor.process(state, block=block, fail_fast=self._fail_fast)  # type: ignore
 
         if self._track_sp and block.addr in self._node_to_cc:
             # readjusting sp at the end for blocks that end in a call
