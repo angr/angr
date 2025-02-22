@@ -130,7 +130,7 @@ class Clinic(Analysis):
         self.cc_graph: networkx.DiGraph | None = None
         self.unoptimized_graph: networkx.DiGraph | None = None
         self.arg_list = None
-        self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimRegArg]] | None = None
+        self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None
         self.variable_kb = variable_kb
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, list[DataRefDesc]] = {}  # data address to data reference description
@@ -307,7 +307,7 @@ class Clinic(Analysis):
         return ail_graph
 
     def _slice_variables(self, ail_graph):
-        assert self.variable_kb is not None
+        assert self.variable_kb is not None and self._desired_variables is not None
 
         nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
 
@@ -383,7 +383,7 @@ class Clinic(Analysis):
                     # replace the return statement with an assignment to the return register
                     blk.statements.pop(idx)
 
-                    if stmt.ret_exprs:
+                    if stmt.ret_exprs and self.project.arch.ret_offset is not None:
                         assign_to_retreg = ailment.Stmt.Assignment(
                             self._ail_manager.next_atom(),
                             ailment.Expr.Register(
@@ -430,14 +430,17 @@ class Clinic(Analysis):
         if callee_clinic.arg_vvars:
             for arg_idx in sorted(callee_clinic.arg_vvars.keys()):
                 param_vvar, reg_arg = callee_clinic.arg_vvars[arg_idx]
-                reg_offset = reg_arg.reg
-                stmt = ailment.Stmt.Assignment(
-                    self._ail_manager.next_atom(),
-                    param_vvar,
-                    ailment.Expr.Register(self._ail_manager.next_atom(), None, reg_offset, reg_arg.bits),
-                    ins_addr=caller_block.addr + caller_block.original_size,
-                )
-                caller_block.statements.append(stmt)
+                if isinstance(reg_arg, SimRegisterVariable):
+                    reg_offset = reg_arg.reg
+                    stmt = ailment.Stmt.Assignment(
+                        self._ail_manager.next_atom(),
+                        param_vvar,
+                        ailment.Expr.Register(self._ail_manager.next_atom(), None, reg_offset, reg_arg.bits),
+                        ins_addr=caller_block.addr + caller_block.original_size,
+                    )
+                    caller_block.statements.append(stmt)
+                else:
+                    raise NotImplementedError("Unsupported parameter type")
 
         ail_graph.add_edge(caller_block, callee_start)
 
@@ -669,6 +672,7 @@ class Clinic(Analysis):
         self._convert_all()
 
         # there must be at least one Load or one Store
+        assert self._blocks_by_addr_and_size is not None
         found_load_or_store = False
         for ail_block in self._blocks_by_addr_and_size.values():
             for stmt in ail_block.statements:
@@ -726,7 +730,7 @@ class Clinic(Analysis):
         self.arg_list = None
         self.variable_kb = None
         self.cc_graph = None
-        self.externs = None
+        self.externs = set()
         self.data_refs: dict[int, list[DataRefDesc]] = self._collect_data_refs(ail_graph)
 
     @staticmethod
@@ -765,6 +769,7 @@ class Clinic(Analysis):
         """
         Alignment blocks are basic blocks that only consist of nops. They should not be included in the graph.
         """
+        assert self._func_graph is not None
         for node in list(self._func_graph.nodes()):
             if self._func_graph.in_degree(node) == 0 and CFGBase._is_noop_block(
                 self.project.arch, self.project.factory.block(node.addr, node.size)
@@ -953,6 +958,7 @@ class Clinic(Analysis):
 
         :return:    None
         """
+        assert self._func_graph is not None
 
         for block_node in self._func_graph.nodes():
             ail_block = self._convert(block_node)
@@ -1063,6 +1069,7 @@ class Clinic(Analysis):
                         self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
                     ):
                         # found a single successor - replace the last statement
+                        assert isinstance(last_stmt.target, ailment.Expr.Expression)  # not a string
                         new_last_stmt = last_stmt.copy()
                         new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
                         block.statements[-1] = new_last_stmt
@@ -1105,7 +1112,7 @@ class Clinic(Analysis):
                     if self.kb.functions.contains_addr(target_addr):
                         # replace the statement
                         target_func = self.kb.functions.get_by_addr(target_addr)
-                        if target_func.returning:
+                        if target_func.returning and self.project.arch.ret_offset is not None:
                             ret_reg_offset = self.project.arch.ret_offset
                             ret_expr = ailment.Expr.Register(
                                 None,
@@ -1610,6 +1617,7 @@ class Clinic(Analysis):
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
         tv_max_sizes = {}
         for v, s in stackvar_max_sizes.items():
+            assert isinstance(v, SimStackVariable)
             if v in vr.var_to_typevars:
                 for tv in vr.var_to_typevars[v]:
                     tv_max_sizes[tv] = s
