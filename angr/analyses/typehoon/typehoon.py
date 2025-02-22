@@ -1,17 +1,18 @@
 # pylint:disable=bad-builtin
 from __future__ import annotations
 from typing import TYPE_CHECKING
+from collections import defaultdict
 
 from angr.sim_type import SimStruct, SimTypePointer, SimTypeArray
 from angr.errors import AngrRuntimeError
 from angr.analyses.analysis import Analysis, AnalysesHub
+from angr.sim_variable import SimVariable, SimStackVariable
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
 from .typevars import Equivalence, Subtype, TypeVariable
 
 if TYPE_CHECKING:
-    from angr.sim_variable import SimVariable
     from angr.sim_type import SimType
     from .typevars import TypeConstraint
 
@@ -38,6 +39,7 @@ class Typehoon(Analysis):
         var_mapping: dict[SimVariable, set[TypeVariable]] | None = None,
         must_struct: set[TypeVariable] | None = None,
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
+        stack_offset_tvs: dict[int, TypeVariable] | None = None,
     ):
         """
 
@@ -54,6 +56,7 @@ class Typehoon(Analysis):
         self._var_mapping = var_mapping
         self._must_struct = must_struct
         self._stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
+        self._stack_offset_tvs = stack_offset_tvs if stack_offset_tvs is not None else {}
 
         self.bits = self.project.arch.bits
         self.solution = None
@@ -70,11 +73,33 @@ class Typehoon(Analysis):
     # Public methods
     #
 
-    def update_variable_types(self, func_addr: int | str, var_to_typevars):
+    def update_variable_types(
+        self,
+        func_addr: int | str,
+        var_to_typevars: dict[str, set[TypeVariable]],
+        stack_offset_tvs: dict[int, TypeVariable] | None = None,
+    ) -> None:
         for var, typevars in var_to_typevars.items():
-            for typevar in typevars:
+            # if the variable is a stack variable, does the stack offset have any corresponding type variable?
+            typevars_list = [("var", tv) for tv in sorted(typevars, key=lambda tv: tv.idx)]
+            if stack_offset_tvs and isinstance(var, SimStackVariable) and var.offset in stack_offset_tvs:
+                typevars_list.append(("ref", stack_offset_tvs[var.offset]))
+
+            type_candidates = []
+            for kind, typevar in typevars_list:
                 type_ = self.simtypes_solution.get(typevar, None)
                 if type_ is not None:
+                    if kind == "ref":
+                        if isinstance(type_, SimTypePointer):
+                            # unpack
+                            type_ = type_.pts_to
+                        elif isinstance(type_, SimTypeArray):
+                            # unpack
+                            type_ = type_.elem_type
+                        else:
+                            # we have to ignore this type
+                            continue
+
                     # print("{} -> {}: {}".format(var, typevar, type_))
                     # Hack: if a global address is of a pointer type and it is not an array, we unpack the type
                     if (
@@ -83,12 +108,24 @@ class Typehoon(Analysis):
                         and not isinstance(type_.pts_to, SimTypeArray)
                     ):
                         type_ = type_.pts_to
+                    type_candidates.append(type_)
 
-                    name = None
-                    if isinstance(type_, SimStruct):
-                        name = type_.name
+            # determine the best type - this logic can be made better!
+            if not type_candidates:
+                continue
+            if len(type_candidates) > 1:
+                types_by_size = defaultdict(list)
+                for t in type_candidates:
+                    if t.size is not None:
+                        types_by_size[t.size].append(t)
+                max_size = max(types_by_size.keys())
+                the_type = types_by_size[max_size][0]  # TODO: Sort it
+            else:
+                the_type = type_candidates[0]
 
-                    self.kb.variables[func_addr].set_variable_type(var, type_, name=name)
+            self.kb.variables[func_addr].set_variable_type(
+                var, the_type, name=the_type.name if isinstance(the_type, SimStruct) else None
+            )
 
     def pp_constraints(self) -> None:
         """
@@ -131,6 +168,8 @@ class Typehoon(Analysis):
             sol = self.solution[typevar]
             var_and_typevar = f"{typevar_to_var[typevar]} ({typevar})" if typevar in typevar_to_var else typevar
             print(f"    {var_and_typevar} -> {sol}")
+        for stack_off, tv in self._stack_offset_tvs.items():
+            print(f"    stack_{stack_off:#x} ({tv}) -> {self.solution[tv]}")
         print("### end of solutions ###")
 
     #
@@ -157,6 +196,7 @@ class Typehoon(Analysis):
         if self._var_mapping:
             for variable_typevars in self._var_mapping.values():
                 typevars |= variable_typevars
+            typevars |= set(self._stack_offset_tvs.values())
         else:
             # collect type variables from constraints
             for constraint in self._constraints[self.func_var]:

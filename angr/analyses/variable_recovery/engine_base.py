@@ -269,9 +269,9 @@ class SimEngineVRBase(
             return
         variable, _ = existing_vars[0]
 
-        if not self.state.typevars.has_type_variable_for(variable, codeloc):
+        if not self.state.typevars.has_type_variable_for(variable):
             variable_typevar = typevars.TypeVariable()
-            self.state.typevars.add_type_variable(variable, codeloc, variable_typevar)
+            self.state.typevars.add_type_variable(variable, variable_typevar)
         # we do not add any type constraint here because we are not sure if the given memory address will ever be
         # accessed or not
 
@@ -350,13 +350,13 @@ class SimEngineVRBase(
         self.state.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
 
         if richr.typevar is not None:
-            if not self.state.typevars.has_type_variable_for(variable, codeloc):
+            if not self.state.typevars.has_type_variable_for(variable):
                 # assign a new type variable to it
                 typevar = typevars.TypeVariable()
-                self.state.typevars.add_type_variable(variable, codeloc, typevar)
+                self.state.typevars.add_type_variable(variable, typevar)
                 # create constraints
             else:
-                typevar = self.state.typevars.get_type_variable(variable, codeloc)
+                typevar = self.state.typevars.get_type_variable(variable)
             self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
@@ -448,13 +448,13 @@ class SimEngineVRBase(
         self.state.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
 
         if richr.typevar is not None:
-            if not self.state.typevars.has_type_variable_for(variable, codeloc):
+            if not self.state.typevars.has_type_variable_for(variable):
                 # assign a new type variable to it
                 typevar = typevars.TypeVariable()
-                self.state.typevars.add_type_variable(variable, codeloc, typevar)
+                self.state.typevars.add_type_variable(variable, typevar)
                 # create constraints
             else:
-                typevar = self.state.typevars.get_type_variable(variable, codeloc)
+                typevar = self.state.typevars.get_type_variable(variable)
             self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             # the constraint below is a default constraint that may conflict with more specific ones with different
             # sizes; we post-process at the very end of VRA to remove conflicting default constraints.
@@ -564,11 +564,11 @@ class SimEngineVRBase(
 
             # create type constraints
             if data.typevar is not None:
-                if not self.state.typevars.has_type_variable_for(variable, codeloc):
+                if not self.state.typevars.has_type_variable_for(variable):
                     typevar = typevars.TypeVariable()
-                    self.state.typevars.add_type_variable(variable, codeloc, typevar)
+                    self.state.typevars.add_type_variable(variable, typevar)
                 else:
-                    typevar = self.state.typevars.get_type_variable(variable, codeloc)
+                    typevar = self.state.typevars.get_type_variable(variable)
                 if typevar is not None:
                     self.state.add_type_constraint(typevars.Subtype(data.typevar, typevar))
         # TODO: Create a tv_sp.store.<bits>@N <: typevar type constraint for the stack pointer
@@ -640,11 +640,11 @@ class SimEngineVRBase(
                 variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
 
         # create type constraints
-        if not self.state.typevars.has_type_variable_for(variable, codeloc):
+        if not self.state.typevars.has_type_variable_for(variable):
             typevar = typevars.TypeVariable()
-            self.state.typevars.add_type_variable(variable, codeloc, typevar)
+            self.state.typevars.add_type_variable(variable, typevar)
         else:
-            typevar = self.state.typevars.get_type_variable(variable, codeloc)
+            typevar = self.state.typevars.get_type_variable(variable)
 
         if offset is not None and elem_size is not None:
             # it's an array!
@@ -672,7 +672,6 @@ class SimEngineVRBase(
 
     def _store_to_variable(self, richr_addr: RichR[claripy.ast.BV], data: RichR, size: int):
         addr_variable = richr_addr.variable
-        codeloc = self._codeloc()
 
         # Storing data into a pointer
         if richr_addr.type_constraints:
@@ -691,7 +690,7 @@ class SimEngineVRBase(
 
             store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
             if addr_variable is not None:
-                self.state.typevars.add_type_variable(addr_variable, codeloc, typevar)
+                self.state.typevars.add_type_variable(addr_variable, typevar)
             data_typevar = data.typevar if data.typevar is not None else typeconsts.TopType()
             self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
 
@@ -823,11 +822,11 @@ class SimEngineVRBase(
                         self.state.delayed_type_constraints.pop(var)
 
                     # create type constraints
-                    if not self.state.typevars.has_type_variable_for(var, codeloc):
+                    if not self.state.typevars.has_type_variable_for(var):
                         typevar = typevars.TypeVariable()
-                        self.state.typevars.add_type_variable(var, codeloc, typevar)
+                        self.state.typevars.add_type_variable(var, typevar)
                     else:
-                        typevar = self.state.typevars.get_type_variable(var, codeloc)
+                        typevar = self.state.typevars.get_type_variable(var)
 
                 else:
                     typevar = typevars.TypeVariable()
@@ -933,11 +932,11 @@ class SimEngineVRBase(
 
         variable, _ = next(iter(existing_vars))
         # create type constraints
-        if not self.state.typevars.has_type_variable_for(variable, codeloc):
+        if not self.state.typevars.has_type_variable_for(variable):
             typevar = typevars.TypeVariable()
-            self.state.typevars.add_type_variable(variable, codeloc, typevar)
+            self.state.typevars.add_type_variable(variable, typevar)
         else:
-            typevar = self.state.typevars.get_type_variable(variable, codeloc)
+            typevar = self.state.typevars.get_type_variable(variable)
 
         if offset is not None and elem_size is not None:
             # it's an array!
@@ -1024,7 +1023,7 @@ class SimEngineVRBase(
 
                 if var not in self.state.typevars:
                     typevar = typevars.TypeVariable()
-                    self.state.typevars.add_type_variable(var, codeloc, typevar)
+                    self.state.typevars.add_type_variable(var, typevar)
                 else:
                     # FIXME: This is an extremely stupid hack. Fix it later.
                     # | typevar = next(reversed(list(self.state.typevars[var].values())))
@@ -1125,7 +1124,7 @@ class SimEngineVRBase(
 
                 if var not in self.state.typevars:
                     typevar = typevars.TypeVariable()
-                    self.state.typevars.add_type_variable(var, codeloc, typevar)
+                    self.state.typevars.add_type_variable(var, typevar)
                 else:
                     # FIXME: This is an extremely stupid hack. Fix it later.
                     # | typevar = next(reversed(list(self.state.typevars[var].values())))

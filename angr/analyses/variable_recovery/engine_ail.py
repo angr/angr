@@ -9,7 +9,6 @@ from unique_log_filter import UniqueLogFilter
 
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
-from angr.utils.constants import MAX_POINTSTO_BITS
 from angr.sim_type import SimTypeFunction, dereference_simtype
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.lifter import TypeLifter
@@ -409,18 +408,9 @@ class SimEngineVRAIL(
         value_v = self.state.stack_address(expr.offset)
         richr = RichR(value_v, typevar=ref_typevar)
         codeloc = self._codeloc()
-        var_and_offsets = self._ensure_variable_existence(richr, codeloc, src_expr=expr)
+        self._ensure_variable_existence(richr, codeloc, src_expr=expr)
         if self._reference_spoffset:
             self._reference(richr, codeloc, src=expr)
-        for var, off_in_var in var_and_offsets:
-            if self.state.typevars.has_type_variable_for(var, codeloc):
-                var_typevar = self.state.typevars.get_type_variable(var, codeloc)
-                load_typevar = self._create_access_typevar(
-                    ref_typevar, False, MAX_POINTSTO_BITS // 8, 0 if off_in_var is None else off_in_var
-                )
-                type_constraint = typevars.Subtype(var_typevar, load_typevar)
-                self.state.add_type_constraint(type_constraint)
-
         return richr
 
     def _handle_expr_BasePointerOffset(self, expr):

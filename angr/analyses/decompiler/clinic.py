@@ -1631,6 +1631,7 @@ class Clinic(Analysis):
                 kb=tmp_kb,
                 fail_fast=self._fail_fast,
                 var_mapping=vr.var_to_typevars,
+                stack_offset_tvs=vr.stack_offset_typevars,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
                 stackvar_max_sizes=tv_max_sizes,
@@ -1640,6 +1641,7 @@ class Clinic(Analysis):
             tp.update_variable_types(
                 self.function.addr,
                 {v: t for v, t in vr.var_to_typevars.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
+                vr.stack_offset_typevars,
             )
             tp.update_variable_types(
                 "global",
