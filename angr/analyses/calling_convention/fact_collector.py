@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
+from collections import defaultdict
 
 import pyvex
 import claripy
@@ -30,6 +31,7 @@ class FactCollectorState:
         "bp_value",
         "callee_stored_regs",
         "reg_reads",
+        "reg_reads_count",
         "reg_writes",
         "simple_stack",
         "sp_value",
@@ -44,6 +46,7 @@ class FactCollectorState:
 
         self.callee_stored_regs: dict[int, int] = {}  # reg offset -> stack offset
         self.reg_reads = {}
+        self.reg_reads_count = defaultdict(int)
         self.reg_writes: set[int] = set()
         self.stack_reads = {}
         self.stack_writes: set[int] = set()
@@ -51,12 +54,21 @@ class FactCollectorState:
         self.bp_value = 0
 
     def register_read(self, offset: int, size_in_bytes: int):
+        self.reg_reads_count[offset] += 1
         if offset in self.reg_writes:
             return
         if offset not in self.reg_reads:
             self.reg_reads[offset] = size_in_bytes
         else:
             self.reg_reads[offset] = max(self.reg_reads[offset], size_in_bytes)
+
+    def register_read_undo(self, offset: int) -> None:
+        if offset not in self.reg_reads or offset not in self.reg_reads_count:
+            return
+        self.reg_reads_count[offset] -= 1
+        if self.reg_reads_count[offset] == 0:
+            self.reg_reads.pop(offset)
+            self.reg_reads_count.pop(offset)
 
     def register_written(self, offset: int, size_in_bytes: int):
         for o in range(size_in_bytes):
@@ -84,6 +96,7 @@ class FactCollectorState:
         new_state.sp_value = self.sp_value
         new_state.bp_value = self.bp_value
         new_state.simple_stack = self.simple_stack.copy()
+        new_state.reg_reads_count = self.reg_reads_count.copy()
         if with_tmps:
             new_state.tmps = self.tmps.copy()
         return new_state
@@ -136,7 +149,7 @@ class SimEngineFactCollectorVEX(
                         break
                 if same_ins_read:
                     # we need to revert the read operation as well
-                    self.state.reg_reads.pop(stmt.offset, None)
+                    self.state.register_read_undo(stmt.offset)
                 return
 
         if stmt.offset == self.arch.sp_offset and isinstance(v, SpOffset):
