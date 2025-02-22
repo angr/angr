@@ -85,34 +85,22 @@ class Typehoon(Analysis):
 
         for var, typevars in var_to_typevars.items():
             # if the variable is a stack variable, does the stack offset have any corresponding type variable?
-            typevars_list = [("var", tv) for tv in sorted(typevars, key=lambda tv: tv.idx)]
+            typevars_list = sorted(typevars, key=lambda tv: tv.idx)
             if stack_offset_tvs and isinstance(var, SimStackVariable) and var.offset in stack_offset_tvs:
-                typevars_list.append(("ref", stack_offset_tvs[var.offset]))
+                typevars_list.append(stack_offset_tvs[var.offset])
 
             type_candidates: list[SimType] = []
-            for kind, typevar in typevars_list:
+            for typevar in typevars_list:
                 type_ = self.simtypes_solution.get(typevar, None)
-                if type_ is not None:
-                    if kind == "ref":
-                        if isinstance(type_, SimTypePointer):
-                            # unpack
-                            type_ = type_.pts_to
-                        elif isinstance(type_, SimTypeArray):
-                            # unpack
-                            type_ = type_.elem_type
-                        else:
-                            # we have to ignore this type
-                            continue
-
-                    # print("{} -> {}: {}".format(var, typevar, type_))
-                    # Hack: if a global address is of a pointer type and it is not an array, we unpack the type
-                    if (
-                        func_addr == "global"
-                        and isinstance(type_, SimTypePointer)
-                        and not isinstance(type_.pts_to, SimTypeArray)
-                    ):
-                        type_ = type_.pts_to
-                    type_candidates.append(type_)
+                # print("{} -> {}: {}".format(var, typevar, type_))
+                # Hack: if a global address is of a pointer type and it is not an array, we unpack the type
+                if (
+                    func_addr == "global"
+                    and isinstance(type_, SimTypePointer)
+                    and not isinstance(type_.pts_to, SimTypeArray)
+                ):
+                    type_ = type_.pts_to
+                type_candidates.append(type_)
 
             # determine the best type - this logic can be made better!
             if not type_candidates:
@@ -122,8 +110,12 @@ class Typehoon(Analysis):
                 for t in type_candidates:
                     if t.size is not None:
                         types_by_size[t.size].append(t)
-                max_size = max(types_by_size.keys())
-                the_type = types_by_size[max_size][0]  # TODO: Sort it
+                if not types_by_size:
+                    # we only have BOT and TOP? damn
+                    the_type = type_candidates[0]
+                else:
+                    max_size = max(types_by_size.keys())
+                    the_type = types_by_size[max_size][0]  # TODO: Sort it
             else:
                 the_type = type_candidates[0]
 

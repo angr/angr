@@ -1613,6 +1613,9 @@ class Clinic(Analysis):
             if v in vr.var_to_typevars:
                 for tv in vr.var_to_typevars[v]:
                     tv_max_sizes[tv] = s
+            if v.offset in vr.stack_offset_typevars:
+                tv = vr.stack_offset_typevars[v.offset]
+                tv_max_sizes[tv] = s
         # clean up existing types for this function
         var_manager.remove_types()
         # TODO: Type inference for global variables

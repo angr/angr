@@ -15,7 +15,7 @@ from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from angr.code_location import CodeLocation
 from angr.analyses.typehoon import typevars, typeconsts
 from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
-
+from angr.utils.constants import MAX_POINTSTO_BITS
 
 #
 # The base engine used in VariableRecoveryFast
@@ -1135,7 +1135,7 @@ class SimEngineVRBase(
         self,
         typevar: typeconsts.TypeConstant | TypeVariable | DerivedTypeVariable,
         is_store: bool,
-        size: int,
+        size: int | None,
         offset: int,
     ) -> DerivedTypeVariable:
         if isinstance(typevar, DerivedTypeVariable):
@@ -1152,8 +1152,9 @@ class SimEngineVRBase(
                 else:
                     typevar = DerivedTypeVariable(typevar.type_var, None, labels=typevar.labels[:-1])
         lbl = Store() if is_store else Load()
+        bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
         return DerivedTypeVariable(
             typevar,
             None,
-            labels=(lbl, typevars.HasField(size * self.project.arch.byte_width, offset)),
+            labels=(lbl, typevars.HasField(bits, offset)),
         )

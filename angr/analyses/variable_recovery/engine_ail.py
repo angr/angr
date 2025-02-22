@@ -271,6 +271,8 @@ class SimEngineVRAIL(
                 if arg.typevar is not None:
                     arg_type = dereference_simtype(arg_type, type_collections).with_arch(arg_type._arch)
                     arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
+                    if isinstance(arg_ty, typevars.TypeConstraint) and isinstance(arg.typevar, typevars.TypeConstraint):
+                        continue
                     type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                     self.state.add_type_constraint(type_constraint)
 
@@ -398,12 +400,16 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
     def _handle_expr_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
-        ref_typevar = self.state.stack_offset_typevars.get(expr.offset, None)
-
-        if ref_typevar is None:
+        refbase_typevar = self.state.stack_offset_typevars.get(expr.offset, None)
+        if refbase_typevar is None:
             # allocate a new type variable
-            ref_typevar = typevars.TypeVariable()
-            self.state.stack_offset_typevars[expr.offset] = ref_typevar
+            refbase_typevar = typevars.TypeVariable()
+            self.state.stack_offset_typevars[expr.offset] = refbase_typevar
+
+        ref_typevar = typevars.TypeVariable()
+        access_derived_typevar = self._create_access_typevar(ref_typevar, False, None, 0)
+        load_constraint = typevars.Subtype(refbase_typevar, access_derived_typevar)
+        self.state.add_type_constraint(load_constraint)
 
         value_v = self.state.stack_address(expr.offset)
         richr = RichR(value_v, typevar=ref_typevar)
