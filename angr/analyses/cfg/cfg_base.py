@@ -1701,7 +1701,12 @@ class CFGBase(Analysis):
                 self._update_progress(progress)
 
             self._graph_bfs_custom(
-                self.graph, [fn], self._graph_traversal_handler, blockaddr_to_function, tmp_functions
+                self.graph,
+                [fn],
+                self._graph_traversal_handler,
+                blockaddr_to_function,
+                tmp_functions,
+                traversed_cfg_nodes,
             )
 
         to_remove = set()
