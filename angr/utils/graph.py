@@ -276,7 +276,7 @@ class ContainerNode:
 
     def __init__(self, obj):
         self._obj = obj
-        self.index = None
+        self.index: int | None = None
 
     @property
     def obj(self):
@@ -308,8 +308,8 @@ class Dominators:
         self._reverse = reverse  # Set it to True to generate a post-dominator tree.
 
         # Temporary variables
-        self._ancestor = None
-        self._semi = None
+        self._ancestor: list[ContainerNode | None] | None = None
+        self._semi: list[ContainerNode] | None = None
         self._label = None
 
         # Output
@@ -351,9 +351,11 @@ class Dominators:
         # parent is a dict storing the mapping from ContainerNode to ContainerNode
         # Each node in prepared_graph is a ContainerNode instance
 
-        bucket = defaultdict(set)
-        dom = [None] * (len(vertices))
-        self._ancestor = [None] * (len(vertices) + 1)
+        assert self._semi is not None
+
+        bucket: dict[int, set[ContainerNode]] = defaultdict(set)
+        dom: list[None | ContainerNode] = [None] * (len(vertices))
+        self._ancestor = [None] * (len(vertices) + 1)  # type: ignore
 
         for i in range(len(vertices) - 1, 0, -1):
             w = vertices[i]
@@ -376,6 +378,7 @@ class Dominators:
             # Step 3
             for v in bucket[parent[w].index]:
                 u = self._pd_eval(v)
+                assert u.index is not None and v.index is not None
                 if self._semi[u.index].index < self._semi[v.index].index:
                     dom[v.index] = u
                 else:
@@ -393,7 +396,7 @@ class Dominators:
         self.dom = networkx.DiGraph()  # The post-dom tree described in a directional graph
         for i in range(1, len(vertices)):
             if dom[i] is not None and vertices[i] is not None:
-                self.dom.add_edge(dom[i].obj, vertices[i].obj)
+                self.dom.add_edge(dom[i].obj, vertices[i].obj)  # type: ignore
 
         # Output
         self.prepared_graph = _prepared_graph
@@ -476,7 +479,7 @@ class Dominators:
         all_nodes_count = new_graph.number_of_nodes()
         self._l.debug("There should be %d nodes in all", all_nodes_count)
         counter = 0
-        vertices = [ContainerNode("placeholder")]
+        vertices: list[Any] = [ContainerNode("placeholder")]
         scanned_nodes = set()
         parent = {}
         while True:
@@ -526,15 +529,23 @@ class Dominators:
         return new_graph, vertices, parent
 
     def _pd_link(self, v, w):
+        assert self._ancestor is not None
         self._ancestor[w.index] = v
 
     def _pd_eval(self, v):
+        assert self._ancestor is not None
+        assert self._label is not None
+
         if self._ancestor[v.index] is None:
             return v
         self._pd_compress(v)
         return self._label[v.index]
 
     def _pd_compress(self, v):
+        assert self._ancestor is not None
+        assert self._semi is not None
+        assert self._label is not None
+
         if self._ancestor[self._ancestor[v.index].index] is not None:
             self._pd_compress(self._ancestor[v.index])
             if (
@@ -604,7 +615,7 @@ class GraphUtils:
             if graph.in_degree(node) > 1:
                 merge_points.add(node)
 
-        ordered_merge_points = GraphUtils.quasi_topological_sort_nodes(graph, merge_points)
+        ordered_merge_points = GraphUtils.quasi_topological_sort_nodes(graph, nodes=list(merge_points))
 
         return [n.addr for n in ordered_merge_points]
 
@@ -732,7 +743,7 @@ class GraphUtils:
             graph_copy.add_edge(src, dst)
 
         # add loners
-        out_degree_zero_nodes = [node for (node, degree) in graph.out_degree() if degree == 0]
+        out_degree_zero_nodes = [node for (node, degree) in graph.out_degree() if degree == 0]  # type:ignore
         for node in out_degree_zero_nodes:
             if graph.in_degree(node) == 0:
                 graph_copy.add_node(node)
@@ -749,9 +760,7 @@ class GraphUtils:
 
         if nodes is None:
             return ordered_nodes
-
-        nodes = set(nodes)
-        return [n for n in ordered_nodes if n in nodes]
+        return [n for n in ordered_nodes if n in set(nodes)]
 
     @staticmethod
     def _components_index_node(components, node):
@@ -820,13 +829,10 @@ class GraphUtils:
         # panic mode that will aggressively remove edges
 
         if len(subgraph) > 3000 and len(subgraph.edges) > len(subgraph) * 1.4:
-            for n in scc:
-                if subgraph.in_degree[n] >= 1 and subgraph.out_degree[n] >= 1:
-                    for src in list(subgraph.predecessors(n)):
-                        if src is not n:
-                            subgraph.remove_edge(src, n)
-                            if len(subgraph.edges) <= len(subgraph) * 1.4:
-                                break
+            for n0, n1 in sorted(dfs_back_edges(subgraph, loop_head), key=lambda x: (x[0].addr, x[0].addr)):
+                subgraph.remove_edge(n0, n1)
+                if len(subgraph.edges) <= len(subgraph) * 1.4:
+                    break
 
         ordered_nodes.extend(GraphUtils.quasi_topological_sort_nodes(subgraph))
 
