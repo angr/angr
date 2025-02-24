@@ -22,18 +22,23 @@ ifneq ($(DEBUG), )
 	CFLAGS += -O0 -g
 	CXXFLAGS += -O0 -g
 endif
-CPPFLAGS += -I "${UNICORN_INCLUDE_PATH}" -I "${PYVEX_INCLUDE_PATH}"
-LDFLAGS += -L "${UNICORN_LIB_PATH}" -L "${PYVEX_LIB_PATH}" -shared
+CPPFLAGS += -I vendor -I "${PYVEX_INCLUDE_PATH}"
+CFLAGS += -I vendor
+LDFLAGS += -L "${PYVEX_LIB_PATH}" -shared
 
-OBJS := log.o
-LDLIBS := -lunicorn -lpyvex
+OBJS := log.o unicorn_dynamic.o
+LDLIBS := -lpyvex
 ifeq ($(UNAME), Darwin)
-	LDFLAGS += -Wl,-rpath,"${UNICORN_LIB_PATH}",-rpath,"${PYVEX_LIB_PATH}"
+	LDFLAGS += -Wl,-rpath,"${PYVEX_LIB_PATH}"
+endif
+
+ifeq ($(UNAME), Linux)
+	LDLIBS += -ldl
 endif
 
 all: ${LIB_ANGR_NATIVE}
 
-log.o: log.c log.h
+%.o: %.c
 	${CC} ${CFLAGS} -c -o $@ $<
 
 ${LIB_ANGR_NATIVE}: ${OBJS} sim_unicorn.cpp

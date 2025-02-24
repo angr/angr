@@ -1,8 +1,8 @@
 CC=cl
-INCFLAGS=/I "$(PYVEX_INCLUDE_PATH)" /I "$(UNICORN_INCLUDE_PATH)"
+INCFLAGS=/I "$(PYVEX_INCLUDE_PATH)" /I vendor
 CFLAGS=/EHsc /MD /LD /O2 $(INCFLAGS) /Zi
-LDFLAGS=/link "$(UNICORN_LIB_FILE)" "$(PYVEX_LIB_FILE)" /DEF:angr_native.def /DEBUG
+LDFLAGS=/link "$(PYVEX_LIB_FILE)" /DEF:angr_native.def /DEBUG
 
 angr_native.dll: sim_unicorn.cpp angr_native.def
-	$(CC) $(CFLAGS) sim_unicorn.cpp $(LDFLAGS) /OUT:angr_native.dll
+	$(CC) $(CFLAGS) sim_unicorn.cpp unicorn_dynamic.c $(LDFLAGS) /OUT:angr_native.dll
 
