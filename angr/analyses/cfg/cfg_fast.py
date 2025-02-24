@@ -6,7 +6,7 @@ import logging
 import math
 import re
 import string
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from enum import Enum, unique
 
 import networkx
@@ -141,7 +141,7 @@ class PendingJobs:
     """
 
     def __init__(self, kb, deregister_job_callback):
-        self._jobs = OrderedDict()  # A mapping between function addresses and lists of pending jobs
+        self._jobs = SortedDict()  # A mapping between function addresses and lists of pending jobs
         self._kb = kb
         self._deregister_job_callback = deregister_job_callback
 
@@ -163,6 +163,7 @@ class PendingJobs:
     __nonzero__ = __bool__
 
     def _pop_job(self, func_addr: int | None):
+        func_addr = func_addr if func_addr is not None else -1
         jobs = self._jobs[func_addr]
         j = jobs.pop(-1)
         if not jobs:
@@ -172,6 +173,7 @@ class PendingJobs:
 
     def add_job(self, job):
         func_addr = job.returning_source
+        func_addr = func_addr if func_addr is not None else -1
         if func_addr not in self._jobs:
             self._jobs[func_addr] = []
         self._jobs[func_addr].append(job)
@@ -200,7 +202,7 @@ class PendingJobs:
             return self._pop_job(next(reversed(self._jobs.keys())))
 
         # Prioritize returning functions
-        for func_addr in reversed(self._jobs.keys()):
+        for func_addr in self._jobs:
             if func_addr not in self._returning_functions:
                 continue
             return self._pop_job(func_addr)
@@ -621,6 +623,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         nodecode_window_size=512,
         nodecode_threshold=0.3,
         nodecode_step=16483,
+        check_funcret_max_job=500,
         indirect_calls_always_return: bool | None = None,
         jumptable_resolver_resolves_calls: bool | None = None,
         start=None,  # deprecated
@@ -680,6 +683,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                                         table resolver and must be resolved using their specific resolvers. By default,
                                         we will only disable JumpTableResolver from resolving indirect calls for large
                                         binaries (region > 50 KB).
+        :param check_funcret_max_job    When popping return-site jobs out of the job queue, angr will prioritize jobs
+                                        for which the callee is known to return. This check may be slow when there are
+                                        a large amount of jobs in different caller functions, and this situation often
+                                        occurs in obfuscated binaries where many functions never return. This parameter
+                                        acts as a threshold to disable this check when the number of jobs in the queue
+                                        exceeds this threshold.
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -768,6 +777,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._force_complete_scan = force_complete_scan
         self._use_elf_eh_frame = elf_eh_frame
         self._use_exceptions = exceptions
+        self._check_funcret_max_job = check_funcret_max_job
 
         self._nodecode_window_size = nodecode_window_size
         self._nodecode_threshold = nodecode_threshold
@@ -3707,7 +3717,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     def _pop_pending_job(self, returning=True) -> CFGJob | None:
         while self._pending_jobs:
-            job = self._pending_jobs.pop_job(returning=returning)
+            job = self._pending_jobs.pop_job(
+                returning=returning if len(self._pending_jobs) < self._check_funcret_max_job else False
+            )
             if job is not None and job.job_type == CFGJobType.DATAREF_HINTS and self._seg_list.is_occupied(job.addr):
                 # ignore this hint from data refs because the target address has already been analyzed
                 continue
