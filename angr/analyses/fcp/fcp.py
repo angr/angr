@@ -407,10 +407,7 @@ class FastConstantPropagation(Analysis):
             except (TypeError, ValueError):
                 arg_locs = None
 
-            if None in arg_locs:
-                arg_locs = None
-
-            if arg_locs is not None:
+            if arg_locs is not None and None not in arg_locs:
                 for arg_loc in arg_locs:
                     for loc in arg_loc.get_footprint():
                         if isinstance(loc, SimStackArg):
