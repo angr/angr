@@ -1523,9 +1523,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 for page_no, offset, size in self.project.to_symbolize[block_id][k]:
                     sym_result = job.state.solver.BVS("symbolified_expr" + str(hex(block_id.addr))+str(block_id.vm_vpc), size*self.project.arch.byte_width)
                     if k=='mem':
-                        job.state.memory.store(page_no+offset, sym_result, endness=self.project.arch.memory_endness)
+                        job.state.memory.store(page_no+offset, sym_result, endness=self.project.arch.memory_endness, inspect=False)
                     elif k=='reg':
-                        job.state.registers.store(page_no+offset, sym_result, endness=self.project.arch.register_endness)
+                        job.state.registers.store(page_no+offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
 
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
