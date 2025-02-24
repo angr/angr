@@ -1068,10 +1068,10 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                         sym_result = PropagatorState.top(size * self.project.arch.byte_width)
                         if k == 'mem':
                             conc_state.memory.store(page_no + offset, sym_result,
-                                                   endness=self.project.arch.memory_endness)
+                                                   endness=self.project.arch.memory_endness, inspect=False)
                         elif k == 'reg':
                             conc_state.registers.store(page_no + offset, sym_result,
-                                                      endness=self.project.arch.register_endness)
+                                                      endness=self.project.arch.register_endness, inspect=False)
 
             if node.is_simprocedure and node.name == "read":
                 read_buf_addr = conc_state.regs.rsi
