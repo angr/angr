@@ -1,7 +1,7 @@
 # pylint:disable=wrong-import-position,wrong-import-order
 from __future__ import annotations
 import enum
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 from collections.abc import Sequence
 from collections import defaultdict, OrderedDict
 import logging
@@ -16,7 +16,6 @@ from claripy.annotation import UninitializedAnnotation
 from angr import sim_options as o
 from angr import BP, BP_BEFORE, BP_AFTER
 from angr.misc.ux import once
-from angr.code_location import CodeLocation
 from angr.concretization_strategies import SimConcretizationStrategyAny
 from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.engines.vex.claripy import ccall
@@ -27,13 +26,11 @@ from angr.annocfg import AnnotatedCFG
 from angr.exploration_techniques.slicecutor import Slicecutor
 from angr.exploration_techniques.local_loop_seer import LocalLoopSeer
 from angr.exploration_techniques.explorer import Explorer
-from angr.project import Project
 from angr.utils.constants import DEFAULT_STATEMENT
-from angr.analyses.propagator.vex_vars import VEXReg
 from angr.analyses.propagator.top_checker_mixin import ClaripyDataVEXEngineMixin
 from angr.engines.vex.claripy.datalayer import value
 from .resolver import IndirectJumpResolver
-from .propagator_utils import PropagatorLoadCallback
+from .constant_value_manager import ConstantValueManager
 
 try:
     from angr.engines import pcode
@@ -41,7 +38,6 @@ except ImportError:
     pcode = None
 
 if TYPE_CHECKING:
-    from angr import SimState
     from angr.knowledge_plugins import Function
 
 l = logging.getLogger(name=__name__)
@@ -132,101 +128,6 @@ class JumpTargetBaseAddr:
     @property
     def base_addr_available(self):
         return self.base_addr is not None
-
-
-#
-# Constant register resolving support
-#
-
-
-class ConstantValueManager:
-    """
-    Manages the loading of registers who hold constant values.
-    """
-
-    __slots__ = (
-        "func",
-        "indirect_jump_addr",
-        "kb",
-        "mapping",
-        "project",
-    )
-
-    def __init__(self, project: Project, kb, func: Function, ij_addr: int):
-        self.project = project
-        self.kb = kb
-        self.func = func
-        self.indirect_jump_addr = ij_addr
-
-        self.mapping: dict[Any, dict[Any, claripy.ast.Base]] | None = None
-
-    def reg_read_callback(self, state: SimState):
-        if self.mapping is None:
-            self._build_mapping()
-            assert self.mapping is not None
-
-        codeloc = CodeLocation(state.scratch.bbl_addr, state.scratch.stmt_idx, ins_addr=state.scratch.ins_addr)
-        if codeloc in self.mapping:
-            reg_read_offset = state.inspect.reg_read_offset
-            if isinstance(reg_read_offset, claripy.ast.BV) and reg_read_offset.op == "BVV":
-                reg_read_offset = reg_read_offset.args[0]
-            variable = VEXReg(reg_read_offset, state.inspect.reg_read_length)
-            if variable in self.mapping[codeloc]:
-                v = self.mapping[codeloc][variable]
-                if isinstance(v, int):
-                    v = claripy.BVV(v, state.inspect.reg_read_length * state.arch.byte_width)
-                state.inspect.reg_read_expr = v
-
-    def _build_mapping(self):
-        # constant propagation
-        l.debug("JumpTable: Propagating for %r at %#x.", self.func, self.indirect_jump_addr)
-
-        # determine blocks to run FCP on
-
-        # - include at most three levels of superblock successors from the entrypoint
-        self.mapping = {}
-        startpoint = self.func.startpoint
-        if startpoint is None:
-            return
-
-        blocks = set()
-        succ_and_levels = [(startpoint, 0)]
-        while succ_and_levels:
-            new_succs = []
-            for node, level in succ_and_levels:
-                if node in blocks:
-                    continue
-                blocks.add(node)
-                if node.addr == self.indirect_jump_addr:
-                    # stop at the indirect jump block
-                    continue
-                for _, succ, data in self.func.graph.out_edges(node, data=True):
-                    new_level = level if data.get("type") == "fake_return" else level + 1
-                    if new_level <= 3:
-                        new_succs.append((succ, new_level))
-            succ_and_levels = new_succs
-
-        # - include at most six levels of predecessors from the indirect jump block
-        ij_block = self.func.get_node(self.indirect_jump_addr)
-        preds = [ij_block]
-        for _ in range(6):
-            new_preds = []
-            for node in preds:
-                if node in blocks:
-                    continue
-                blocks.add(node)
-                new_preds += list(self.func.graph.predecessors(node))
-            preds = new_preds
-            if not preds:
-                break
-
-        prop = self.project.analyses.FastConstantPropagation(
-            self.func,
-            blocks=blocks,
-            vex_cross_insn_opt=True,
-            load_callback=PropagatorLoadCallback(self.project).propagator_load_callback,
-        )
-        self.mapping = prop.replacements
 
 
 #
