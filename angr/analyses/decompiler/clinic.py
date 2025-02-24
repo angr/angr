@@ -760,7 +760,7 @@ class Clinic(Analysis):
         return graph_copy
 
     def copy_graph(self, graph=None) -> networkx.DiGraph:
-        return self._copy_graph(graph or self.graph)
+        return self._copy_graph(graph or self.graph)  # type:ignore
 
     @timethis
     def _set_function_graph(self):
@@ -879,7 +879,7 @@ class Clinic(Analysis):
                     callsite_block_addr=callsite.addr,
                     callsite_insn_addr=callsite_ins_addr,
                     func_graph=func_graph,
-                    fail_fast=self._fail_fast,
+                    fail_fast=self._fail_fast,  # type:ignore
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
@@ -1073,6 +1073,7 @@ class Clinic(Analysis):
                         # found a single successor - replace the last statement
                         assert isinstance(last_stmt.target, ailment.Expr.Expression)  # not a string
                         new_last_stmt = last_stmt.copy()
+                        assert isinstance(successors[0].addr, int)
                         new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
                         block.statements[-1] = new_last_stmt
 
@@ -1598,9 +1599,9 @@ class Clinic(Analysis):
         tmp_kb.functions = self.kb.functions
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
-            fail_fast=self._fail_fast,
+            fail_fast=self._fail_fast,  # type:ignore
             func_graph=ail_graph,
-            kb=tmp_kb,
+            kb=tmp_kb,  # type:ignore
             track_sp=False,
             func_args=arg_list,
             unify_variables=False,
@@ -1637,7 +1638,7 @@ class Clinic(Analysis):
                     must_struct |= typevars
         else:
             must_struct = None
-        total_type_constraints = sum(len(tc) for tc in vr.type_constraints.values())
+        total_type_constraints = sum(len(tc) for tc in vr.type_constraints.values()) if vr.type_constraints else 0
         if total_type_constraints > self._max_type_constraints:
             l.info(
                 "The number of type constraints (%d) is greater than the threshold (%d). Skipping type inference.",
@@ -2706,7 +2707,7 @@ class Clinic(Analysis):
     def _next_atom(self) -> int:
         return self._ail_manager.next_atom()
 
-    def parse_variable_addr(self, addr: ailment.Expr.Expression) -> tuple[Any, Any] | None:
+    def parse_variable_addr(self, addr: ailment.Expr.Expression) -> tuple[Any, Any]:
         if isinstance(addr, ailment.Expr.Const):
             return addr, 0
         if isinstance(addr, ailment.Expr.BinaryOp) and addr.op == "Add":
