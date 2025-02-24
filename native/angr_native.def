@@ -1,6 +1,7 @@
 LIBRARY angr_native.dll
 
 EXPORTS
+  simunicorn_setup_imports
   simunicorn_alloc
   simunicorn_dealloc
   simunicorn_hook

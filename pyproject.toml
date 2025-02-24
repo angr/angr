@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.2", "wheel", "pyvex==9.2.144.dev0", "unicorn==2.0.1.post1"]
+requires = ["setuptools>=61.2", "wheel", "pyvex==9.2.144.dev0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -38,7 +38,6 @@ dependencies = [
     "rich>=13.1.0",
     "sortedcontainers",
     "sympy",
-    "unicorn==2.0.1.post1",
     "unique-log-filter",
     "colorama;platform_system=='Windows'",
 ]
@@ -69,6 +68,10 @@ testing = [
     "pytest-split",
     "pytest-xdist",
     "sqlalchemy",
+    "unicorn==2.0.1.post1",
+]
+unicorn = [
+    "unicorn==2.0.1.post1",
 ]
 
 [project.scripts]

@@ -28,9 +28,11 @@ ffi = cffi.FFI()
 
 try:
     import unicorn
+    from unicorn.unicorn import _uc
 except ImportError:
-    l.warning("Unicorn is not installed. Support disabled.")
-    unicorn = None
+    l.info("Unicorn is not installed. Support disabled.")
+    unicorn = None  # type: ignore
+    _uc = None  # type: ignore
 
 
 class MEM_PATCH(ctypes.Structure):
@@ -418,6 +420,7 @@ def _load_native():
             getattr(handle, func).argtypes = argtypes
 
         # _setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
+        _setup_prototype(h, "setup_imports", ctypes.c_bool, ctypes.c_char_p)
         _setup_prototype(
             h,
             "alloc",
@@ -470,7 +473,8 @@ def _load_native():
         _setup_prototype(h, "set_tracking", None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, "executed_pages", ctypes.c_uint64, state_t)
         _setup_prototype(h, "in_cache", ctypes.c_bool, state_t, ctypes.c_uint64)
-        _setup_prototype(h, "set_map_callback", None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
+        if unicorn is not None:
+            _setup_prototype(h, "set_map_callback", None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         _setup_prototype(
             h,
             "set_vex_to_unicorn_reg_mappings",
@@ -550,7 +554,7 @@ def _load_native():
 
         return h
     except (OSError, AttributeError) as e:
-        l.warning('failed loading "%s", unicorn support disabled (%s)', libfile, e)
+        l.error('failed loading "%s", unicorn support disabled (%s)', libfile, e)
         raise ImportError("Unable to import native SimUnicorn support") from e
 
 
@@ -559,6 +563,10 @@ try:
     # _UC_NATIVE.logSetLogLevel(2)
 except ImportError:
     _UC_NATIVE = None
+
+if _uc is not None and _UC_NATIVE is not None and not _UC_NATIVE.setup_imports(_uc._name.encode()):
+    l.error("Unicorn engine has an incompatible API. Support disabled.")
+    unicorn = None
 
 
 class Unicorn(SimStatePlugin):
@@ -675,8 +683,12 @@ class Unicorn(SimStatePlugin):
 
         self.time = None
 
-        self._bullshit_cb = ctypes.cast(
-            unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB
+        self._bullshit_cb = (
+            ctypes.cast(
+                unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB
+            )
+            if unicorn is not None
+            else None
         )
 
     @SimStatePlugin.memo
@@ -777,8 +789,12 @@ class Unicorn(SimStatePlugin):
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self._bullshit_cb = ctypes.cast(
-            unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB
+        self._bullshit_cb = (
+            ctypes.cast(
+                unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB
+            )
+            if unicorn is not None
+            else None
         )
         self._unicount = next(_unicounter)
         self._uc_state = None
