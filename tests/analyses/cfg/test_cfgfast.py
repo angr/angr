@@ -1152,6 +1152,18 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert cfg_model.memory_data[0x10001004].size == 228
         assert cfg_model.memory_data[0x10001004].sort == MemoryDataSort.PointerArray
 
+    def test_syscalls_resolved_with_constant_propagation(self):
+        for arch in ["x86", "x86_64"]:
+            with self.subTest(arch=arch):
+                path = os.path.join(test_location, arch, "hello_syscalls")
+                proj = angr.Project(path, auto_load_libs=False)
+                proj.analyses.CFGFast()
+                main = proj.kb.functions["main"]
+                write = proj.kb.functions["write"]
+                read = proj.kb.functions["read"]
+                assert len(set(main.transition_graph.predecessors(write))) == 3
+                assert len(set(main.transition_graph.predecessors(read))) == 1
+
 
 if __name__ == "__main__":
     unittest.main()
