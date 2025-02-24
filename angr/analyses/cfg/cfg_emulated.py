@@ -1,9 +1,11 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 import itertools
 import logging
 import sys
 from collections import defaultdict
 from functools import reduce
+import contextlib
 
 import angr
 import claripy
@@ -45,7 +47,10 @@ from angr.analyses.backward_slice import BackwardSlice
 from angr.analyses.loopfinder import LoopFinder, Loop
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
-import contextlib
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.cfg import CFGNode
+
 
 l = logging.getLogger(name=__name__)
 
@@ -505,6 +510,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :return: None
         """
 
+        assert self._starts is not None
+
         if not isinstance(max_loop_unrolling_times, int) or max_loop_unrolling_times < 0:
             raise AngrCFGError(
                 "Max loop unrolling times must be set to an integer greater than or equal to 0 if "
@@ -586,6 +593,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             graph_copy.remove_node(new_end_node)
             src, dst = loop_backedge
+            assert src is not None and dst is not None
             if graph_copy.has_edge(src, dst):  # It might have been removed before
                 # Duplicate the dst node
                 new_dst = dst.copy()
@@ -713,9 +721,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # FIXME: start should also take a CFGNode instance
 
         start_node = self.get_any_node(start)
+        assert start_node is not None
 
         node_wrapper = (start_node, 0)
-        stack = [node_wrapper]
+        stack: list[tuple[CFGNode, int]] = [node_wrapper]
         traversed_nodes = {start_node}
         subgraph_nodes = {start_node}
 
@@ -727,6 +736,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             edges = self.graph.out_edges(n, data=True)
 
             for _, dst, data in edges:
+                assert dst is not None
                 if dst not in traversed_nodes:
                     # We see a new node!
                     traversed_nodes.add(dst)
