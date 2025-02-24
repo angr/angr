@@ -820,13 +820,10 @@ class GraphUtils:
         # panic mode that will aggressively remove edges
 
         if len(subgraph) > 3000 and len(subgraph.edges) > len(subgraph) * 1.4:
-            for n in scc:
-                if subgraph.in_degree[n] >= 1 and subgraph.out_degree[n] >= 1:
-                    for src in list(subgraph.predecessors(n)):
-                        if src is not n:
-                            subgraph.remove_edge(src, n)
-                            if len(subgraph.edges) <= len(subgraph) * 1.4:
-                                break
+            for n0, n1 in sorted(dfs_back_edges(subgraph, loop_head), key=lambda x: (x[0].addr, x[0].addr)):
+                subgraph.remove_edge(n0, n1)
+                if len(subgraph.edges) <= len(subgraph) * 1.4:
+                    break
 
         ordered_nodes.extend(GraphUtils.quasi_topological_sort_nodes(subgraph))
 
