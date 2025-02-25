@@ -68,7 +68,7 @@ def normalize_whitespace(s: str) -> str:
     """
     Strips whitespace from start/end of lines, and replace newlines with space.
     """
-    return " ".join(s.strip() for s in s.splitlines())
+    return " ".join([l for l in [s.strip() for s in s.splitlines()] if l])
 
 
 def set_decompiler_option(decompiler_options: list[tuple] | None, params: list[tuple]) -> list[tuple]:
@@ -4959,6 +4959,29 @@ class TestDecompiler(unittest.TestCase):
         # this demonstrates the correct struct field inference of stack variables that we do not see during
         # Ssalification Pass 1
         assert re.search(r"return \S+.wParam;", dec.codegen.text) is not None
+
+    def test_regs_preserved_across_syscalls(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "regs_preserved_across_syscalls")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        func = proj.kb.functions["print_hello_world"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        text = normalize_whitespace(dec.codegen.text)
+        expected = normalize_whitespace(
+            r"""
+            long long print_hello_world()
+            {
+                write(1, "hello", 5);
+                write(1, " world\n", 7);
+                return 0;
+            }"""
+        )
+
+        assert text == expected
 
 
 if __name__ == "__main__":
