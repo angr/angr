@@ -6,7 +6,7 @@ import logging
 import math
 import re
 import string
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from enum import Enum, unique
 
 import networkx
@@ -141,7 +141,7 @@ class PendingJobs:
     """
 
     def __init__(self, kb, deregister_job_callback):
-        self._jobs = SortedDict()  # A mapping between function addresses and lists of pending jobs
+        self._jobs = OrderedDict()  # A mapping between function addresses and lists of pending jobs
         self._kb = kb
         self._deregister_job_callback = deregister_job_callback
 
@@ -163,7 +163,6 @@ class PendingJobs:
     __nonzero__ = __bool__
 
     def _pop_job(self, func_addr: int | None):
-        func_addr = func_addr if func_addr is not None else -1
         jobs = self._jobs[func_addr]
         j = jobs.pop(-1)
         if not jobs:
@@ -173,7 +172,6 @@ class PendingJobs:
 
     def add_job(self, job):
         func_addr = job.returning_source
-        func_addr = func_addr if func_addr is not None else -1
         if func_addr not in self._jobs:
             self._jobs[func_addr] = []
         self._jobs[func_addr].append(job)
@@ -202,7 +200,7 @@ class PendingJobs:
             return self._pop_job(next(reversed(self._jobs.keys())))
 
         # Prioritize returning functions
-        for func_addr in self._jobs:
+        for func_addr in reversed(self._jobs):
             if func_addr not in self._returning_functions:
                 continue
             return self._pop_job(func_addr)
