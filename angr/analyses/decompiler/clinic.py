@@ -120,6 +120,7 @@ class Clinic(Analysis):
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
+        max_type_constraints: int = 750,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -153,6 +154,7 @@ class Clinic(Analysis):
         self.reaching_definitions: ReachingDefinitionsAnalysis | None = None
         self._cache = cache
         self._mode = mode
+        self._max_type_constraints = max_type_constraints
         self.vvar_id_start = vvar_id_start
         self.vvar_to_vvar: dict[int, int] | None = None
         # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
@@ -758,7 +760,7 @@ class Clinic(Analysis):
         return graph_copy
 
     def copy_graph(self, graph=None) -> networkx.DiGraph:
-        return self._copy_graph(graph or self.graph)
+        return self._copy_graph(graph or self.graph)  # type:ignore
 
     @timethis
     def _set_function_graph(self):
@@ -877,7 +879,7 @@ class Clinic(Analysis):
                     callsite_block_addr=callsite.addr,
                     callsite_insn_addr=callsite_ins_addr,
                     func_graph=func_graph,
-                    fail_fast=self._fail_fast,
+                    fail_fast=self._fail_fast,  # type:ignore
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
@@ -1071,6 +1073,7 @@ class Clinic(Analysis):
                         # found a single successor - replace the last statement
                         assert isinstance(last_stmt.target, ailment.Expr.Expression)  # not a string
                         new_last_stmt = last_stmt.copy()
+                        assert isinstance(successors[0].addr, int)
                         new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
                         block.statements[-1] = new_last_stmt
 
@@ -1596,9 +1599,9 @@ class Clinic(Analysis):
         tmp_kb.functions = self.kb.functions
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
-            fail_fast=self._fail_fast,
+            fail_fast=self._fail_fast,  # type:ignore
             func_graph=ail_graph,
-            kb=tmp_kb,
+            kb=tmp_kb,  # type:ignore
             track_sp=False,
             func_args=arg_list,
             unify_variables=False,
@@ -1635,37 +1638,49 @@ class Clinic(Analysis):
                     must_struct |= typevars
         else:
             must_struct = None
-        try:
-            tp = self.project.analyses.Typehoon(
-                vr.type_constraints,
-                vr.func_typevar,
-                kb=tmp_kb,
-                fail_fast=self._fail_fast,
-                var_mapping=vr.var_to_typevars,
-                stack_offset_tvs=vr.stack_offset_typevars,
-                must_struct=must_struct,
-                ground_truth=groundtruth,
-                stackvar_max_sizes=tv_max_sizes,
+        total_type_constraints = sum(len(tc) for tc in vr.type_constraints.values()) if vr.type_constraints else 0
+        if total_type_constraints > self._max_type_constraints:
+            l.info(
+                "The number of type constraints (%d) is greater than the threshold (%d). Skipping type inference.",
+                total_type_constraints,
+                self._max_type_constraints,
             )
-            # tp.pp_constraints()
-            # tp.pp_solution()
-            tp.update_variable_types(
-                self.function.addr,
-                {v: t for v, t in vr.var_to_typevars.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
-                vr.stack_offset_typevars,
-            )
-            tp.update_variable_types(
-                "global",
-                {
-                    v: t
-                    for v, t in vr.var_to_typevars.items()
-                    if isinstance(v, SimMemoryVariable) and not isinstance(v, SimStackVariable)
-                },
-            )
-        except Exception:  # pylint:disable=broad-except
-            l.warning(
-                "Typehoon analysis failed. Variables will not have types. Please report to GitHub.", exc_info=True
-            )
+        else:
+            try:
+                tp = self.project.analyses.Typehoon(
+                    vr.type_constraints,
+                    vr.func_typevar,
+                    kb=tmp_kb,
+                    fail_fast=self._fail_fast,
+                    var_mapping=vr.var_to_typevars,
+                    stack_offset_tvs=vr.stack_offset_typevars,
+                    must_struct=must_struct,
+                    ground_truth=groundtruth,
+                    stackvar_max_sizes=tv_max_sizes,
+                )
+                # tp.pp_constraints()
+                # tp.pp_solution()
+                tp.update_variable_types(
+                    self.function.addr,
+                    {
+                        v: t
+                        for v, t in vr.var_to_typevars.items()
+                        if isinstance(v, (SimRegisterVariable, SimStackVariable))
+                    },
+                    vr.stack_offset_typevars,
+                )
+                tp.update_variable_types(
+                    "global",
+                    {
+                        v: t
+                        for v, t in vr.var_to_typevars.items()
+                        if isinstance(v, SimMemoryVariable) and not isinstance(v, SimStackVariable)
+                    },
+                )
+            except Exception:  # pylint:disable=broad-except
+                l.warning(
+                    "Typehoon analysis failed. Variables will not have types. Please report to GitHub.", exc_info=True
+                )
 
         # for any left-over variables, assign Bottom type (which will get "corrected" into a default type in
         # VariableManager)
@@ -2692,7 +2707,7 @@ class Clinic(Analysis):
     def _next_atom(self) -> int:
         return self._ail_manager.next_atom()
 
-    def parse_variable_addr(self, addr: ailment.Expr.Expression) -> tuple[Any, Any] | None:
+    def parse_variable_addr(self, addr: ailment.Expr.Expression) -> tuple[Any, Any]:
         if isinstance(addr, ailment.Expr.Const):
             return addr, 0
         if isinstance(addr, ailment.Expr.BinaryOp) and addr.op == "Add":

@@ -95,6 +95,7 @@ class ReturnDuplicatorBase:
         minimize_copies_for_regions: bool = True,
         ri: RegionIdentifier | None = None,
         scratch: dict[str, Any] | None = None,
+        max_func_blocks: int = 1500,
     ):
         self._max_calls_in_region = max_calls_in_regions
         self._minimize_copies_for_regions = minimize_copies_for_regions
@@ -105,6 +106,7 @@ class ReturnDuplicatorBase:
         self._func = func
         self._ri: RegionIdentifier | None = ri
         self.vvar_id_start = vvar_id_start
+        self._max_func_blocks = max_func_blocks
 
     def next_node_idx(self) -> int:
         node_idx = self.scratch.get("returndup_node_idx", 0) + 1
@@ -123,6 +125,9 @@ class ReturnDuplicatorBase:
     #
 
     def _check(self):
+        # is this function too large?
+        if len(self._func.block_addrs_set) > self._max_func_blocks:
+            return False, None
         # does this function have end points?
         return bool(self._func.endpoints), None
 

@@ -443,16 +443,16 @@ class StructuringOptimizationPass(OptimizationPass):
         """
         Wrapper for _analyze() that verifies the graph is structurable before and after the optimization.
         """
+        # replace the normal check in OptimizationPass.analyze()
+        ret, cache = self._check()
+        if not ret:
+            return
+
         if not self._graph_is_structurable(self._graph, initial=True):
             return
 
         self._initial_gotos = self._goto_manager.gotos.copy()
         if self._require_gotos and not self._initial_gotos:
-            return
-
-        # replace the normal check in OptimizationPass.analyze()
-        ret, cache = self._check()
-        if not ret:
             return
 
         # setup for the very first analysis
