@@ -122,6 +122,9 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                         if true_block and false_block and true_variant and false_variant:
                             true_moves = self._find_associated_data_moves(true_block, true_variant, vvar)
                             false_moves = self._find_associated_data_moves(false_block, false_variant, vvar)
+                            import ipdb
+
+                            ipdb.set_trace()
                             match_arms = {
                                 true_block.addr: (true_variant, true_moves),
                                 false_block.addr: (false_variant, false_moves),

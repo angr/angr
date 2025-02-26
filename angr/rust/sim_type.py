@@ -144,7 +144,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             ", variadic=True" if self.variadic else "",
         )
 
-    def normalize(self) -> Optional["RustSimTypeFunction"]:
+    def normalize(self):
         if (
             self.is_arg0_retbuf
             and self.args
@@ -156,7 +156,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             prototype.args = self.args[1:]
             prototype.is_arg0_retbuf = False
             return prototype
-        return None
+        return self
 
     def copy(self):
         return RustSimTypeFunction(

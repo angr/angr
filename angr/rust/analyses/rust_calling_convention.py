@@ -1,12 +1,12 @@
 import logging
 import traceback
 from pprint import pformat
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from collections import OrderedDict
 
 from ailment import BinaryOp, Const, AILBlockWalker, Block
 from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi, StackBaseOffset
-from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment
+from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment, Jump, Label
 from networkx import DiGraph
 
 from ..mixins.cfa_mixin import CFAMixin
@@ -24,13 +24,123 @@ from ...knowledge_plugins import Function
 l = logging.getLogger(name=__name__)
 
 
-class PathFactsCollector(AILBlockWalker):
-    def __init__(self, context: "RustCallingConventionAnalysis", path: Tuple[Block]):
+class FunctionBodyFactCollector(AILBlockWalker):
+    def __init__(self, context: "RustCallingConventionAnalysis"):
         super().__init__()
         self.context = context
         self.project = context.model.clinic.project
         self.model = context.model
-        self.path = path
+        self.graph = context.model.clinic.graph
+
+        self._path = None
+
+    def _get_dst_vvar_and_offset(self, stmt: Store) -> Tuple[VirtualVariable | None, int | None]:
+        expr = stmt.addr
+        offset = 0
+        if (
+            isinstance(expr, BinaryOp)
+            and expr.op == "Add"
+            and isinstance(expr.operands[0], VirtualVariable)
+            and isinstance(expr.operands[1], Const)
+        ):
+            offset = expr.operands[1].value
+            expr = expr.operands[0]
+        if isinstance(expr, VirtualVariable):
+            return self.context.get_terminal_vvar(expr), offset
+        return None, None
+
+    def _has_call(self, block_or_stmt):
+        class CallWalker(AILBlockWalker):
+            def __init__(self):
+                super().__init__()
+                self.has_call = False
+
+            def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+                self.has_call = True
+                return None
+
+        walker = CallWalker()
+        if isinstance(block_or_stmt, Block):
+            walker.walk(block_or_stmt)
+        elif isinstance(block_or_stmt, Statement):
+            walker.walk_statement(block_or_stmt)
+        return walker.has_call
+
+    def _has_write(self, block):
+        for stmt in reversed(block.statements):
+            if isinstance(stmt, Store):
+                vvar, _ = self._get_dst_vvar_and_offset(stmt)
+                if isinstance(vvar, VirtualVariable) and vvar.was_parameter and vvar.varid == 0:
+                    return True
+        return False
+
+    def _is_return_path_block(self, block):
+        if self._has_call(block):
+            return False
+
+        return (
+            all(
+                isinstance(stmt, (Return, Jump, ConditionalJump, Label, Store, Assignment)) for stmt in block.statements
+            )
+            and self._has_write(block)
+        ) or all(isinstance(stmt, (Return, Jump, ConditionalJump, Label)) for stmt in block.statements)
+
+    def calculate_paths(self, block, max_paths):
+        paths = [[block]]
+        changed = True
+        while len(paths) <= max_paths and changed:
+            changed = False
+            new_paths = []
+            for path in paths:
+                last_block = path[-1]
+                path_changed = False
+                for pred in self.graph.predecessors(last_block):
+                    if self._is_return_path_block(pred):
+                        new_path = list(path) + [pred]
+                        new_paths.append(new_path)
+                        changed = True
+                        path_changed = True
+                if not path_changed:
+                    new_paths.append(path)
+            paths = new_paths
+        deduplicated_paths = set()
+        for path in paths:
+            path = list(path)
+            while path and (
+                all(isinstance(stmt, Label) for stmt in path[-1].statements)
+                or isinstance(path[-1].statements[-1], ConditionalJump)
+                or not self._has_write(path[-1])
+            ):
+                path.pop()
+            if path:
+                deduplicated_paths.add(tuple(path))
+        return list(deduplicated_paths)
+
+    def collect(self):
+        """
+        Calculate paths that write return values to the first argument
+        Collect facts from every path and every callsite in this function
+        """
+        paths = set()
+        for block in self.model.clinic.graph.nodes:
+            if block.statements and isinstance(block.statements[-1], Return):
+                paths |= set(self.calculate_paths(block, max_paths=4))
+            if self._has_call(block):
+                paths.add((block,))
+        for path in paths:
+            self._path = path
+            for block in path:
+                self.walk(block)
+
+    def add_memory_write(self, arg_idx, block_or_path, offset, expr):
+        if block_or_path not in self.model.memory_writes[arg_idx]:
+            self.model.memory_writes[arg_idx][block_or_path] = {}
+        self.model.memory_writes[arg_idx][block_or_path][offset] = (expr, self.model.clinic.function.addr)
+
+    def add_memory_read(self, arg_idx, block, offset, expr):
+        if block not in self.model.memory_reads[arg_idx]:
+            self.model.memory_reads[arg_idx][block] = {}
+        self.model.memory_reads[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         addr = stmt.addr
@@ -45,9 +155,9 @@ class PathFactsCollector(AILBlockWalker):
             addr = addr.operands[0]
         addr = self.context.get_terminal_vvar(addr)
         if isinstance(addr, VirtualVariable) and addr.was_parameter:
-            self.context.add_memory_write(addr.varid, self.path, offset, stmt.data)
+            self.add_memory_write(addr.varid, self._path, offset, stmt.data)
 
-    def handle_Call(self, call: Call, block: Block):
+    def _handle_Call_Stmt_or_Expr(self, call: Call, block: Block):
         if (
             isinstance(call.target, Const)
             and call.target.value in self.project.kb.functions
@@ -64,14 +174,14 @@ class PathFactsCollector(AILBlockWalker):
                 self.model.memory_writes[0] |= result.model.memory_writes[0]
             elif func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
                 tmp = Tmp(None, None, 0, call.args[2].value * self.context.project.arch.byte_width)
-                self.context.add_memory_write(0, self.path, 0, tmp)
+                self.add_memory_write(0, self._path, 0, tmp)
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        self.handle_Call(stmt, block)
+        self._handle_Call_Stmt_or_Expr(stmt, block)
         super()._handle_Call(stmt_idx, stmt, block)
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        self.handle_Call(expr, block)
+        self._handle_Call_Stmt_or_Expr(expr, block)
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -110,7 +220,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
         if self.model.clinic:
             CFAMixin.__init__(self, self.model.clinic, self.project)
-            SRDAMixin.__init__(self, self.func, self.clinic.graph, self.project)
+            SRDAMixin.__init__(self, self.func, self.model.clinic.graph, self.project)
             DFAMixin.__init__(self)
             self.depth = depth
             self.max_depth = max_depth
@@ -167,60 +277,49 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             pack=True,
         ).with_arch(self.project.arch)
 
-    def _decide_final_type(self, struct_types) -> RustSimStruct | RustSimEnum | None:
-        if len(struct_types) == 0:
+    def _infer_potential_enum_type(
+        self, candidates_and_paths: List[Tuple[RustSimStruct, Tuple[Block]]]
+    ) -> RustSimEnum | None:
+        # Simplest case: if there is only one candidate, it's not an Enum type
+        if len(candidates_and_paths) <= 1:
             return None
 
-        sizes = {ty.size for ty in struct_types}
-
-        # Simplest case: if all inferred struct types are equivalent, just return any of them.
-        if len(struct_types) == 1:
-            return next(iter(struct_types))
-
-        # Oh, no! There are different struct types. It may be an enum.
-        struct_type_to_path = {}
-        struct_type_to_discriminant = {}
-        for struct_type, block_or_path in struct_types.items():
-            if isinstance(block_or_path, tuple):
-                struct_type_to_path[struct_type] = block_or_path
-                struct_type_to_discriminant[struct_type] = self._calculate_discriminant(block_or_path)
-
-        # Heuristics when one discriminant is not found
-        # if list(struct_type_to_discriminant.values()).count(None) == 1:
-        #     max_discriminant = max(
-        #         [discriminant for discriminant in struct_type_to_discriminant.values() if discriminant],
-        #         key=lambda ele: ele.value,
-        #     )
-        #     if "ParagraphStream" in self.func.name:
-        #         import ipdb
-        #
-        #         ipdb.set_trace()
-        #     if max_discriminant:
-        #         guessed_discriminant = max_discriminant.copy()
-        #         guessed_discriminant.value += 1
-        #         for k, v in dict(struct_type_to_discriminant).items():
-        #             if v is None:
-        #                 struct_type_to_discriminant[k] = guessed_discriminant
-        #                 break
+        # There are different struct types. It may be an enum!
+        # Calculate discriminant for each path and deduplicate
+        candidates_and_discriminants = []
+        visited = set()
+        for candidate, path in candidates_and_paths:
+            discriminant = self._calculate_discriminant(path)
+            key = (candidate.size, discriminant.value if discriminant else None)
+            if key not in visited:
+                visited.add(key)
+                candidates_and_discriminants.append((candidate, discriminant))
 
         # If there are two different struct types, it could be Option<T> or Result<T, E>
         # If the size of one of the struct types is equal to discriminant size, it is an Option<T>
         # Otherwise it's a Result<T, E>
-        discriminants = list(struct_type_to_discriminant.values())
-        if 3 >= len(struct_type_to_discriminant) >= 2 and discriminants.count(None) <= 1:
-            discriminant_size = set(discriminant.bits for discriminant in discriminants if discriminant is not None)
-            if len(discriminant_size) == 1:
-                discriminant_size = next(iter(discriminant_size))
-                sizes = set(struct_type.size for struct_type in struct_type_to_discriminant)
+        if len(candidates_and_discriminants) == 2:
+            discriminants = list(discriminant for _, discriminant in candidates_and_discriminants)
+            discriminant_sizes = set(discriminant.bits for discriminant in discriminants if discriminant is not None)
+            # There should be only one discriminant size
+            if len(discriminant_sizes) == 1:
+                discriminant_size = next(iter(discriminant_sizes))
+                sizes = set(candidate.size for candidate, _ in candidates_and_discriminants)
                 overlapping_discriminant = None in discriminants
                 if len(sizes) == 2:
                     if discriminant_size in sizes:
-                        none_type = next(filter(lambda ty: ty.size == discriminant_size, struct_type_to_discriminant))
-                        some_type = next(filter(lambda ty: ty.size != discriminant_size, struct_type_to_discriminant))
+                        # This is probably an Option<T> or Result<(), E>
+                        # Let's check if it's std::io::Result<()>
                         # Get the discriminant for None and Some variants
                         # Notice that if overlapping_discriminant is True, some_discriminant maybe None
-                        none_discriminant = struct_type_to_discriminant[none_type]
-                        some_discriminant = struct_type_to_discriminant[some_type]
+                        some_type, some_discriminant = None, None
+                        none_discriminant = None
+                        for candidate, discriminant in candidates_and_discriminants:
+                            if candidate.size == discriminant_size:
+                                none_discriminant = discriminant
+                            else:
+                                some_type = candidate
+                                some_discriminant = discriminant
                         if none_discriminant is not None:
                             none_discriminant = none_discriminant.value
                         elif some_discriminant is not None:
@@ -236,8 +335,9 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                             discriminant_size // self.project.arch.byte_width if not overlapping_discriminant else 0,
                         )
                     elif None not in discriminants:
+                        # If all discriminants are found, it should be a Result<T, E> type
                         struct_type_and_discriminant = sorted(
-                            struct_type_to_discriminant.items(),
+                            candidates_and_discriminants,
                             key=lambda item: item[1].value,
                         )
                         ok_type, ok_discriminant = struct_type_and_discriminant[0]
@@ -254,7 +354,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                     else:
                         ok_type = None
                         err_type, err_discriminant = None, None
-                        for struct_ty, discriminant in struct_type_to_discriminant.items():
+                        for struct_ty, discriminant in candidates_and_discriminants:
                             if discriminant is None:
                                 ok_type = struct_ty
                             else:
@@ -267,30 +367,39 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                             err_discriminant.value,
                             discriminant_size // self.project.arch.byte_width,
                         )
-                elif len(sizes) == 3:
-                    # This could be an Option<Result<T, E>>
-                    if discriminant_size in sizes:
-                        none_type = next(filter(lambda ty: ty.size == discriminant_size, struct_type_to_discriminant))
-                        other_struct_types = {k: v for k, v in struct_types.items() if k.size != discriminant_size}
-                        some_type = self._decide_final_type(other_struct_types)
-                        none_discriminant = struct_type_to_discriminant[none_type].value
-                        if isinstance(some_type, RustSimTypeResult):
-                            return RustSimTypeOption(
-                                some_type,
-                                none_discriminant,
-                                None,
-                                (
-                                    discriminant_size // self.project.arch.byte_width
-                                    if not overlapping_discriminant
-                                    else 0
-                                ),
-                            )
+        return None
 
-        return next(iter(sorted(struct_types, key=lambda ty: ty.size, reverse=True)))
+    def _infer_return_type(self):
+        # The first argument is not used as return buffer
+        if len(self.model.callsite_memory_writes[0]) != 0:
+            return None
+
+        memory_writes = self.model.memory_writes[0]
+        candidates_and_paths = []
+
+        for path in memory_writes:
+            fields = {}
+            path_memory_writes = memory_writes[path]
+            for offset in sorted(path_memory_writes.keys()):
+                expr, func_addr = path_memory_writes[offset]
+                arg_ty = RustSimTypeInt(expr.bits, signed=False)
+                fields[f"field_{offset}"] = arg_ty
+            struct_ty = RustSimStruct(
+                fields,
+                name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
+                pack=True,
+            ).with_arch(self.project.arch)
+            candidates_and_paths.append((struct_ty, path))
+
+        # Return inferred enum type if we found one, otherwise return the struct type with the largest size
+        returnty = self._infer_potential_enum_type(candidates_and_paths)
+        if not returnty and candidates_and_paths:
+            returnty = next(iter(sorted(candidates_and_paths, key=lambda item: item[0].size, reverse=True)))[0]
+        return returnty
 
     def _infer_arg_type(self, arg_idx):
         memory_writes = self.model.memory_writes[arg_idx] | self.model.callsite_memory_writes[arg_idx]
-        struct_types = {}
+        candidates = []
 
         for block_or_path in memory_writes:
             fields = {}
@@ -304,28 +413,25 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                 name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
                 pack=True,
             ).with_arch(self.project.arch)
-            struct_types[struct_ty] = block_or_path
+            candidates.append(struct_ty)
 
-        final_ty = self._decide_final_type(struct_types)
+        final_ty = sorted(candidates, key=lambda candidate: candidate.size, reverse=True)[0] if candidates else None
         if final_ty:
             final_ty = RustSimTypeReference(final_ty).with_arch(self.project.arch)
 
         return final_ty
 
-    def _infer_prototype(self):
+    def infer_prototype(self):
+        returnty = self._infer_return_type()
+        is_arg0_ret_buf = returnty is not None
         args = []
-        is_arg0_ret_buf = False
-        for arg_idx, old_arg_type in zip(range(len(self.clinic.arg_list)), self.func.prototype.args):
+        for arg_idx, old_arg_type in zip(range(len(self.model.clinic.arg_list)), self.func.prototype.args):
+            if is_arg0_ret_buf and arg_idx == 0:
+                args.append(RustSimTypeReference(returnty).with_arch(self.project.arch))
+                continue
             arg_type = self._infer_arg_type(arg_idx)
             if not arg_type:
                 arg_type = old_arg_type
-            if (
-                arg_idx == 0
-                and isinstance(arg_type, RustSimTypeReference)
-                and (isinstance(arg_type.pts_to, RustSimStruct) or isinstance(arg_type.pts_to, RustSimEnum))
-                and len(self.model.callsite_memory_writes[arg_idx]) == 0
-            ):
-                is_arg0_ret_buf = True
             args.append(arg_type)
         prototype = self.func.prototype
         return RustSimTypeFunction(
@@ -337,95 +443,13 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             is_returnty_struct=is_arg0_ret_buf,
         )
 
-    @property
-    def clinic(self):
-        return self.model.clinic
-
-    def add_memory_write(self, arg_idx, block_or_path, offset, expr):
-        if block_or_path not in self.model.memory_writes[arg_idx]:
-            self.model.memory_writes[arg_idx][block_or_path] = {}
-        self.model.memory_writes[arg_idx][block_or_path][offset] = (expr, self.model.clinic.function.addr)
+    def collect_function_body_facts(self):
+        FunctionBodyFactCollector(self).collect()
 
     def add_callsite_memory_write(self, arg_idx, block, offset, expr):
         if block not in self.model.callsite_memory_writes[arg_idx]:
             self.model.callsite_memory_writes[arg_idx][block] = {}
         self.model.callsite_memory_writes[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
-
-    def add_memory_read(self, arg_idx, block, offset, expr):
-        if block not in self.model.memory_reads[arg_idx]:
-            self.model.memory_reads[arg_idx][block] = {}
-        self.model.memory_reads[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
-
-    def _derive_paths(self, block, max_paths):
-        paths = [[block]]
-        changed = True
-        while len(paths) <= max_paths and changed:
-            changed = False
-            new_paths = []
-            for path in paths:
-                last_block = path[-1]
-                path_changed = False
-                for pred in self.clinic.graph.predecessors(last_block):
-                    new_path = list(path) + [pred]
-                    new_paths.append(new_path)
-                    changed = True
-                    path_changed = True
-                if not path_changed:
-                    new_paths.append(path)
-            paths = new_paths
-        return [tuple(path) for path in paths]
-
-    def collect_function_body_facts(self):
-        ret_blocks = set()
-        for block in self.model.clinic.graph.nodes:
-            if block.statements and isinstance(block.statements[-1], Return):
-                ret_blocks.add(block)
-        for ret_block in ret_blocks:
-            paths = self._derive_paths(ret_block, max_paths=4)
-            for path in paths:
-                walker = PathFactsCollector(self, path)
-                for block in path:
-                    walker.walk(block)
-
-    # def collect_callsite_facts(self):
-    #     callsite_block = self.model.callsite_block
-    #     call = self.terminal_call(callsite_block)
-    #     if call and call.args:
-    #         func_graph = nx.DiGraph()
-    #         func_graph.add_node(callsite_block)
-    #         srda = SRDAMixin(callsite_block, func_graph, self.project)
-    #         stack_offsets = []
-    #         for arg in call.args:
-    #             if isinstance(arg, BasePointerOffset):
-    #                 stack_offsets.append(arg.offset)
-    #         for idx, arg in enumerate(call.args):
-    #             if isinstance(arg, BasePointerOffset):
-    #                 cur_offset = arg.offset
-    #                 while len(list(filter(lambda offset: cur_offset >= offset, stack_offsets))) == len(
-    #                     list(filter(lambda offset: arg.offset >= offset, stack_offsets))
-    #                 ):
-    #                     data = srda.get_stack_vvar_by_insn(cur_offset, call.ins_addr, callsite_block.idx)
-    #                     if data is None:
-    #                         for stmt in reversed(callsite_block.statements):
-    #                             if (
-    #                                 isinstance(stmt, Store)
-    #                                 and isinstance(stmt.addr, BasePointerOffset)
-    #                                 and stmt.addr.offset == cur_offset
-    #                             ):
-    #                                 data = stmt.data
-    #                         if data is None:
-    #                             break
-    #                     self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, data)
-    #                     cur_offset += data.size
-
-    def _find_closest_stack_data_flow(self, cur_offset, block) -> Optional[int]:
-        candidates = []
-        for stmt in block.statements:
-            dst_offset, src_data = self.extract_stack_dest_data_flow(stmt)
-            if dst_offset is not None:
-                if dst_offset - cur_offset > 0:
-                    candidates.append(dst_offset)
-        return min(candidates) if candidates else None
 
     def collect_callsite_facts(self):
         callsite_block = self.model.callsite_block
@@ -440,7 +464,6 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             for idx, arg in enumerate(call.args):
                 if isinstance(arg, BasePointerOffset):
                     cur_offset = arg.offset
-                    tolerance = 1
                     while len(list(filter(lambda offset: cur_offset >= offset, stack_offsets))) == len(
                         list(filter(lambda offset: arg.offset >= offset, stack_offsets))
                     ):
@@ -450,17 +473,6 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                             if dst_offset == cur_offset and src_data:
                                 data = src_data
                                 break
-                        # if data is None:
-                        #     if tolerance > 0:
-                        #         tolerance -= 1
-                        #         closest_offset = self._find_closest_stack_data_flow(cur_offset, callsite_block)
-                        #         if closest_offset is not None and closest_offset <= 64:
-                        #             data = Load(
-                        #                 None,
-                        #                 StackBaseOffset(None, self.project.arch.bits, cur_offset),
-                        #                 closest_offset - cur_offset,
-                        #                 endness=self.project.arch.memory_endness,
-                        #             )
                         if data is None:
                             break
                         self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, data)
@@ -493,12 +505,12 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         self.collect_callsite_facts()
         self.collect_post_callsite_facts()
 
-        prototype = self._infer_prototype()
+        prototype = self.infer_prototype()
 
         self.model.inferred_prototype = prototype
         self.kb.rust_calling_conventions.cache[self.func.addr] = self.model
-        l.debug(f"Memory writes:\n{pformat(dict(self.model.memory_writes))}")
-        l.debug(f"Callsite memory writes:\n{pformat(dict(self.model.callsite_memory_writes))}")
+        # l.debug(f"Memory writes:\n{pformat(dict(self.model.memory_writes))}")
+        # l.debug(f"Callsite memory writes:\n{pformat(dict(self.model.callsite_memory_writes))}")
         l.debug(f"Analysis result for {normalize(self.func.name)} (addr: {hex(self.func.addr)}): {str(self.model)}")
 
 

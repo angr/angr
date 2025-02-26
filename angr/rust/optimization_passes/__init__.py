@@ -7,9 +7,7 @@ from .macro.show_macro_simplifier import ShowMacroSimplifier
 from .macro.vec_macro_simplifier import VecMacroSimplifier
 from .pattern_match_identifier import PatternMatchIdentifier
 from .pattern_match_simplifier import PatternMatchSimplifier
-from .lifetime_simplifier import LifetimeSimplifier
 from .macro.print_macro_simplifier import PrintMacroSimplifier
-from .ret_site_simplifier import RetSiteSimplifier
 from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
 from .struct_field_access_simplifier import StructFieldAccessSimplifier
