@@ -363,6 +363,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                  deobfuscation_start_addr=None,
                  deobfuscation_end_addr=None,
                  nodes_to_prune=[],
+                 unroll_same_vpc_loop=False
                  ):
         """
         All parameters are optional.
@@ -425,6 +426,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._model = None
         self.saved_call_stack = None
         self.nodes_to_prune = nodes_to_prune
+
+        #global counter used to unroll control flow flattened areas and loops within the same vpc
+        self.loop_counter=1
+        self.unroll_same_vpc_loop = unroll_same_vpc_loop
 
         self.vm_pc_skip_list = set()
 
@@ -1491,6 +1496,44 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("Job List: "+str(self._job_info_queue))
         l.debug("Data offset: "+str(job.vm_vpc))
         # Get a SimSuccessors out of current job
+
+        if self.unroll_same_vpc_loop:
+            if block_id in self._nodes and block_id.vm_vpc == src_block_id.vm_vpc:
+                # do DFS from current node to see if we can reach the source node and all VPS are the same till there, if so then unroll this loop
+                finished = set()
+                def dfs_find_source_with_same_vpc(node, vpc_val):
+                    for child in iter(self.graph[node]):
+                        vpc_same = False
+                        if child not in finished:
+                            if child.block_id.vm_vpc == vpc_val:
+                                vpc_same = True
+
+                            if not vpc_same:
+                                import ipdb;ipdb.set_trace()
+                                continue
+
+                            if child is self._nodes[src_block_id]:
+                                return True
+                            elif dfs_find_source_with_same_vpc(child, vpc_val):
+                                return True
+
+                    finished.add(node)
+                    return False
+
+                if str(self._nodes[block_id]) == "<CFGENode 0x405135 ()vm-vpc:106188972753810 [17]>":
+                    import ipdb;ipdb.set_trace()
+                same_vpc_loop = dfs_find_source_with_same_vpc(self._nodes[block_id], self._nodes[block_id].block_id.vm_vpc)
+
+                if same_vpc_loop:
+                    # there is a loop within the same vpc we need to unroll it
+                    new_vpc = (job.state.globals['vpc']<<24) + self.loop_counter
+                    job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level),
+                                                'normal', new_vpc)
+                    job.vm_vpc = new_vpc
+                    block_id = job.block_id
+                    self.loop_counter+=1
+
+                    job.state.globals['cur_vm_vpc'] = new_vpc
 
         # remove btc, btr
         cur_block = job.state.block(addr)
