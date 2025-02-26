@@ -11,7 +11,9 @@ from typing import Literal, Any, TYPE_CHECKING, cast, overload
 
 from archinfo import Endness, Arch
 import claripy
-import CppHeaderParser
+import cxxheaderparser.simple
+import cxxheaderparser.errors
+import cxxheaderparser.types
 import pycparser
 
 from angr.errors import AngrMissingTypeError, AngrTypeError
@@ -3386,75 +3388,86 @@ def _parse_const(c, arch=None, extra_types=None):
     raise ValueError(c)
 
 
-def _cpp_decl_to_type(decl: Any, extra_types: dict[str, SimType], opaque_classes=True):
-    if CppHeaderParser is None:
-        raise ImportError("Please install CppHeaderParser to parse C++ definitions")
-    if isinstance(decl, CppHeaderParser.CppMethod):
+CPP_DECL_TYPES = (
+    cxxheaderparser.types.Method,
+    cxxheaderparser.types.Array,
+    cxxheaderparser.types.Pointer,
+    cxxheaderparser.types.MoveReference,
+    cxxheaderparser.types.Reference,
+    cxxheaderparser.types.FunctionType,
+    cxxheaderparser.types.Type,
+)
+
+
+def _cpp_decl_to_type(
+    decl: CPP_DECL_TYPES, extra_types: dict[str, SimType], opaque_classes=True
+) -> SimTypeCppFunction | SimCppClass | SimTypeReference | SimTypePointer | SimTypeArray | SimTypeBottom:
+    if cxxheaderparser is None:
+        raise ImportError("Please install cxxheaderparser to parse C++ definitions")
+    if isinstance(decl, cxxheaderparser.types.Method):
         the_func = decl
-        func_name = the_func["name"]
-        if "__deleting_dtor__" in func_name or "__base_dtor__" in func_name or "__dtor__" in func_name:
-            the_func["destructor"] = True
+        func_name = the_func.name.format()
         # translate parameters
         args = []
         arg_names: list[str] = []
-        for param in the_func["parameters"]:
-            arg_type = param["type"]
+        for param in the_func.parameters:
+            arg_type = param.type
             args.append(_cpp_decl_to_type(arg_type, extra_types, opaque_classes=opaque_classes))
-            arg_name = param["name"]
+            arg_name = param.name
             arg_names.append(arg_name)
 
         args = tuple(args)
         arg_names_tuple: tuple[str, ...] = tuple(arg_names)
         # returns
-        if not the_func["returns"].strip():
+        if the_func.return_type is None:
             returnty = SimTypeBottom()
         else:
-            returnty = _cpp_decl_to_type(the_func["returns"].strip(), extra_types, opaque_classes=opaque_classes)
+            returnty = _cpp_decl_to_type(the_func.return_type, extra_types, opaque_classes=opaque_classes)
         # other properties
-        ctor = the_func["constructor"]
-        dtor = the_func["destructor"]
-        return SimTypeCppFunction(args, returnty, arg_names=arg_names_tuple, ctor=ctor, dtor=dtor)
+        ctor = the_func.constructor
+        dtor = the_func.destructor
+        return SimTypeCppFunction(args, returnty, label=func_name, arg_names=arg_names_tuple, ctor=ctor, dtor=dtor)
 
-    if isinstance(decl, str):
-        # a string that represents type
-        if decl.endswith("&"):
-            # reference
-            subdecl = decl.rstrip("&").strip()
-            subt = _cpp_decl_to_type(subdecl, extra_types, opaque_classes=opaque_classes)
-            return SimTypeReference(subt)
+    if isinstance(decl, cxxheaderparser.types.Type):
+        return SimTypeBottom(label=decl.format())
 
-        if decl.endswith("*"):
-            # pointer
-            subdecl = decl.rstrip("*").strip()
-            subt = _cpp_decl_to_type(subdecl, extra_types, opaque_classes=opaque_classes)
-            return SimTypePointer(subt)
+    if isinstance(decl, cxxheaderparser.types.Array):
+        subt = _cpp_decl_to_type(decl.array_of, extra_types, opaque_classes=opaque_classes)
+        return SimTypeArray(subt, length=decl.size)
 
-        if decl.endswith(" const"):
-            # drop const
-            return _cpp_decl_to_type(decl[:-6].strip(), extra_types, opaque_classes=opaque_classes)
+    if isinstance(decl, cxxheaderparser.types.MoveReference):
+        subt = _cpp_decl_to_type(decl.moveref_to, extra_types, opaque_classes=opaque_classes)
+        return SimTypeReference(subt)  # FIXME: Move reference vs reference
 
-        unqualified_name = decl.split("::")[-1] if "::" in decl else decl
+    if isinstance(decl, cxxheaderparser.types.Reference):
+        subt = _cpp_decl_to_type(decl.ref_to, extra_types, opaque_classes=opaque_classes)
+        return SimTypeReference(subt)
 
-        key = unqualified_name
-        if key in extra_types:
-            t = extra_types[key]
-        elif key in ALL_TYPES:
-            t = ALL_TYPES[key]
-        elif opaque_classes is True:
-            # create a class without knowing the internal members
-            t = SimCppClass({}, name=decl)
-        else:
-            raise TypeError("Unknown type '{}'".format(" ".join(key)))
+    if isinstance(decl, cxxheaderparser.types.Pointer):
+        subt = _cpp_decl_to_type(decl.ptr_to, extra_types, opaque_classes=opaque_classes)
+        return SimTypePointer(subt)
 
-        if unqualified_name != decl and isinstance(t, NamedTypeMixin):
-            t = t.copy()
-            t.name = decl  # pylint:disable=attribute-defined-outside-init
-        return t
+    if isinstance(decl, cxxheaderparser.types.FunctionType):
+        params = tuple(
+            _cpp_decl_to_type(param.type, extra_types, opaque_classes=opaque_classes) for param in decl.parameters
+        )
+        param_names = (
+            tuple(param.name.format() for param in decl.parameters)
+            if all(param.name is not None for param in decl.parameters)
+            else None
+        )
+        returnty = _cpp_decl_to_type(decl.return_type, extra_types, opaque_classes=opaque_classes)
+        return SimTypeCppFunction(params, returnty, arg_names=param_names)
 
     raise NotImplementedError
 
 
 def normalize_cpp_function_name(name: str) -> str:
+    # strip access specifiers
+    prefixes = ["public:", "protected:", "private:"]
+    for pre in prefixes:
+        name = name.removeprefix(pre)
+
     _s = name
     s = None
     while s != _s:
@@ -3470,11 +3483,11 @@ def normalize_cpp_function_name(name: str) -> str:
 
 def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     #
-    # A series of hacks to make CppHeaderParser happy with whatever C++ function prototypes we feed in
+    # A series of hacks to make cxxheaderparser happy with whatever C++ function prototypes we feed in
     #
 
-    if CppHeaderParser is None:
-        raise ImportError("Please install CppHeaderParser to parse C++ definitions")
+    if cxxheaderparser is None:
+        raise ImportError("Please install cxxheaderparser to parse C++ definitions")
 
     # CppHeaderParser does not support specialization
     s = normalize_cpp_function_name(cpp_decl)
@@ -3505,27 +3518,25 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     s += "\n\n{}"
 
     try:
-        h = CppHeaderParser.CppHeader(s, argType="string")
-    except CppHeaderParser.CppParseError:
+        h = cxxheaderparser.simple.parse_string(s)
+    except cxxheaderparser.errors.CxxParseError:
         return None, None
-    if not h.functions:
+    if not h.namespace:
         return None, None
 
     func_decls: dict[str, SimTypeCppFunction] = {}
-    for the_func in h.functions:
+    for the_func in h.namespace.method_impls:
         # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
         proto = cast(SimTypeCppFunction | None, _cpp_decl_to_type(the_func, {}, opaque_classes=True))
-        if proto is not None and the_func["class"]:
-            func_name = cast(str, the_func["class"] + "::" + the_func["name"])
+        if proto is not None:
+            func_name = the_func.name.format()
             proto.args = (
                 SimTypePointer(pts_to=SimTypeBottom(label="void")),
                 *proto.args,
             )  # pylint:disable=attribute-defined-outside-init
             proto.arg_names = ("this", *proto.arg_names)  # pylint:disable=attribute-defined-outside-init
-        elif proto is None:
-            raise ValueError("proto is None but class is also None... not sure what this edge case means")
         else:
-            func_name = cast(str, the_func["name"])
+            raise ValueError("proto is None but class is also None... not sure what this edge case means")
         func_decls[func_name] = proto
 
     return func_decls, {}
