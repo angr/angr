@@ -502,7 +502,7 @@ class VMDeobfuscation(Analysis):
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
-                 ail_propagator_init_values=None):
+                 ail_propagator_init_values=None, unroll_same_vpc_loop=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -576,7 +576,9 @@ class VMDeobfuscation(Analysis):
         proj=self.project
         folder_name = os.path.dirname(self.project.filename)
         start_state_copy = start_state.copy()
-        cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts)
+        cfg, proj = self.data_sensitive_graph(self.project.filename, start_addr=self.start_addr, start_state=start_state_copy,
+                                              cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts,
+                                              unroll_same_vpc_loop=unroll_same_vpc_loop)
 
         pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
         cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
@@ -661,7 +663,8 @@ class VMDeobfuscation(Analysis):
             new_cfg, _ = self.symbolify_exprs(proj, all_symbolic_expr_locations,
                                                                   start_addr=start_addr, start_state=start_state_copy,
                                                                   cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
-                                                                  remove_insts=remove_insts)
+                                                                  remove_insts=remove_insts,
+                                                                unroll_same_vpc_loop=unroll_same_vpc_loop)
 
             self.project.kb.cfgs.cfgs = {}
             # clearing the saved states to save space
@@ -1871,7 +1874,7 @@ class VMDeobfuscation(Analysis):
         return new_model, prop.symbolic_expr_locations
 
     @logtime
-    def symbolify_exprs(self, proj, symbolic_expr_locations, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None):
+    def symbolify_exprs(self, proj, symbolic_expr_locations, start_addr=None, start_state=None, cfg_fast_graph=None, remove_insts=None, avoid_runs=None, unroll_same_vpc_loop=False):
         start_state.globals['to_use_symbolic_exprs'] = []
         start_state.globals['expr_loc_map'] = {}
         self.project.prev_symbolic_expr_locations = symbolic_expr_locations
@@ -1891,6 +1894,7 @@ class VMDeobfuscation(Analysis):
                                                deobfuscation_start_addr=self.deobfuscation_start_addr,
                                                deobfuscation_end_addr = self.deobfuscation_end_addr,
                                                nodes_to_prune=self.nodes_to_prune,
+                                               unroll_same_vpc_loop=unroll_same_vpc_loop
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations = None
@@ -4217,7 +4221,7 @@ class VMDeobfuscation(Analysis):
 
     ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
     @logtime
-    def data_sensitive_graph(self, filename, start_addr, start_state, cfg_fast_graph, avoid_runs, remove_insts=None):
+    def data_sensitive_graph(self, filename, start_addr, start_state, cfg_fast_graph, avoid_runs, remove_insts=None, unroll_same_vpc_loop=False):
         #proj = angr.Project(filename)
         proj = self.project
 
@@ -4248,7 +4252,8 @@ class VMDeobfuscation(Analysis):
                                         start_deobfuscation_immediately=self.start_deobfuscation_immediately,
                                         deobfuscation_start_addr=self.deobfuscation_start_addr,
                                         deobfuscation_end_addr=self.deobfuscation_end_addr,
-                                        nodes_to_prune=self.nodes_to_prune
+                                        nodes_to_prune=self.nodes_to_prune,
+                                        unroll_same_vpc_loop=unroll_same_vpc_loop
                                         # enable_advanced_backward_slicing=True
                                         )
         self.release_memory(cfg, proj)
