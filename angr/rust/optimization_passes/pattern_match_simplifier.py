@@ -1,12 +1,15 @@
 from collections import OrderedDict
+from typing import Dict, Tuple
+
+from ailment import Statement
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import (
     OptimizationPassStage,
     SequenceOptimizationPass,
 )
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
-from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
+from angr.rust.sim_type import EnumVariant
+from angr.rust.structuring.structurer_nodes import PatternMatchNode
 
 
 class PatternMatchWalker(SequenceWalker):
@@ -15,7 +18,7 @@ class PatternMatchWalker(SequenceWalker):
 
     def _build_pattern_match(self, true_node, false_node, condition, addr):
         scrutinee = condition.tags.get("scrutinee", None)
-        match_arms = condition.tags.get("match_arms", None)
+        match_arms: Dict[int, Tuple[EnumVariant, Tuple[Statement]]] = condition.tags.get("match_arms", None)
         true_variant_and_moves, false_variant_and_moves = None, None
         if match_arms:
             if true_node.addr in match_arms and false_node.addr in match_arms:
@@ -29,13 +32,6 @@ class PatternMatchWalker(SequenceWalker):
                 true_variant_and_moves = next(iter(v for k, v in match_arms.items() if k != false_node.addr))
 
         if scrutinee and match_arms and true_variant_and_moves is not None and false_variant_and_moves is not None:
-            if set(false_variant_and_moves[1]) == {None} and set(true_variant_and_moves[1]) != {None}:
-                pattern = true_variant_and_moves
-                result = IfLetNode(pattern, scrutinee, true_node, false_node, addr)
-            elif set(true_variant_and_moves[1]) == {None} and set(false_variant_and_moves[1]) != {None}:
-                pattern = false_variant_and_moves
-                result = IfLetNode(pattern, scrutinee, true_node, false_node, addr)
-            # else:
             arms = OrderedDict([(true_variant_and_moves, true_node), (false_variant_and_moves, false_node)])
             scrutinee.tags["call"] = condition.tags.get("call", None)
             result = PatternMatchNode(scrutinee, arms, None, addr)
@@ -46,36 +42,14 @@ class PatternMatchWalker(SequenceWalker):
         return None
 
     def _handle_Condition(self, node, **kwargs):
-        new_node = super()._handle_Condition(node, **kwargs)
-        if new_node:
-            node = new_node
-
         if node.true_node and node.false_node:
             true_node = node.true_node
             false_node = node.false_node
             pattern_match = self._build_pattern_match(true_node, false_node, node.condition, node.addr)
             if pattern_match:
-                new_node = pattern_match
-        return new_node
-
-    def _handle_Sequence(self, seq_node, **kwargs):
-        nodes = list(seq_node.nodes)
-        new_nodes = []
-        while len(nodes):
-            node = nodes.pop(0)
-            next_node = nodes.pop(0) if len(nodes) else None
-            if isinstance(node, ConditionNode) and node.true_node is not None and node.false_node is None and next_node:
-                true_node = node.true_node
-                false_node = next_node
-                pattern_match = self._build_pattern_match(true_node, false_node, node.condition, node.addr)
-                if pattern_match:
-                    new_nodes.append(pattern_match)
-                    continue
-            new_nodes.append(node)
-            if next_node:
-                nodes.insert(0, next_node)
-        seq_node.nodes = new_nodes
-        return super()._handle_Sequence(seq_node, **kwargs)
+                new_node = super()._handle_PatternMatch(pattern_match, **kwargs)
+                return new_node or pattern_match
+        return super()._handle_Condition(node, **kwargs)
 
 
 class PatternMatchSimplifier(SequenceOptimizationPass):

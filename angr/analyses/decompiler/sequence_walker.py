@@ -174,7 +174,7 @@ class SequenceWalker:
                 changed = True
                 new_arms[key] = new_arm
             else:
-                new_arms[key] = new_arm
+                new_arms[key] = arm
 
         new_default_node = None
         if node.default_node is not None:
