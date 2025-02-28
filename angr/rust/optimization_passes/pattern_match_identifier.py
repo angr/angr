@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Optional, Dict, Tuple
 
 from ailment import BinaryOp, Assignment
 from ailment.expression import BasePointerOffset, Const, Load, StackBaseOffset, VirtualVariable
-from ailment.statement import ConditionalJump, Call, Store
+from ailment.statement import ConditionalJump, Call, Store, Statement
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.mixins.srda_mixin import SRDAMixin
@@ -46,7 +46,7 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
     def _find_associated_data_moves(self, block, variant: EnumVariant, enum_vvar):
         """
         Find the statements that move the associated data out of enum instance
-        Unify the move statements and return a list of unified Store statements
+        Unify the move statements and return a list of unified Assignment statements
         """
         moves = []
         src_offset = enum_vvar.stack_offset + variant.data_offset
@@ -54,7 +54,6 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
             ty_size = ty.size // self.project.arch.byte_width
             stmts, dst_offset = self.find_stack_data_flow(block, src_offset, ty_size)
             if stmts:
-                # addr = StackBaseOffset(None, self.project.arch.bits, dst_offset)
                 dst = self.new_stack_vvar(dst_offset, ty.size, {})
                 src = Load(
                     None,
@@ -65,14 +64,6 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                 move_stmt = Assignment(
                     None, dst, src, **sorted(stmts, key=lambda s: block.statements.index(s))[-1].tags
                 )
-                # move_stmt = Store(
-                #     idx=None,
-                #     addr=addr,
-                #     data=src,
-                #     size=src.size,
-                #     endness=self.project.arch.memory_endness,
-                #     **sorted(stmts, key=lambda s: block.statements.index(s))[-1].tags,
-                # )
                 self.replace_stmt(block, stmts, move_stmt)
                 moves.append(move_stmt)
             else:
@@ -122,9 +113,6 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                         if true_block and false_block and true_variant and false_variant:
                             true_moves = self._find_associated_data_moves(true_block, true_variant, vvar)
                             false_moves = self._find_associated_data_moves(false_block, false_variant, vvar)
-                            import ipdb
-
-                            ipdb.set_trace()
                             match_arms = {
                                 true_block.addr: (true_variant, true_moves),
                                 false_block.addr: (false_variant, false_moves),
@@ -132,15 +120,3 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                             cond.tags["call"] = value
                             cond.tags["scrutinee"] = vvar
                             cond.tags["match_arms"] = match_arms
-                            # if variant:
-                            #     import ipdb
-                            #
-                            #     ipdb.set_trace()
-                            #     if not variant.has_associated_data and (
-                            #         inverse_variant := self._inverse_variant(enum_type, discriminant)
-                            #     ):
-                            #         variant = inverse_variant
-                            #         self._swap_jump_targets(last_stmt)
-                            #     defs = self._find_associated_data_definitions(last_stmt, variant, vvar)
-                            #     let_expr = Let(None, variant, defs, vvar)
-                            #     last_stmt.condition = let_expr
