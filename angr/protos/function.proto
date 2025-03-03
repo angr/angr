@@ -25,5 +25,8 @@ message Function {
     bool            alignment = 14; // Whether this function is used as an alignment filling or not
     bool            normalized = 15; // Whether this function has been normalized or not
     SignatureSource matched_from = 16; // If this function is matched to a known library function. If so, which
-                                       // signature was used during matching
+    bytes           prototype = 17;  // The recovered function prototype (pickle serialized, can be None)
+    bytes           calling_convention = 18;  // the recovered calling convention (pickle serialized, can be None)
+    string          prototype_libname = 19; // if we found this prototype in a library, which library?
+    bool            is_prototype_guessed = 20; // did we guess this prototype?
 }
