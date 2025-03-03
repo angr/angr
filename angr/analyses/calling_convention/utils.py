@@ -35,6 +35,7 @@ def is_sane_register_variable(
         return 16 <= reg_offset < 80  # x0-x7
 
     if arch_name == "AMD64":
+        # TODO is rbx ever a register?
         return 24 <= reg_offset < 40 or 64 <= reg_offset < 104  # rcx, rdx  # rsi, rdi, r8, r9, r10
         # 224 <= reg_offset < 480)  # xmm0-xmm7
 

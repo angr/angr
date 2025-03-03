@@ -1,7 +1,7 @@
 # pylint:disable=line-too-long,missing-class-docstring,no-self-use
 from __future__ import annotations
 import logging
-from typing import cast
+from typing import Generic, cast, TypeVar
 
 from collections.abc import Iterable, Sequence
 from collections import defaultdict
@@ -38,6 +38,8 @@ from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
 l.addFilter(UniqueLogFilter())
+
+T = TypeVar("T", bound="SimFunctionArgument")
 
 
 class PointerWrapper:
@@ -386,12 +388,12 @@ class SimStackArg(SimFunctionArgument):
         return SimStackArg(self.stack_offset + offset, size, is_fp)
 
 
-class SimComboArg(SimFunctionArgument):
+class SimComboArg(SimFunctionArgument, Generic[T]):
     """
     An argument which spans multiple storage locations. Locations should be given least-significant first.
     """
 
-    def __init__(self, locations, is_fp=False):
+    def __init__(self, locations: list[T], is_fp=False):
         super().__init__(sum(x.size for x in locations), is_fp=is_fp)
         self.locations = locations
 
@@ -449,6 +451,45 @@ class SimStructArg(SimFunctionArgument):
 
         return others
 
+    def get_single_footprint(self) -> SimStackArg | SimRegArg | SimComboArg:
+        if self.struct._arch is None:
+            raise TypeError("Can't tell the size of a struct without an arch")
+        stack_min = None
+        stack_max = None
+        regs = []
+        for field in self.struct.fields:
+            loc = self.locs[field]
+            if isinstance(loc, SimStackArg):
+                if stack_min is None or stack_max is None:
+                    stack_min = loc.stack_offset
+                    stack_max = loc.stack_offset
+                else:
+                    # sanity check that arguments are laid out in order...
+                    assert loc.stack_offset >= stack_max
+                    stack_max = loc.stack_offset + loc.size
+            elif isinstance(loc, SimRegArg):
+                regs.append(loc)
+            else:
+                raise Exception("Why would a struct have layout elements other than stack and reg?")
+
+        # things to consider...
+        # what happens if we return the concat of two registers but there's slack space missing?
+        # an example of this would be big-endian struct { long a; int b; }
+        # do any CCs do this??
+        # for now assume no
+
+        if stack_min is not None:
+            if regs:
+                raise Exception(
+                    "Unknown CC argument passing structure - why are we passing both regs and stack at the same time?"
+                )
+            return SimStackArg(stack_min, self.struct.size // self.struct._arch.byte_width)
+        if not regs:
+            raise Exception("huh??????")
+        if len(regs) == 1:
+            return regs[0]
+        return SimComboArg(regs)
+
     def get_value(self, state, **kwargs):
         return SimStructValue(
             self.struct, {field: getter.get_value(state, **kwargs) for field, getter in self.locs.items()}
@@ -486,7 +527,7 @@ class SimReferenceArgument(SimFunctionArgument):
                         zero on the stack. It will be passed ``stack_base=ptr_loc.get_value(state)``
     """
 
-    def __init__(self, ptr_loc, main_loc):
+    def __init__(self, ptr_loc: SimFunctionArgument, main_loc: SimFunctionArgument):
         super().__init__(ptr_loc.size)  # ???
         self.ptr_loc = ptr_loc
         self.main_loc = main_loc
