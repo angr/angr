@@ -51,7 +51,7 @@ class SimWindows(SimOS):
         self.acmdln_ptr = None
         self.wcmdln_ptr = None
 
-        self.fastfail = L["ntoskrnl.exe"].get("__fastfail", self.arch)
+        self.fastfail = L["ntoskrnl.exe"][0].get("__fastfail", self.arch)
         self.fastfail.addr = self._find_or_make(self.fastfail.display_name)
         self.fastfail.cc = SYSCALL_CC[self.arch.name]["Win32"](self.arch)
         self._syscall_handlers = {self.fastfail.addr: self.fastfail}
@@ -60,13 +60,13 @@ class SimWindows(SimOS):
         super().configure_project()
 
         # here are some symbols which we MUST hook, regardless of what the user wants
-        self._weak_hook_symbol("GetProcAddress", L["kernel32.dll"].get("GetProcAddress", self.arch))
-        self._weak_hook_symbol("LoadLibraryA", L["kernel32.dll"].get("LoadLibraryA", self.arch))
-        self._weak_hook_symbol("LoadLibraryExW", L["kernel32.dll"].get("LoadLibraryExW", self.arch))
+        self._weak_hook_symbol("GetProcAddress", L["kernel32.dll"][0].get("GetProcAddress", self.arch))
+        self._weak_hook_symbol("LoadLibraryA", L["kernel32.dll"][0].get("LoadLibraryA", self.arch))
+        self._weak_hook_symbol("LoadLibraryExW", L["kernel32.dll"][0].get("LoadLibraryExW", self.arch))
 
         self._exception_handler = self._find_or_make("KiUserExceptionDispatcher")
         self.project.hook(
-            self._exception_handler, L["ntdll.dll"].get("KiUserExceptionDispatcher", self.arch), replace=True
+            self._exception_handler, L["ntdll.dll"][0].get("KiUserExceptionDispatcher", self.arch), replace=True
         )
 
         self.fmode_ptr = self._find_or_make("_fmode")

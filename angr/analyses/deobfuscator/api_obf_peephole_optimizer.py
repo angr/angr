@@ -30,7 +30,7 @@ class APIObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
                 # assign a new function on-demand
                 symbol = self.project.loader.extern_object.make_extern(funcname)
                 hook_addr = self.project.hook_symbol(
-                    symbol.rebased_addr, SIM_LIBRARIES["linux"].get_stub(funcname, self.project.arch)
+                    symbol.rebased_addr, SIM_LIBRARIES["linux"][0].get_stub(funcname, self.project.arch)
                 )
                 func = self.kb.functions.function(addr=hook_addr, name=funcname, create=True)
                 func.is_simprocedure = True
