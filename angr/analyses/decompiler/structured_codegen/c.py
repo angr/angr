@@ -7,6 +7,7 @@ import logging
 import struct
 
 from ailment import Block, Expr, Stmt, Tmp
+from ailment.constant import UNDETERMINED_SIZE
 from ailment.expression import StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
@@ -3413,7 +3414,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CRegister(expr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
-        ty = self.default_simtype_from_bits(expr.bits)
+        if expr.size == UNDETERMINED_SIZE:
+            # the size is undetermined; we force it to 1
+            expr_size = 1
+            expr_bits = 8
+        else:
+            expr_size = expr.size
+            expr_bits = expr.bits
+
+        if expr.size > 100 and isinstance(expr.addr, Expr.Const):
+            return self._handle_Expr_Const(expr.addr, type_=SimTypePointer(SimTypeChar()).with_arch(self.project.arch))
+
+        ty = self.default_simtype_from_bits(expr_bits)
 
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
             # we do not allow returning a struct for a primitive type
@@ -3430,7 +3442,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 offset, var, _ = expr.struct_member_info
                 cvar = self._variable(var, var.size)
             else:
-                cvar = self._variable(expr.variable, expr.size)
+                cvar = self._variable(expr.variable, expr_size)
                 offset = expr.variable_offset or 0
 
             assert type(offset) is int  # I refuse to deal with the alternative
