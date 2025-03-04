@@ -312,7 +312,15 @@ class SimplifierAILEngine(
         return expr
 
     def _handle_expr_ITE(self, expr):
-        return expr
+        return ailment.expression.ITE(
+            expr.idx,
+            self._expr(expr.cond),
+            self._expr(expr.iffalse),
+            self._expr(expr.iftrue),
+            variable=expr.variable,
+            variable_offset=expr.variable_offset,
+            **expr.tags,
+        )
 
     def _handle_expr_Call(self, expr):
         return expr
