@@ -114,19 +114,19 @@ class Int512(Int):
         return "int512"
 
 
-class FloatBase(TypeConstant):
+class Float(TypeConstant):
     def __repr__(self, memo=None) -> str:
         return "floatbase"
 
 
-class Float32(FloatBase):
+class Float32(Float):
     SIZE = 4
 
     def __repr__(self, memo=None):
         return "float32"
 
 
-class Float64(FloatBase):
+class Float64(Float):
     SIZE = 8
 
     def __repr__(self, memo=None):
@@ -317,7 +317,7 @@ def int_type(bits: int) -> Int:
     raise TypeError(f"Not a known size of int: {bits}")
 
 
-def float_type(bits: int) -> FloatBase | None:
+def float_type(bits: int) -> Float | None:
     if bits == 32:
         return Float32()
     if bits == 64:
