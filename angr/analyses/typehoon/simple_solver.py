@@ -41,6 +41,9 @@ from .typeconsts import (
     Array,
     Function,
     int_type,
+    Float,
+    Float32,
+    Float64,
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -60,6 +63,9 @@ PRIMITIVE_TYPES = {
     BottomType(),
     Struct(),
     Array(),
+    Float(),
+    Float32(),
+    Float64(),
 }
 
 Top_ = TopType()
@@ -73,6 +79,9 @@ Pointer64_ = Pointer64()
 Pointer32_ = Pointer32()
 Struct_ = Struct()
 Array_ = Array()
+Float_ = Float()
+Float32_ = Float32()
+Float64_ = Float64()
 
 # lattice for 64-bit binaries
 BASE_LATTICE_64 = networkx.DiGraph()
