@@ -401,10 +401,10 @@ class FunctionHandler:
             )
             type_collections = []
             if prototype_libname is not None and prototype_libname in SIM_LIBRARIES:
-                prototype_lib = SIM_LIBRARIES[prototype_libname]
-                if prototype_lib.type_collection_names:
-                    for typelib_name in prototype_lib.type_collection_names:
-                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                for prototype_lib in SIM_LIBRARIES[prototype_libname]:
+                    if prototype_lib.type_collection_names:
+                        for typelib_name in prototype_lib.type_collection_names:
+                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
             if type_collections:
                 prototype = dereference_simtype(data.prototype, type_collections).with_arch(state.arch)
                 data.prototype = cast(SimTypeFunction, prototype)

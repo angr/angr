@@ -1507,20 +1507,21 @@ class Function(Serializable):
             lib = SIM_LIBRARIES.get(binary_name, None)
             libraries = set()
             if lib is not None:
-                libraries.add(lib)
+                libraries.update(lib)
 
         else:
             # try all libraries or all libraries that match the given library name hint
             libraries = set()
-            for lib_name, lib in SIM_LIBRARIES.items():
+            for lib_name, libs in SIM_LIBRARIES.items():
                 # TODO: Add support for syscall libraries. Note that syscall libraries have different function
                 #  prototypes for .has_prototype() and .get_prototype()...
-                if not isinstance(lib, SimSyscallLibrary):
-                    if binary_name_hint:
-                        if binary_name_hint.lower() in lib_name.lower():
+                for lib in libs:
+                    if not isinstance(lib, SimSyscallLibrary):
+                        if binary_name_hint:
+                            if binary_name_hint.lower() in lib_name.lower():
+                                libraries.add(lib)
+                        else:
                             libraries.add(lib)
-                    else:
-                        libraries.add(lib)
 
         if not libraries:
             return False
