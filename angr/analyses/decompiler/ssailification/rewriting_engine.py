@@ -505,7 +505,27 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_expr_StackBaseOffset(self, expr):
-        return None
+        if expr.offset not in self.state.stackvars:
+            # create it on the fly
+            vvar_id = self.get_vvid_by_def(
+                self.block.addr,
+                self.block.idx,
+                self.stmt_idx,
+                atoms.MemoryLocation(expr.offset, 1, self.project.arch.memory_endness),
+                "l",
+            )
+            vvar = VirtualVariable(
+                self.ail_manager.next_atom(),
+                vvar_id,
+                1 * self.arch.byte_width,
+                category=VirtualVariableCategory.STACK,
+                oident=expr.offset,
+                **expr.tags,
+            )
+        else:
+            sz = 1 if 1 in self.stackvar_locs[expr.offset] else max(self.stackvar_locs[expr.offset])
+            vvar = self.state.stackvars[expr.offset][sz]
+        return UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
 
     def _handle_expr_VirtualVariable(self, expr):
         return None
