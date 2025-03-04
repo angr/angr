@@ -145,7 +145,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             stackvar_locs = {}
             sorted_stackvar_offs = []
 
-        # computer phi node locations for each unified definition
+        # compute phi node locations for each unified definition
         udef_to_defs = defaultdict(set)
         udef_to_blockkeys = defaultdict(set)
         for def_, loc in def_to_loc:
