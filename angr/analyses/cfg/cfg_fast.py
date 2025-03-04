@@ -1540,6 +1540,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 }:
                     func.info["is_alloca_probe"] = True
 
+        elif self.project.arch.name == "X86":
+            # determine if the function is __alloca_probe
+            func = self.kb.functions.get_by_addr(func_addr) if self.kb.functions.contains_addr(func_addr) else None
+            if func is not None and len(func.block_addrs_set) == 4:
+                block_bytes = {func.get_block(block_addr).bytes for block_addr in func.block_addrs_set}
+                if block_bytes == {
+                    b"-\x00\x10\x00\x00\x85\x00\xeb\xe9",
+                    b";\xc8r\n",
+                    b"Q\x8dL$\x04+\xc8\x1b\xc0\xf7\xd0#\xc8\x8b\xc4%\x00\xf0\xff\xff;\xc8r\n",
+                    b"\x8b\xc1Y\x94\x8b\x00\x89\x04$\xc3",
+                }:
+                    func.info["is_alloca_probe"] = True
+
         if self._collect_data_ref and self.project is not None and ":" in self.project.arch.name:
             # this is a pcode arch - use Clinic to recover data references
 
