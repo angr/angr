@@ -555,7 +555,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         if vex_block is not None:
             if isinstance(vex_block, pyvex.IRSB):
                 curr_stmt_start_addr = self._process_vex_irsb(node, vex_block, state)
-            elif pypcode is not None and isinstance(vex_block, pcode.lifter.IRSB):
+            elif pypcode is not None and isinstance(vex_block, pcode.lifter.IRSB):  # type: ignore
                 curr_stmt_start_addr = self._process_pcode_irsb(node, vex_block, state)
             else:
                 raise NotImplementedError(f"Unsupported block type {type(vex_block)}")
@@ -588,7 +588,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                         raise CouldNotResolveException
                     if arg1_expr is BOTTOM:
                         return BOTTOM
-                    return arg0_expr + arg1_expr
+                    return arg0_expr + arg1_expr  # type: ignore
                 if expr.op.startswith("Iop_Sub"):
                     arg0_expr = _resolve_expr(arg0)
                     if arg0_expr is None:
@@ -600,7 +600,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                         raise CouldNotResolveException
                     if arg1_expr is BOTTOM:
                         return BOTTOM
-                    return arg0_expr - arg1_expr
+                    return arg0_expr - arg1_expr  # type: ignore
                 if expr.op.startswith("Iop_And"):
                     # handle stack pointer alignments
                     arg0_expr = _resolve_expr(arg0)
@@ -770,6 +770,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 if callee_cleanups:
                     # found callee clean-up cases...
                     callee = callee_cleanups[0]
+                    assert callee.calling_convention is not None  # just to make pyright happy
                     try:
                         v = state.get(self.project.arch.sp_offset)
                         incremented = None
