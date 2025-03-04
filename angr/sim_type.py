@@ -1217,10 +1217,12 @@ class SimTypeCppFunction(SimTypeFunction):
         arg_names: Iterable[str] | None = None,
         ctor: bool = False,
         dtor: bool = False,
+        convention: str | None = None,
     ):
         super().__init__(args, returnty, label=label, arg_names=arg_names, variadic=False)
         self.ctor = ctor
         self.dtor = dtor
+        self.convention = convention
 
     def __repr__(self):
         argstrs = [str(a) for a in self.args]
@@ -1246,6 +1248,7 @@ class SimTypeCppFunction(SimTypeFunction):
             arg_names=self.arg_names,
             ctor=self.ctor,
             dtor=self.dtor,
+            convention=self.convention,
         )
 
 
@@ -1751,14 +1754,17 @@ class SimUnionValue:
 class SimCppClass(SimStruct):
     def __init__(
         self,
+        *,
+        unique_name: str | None = None,
+        name: str | None = None,
         members: dict[str, SimType] | None = None,
         function_members: dict[str, SimTypeCppFunction] | None = None,
         vtable_ptrs=None,
-        name: str | None = None,
         pack: bool = False,
         align=None,
     ):
         super().__init__(members or {}, name=name, pack=pack, align=align)
+        self.unique_name = unique_name
         # these are actually addresses in the binary
         self.function_members = function_members
         # this should also be added to the fields once we know the offsets of the members of this object
@@ -1767,6 +1773,10 @@ class SimCppClass(SimStruct):
     @property
     def members(self):
         return self.fields
+
+    @members.setter
+    def members(self, value):
+        self.fields = value
 
     def __repr__(self):
         return f"class {self.name}"
@@ -1798,10 +1808,43 @@ class SimCppClass(SimStruct):
             ty = self.fields[field]
             ty.store(state, addr + offset, value[field])
 
+    def _with_arch(self, arch) -> SimCppClass:
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = SimCppClass(
+            unique_name=self.unique_name,
+            name=self.name,
+            members={},
+            function_members={},
+            vtable_ptrs=self.vtable_ptrs,
+            pack=self._pack,
+            align=self._align,
+        )
+        out._arch = arch
+        self._arch_memo[arch.name] = out
+
+        out.members = OrderedDict((k, v.with_arch(arch)) for k, v in self.members.items())
+        out.function_members = (
+            OrderedDict((k, v.with_arch(arch)) for k, v in self.function_members.items())
+            if self.function_members is not None
+            else None
+        )
+
+        # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
+        offset_so_far = 0
+        for _, ty in out.members.items():
+            if isinstance(ty, SimTypeNumOffset):
+                out._pack = True
+                ty.offset = offset_so_far % arch.byte_width
+                offset_so_far += ty.size
+        return out
+
     def copy(self):
         return SimCppClass(
-            dict(self.fields),
+            unique_name=self.unique_name,
             name=self.name,
+            members=dict(self.fields),
             pack=self._pack,
             align=self._align,
             function_members=self.function_members,
@@ -3426,7 +3469,15 @@ def _cpp_decl_to_type(
         # other properties
         ctor = the_func.constructor
         dtor = the_func.destructor
-        return SimTypeCppFunction(args, returnty, label=func_name, arg_names=arg_names_tuple, ctor=ctor, dtor=dtor)
+        return SimTypeCppFunction(
+            args,
+            returnty,
+            label=func_name,
+            arg_names=arg_names_tuple,
+            ctor=ctor,
+            dtor=dtor,
+            convention=the_func.msvc_convention,
+        )
 
     if isinstance(decl, cxxheaderparser.types.Type):
         return SimTypeBottom(label=decl.format())
@@ -3457,7 +3508,7 @@ def _cpp_decl_to_type(
             else None
         )
         returnty = _cpp_decl_to_type(decl.return_type, extra_types, opaque_classes=opaque_classes)
-        return SimTypeCppFunction(params, returnty, arg_names=param_names)
+        return SimTypeCppFunction(params, returnty, arg_names=param_names, convention=decl.msvc_convention)
 
     raise NotImplementedError
 
@@ -3468,13 +3519,7 @@ def normalize_cpp_function_name(name: str) -> str:
     for pre in prefixes:
         name = name.removeprefix(pre)
 
-    _s = name
-    s = None
-    while s != _s:
-        _s = s if s is not None else _s
-        s = re.sub(r"<[^<>]+>", "", _s)
-    assert s is not None
-
+    s = name
     m = re.search(r"{([a-z\s]+)}", s)
     if m is not None:
         s = s[: m.start()] + "__" + m.group(1).replace(" ", "_") + "__" + s[m.end() :]
