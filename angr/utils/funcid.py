@@ -17,7 +17,8 @@ def is_function_security_check_cookie(func, project, security_cookie_addr: int) 
         return False
     ins0 = block.capstone.insns[0]
     if (
-        ins0.mnemonic == "cmp"
+        project.arch.name == "AMD64"
+        and ins0.mnemonic == "cmp"
         and len(ins0.operands) == 2
         and ins0.operands[0].type == capstone.x86.X86_OP_REG
         and ins0.operands[0].reg == capstone.x86.X86_REG_RCX
@@ -25,6 +26,20 @@ def is_function_security_check_cookie(func, project, security_cookie_addr: int) 
         and ins0.operands[1].mem.base == capstone.x86.X86_REG_RIP
         and ins0.operands[1].mem.index == 0
         and ins0.operands[1].mem.disp + ins0.address + ins0.size == security_cookie_addr
+    ):
+        ins1 = block.capstone.insns[1]
+        if ins1.mnemonic == "jne":
+            return True
+    if (
+        project.arch.name == "X86"
+        and ins0.mnemonic == "cmp"
+        and len(ins0.operands) == 2
+        and ins0.operands[0].type == capstone.x86.X86_OP_REG
+        and ins0.operands[0].reg == capstone.x86.X86_REG_ECX
+        and ins0.operands[1].type == capstone.x86.X86_OP_MEM
+        and ins0.operands[1].mem.base == 0
+        and ins0.operands[1].mem.disp == security_cookie_addr
+        and ins0.operands[1].mem.index == 0
     ):
         ins1 = block.capstone.insns[1]
         if ins1.mnemonic == "jne":
@@ -63,12 +78,22 @@ def is_function_security_init_cookie(func: Function, project, security_cookie_ad
             continue
         last_insn = block.capstone.insns[-1]
         if (
-            last_insn.mnemonic == "mov"
+            project.arch.name == "AMD64"
+            and last_insn.mnemonic == "mov"
             and len(last_insn.operands) == 2
             and last_insn.operands[0].type == capstone.x86.X86_OP_MEM
             and last_insn.operands[0].mem.base == capstone.x86.X86_REG_RIP
             and last_insn.operands[0].mem.index == 0
             and last_insn.operands[0].mem.disp + last_insn.address + last_insn.size == security_cookie_addr
+            and last_insn.operands[1].type == capstone.x86.X86_OP_REG
+        ) or (
+            project.arch.name == "X86"
+            and last_insn.mnemonic == "mov"
+            and len(last_insn.operands) == 2
+            and last_insn.operands[0].type == capstone.x86.X86_OP_MEM
+            and last_insn.operands[0].mem.base == 0
+            and last_insn.operands[0].mem.index == 0
+            and last_insn.operands[0].mem.disp == security_cookie_addr
             and last_insn.operands[1].type == capstone.x86.X86_OP_REG
         ):
             return True
