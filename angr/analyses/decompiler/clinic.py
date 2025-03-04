@@ -2951,7 +2951,7 @@ class Clinic(Analysis):
                     if self.project.kb.functions.contains_addr(last_stmt.target.value)
                     else None
                 )
-                if func is not None and func.name == "__chkstk":
+                if func is not None and (func.name == "__chkstk" or func.info.get("is_alloca_probe", False) is True):
                     # get rid of this call
                     node.statements = node.statements[:-1]
                     if self.project.arch.call_pushes_ret and node.statements:
