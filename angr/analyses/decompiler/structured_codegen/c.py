@@ -35,6 +35,7 @@ from angr.sim_type import (
     SimTypeInt128,
     SimTypeInt256,
     SimTypeInt512,
+    SimCppClass,
 )
 from angr.knowledge_plugins.functions import Function
 from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -157,6 +158,19 @@ def guess_value_type(value: int, project: angr.Project) -> SimType | None:
     return None
 
 
+def type_equals(t0: SimType, t1: SimType) -> bool:
+    if isinstance(t0, SimCppClass) and isinstance(t1, SimTypeBottom):
+        t0, t1 = t1, t0
+    if isinstance(t0, SimTypeBottom) and isinstance(t1, SimCppClass):  # noqa: SIM102
+        if (
+            t1.name == "std::string"
+            and t0.label
+            == "class std::basic_string<char a0, struct std::char_traits<char> a1, class std::allocator<char>>"
+        ):
+            return True
+    return t0 == t1
+
+
 def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
@@ -165,7 +179,10 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
         if full:
             # struct def preamble
             yield indent_str, None
-            yield "typedef struct ", None
+            if isinstance(ty, SimCppClass):
+                yield "class ", None
+            else:
+                yield "typedef struct ", None
             yield ty.name, ty
             yield " {\n", None
 
@@ -2799,17 +2816,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if offset == 0:
             data_type = renegotiate_type(data_type, base_type)
-            if base_type == data_type or (
+            if type_equals(base_type, data_type) or (
                 base_type.size is not None and data_type.size is not None and base_type.size < data_type.size
             ):
                 # case 1: we're done because we found it
                 # case 2: we're done because we can never find it and we might as well stop early
                 if base_expr:
-                    if base_type != data_type:
+                    if not type_equals(base_type, data_type):
                         return _force_type_cast(base_type, data_type, base_expr)
                     return base_expr
 
-                if base_type != data_type:
+                if not type_equals(base_type, data_type):
                     return _force_type_cast(base_type, data_type, expr)
                 return CUnaryOp("Dereference", expr, codegen=self)
 
@@ -3266,13 +3283,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         csrc = self._handle(stmt.src, lvalue=False)
         cdst = None
 
+        src_type = csrc.type
+        dst_type = src_type
+        if hasattr(stmt, "type"):
+            src_type = stmt.type.get("src", None)
+            dst_type = stmt.type.get("dst", None)
+
         if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
 
             def negotiate(old_ty, proposed_ty):
                 # transfer casts from the dst to the src if possible
                 # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
                 nonlocal csrc
-                if old_ty != proposed_ty and qualifies_for_simple_cast(old_ty, proposed_ty):
+                if not type_equals(old_ty, proposed_ty) and qualifies_for_simple_cast(old_ty, proposed_ty):
                     csrc = CTypeCast(csrc.type, proposed_ty, csrc, codegen=self)
                     return proposed_ty
                 return old_ty
@@ -3287,7 +3310,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 assert type(offset) is int  # I refuse to deal with the alternative
 
                 cdst = self._access_constant_offset(
-                    self._get_variable_reference(cvar), offset, csrc.type, True, negotiate
+                    self._get_variable_reference(cvar), offset, dst_type, True, negotiate
                 )
 
         if cdst is None:
