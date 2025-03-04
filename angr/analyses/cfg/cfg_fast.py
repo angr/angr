@@ -1842,7 +1842,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         if (
             self.project.simos is not None
-            and self.project.arch.name == "AMD64"
+            and self.project.arch.name in {"X86", "AMD64"}
             and self.project.simos.name == "Win32"
             and isinstance(self.project.loader.main_object, cle.PE)
         ):

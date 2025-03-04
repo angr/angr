@@ -110,8 +110,11 @@ class WinStackCanarySimplifier(OptimizationPass):
                     _l.debug("Cannot find the statement calling _security_check_cookie() in the predecessor.")
                     continue
 
-                # TODO: Support x86
-                canary_storing_stmt_idx = self._find_amd64_canary_storing_stmt(pred, store_offset)
+                canary_storing_stmt_idx = (
+                    self._find_amd64_canary_storing_stmt(pred, store_offset)
+                    if self.project.arch.name == "AMD64"
+                    else self._find_x86_canary_storing_stmt(pred, store_offset)
+                )
                 if canary_storing_stmt_idx is None:
                     _l.debug("Cannot find the canary check statement in the predecessor.")
                     continue
@@ -264,6 +267,59 @@ class WinStackCanarySimplifier(OptimizationPass):
                     isinstance(stmt.src.operands[0], ailment.Expr.VirtualVariable)
                     and stmt.src.operands[0].was_reg
                     and stmt.src.operands[0].reg_offset == self.project.arch.registers["rcx"][0]
+                    and isinstance(stmt.src.operands[1], ailment.Expr.StackBaseOffset)
+                )
+            ):
+                return idx
+        return None
+
+    def _find_x86_canary_storing_stmt(self, block, canary_value_stack_offset):
+        load_stmt_idx = None
+
+        for idx, stmt in enumerate(block.statements):
+            # when we are lucky, we have one instruction
+            if (
+                (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                    and stmt.dst.was_reg
+                    and stmt.dst.reg_offset == self.project.arch.registers["eax"][0]
+                )
+                and isinstance(stmt.src, ailment.Expr.BinaryOp)
+                and stmt.src.op == "Xor"
+            ):
+                op0, op1 = stmt.src.operands
+                if (
+                    isinstance(op0, ailment.Expr.Load)
+                    and isinstance(op0.addr, ailment.Expr.StackBaseOffset)
+                    and op0.addr.offset == canary_value_stack_offset
+                ) and isinstance(op1, ailment.Expr.StackBaseOffset):
+                    # found it
+                    return idx
+            # or when we are unlucky, we have two instructions...
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.reg_offset == self.project.arch.registers["eax"][0]
+                and isinstance(stmt.src, ailment.Expr.Load)
+                and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
+                and stmt.src.addr.offset == canary_value_stack_offset
+            ):
+                load_stmt_idx = idx
+            if (
+                load_stmt_idx is not None
+                and idx >= load_stmt_idx + 1
+                and (
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                    and stmt.dst.was_reg
+                    and isinstance(stmt.src, ailment.Expr.BinaryOp)
+                    and stmt.src.op == "Xor"
+                )
+                and (
+                    isinstance(stmt.src.operands[0], ailment.Expr.VirtualVariable)
+                    and stmt.src.operands[0].was_reg
+                    and stmt.src.operands[0].reg_offset == self.project.arch.registers["eax"][0]
                     and isinstance(stmt.src.operands[1], ailment.Expr.StackBaseOffset)
                 )
             ):
