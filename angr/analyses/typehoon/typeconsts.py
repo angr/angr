@@ -211,10 +211,11 @@ class Array(TypeConstant):
 
 
 class Struct(TypeConstant):
-    def __init__(self, fields=None, name=None, field_names=None):
+    def __init__(self, fields=None, name=None, field_names=None, is_cppclass: bool = False):
         self.fields = {} if fields is None else fields  # offset to type
         self.name = name
         self.field_names = field_names
+        self.is_cppclass = is_cppclass
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
@@ -236,9 +237,9 @@ class Struct(TypeConstant):
 
     @memoize
     def __repr__(self, memo=None):
-        prefix = "struct"
+        prefix = "CppClass" if self.is_cppclass else "struct"
         if self.name:
-            prefix = f"struct {self.name}"
+            prefix = f"{prefix} {self.name}"
         return (
             prefix
             + "{"
