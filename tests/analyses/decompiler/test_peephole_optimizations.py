@@ -9,8 +9,9 @@ import os
 import unittest
 import archinfo
 import ailment
+from ailment.expression import BinaryOp, Const
 import angr
-from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences
+from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences, EagerEvaluation
 
 from tests.common import bin_location
 
@@ -44,6 +45,22 @@ class TestPeepholeOptimizations(unittest.TestCase):
         opt = ConstantDereferences(proj, proj.kb, 0)
         optimized = opt.optimize(expr)
         assert optimized is None
+
+    def test_eager_eval_mod(self):
+        proj = angr.load_shellcode(b"\x90", "AMD64")
+
+        opt = EagerEvaluation(proj, proj.kb)
+
+        # Optimize 12 % 5 --> 2
+        expr = BinaryOp(None, "Mod", [Const(None, None, 12, 32), Const(None, None, 5, 32)])
+        expr_opt = opt.optimize(expr)
+        assert isinstance(expr_opt, Const)
+        assert expr_opt.value == 2
+
+        # Don't optimize x % 0
+        expr = BinaryOp(None, "Mod", [Const(None, None, 12, 32), Const(None, None, 0, 32)])
+        expr_opt = opt.optimize(expr)
+        assert expr_opt is None
 
 
 if __name__ == "__main__":

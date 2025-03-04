@@ -222,6 +222,17 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     )
                     return BinaryOp(expr.idx, "Div", (mul, new_const_0), expr.signed, bits=expr.bits, **expr.tags)
 
+        elif expr.op == "Mod":
+            op0, op1 = expr.operands
+            if (
+                isinstance(op0, Const)
+                and isinstance(op0.value, int)
+                and isinstance(op1, Const)
+                and isinstance(op1.value, int)
+                and op1.value != 0
+            ):
+                return Const(expr.idx, None, op0.value % op1.value, expr.bits, **expr.tags)
+
         elif expr.op in {"Shr", "Sar"} and isinstance(expr.operands[1], Const):
             expr0, expr1 = expr.operands
             if isinstance(expr0, BinaryOp) and expr0.op == "Shr" and isinstance(expr0.operands[1], Const):
