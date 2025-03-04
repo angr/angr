@@ -105,7 +105,10 @@ class TypeTranslator:
 
         name = tc.name if tc.name else self.struct_name()
 
-        s = sim_type.SimStruct({}, name=name).with_arch(self.arch)
+        if tc.is_cppclass:
+            s = sim_type.SimCppClass(name=name).with_arch(self.arch)
+        else:
+            s = sim_type.SimStruct({}, name=name).with_arch(self.arch)
         self.structs[tc] = s
 
         next_offset = 0
