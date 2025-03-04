@@ -161,6 +161,12 @@ class TypeTranslator:
         self._has_nonexistent_ref = True
         return SimTypeTempRef(tc.typevar)
 
+    def _translate_Float32(self, tc: typeconsts.Float32) -> sim_type.SimTypeFloat:  # pylint:disable=unused-argument
+        return sim_type.SimTypeFloat().with_arch(self.arch)
+
+    def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimTypeDouble:  # pylint:disable=unused-argument
+        return sim_type.SimTypeDouble().with_arch(self.arch)
+
     #
     # Backpatching
     #
@@ -229,6 +235,12 @@ class TypeTranslator:
             return typeconsts.Pointer64(base)
         raise TypeError(f"Unsupported pointer size {self.arch.bits}")
 
+    def _translate_SimTypeFloat(self, st: sim_type.SimTypeFloat) -> typeconsts.Float32:
+        return typeconsts.Float32()
+
+    def _translate_SimTypeDouble(self, st: sim_type.SimTypeDouble) -> typeconsts.Float64:
+        return typeconsts.Float64()
+
 
 TypeConstHandlers = {
     typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
@@ -243,6 +255,8 @@ TypeConstHandlers = {
     typeconsts.Int256: TypeTranslator._translate_Int256,
     typeconsts.Int512: TypeTranslator._translate_Int512,
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
+    typeconsts.Float32: TypeTranslator._translate_Float32,
+    typeconsts.Float64: TypeTranslator._translate_Float64,
 }
 
 
@@ -257,4 +271,6 @@ SimTypeHandlers = {
     sim_type.SimTypeInt512: TypeTranslator._translate_SimTypeInt512,
     sim_type.SimStruct: TypeTranslator._translate_SimStruct,
     sim_type.SimTypeArray: TypeTranslator._translate_SimTypeArray,
+    sim_type.SimTypeFloat: TypeTranslator._translate_SimTypeFloat,
+    sim_type.SimTypeDouble: TypeTranslator._translate_SimTypeDouble,
 }

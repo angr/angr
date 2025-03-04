@@ -11,8 +11,10 @@ from angr.sim_type import (
     SimTypePointer,
     SimStruct,
     SimTypeArray,
+    SimTypeFloat,
+    SimTypeDouble,
 )
-from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64, Struct, Array
+from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64, Struct, Array, Float32, Float64
 
 if TYPE_CHECKING:
     from .typeconsts import TypeConstant
@@ -79,6 +81,12 @@ class TypeLifter:
         elem_type = self.lift(ty.elem_type)
         return Array(elem_type, count=ty.length)
 
+    def _lift_SimTypeFloat(self, ty: SimTypeFloat) -> Float32:  # pylint:disable=unused-argument,no-self-use
+        return Float32()
+
+    def _lift_SimTypeDouble(self, ty: SimTypeDouble) -> Float64:  # pylint:disable=unused-argument,no-self-use
+        return Float64()
+
 
 _mapping = {
     SimTypeChar: TypeLifter._lift_SimTypeChar,
@@ -89,4 +97,6 @@ _mapping = {
     SimTypePointer: TypeLifter._lift_SimTypePointer,
     SimStruct: TypeLifter._lift_SimStruct,
     SimTypeArray: TypeLifter._lift_SimTypeArray,
+    SimTypeFloat: TypeLifter._lift_SimTypeFloat,
+    SimTypeDouble: TypeLifter._lift_SimTypeDouble,
 }
