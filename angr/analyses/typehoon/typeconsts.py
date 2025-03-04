@@ -119,18 +119,18 @@ class FloatBase(TypeConstant):
         return "floatbase"
 
 
-class Float(FloatBase):
+class Float32(FloatBase):
     SIZE = 4
 
     def __repr__(self, memo=None):
-        return "float"
+        return "float32"
 
 
-class Double(FloatBase):
+class Float64(FloatBase):
     SIZE = 8
 
     def __repr__(self, memo=None):
-        return "double"
+        return "float64"
 
 
 class Pointer(TypeConstant):
@@ -319,7 +319,7 @@ def int_type(bits: int) -> Int:
 
 def float_type(bits: int) -> FloatBase | None:
     if bits == 32:
-        return Float()
+        return Float32()
     if bits == 64:
-        return Double()
+        return Float64()
     return None
