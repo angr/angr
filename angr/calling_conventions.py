@@ -1335,6 +1335,21 @@ class SimCCMicrosoftCdecl(SimCCCdecl):
     STRUCT_RETURN_THRESHOLD = 64
 
 
+class SimCCMicrosoftThiscall(SimCCCdecl):
+    CALLEE_CLEANUP = True
+    ARG_REGS = ["ecx"]
+    CALLER_SAVED_REGS = ["eax", "ecx", "edx"]
+    STRUCT_RETURN_THRESHOLD = 64
+
+    def arg_locs(self, prototype) -> list[SimFunctionArgument]:
+        if prototype._arch is None:
+            prototype = prototype.with_arch(self.arch)
+        session = self.arg_session(prototype.returnty)
+        if not prototype.args:
+            return []
+        return [SimRegArg("ecx", self.arch.bytes)] + [self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]]
+
+
 class SimCCStdcall(SimCCMicrosoftCdecl):
     CALLEE_CLEANUP = True
 
@@ -2317,7 +2332,7 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
         "default": [SimCCCdecl],
         "Linux": [SimCCCdecl],
         "CGC": [SimCCCdecl],
-        "Win32": [SimCCMicrosoftCdecl, SimCCMicrosoftFastcall],
+        "Win32": [SimCCMicrosoftCdecl, SimCCMicrosoftFastcall, SimCCMicrosoftThiscall],
     },
     "ARMEL": {
         "default": [SimCCARM],

@@ -13,7 +13,14 @@ import ailment
 
 from angr.code_location import ExternalCodeLocation
 
-from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc
+from angr.calling_conventions import (
+    SimFunctionArgument,
+    SimRegArg,
+    SimStackArg,
+    SimCC,
+    default_cc,
+    SimCCMicrosoftThiscall,
+)
 from angr.sim_type import (
     SimTypeInt,
     SimTypeFunction,
@@ -367,7 +374,11 @@ class CallingConventionAnalysis(Analysis):
         if not parsed or len(parsed) != 1:
             return None
         proto = next(iter(parsed.values()))
-        cc = default_cc(self.project.arch.name, self.project.simos.name)(self.project.arch)
+        if self.project.simos.name == "Win32" and self.project.arch.name == "X86" and proto.convention == "__thiscall":
+            cc_cls = SimCCMicrosoftThiscall
+        else:
+            cc_cls = default_cc(self.project.arch.name, self.project.simos.name)
+        cc = cc_cls(self.project.arch)
         return cc, proto, None
 
     def _analyze_function(self) -> tuple[SimCC, SimTypeFunction] | None:
