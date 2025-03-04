@@ -12,20 +12,24 @@ import ailment
 from ailment.expression import VirtualVariable
 
 import angr.errors
+from angr import SIM_TYPE_COLLECTIONS
 from angr.analyses import AnalysesHub
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.block import Block
 from angr.errors import AngrVariableRecoveryError, SimEngineError
 from angr.knowledge_plugins import Function
+from angr.knowledge_plugins.key_definitions import atoms
 from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
 from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.analyses import ForwardAnalysis, visitors
 from angr.analyses.typehoon.typevars import Equivalence, TypeVariable, TypeVariables, Subtype, DerivedTypeVariable
-from angr.analyses.typehoon.typeconsts import Int
+from angr.analyses.typehoon.typeconsts import Int, TypeConstant, BottomType, TopType
+from angr.analyses.typehoon.lifter import TypeLifter
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
 import contextlib
+
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
@@ -241,6 +245,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         unify_variables=True,
         func_arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         vvar_to_vvar: dict[int, int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -269,8 +274,17 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._func_arg_vvars = func_arg_vvars
         self._unify_variables = unify_variables
 
+        # handle type hints
+        self.vvar_type_hints = {}
+        if type_hints:
+            self._parse_type_hints(type_hints)
+
         self._ail_engine: SimEngineVRAIL = SimEngineVRAIL(
-            self.project, self.kb, call_info=call_info, vvar_to_vvar=self.vvar_to_vvar
+            self.project,
+            self.kb,
+            call_info=call_info,
+            vvar_to_vvar=self.vvar_to_vvar,
+            vvar_type_hints=self.vvar_type_hints,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -616,6 +630,23 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
             if adjusted:
                 state.register_region.store(self.project.arch.sp_offset, sp_v)
+
+    def _parse_type_hints(self, type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]) -> None:
+        self.vvar_type_hints = {}
+        for loc, type_hint_str in type_hints:
+            if isinstance(loc, atoms.VirtualVariable):
+                type_hint = self._parse_type_hint(type_hint_str)
+                if type_hint is not None:
+                    self.vvar_type_hints[loc.varid] = type_hint
+            # TODO: Handle other types of locations
+
+    def _parse_type_hint(self, type_hint_str: str) -> TypeConstant | None:
+        ty = SIM_TYPE_COLLECTIONS["cpp::std"].get(type_hint_str)
+        if ty is None:
+            return None
+        ty = ty.with_arch(self.project.arch)
+        lifted = TypeLifter(self.project.arch.bits).lift(ty)
+        return None if isinstance(lifted, (BottomType, TopType)) else lifted
 
 
 AnalysesHub.register_default("VariableRecoveryFast", VariableRecoveryFast)
