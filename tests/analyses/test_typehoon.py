@@ -8,6 +8,7 @@ import os
 import unittest
 
 import angr
+from angr.sim_type import SimTypeFloat
 from angr.analyses.typehoon.typevars import (
     TypeVariable,
     DerivedTypeVariable,
@@ -17,7 +18,8 @@ from angr.analyses.typehoon.typevars import (
     Load,
     HasField,
 )
-from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64
+from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64, Float32
+from angr.analyses.typehoon.translator import TypeTranslator
 
 from tests.common import bin_location
 
@@ -115,6 +117,20 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(t0_solution.basetype.fields[0], Pointer64)
         assert t0_solution.basetype.fields[0].basetype is t0_solution.basetype
         assert isinstance(t0_solution.basetype.fields[4], Int32)
+
+
+class TestTypeTranslator(unittest.TestCase):
+    def test_tc2simtype(self):
+        tx = TypeTranslator()
+        tc = Float32()
+        (st, _) = tx.tc2simtype(tc)
+        assert isinstance(st, SimTypeFloat)
+
+    def test_simtype2tc(self):
+        tx = TypeTranslator()
+        st = SimTypeFloat()
+        tc = tx.simtype2tc(st)
+        assert isinstance(tc, Float32)
 
 
 if __name__ == "__main__":
