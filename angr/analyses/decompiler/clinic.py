@@ -18,6 +18,7 @@ from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.key_definitions import atoms
 from angr.codenode import BlockNode
 from angr.utils import timethis
 from angr.utils.graph import GraphUtils
@@ -505,11 +506,20 @@ class Clinic(Analysis):
         self._update_progress(37.0, text="Tracking stack pointers")
         spt = self._track_stack_pointers()
 
+        preserve_vvar_ids: set[int] = set()
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] = []
+
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
         self._update_progress(38.0, text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, cache=block_simplification_cache)
+        ail_graph = self._simplify_blocks(
+            ail_graph,
+            stack_pointer_tracker=spt,
+            cache=block_simplification_cache,
+            preserve_vvar_ids=preserve_vvar_ids,
+            type_hints=type_hints,
+        )
         self._rewrite_alloca(ail_graph)
 
         # Run simplification passes
@@ -532,7 +542,13 @@ class Clinic(Analysis):
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
         self._update_progress(48.0, text="Simplifying blocks 2")
-        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, cache=block_simplification_cache)
+        ail_graph = self._simplify_blocks(
+            ail_graph,
+            stack_pointer_tracker=spt,
+            cache=block_simplification_cache,
+            preserve_vvar_ids=preserve_vvar_ids,
+            type_hints=type_hints,
+        )
 
         # rewrite (qualified) stack variables into SSA form
         ail_graph = self._transform_to_ssa_level1(ail_graph, func_args)
@@ -544,11 +560,13 @@ class Clinic(Analysis):
         # Rust-specific; only call this on Rust binaries when we can identify language and compiler
         ail_graph = self._rewrite_rust_probestack_call(ail_graph)
         # Windows-specific
-        ail_graph = self._rewrite_windows_stkchk_call(ail_graph)
+        ail_graph = self._rewrite_windows_chkstk_call(ail_graph)
 
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
-        _, stackarg_offsets, removed_vvar_ids = self._make_callsites(ail_graph, func_args, stack_pointer_tracker=spt)
+        _, stackarg_offsets, removed_vvar_ids = self._make_callsites(
+            ail_graph, func_args, stack_pointer_tracker=spt, preserve_vvar_ids=preserve_vvar_ids
+        )
 
         # Run simplification passes
         self._update_progress(53.0, text="Running simplifications 2")
@@ -565,6 +583,7 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             removed_vvar_ids=removed_vvar_ids,
             arg_vvars=arg_vvars,
+            preserve_vvar_ids=preserve_vvar_ids,
         )
 
         # After global optimization, there might be more chances for peephole optimizations.
@@ -574,6 +593,8 @@ class Clinic(Analysis):
             ail_graph,
             stack_pointer_tracker=spt,
             cache=block_simplification_cache,
+            preserve_vvar_ids=preserve_vvar_ids,
+            type_hints=type_hints,
         )
 
         # Run simplification passes
@@ -592,6 +613,7 @@ class Clinic(Analysis):
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=arg_vvars,
+            preserve_vvar_ids=preserve_vvar_ids,
         )
 
         self._update_progress(75.0, text="Simplifying blocks 4")
@@ -599,6 +621,8 @@ class Clinic(Analysis):
             ail_graph,
             stack_pointer_tracker=spt,
             cache=block_simplification_cache,
+            preserve_vvar_ids=preserve_vvar_ids,
+            type_hints=type_hints,
         )
 
         # Simplify the entire function for the fourth time
@@ -611,6 +635,7 @@ class Clinic(Analysis):
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=arg_vvars,
+            preserve_vvar_ids=preserve_vvar_ids,
         )
 
         # update arg_list
@@ -623,7 +648,7 @@ class Clinic(Analysis):
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
-        variable_kb = self._recover_and_link_variables(ail_graph, arg_list, arg_vvars, vvar2vvar)
+        variable_kb = self._recover_and_link_variables(ail_graph, arg_list, arg_vvars, vvar2vvar, type_hints)
 
         # Run simplification passes
         self._update_progress(85.0, text="Running simplifications 4")
@@ -1226,6 +1251,8 @@ class Clinic(Analysis):
         ail_graph: networkx.DiGraph,
         stack_pointer_tracker=None,
         cache: dict[ailment.Block, NamedTuple] | None = None,
+        preserve_vvar_ids: set[int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
     ):
         """
         Simplify all blocks in self._blocks.
@@ -1244,6 +1271,8 @@ class Clinic(Analysis):
                 ail_block,
                 stack_pointer_tracker=stack_pointer_tracker,
                 cache=cache,
+                preserve_vvar_ids=preserve_vvar_ids,
+                type_hints=type_hints,
             )
             key = ail_block.addr, ail_block.idx
             blocks_by_addr_and_idx[key] = simplified
@@ -1259,7 +1288,14 @@ class Clinic(Analysis):
 
         return ail_graph
 
-    def _simplify_block(self, ail_block, stack_pointer_tracker=None, cache=None):
+    def _simplify_block(
+        self,
+        ail_block,
+        stack_pointer_tracker=None,
+        cache=None,
+        preserve_vvar_ids: set[int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+    ):
         """
         Simplify a single AIL block.
 
@@ -1286,6 +1322,8 @@ class Clinic(Analysis):
             peephole_optimizations=self.peephole_optimizations,
             cached_reaching_definitions=cached_rd,
             cached_propagator=cached_prop,
+            preserve_vvar_ids=preserve_vvar_ids,
+            type_hints=type_hints,
         )
         # update the cache
         if cache is not None:
@@ -1308,6 +1346,7 @@ class Clinic(Analysis):
         rewrite_ccalls=True,
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
+        preserve_vvar_ids: set[int] | None = None,
     ) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
@@ -1326,6 +1365,7 @@ class Clinic(Analysis):
                 rewrite_ccalls=rewrite_ccalls,
                 removed_vvar_ids=removed_vvar_ids,
                 arg_vvars=arg_vvars,
+                preserve_vvar_ids=preserve_vvar_ids,
             )
             if not simplified:
                 break
@@ -1343,6 +1383,7 @@ class Clinic(Analysis):
         rewrite_ccalls=True,
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
+        preserve_vvar_ids: set[int] | None = None,
     ):
         """
         Simplify the entire function once.
@@ -1367,6 +1408,7 @@ class Clinic(Analysis):
             removed_vvar_ids=removed_vvar_ids,
             arg_vvars=arg_vvars,
             secondary_stackvars=self.secondary_stackvars,
+            avoid_vvar_ids=preserve_vvar_ids,
         )
         # cache the simplifier's RDA analysis
         self.reaching_definitions = simp._reaching_definitions
@@ -1550,7 +1592,13 @@ class Clinic(Analysis):
         return []
 
     @timethis
-    def _make_callsites(self, ail_graph, func_args: set[ailment.Expr.VirtualVariable], stack_pointer_tracker=None):
+    def _make_callsites(
+        self,
+        ail_graph,
+        func_args: set[ailment.Expr.VirtualVariable],
+        stack_pointer_tracker=None,
+        preserve_vvar_ids: set[int] | None = None,
+    ):
         """
         Simplify all function call statements.
         """
@@ -1588,6 +1636,7 @@ class Clinic(Analysis):
                     fail_fast=self._fail_fast,
                     stack_pointer_tracker=stack_pointer_tracker,
                     peephole_optimizations=self.peephole_optimizations,
+                    preserve_vvar_ids=preserve_vvar_ids,
                 )
                 return simp.result_block
             return None
@@ -1663,6 +1712,7 @@ class Clinic(Analysis):
         arg_list: list,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]],
         vvar2vvar: dict[int, int],
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]],
     ):
         # variable recovery
         tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
@@ -1677,6 +1727,7 @@ class Clinic(Analysis):
             unify_variables=False,
             func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
+            type_hints=type_hints,
         )
         # get ground-truth types
         var_manager = tmp_kb.variables[self.function.addr]
@@ -2937,7 +2988,7 @@ class Clinic(Analysis):
                     break
         return ail_graph
 
-    def _rewrite_windows_stkchk_call(self, ail_graph) -> networkx.DiGraph:
+    def _rewrite_windows_chkstk_call(self, ail_graph) -> networkx.DiGraph:
         if not (self.project.simos is not None and self.project.simos.name == "Win32"):
             return ail_graph
 

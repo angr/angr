@@ -30,8 +30,15 @@ class SimEngineVRAIL(
     The engine for variable recovery on AIL.
     """
 
-    def __init__(self, *args, call_info=None, vvar_to_vvar: dict[int, int] | None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        *args,
+        call_info=None,
+        vvar_to_vvar: dict[int, int] | None,
+        vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None,
+        **kwargs,
+    ):
+        super().__init__(*args, vvar_type_hints=vvar_type_hints, **kwargs)
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}

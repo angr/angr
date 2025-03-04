@@ -1495,6 +1495,15 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt, (Assignment, Store)):
                         # Special logic for Assignment and Store statements
 
+                        # if this statement writes to a virtual variable that must be preserved, we ignore it
+                        if (
+                            isinstance(stmt, Assignment)
+                            and isinstance(stmt.dst, VirtualVariable)
+                            and stmt.dst.varid in self._avoid_vvar_ids
+                        ):
+                            new_statements.append(stmt)
+                            continue
+
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
                         codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                         if codeloc in self._assignments_to_remove:

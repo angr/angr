@@ -70,9 +70,12 @@ class SimEngineVRBase(
     and storing data.
     """
 
-    def __init__(self, project, kb):
+    def __init__(self, project, kb, vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None):
         super().__init__(project)
 
+        self.vvar_type_hints: dict[int, typeconsts.TypeConstant] = (
+            vvar_type_hints if vvar_type_hints is not None else {}
+        )
         self.kb = kb
         self.vvar_region: dict[int, Any] = {}
 
@@ -453,13 +456,19 @@ class SimEngineVRBase(
                 # assign a new type variable to it
                 typevar = typevars.TypeVariable()
                 self.state.typevars.add_type_variable(variable, typevar)
-                # create constraints
             else:
                 typevar = self.state.typevars.get_type_variable(variable)
+
+            # create constraints accordingly
+
             self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
-            # the constraint below is a default constraint that may conflict with more specific ones with different
-            # sizes; we post-process at the very end of VRA to remove conflicting default constraints.
-            self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
+            if vvar.varid in self.vvar_type_hints:
+                # handle type hints
+                self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
+            else:
+                # the constraint below is a default constraint that may conflict with more specific ones with different
+                # sizes; we post-process at the very end of VRA to remove conflicting default constraints.
+                self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
         return variable
 
@@ -1131,6 +1140,11 @@ class SimEngineVRBase(
         if var is not None and var.size != vvar.size:
             # ignore the variable and the associated type if we are only reading part of the variable
             return RichR(value, variable=var)
+
+        # handle type hints
+        if vvar.varid in self.vvar_type_hints:
+            self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
+
         return RichR(value, variable=var, typevar=typevar)
 
     def _create_access_typevar(
