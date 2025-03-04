@@ -173,6 +173,20 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         if def_.size in stackvar_locs[off] and def_.size < full_sz:
                             udef_to_defs[("stack", off, def_.size)].add(def_)
                             udef_to_blockkeys[("stack", off, def_.size)].add((loc.block_addr, loc.block_idx))
+            elif isinstance(def_, StackBaseOffset):
+                sz = 1
+                idx_begin = bisect_left(sorted_stackvar_offs, def_.offset)
+                for i in range(idx_begin, len(sorted_stackvar_offs)):
+                    off = sorted_stackvar_offs[i]
+                    if off >= def_.offset + sz:
+                        break
+                    full_sz = max(stackvar_locs[off])
+                    udef_to_defs[("stack", off, full_sz)].add(def_)
+                    udef_to_blockkeys[("stack", off, full_sz)].add((loc.block_addr, loc.block_idx))
+                    # add a definition for the partial stack variable
+                    if sz in stackvar_locs[off] and sz < full_sz:
+                        udef_to_defs[("stack", off, sz)].add(def_)
+                        udef_to_blockkeys[("stack", off, sz)].add((loc.block_addr, loc.block_idx))
             elif isinstance(def_, Tmp):
                 # Tmps are local to each block and do not need phi nodes
                 pass
