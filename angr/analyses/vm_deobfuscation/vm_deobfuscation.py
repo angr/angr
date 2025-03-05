@@ -582,6 +582,10 @@ class VMDeobfuscation(Analysis):
 
         pickled_file_name = os.path.dirname(self.project.filename) + "/hunatch_input_cfg_pickle"
         cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
+        import pickle
+        pickled_file_name = os.path.dirname(self.project.filename) + "/rep_movsb_addr_pickle"
+        with open(pickled_file_name, 'wb') as f:
+            pickle.dump(self.project.rep_movsb_addr, f)
 
 
         self.project.kb.cfgs.cfgs = {}
@@ -606,7 +610,10 @@ class VMDeobfuscation(Analysis):
         new_cfg=cfg
         all_symbolic_expr_locations = {}
         import pickle
-
+        prev_node_count=0
+        fixed_point = False
+        if max_symbolizer_iterations is None:
+            max_symbolizer_iterations = 100
         #THe symbolizer should be run till all branches are explored.. Constant loops determine this
         for symb_iter in range(max_symbolizer_iterations):
             proj.merger_top_dict_debug = {}
@@ -665,6 +672,10 @@ class VMDeobfuscation(Analysis):
                                                                   cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs,
                                                                   remove_insts=remove_insts,
                                                                 unroll_same_vpc_loop=unroll_same_vpc_loop)
+            import pickle
+            pickled_file_name = os.path.dirname(self.project.filename) + "/rep_movsb_addr_pickle_"+str(symb_iter)
+            with open(pickled_file_name, 'wb') as f:
+                pickle.dump(self.project.rep_movsb_addr, f)
 
             self.project.kb.cfgs.cfgs = {}
             # clearing the saved states to save space
@@ -685,6 +696,12 @@ class VMDeobfuscation(Analysis):
             self.draw_graph_flag=True
             self.draw_graph(new_cfg, os.path.join(folder_name, str(symb_iter)+"symb_result.svg"))
             self.draw_graph_flag=False
+
+            fixed_point = len(new_cfg.nodes()) == prev_node_count
+            if fixed_point:
+                break
+
+            prev_node_count = max(len(new_cfg.nodes()), prev_node_count)
 
         if themida_split_branches:
             to_split_nodes = self.split_redundant_branch_themida(new_cfg)
