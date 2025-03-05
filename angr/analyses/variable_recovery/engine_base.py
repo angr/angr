@@ -417,6 +417,7 @@ class SimEngineVRBase(
                     vvar.size,
                     ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
                     region=self.func_addr,
+                    base="bp",
                 )
                 self.state.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
             elif vvar.was_parameter:
@@ -1079,6 +1080,7 @@ class SimEngineVRBase(
                         vvar.size,
                         ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
                         region=self.func_addr,
+                        base="bp",
                     )
                     value = self.state.annotate_with_variables(value, [(0, variable)])
                     self.state.variable_manager[self.func_addr].add_variable("stack", vvar.stack_offset, variable)
