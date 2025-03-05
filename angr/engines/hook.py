@@ -53,7 +53,6 @@ class HooksMixin(SuccessorsEngine, ProcedureMixin):
         state = self.state
         if procedure is None:
             procedure = self._lookup_hook(state, procedure)
-        if procedure is None:
             return super().process_successors(successors, procedure=procedure, **kwargs)
 
         if isinstance(procedure.addr, SootAddressDescriptor):
