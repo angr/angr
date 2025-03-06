@@ -1547,7 +1547,7 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID], Analysis):  # pyl
                 reg_sp_si = self._create_stack_region(successor_state, successor_addr)
 
                 # Save the new sp register
-                new_reg_sp_expr = reg_sp_si.annotate(claripy.annotation.RegionAnnotation("global", 0, reg_sp_si))
+                new_reg_sp_expr = reg_sp_si.annotate(claripy.annotation.RegionAnnotation("global", 0))
                 successor_state.regs.sp = new_reg_sp_expr
 
             new_job = VFGJob(
