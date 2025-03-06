@@ -445,10 +445,11 @@ class FactCollector(Analysis):
                             if func_succ.prototype_libname is not None:
                                 # we need to deref the prototype in case it uses SimTypeRef internally
                                 type_collections = []
-                                prototype_lib = SIM_LIBRARIES[func_succ.prototype_libname]
-                                if prototype_lib.type_collection_names:
-                                    for typelib_name in prototype_lib.type_collection_names:
-                                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                                for prototype_lib in SIM_LIBRARIES[func_succ.prototype_libname]:
+                                    if prototype_lib.type_collection_names:
+                                        for typelib_name in prototype_lib.type_collection_names:
+                                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                                if type_collections:
                                     proto = dereference_simtype(proto, type_collections)
 
                             assert isinstance(proto, SimTypeFunction) and proto.returnty is not None

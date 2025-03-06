@@ -22,7 +22,7 @@ class TestPrototypes(unittest.TestCase):
         proj = angr.Project(os.path.join(test_location, "x86_64", "all"), auto_load_libs=False)
 
         func = angr.knowledge_plugins.Function(proj.kb.functions, 0x100000, name="strcmp")
-        func.prototype = angr.SIM_LIBRARIES["libc.so.6"].prototypes[func.name]
+        func.prototype = angr.SIM_LIBRARIES["libc.so.6"][0].prototypes[func.name]
         func.calling_convention = angr.calling_conventions.default_cc(proj.arch.name, platform="Linux")(proj.arch)
 
     def test_find_prototype(self):

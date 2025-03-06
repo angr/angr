@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-SIM_LIBRARIES: dict[str, SimLibrary] = {}
+SIM_LIBRARIES: dict[str, list[SimLibrary]] = {}
 SIM_TYPE_COLLECTIONS: dict[str, SimTypeCollection] = {}
 
 
@@ -147,7 +147,10 @@ class SimLibrary:
         """
         for name in names:
             self.names.append(name)
-            SIM_LIBRARIES[name] = self
+            if name in SIM_LIBRARIES:
+                SIM_LIBRARIES[name].append(self)
+            else:
+                SIM_LIBRARIES[name] = [self]
 
     def set_default_cc(self, arch_name, cc_cls):
         """

@@ -18,7 +18,7 @@ class SimCGC(SimUserland):
     """
 
     def __init__(self, project, **kwargs):
-        super().__init__(project, syscall_library=L["cgcabi"], syscall_addr_alignment=1, name="CGC", **kwargs)
+        super().__init__(project, syscall_library=L["cgcabi"][0], syscall_addr_alignment=1, name="CGC", **kwargs)
 
     # pylint: disable=arguments-differ
     def state_blank(self, flag_page=None, allocate_stack_page_count=0x100, **kwargs):
