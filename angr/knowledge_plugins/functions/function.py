@@ -638,12 +638,12 @@ class Function(Serializable):
         return self.binary.loader.find_symbol(self.addr)
 
     @property
-    def pseudocode(self) -> str:
+    def pseudocode(self) -> str | None:
         """
         :return: the function's pseudocode
         """
         dec = self.project.analyses.Decompiler(self, cfg=self._function_manager._kb.cfgs.get_most_accurate())
-        return dec.codegen.text
+        return dec.codegen.text if dec.codegen else None
 
     def add_jumpout_site(self, node: CodeNode):
         """
