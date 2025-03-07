@@ -10,6 +10,7 @@ from ailment import AILBlockWalkerBase
 
 from angr.code_location import ExternalCodeLocation, CodeLocation
 
+from angr.knowledge_plugins.key_definitions import atoms
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
 from angr.analyses import Analysis, register_analysis
@@ -62,6 +63,8 @@ class BlockSimplifier(Analysis):
         peephole_optimizations: None | (
             Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
         ) = None,
+        preserve_vvar_ids: set[int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
         cached_reaching_definitions=None,
         cached_propagator=None,
     ):
@@ -74,24 +77,35 @@ class BlockSimplifier(Analysis):
         self.func_addr = func_addr
 
         self._stack_pointer_tracker = stack_pointer_tracker
+        self._preserve_vvar_ids = preserve_vvar_ids
+        self._type_hints = type_hints
 
         if peephole_optimizations is None:
-            self._expr_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in EXPR_OPTS]
-            self._stmt_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in STMT_OPTS]
-            self._multistmt_peephole_opts = [cls(self.project, self.kb, self.func_addr) for cls in MULTI_STMT_OPTS]
+            self._expr_peephole_opts = [
+                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                for cls in EXPR_OPTS
+            ]
+            self._stmt_peephole_opts = [
+                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                for cls in STMT_OPTS
+            ]
+            self._multistmt_peephole_opts = [
+                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                for cls in MULTI_STMT_OPTS
+            ]
         else:
             self._expr_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr)
+                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationExprBase)
             ]
             self._stmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr)
+                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationStmtBase)
             ]
             self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr)
+                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationMultiStmtBase)
             ]
