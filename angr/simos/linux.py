@@ -29,7 +29,7 @@ class SimLinux(SimUserland):
     def __init__(self, project, **kwargs):
         super().__init__(
             project,
-            syscall_library=L["linux"],
+            syscall_library=L["linux"][0],
             syscall_addr_alignment=project.arch.instruction_alignment,
             name="Linux",
             **kwargs,
@@ -66,12 +66,12 @@ class SimLinux(SimUserland):
             self.project.hook(self.vsyscall_addr, P["linux_kernel"]["_vsyscall"]())
 
             # there are some functions we MUST use the simprocedures for, regardless of what the user wants
-            self._weak_hook_symbol("__tls_get_addr", L["ld.so"].get("__tls_get_addr", self.arch))  # ld
-            self._weak_hook_symbol("___tls_get_addr", L["ld.so"].get("___tls_get_addr", self.arch))  # ld
+            self._weak_hook_symbol("__tls_get_addr", L["ld.so"][0].get("__tls_get_addr", self.arch))  # ld
+            self._weak_hook_symbol("___tls_get_addr", L["ld.so"][0].get("___tls_get_addr", self.arch))  # ld
             self._weak_hook_symbol(
-                "_dl_get_tls_static_info", L["ld.so"].get("_dl_get_tls_static_info", self.arch)
+                "_dl_get_tls_static_info", L["ld.so"][0].get("_dl_get_tls_static_info", self.arch)
             )  # ld
-            self._weak_hook_symbol("_dl_vdso_vsym", L["libc.so.6"].get("_dl_vdso_vsym", self.arch))  # libc
+            self._weak_hook_symbol("_dl_vdso_vsym", L["libc.so.6"][0].get("_dl_vdso_vsym", self.arch))  # libc
 
             # set up some static data in the loader object...
             _rtld_global = self.project.loader.find_symbol("_rtld_global")

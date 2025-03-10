@@ -76,8 +76,8 @@ each of their common names. For example,
 ``angr/procedures/definitions/linux_loader.py`` contains ``lib = SimLibrary();
 lib.set_library_names('ld.so', 'ld-linux.so', 'ld.so.2', 'ld-linux.so.2',
 'ld-linux-x86_64.so.2')``, so you can access it via
-``angr.SIM_LIBRARIES['ld.so']`` or ``angr.SIM_LIBRARIES['ld-linux.so']`` or any
-of the other names.
+``angr.SIM_LIBRARIES['ld.so'][0]`` or ``angr.SIM_LIBRARIES['ld-linux.so'][0]``
+or any of the other names.
 
 At load time, all the dynamic library dependencies are looked up in
 ``SIM_LIBRARIES`` and their procedures (or stubs!) are hooked into the project's
@@ -96,7 +96,7 @@ Case 2, out-of-tree development, tight integration
 
 If you'd like to implement your procedures outside the angr repository, you can
 do that. You effectively do this by just manually adding your procedures to the
-appropriate SimLibrary. Just call ``angr.SIM_LIBRARIES[libname].add(name,
+appropriate SimLibrary. Just call ``angr.SIM_LIBRARIES[libname][0].add(name,
 proc_cls)`` to do the registration.
 
 Note that this will only work if you do this before the project is loaded with
@@ -196,7 +196,7 @@ Case 2, out-of-tree development, tight integration
 
 You can add syscalls to a SimSyscallLibrary the same way you can add functions
 to a normal SimLibrary, by tweaking the entries in ``angr.SIM_LIBRARIES``. If
-you're this for linux you want ``angr.SIM_LIBRARIES['linux'].add(name,
+you're this for linux you want ``angr.SIM_LIBRARIES['linux'][0].add(name,
 proc_cls)``.
 
 You can register a SimOS with angr from out-of-tree as well - the same

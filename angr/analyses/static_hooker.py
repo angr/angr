@@ -21,7 +21,7 @@ class StaticHooker(Analysis):
     def __init__(self, library, binary=None):
         self.results = {}
         try:
-            lib = SIM_LIBRARIES[library]
+            libs = SIM_LIBRARIES[library]
         except KeyError as err:
             raise AngrValueError(f"No such library {library}") from err
 
@@ -36,14 +36,16 @@ class StaticHooker(Analysis):
                 l.debug("Skipping %s at %#x, already hooked", func.name, func.rebased_addr)
                 continue
 
-            if lib.has_implementation(func.name):
-                proc = lib.get(func.name, self.project.arch)
-                self.results[func.rebased_addr] = proc
-                if self.project.is_hooked(func.rebased_addr):
-                    l.debug("Skipping %s at %#x, already hooked", func.name, func.rebased_addr)
-                else:
-                    self.project.hook(func.rebased_addr, proc)
-                    l.info("Hooked %s at %#x", func.name, func.rebased_addr)
+            for lib in libs:
+                if lib.has_implementation(func.name):
+                    proc = lib.get(func.name, self.project.arch)
+                    self.results[func.rebased_addr] = proc
+                    if self.project.is_hooked(func.rebased_addr):
+                        l.debug("Skipping %s at %#x, already hooked", func.name, func.rebased_addr)
+                    else:
+                        self.project.hook(func.rebased_addr, proc)
+                        l.info("Hooked %s at %#x", func.name, func.rebased_addr)
+                    break
             else:
                 l.debug("Failed to hook %s at %#x", func.name, func.rebased_addr)
 

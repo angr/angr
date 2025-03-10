@@ -315,7 +315,11 @@ class APIObfuscationFinder(Analysis):
 
     @staticmethod
     def is_apiname(name: str) -> bool:
-        return any(not isinstance(lib, SimSyscallLibrary) and lib.has_prototype(name) for lib in SIM_LIBRARIES.values())
+        return any(
+            not isinstance(lib, SimSyscallLibrary) and lib.has_prototype(name)
+            for libs in SIM_LIBRARIES.values()
+            for lib in libs
+        )
 
 
 AnalysesHub.register_default("APIObfuscationFinder", APIObfuscationFinder)
