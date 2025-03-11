@@ -502,7 +502,7 @@ class VMDeobfuscation(Analysis):
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
-                 ail_propagator_init_values=None, unroll_same_vpc_loop=False):
+                 ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -519,6 +519,7 @@ class VMDeobfuscation(Analysis):
         self.allow_global_mem_simplifications = allow_global_mem_simplifications
         self.nodes_to_prune = nodes_to_prune
         calls_as_rets = {}
+        self.project.byte_code_regions=byte_code_regions
 
         DUMP = "dump"
         LOAD = "load"
@@ -4649,7 +4650,7 @@ class VMDeobfuscation(Analysis):
         #     super_graph.add_edge(edge[0], edge[1])
         return super_graph
 
-    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True, super_graph_only=True):
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True, super_graph_only=False):
         if not self.draw_graph_flag:
             print("skip graph drawing")
             return
