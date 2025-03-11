@@ -1250,7 +1250,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             elif isinstance(item, SimState):
                 # SimState
                 state = item.copy()  # pylint: disable=no-member
-                ip = state.solver.eval_one(state.ip)
+                ip = state.partial_symbolic_constraint_solver.eval_one(state.ip)
                 self._reset_state_mode(state, 'fastpath')
 
             else:
@@ -1601,7 +1601,23 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             job.state.globals['cur_vm_vpc'] = None
 
         if self.data_sensitive:
-            if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0:
+            split_same_ip_state = False
+            if len(sim_successors.all_successors) == 1:
+                # special check for VMProtect when conditional check but both jump targets are same, but we still have two unique VPCs, we now need to split into two states
+                # and give them unique VPCs immediately
+                for ast in sim_successors.all_successors[0].regs.ip.leaf_asts():
+                    if isinstance(ast.args[0], str) and ast.args[0].startswith('mba_state_split_cond') and ast.args[0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
+                        split_same_ip_state = True
+                        break
+
+                if split_same_ip_state:
+                    try:
+                        sim_successors.all_successors[0].partial_symbolic_constraint_solver.eval_one(sim_successors.all_successors[0].regs.ip)
+                        #check if it evaluates to one address only, if it does, we need to split the state
+                    except:
+                        # if evaluates to two address, the states are anyway going to split
+                        split_same_ip_state = False
+            if (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0) or split_same_ip_state:
                 # we drop all the unsat successors
                     new_states = []
                     uncon_succ = sim_successors.unconstrained_successors[0]
@@ -1617,7 +1633,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                    # poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
 
-                    if not uncon_succ.solver.symbolic(poss_target):
+                    if not uncon_succ.solver.symbolic(poss_target) and not split_same_ip_state:
                         #import ipdb;ipdb.set_trace()
                         new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                         new_sim_successors.artifacts = sim_successors.artifacts
@@ -1667,8 +1683,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                             # if len(solns) > 2:
                             #     import ipdb;ipdb.set_trace()
+                            cur_addr_mba=None
                             for addr_mba in self.project.load_addr_mba_to_jump_addr_mapping.keys():
                                 if addr_mba.args[0] is state_var_ast:
+                                    cur_addr_mba = addr_mba
                                     for soln in solns:
                                         if soln[1] is True:
                                             ## tuple of (mba_state_var, jumpaddress, loadaddress)
@@ -1689,6 +1707,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                                 new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
                                 new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
+
+                                if split_same_ip_state:
+                                    if soln_pair[1] is True:
+                                        new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[1].args[0]
+                                    elif soln_pair[1] is False:
+                                        new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[2].args[0]
 
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
@@ -2122,7 +2146,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             for src_, dst_ in self._base_graph.edges():
                 if src_.addr == addr:
                     basegraph_successor_addrs.add(dst_.addr)
-            successor_addrs = {s.solver.eval(s.ip) for s in successors}
+            successor_addrs = {s.partial_symbolic_constraint_solver.eval(s.ip) for s in successors}
             extra_successor_addrs = basegraph_successor_addrs - successor_addrs
 
             if all_successors:  # make sure we have a base state to use
@@ -2305,7 +2329,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             else:
                 exit_type_str = "-"
             try:
-                l.debug("|    target: %#x %s [%s] %s", suc.solver.eval_one(suc.ip), successor_status[suc],
+                l.debug("|    target: %#x %s [%s] %s", suc.partial_symbolic_constraint_solver.eval_one(suc.ip), successor_status[suc],
                         exit_type_str, jumpkind)
             except (SimValueError, SimSolverModeError):
                 l.debug("|    target cannot be concretized. %s [%s] %s", successor_status[suc], exit_type_str,
@@ -2465,7 +2489,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # Get target address
         try:
-            target_addr = state.solver.eval_one(state.ip)
+            target_addr = state.partial_symbolic_constraint_solver.eval_one(state.ip)
         except (SimValueError, SimSolverModeError):
             # It cannot be concretized currently. Maybe we can handle it later, maybe it just cannot be concretized
             target_addr = None
@@ -2674,7 +2698,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :param int sp_addr: stack pointer address.
         :param set accessed_registers: set of before accessed registers.
         """
-        se = state.solver
+        se = state.partial_symbolic_constraint_solver
 
         if func is not None and sp_addr is not None:
 
@@ -2966,7 +2990,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 successors.append(suc)
 
             else:
-                ip_int = suc.solver.eval_one(suc.ip)
+                ip_int = suc.partial_symbolic_constraint_solver.eval_one(suc.ip)
 
                 if self._is_address_executable(ip_int) or \
                         self.project.is_hooked(ip_int) or \
@@ -3085,7 +3109,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         if legit_successor.history.jumpkind == 'Ijk_Call':
                             should_resolve = False
                         else:
-                            concrete_target = legit_successor.solver.eval(legit_successor.ip)
+                            concrete_target = legit_successor.partial_symbolic_constraint_solver.eval(legit_successor.ip)
                             if not self.project.loader.find_object_containing(
                                     concrete_target) is self.project.loader.main_object:
                                 should_resolve = False
@@ -3143,7 +3167,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             if symbolic_successors:
                 for suc in symbolic_successors:
                     if o.SYMBOLIC in suc.options:
-                        targets = suc.solver.eval_upto(suc.ip, 32)
+                        targets = suc.partial_symbolic_constraint_solver.eval_upto(suc.ip, 32)
                         if len(targets) < 32:
                             all_successors = []
                             resolved = True
@@ -3187,7 +3211,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                         # Remove successors whose IP doesn't make sense
                         successors = [suc for suc in successors
-                                          if self._is_address_executable(suc.solver.eval_one(suc.ip))]
+                                          if self._is_address_executable(suc.partial_symbolic_constraint_solver.eval_one(suc.ip))]
 
                         # mark jump as resolved if we got successors
                         if successors:
@@ -3543,7 +3567,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     # TODO: segments
                     # Now let's live with this big hack...
                     try:
-                        const = successor_state.solver.eval_one(data.ast)
+                        const = successor_state.partial_symbolic_constraint_solver.eval_one(data.ast)
                     except:  # pylint: disable=bare-except
                         continue
 
@@ -3760,7 +3784,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
             if len(all_jobs) > 1 and all_jobs[-1].history.jumpkind == "Ijk_FakeRet":
-                se = all_jobs[-1].solver
+                se = all_jobs[-1].partial_symbolic_constraint_solver
                 retn_target_addr = se.eval_one(all_jobs[-1].ip, default=0)
                 sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
 
@@ -3771,7 +3795,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             elif jumpkind.startswith('Ijk_Sys') and len(all_jobs) == 1:
                 # This is a syscall. It returns to the same address as itself (with a different jumpkind)
                 retn_target_addr = exit_target
-                se = all_jobs[0].solver
+                se = all_jobs[0].partial_symbolic_constraint_solver
                 sp = se.eval_one(all_jobs[0].regs.sp, default=0)
                 new_call_stack = new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
@@ -3781,7 +3805,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # We don't have a fake return exit available, which means
                 # this call doesn't return.
                 new_call_stack = CallStack()
-                se = all_jobs[-1].solver
+                se = all_jobs[-1].partial_symbolic_constraint_solver
                 sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
 
                 new_call_stack = new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
@@ -3794,7 +3818,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             except SimEmptyCallStackError:
                 pass
 
-            se = all_jobs[-1].solver
+            se = all_jobs[-1].partial_symbolic_constraint_solver
             sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
             old_sp = job.current_stack_pointer
 
@@ -3987,7 +4011,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     continue
 
                 suc = all_successors[0]
-                se = suc.solver
+                se = suc.partial_symbolic_constraint_solver
                 # Examine the path log
                 actions = suc.history.recent_actions
                 sp = se.eval_one(suc.regs.sp, default=0) + self.project.arch.call_sp_fix
