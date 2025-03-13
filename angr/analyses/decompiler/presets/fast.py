@@ -23,6 +23,7 @@ from angr.analyses.decompiler.optimization_passes import (
     SwitchReusedEntryRewriter,
     ConditionConstantPropagation,
     DetermineLoadSizes,
+    EagerStdStringConcatenationPass,
 )
 
 
@@ -51,6 +52,7 @@ preset_fast = DecompilationPreset(
         CallStatementRewriter,
         ConditionConstantPropagation,
         DetermineLoadSizes,
+        EagerStdStringConcatenationPass,
     ],
 )
 

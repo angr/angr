@@ -34,6 +34,7 @@ from .duplication_reverter import DuplicationReverter
 from .switch_reused_entry_rewriter import SwitchReusedEntryRewriter
 from .condition_constprop import ConditionConstantPropagation
 from .determine_load_sizes import DetermineLoadSizes
+from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -70,6 +71,7 @@ ALL_OPTIMIZATION_PASSES = [
     TagSlicer,
     ConditionConstantPropagation,
     DetermineLoadSizes,
+    EagerStdStringConcatenationPass,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -124,6 +126,7 @@ __all__ = (
     "DeadblockRemover",
     "DivSimplifier",
     "DuplicationReverter",
+    "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
     "FlipBooleanCmp",
     "ITEExprConverter",
