@@ -57,6 +57,7 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
             stmt.args
             and len(stmt.args) == 3
             and isinstance(stmt.args[1], UnaryOp)
+            and stmt.args[1].op == "Reference"
             and isinstance(stmt.args[1].operand, VirtualVariable)
             and isinstance(stmt.args[2], Const)
             and isinstance(stmt.ret_expr, VirtualVariable)

@@ -3484,7 +3484,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         inline_string = False
         function_pointer = False
 
-        if reference_values is None and hasattr(expr, "reference_values"):
+        if type_ is None and hasattr(expr, "type"):
+            type_ = expr.type
+
+        if type_ is None and reference_values is None and hasattr(expr, "reference_values"):
             reference_values = expr.reference_values.copy()
             if reference_values:
                 type_ = next(iter(reference_values))
