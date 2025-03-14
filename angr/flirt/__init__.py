@@ -6,7 +6,13 @@ import json
 from collections import defaultdict
 import logging
 
-from angr.analyses.flirt import FlirtSignature, FlirtSignatureParsed, FlirtSignatureError
+from angr.analyses.flirt import (
+    FlirtSignature,
+    FlirtSignatureParsed,
+    FlirtSignatureError,
+    flirt_arch_to_arch_name,
+    flirt_os_type_to_os_name,
+)
 
 
 _l = logging.getLogger(__name__)
@@ -50,8 +56,8 @@ def load_signatures(path: str) -> None:
                     with open(meta_path) as f:
                         meta = json.load(f)
 
-                    arch = meta.get("arch", None)
-                    platform = meta.get("platform", None)
+                    arch = str(meta.get("arch", "Unknown"))
+                    platform = str(meta.get("platform", "UnknownOS"))
                     os_name = meta.get("os", None)
                     os_version = meta.get("os_version", None)
                     compiler = meta.get("compiler", None)
@@ -60,9 +66,8 @@ def load_signatures(path: str) -> None:
 
                 else:
                     # nope... we need to extract information from the signature file
-                    # TODO: Convert them to angr-specific strings
-                    arch = sig_parsed.arch
-                    platform = sig_parsed.os_types
+                    arch = flirt_arch_to_arch_name(sig_parsed.arch, sig_parsed.app_types)
+                    platform = flirt_os_type_to_os_name(sig_parsed.os_types)
                     os_name = None
                     os_version = None
                     unique_strings = None

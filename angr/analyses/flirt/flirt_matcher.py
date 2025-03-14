@@ -290,12 +290,13 @@ class FlirtMatcher:
         self.mismatch_bytes_tolerance: int = mismatch_bytes_tolerance
 
     def match_function(self, buff: bytes, addr: int) -> bool:
+        assert self.sig.root is not None
         return any(self._match_node(node, buff, addr, 0, 0) for node in self.sig.root.children)
 
     def _match_node(self, node: FlirtNode, buff: bytes, addr: int, offset: int, mismatches: int) -> bool:
         if len(buff) < offset + len(node.pattern):
             return False
-        for i in range(len(node.pattern)):
+        for i in range(len(node.pattern)):  # pylint:disable=consider-using-enumerate
             if node.pattern[i] != -1 and node.pattern[i] != buff[offset + i]:
                 mismatches += 1
                 if mismatches > self.mismatch_bytes_tolerance:

@@ -108,9 +108,13 @@ class FlirtSignatureParsed:
         Parse a FLIRT function tree.
         """
 
-        length = 0 if root else file_obj.read(1)[0]
-        variant_mask = None if root else self.parse_variant_mask(file_obj, length)
-        pattern = None if root else self.parse_node(file_obj, length, variant_mask)
+        if root:
+            length = file_obj.read(1)[0]
+            variant_mask = self.parse_variant_mask(file_obj, length)
+            pattern = self.parse_node(file_obj, length, variant_mask)
+        else:
+            length = 0
+            pattern = []
 
         node_count = read_multiple_bytes(file_obj)
         if node_count > 0:

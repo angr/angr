@@ -92,6 +92,7 @@ class FlirtAnalysis(Analysis):
 
             if max_suggestion_sig_path is not None:
                 sig_ = path_to_sig.get(max_suggestion_sig_path)
+                assert sig_ is not None
                 _l.info("Applying FLIRT signature %s for library %s.", sig_, lib)
                 self._apply_changes(
                     sig_.sig_name if not self._temporary_sig else None, sig_to_suggestions[max_suggestion_sig_path]
@@ -188,7 +189,9 @@ class FlirtAnalysis(Analysis):
                     caller_funcs.add(pred)
         return caller_funcs
 
-    def _get_callee_name(self, func, func_addr: int, call_addr: int, expected_name: str) -> str | None:
+    def _get_callee_name(
+        self, func, func_addr: int, call_addr: int, expected_name: str
+    ) -> str | None:  # pylint:disable=unused-argument
         for block_addr, (call_target, _) in func._call_sites.items():
             block = func.get_block(block_addr)
             call_ins_addr = (
@@ -208,7 +211,6 @@ class FlirtAnalysis(Analysis):
         )
         if func_addr != base_addr and (self._is_arm and func_addr != base_addr + 1):
             # get the correct function
-            func = None
             try:
                 func = self.kb.functions.get_by_addr(func_addr)
             except KeyError:

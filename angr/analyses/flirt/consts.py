@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 from __future__ import annotations
 from enum import Enum
 
@@ -66,6 +67,15 @@ class FlirtArch(int, Enum):
     ARCH_DALVIK = 60  # Android Dalvik Virtual Machine
 
 
+FLIRT_ARCH_TO_ARCHNAME = {
+    FlirtArch.ARCH_386: {32: "X86", 64: "AMD64"},
+    FlirtArch.ARCH_MIPS: {32: "MIPS32", 64: "MIPS64"},
+    FlirtArch.ARCH_ARM: {32: "ARM", 64: "AARCH64"},
+    FlirtArch.ARCH_PPC: {32: "PPC32", 64: "PPC64"},
+    FlirtArch.ARCH_SPARC: {32: "SPARC32", 64: "SPARC64"},
+}
+
+
 class FlirtFileType(int, Enum):
     FILE_DOS_EXE_OLD = 0x00000001
     FILE_DOS_COM_OLD = 0x00000002
@@ -95,12 +105,25 @@ class FlirtFileType(int, Enum):
 
 
 class FlirtOSType(int, Enum):
+    """
+    Actually no longer used in IDA.
+    """
+
     OS_MSDOS = 0x01
     OS_WIN = 0x02
     OS_OS2 = 0x04
     OS_NETWARE = 0x08
     OS_UNIX = 0x10
     OS_OTHER = 0x20
+
+
+FLIRT_OS_TO_OSNAME = {
+    FlirtOSType.OS_MSDOS: "MSDOS",
+    FlirtOSType.OS_WIN: "Win32",
+    FlirtOSType.OS_OS2: "OS/2",
+    FlirtOSType.OS_UNIX: "Linux",
+    FlirtOSType.OS_OTHER: "Other",
+}
 
 
 class FlirtAppType(int, Enum):
