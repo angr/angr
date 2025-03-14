@@ -67,7 +67,7 @@ class FlirtArch(int, Enum):
     ARCH_DALVIK = 60  # Android Dalvik Virtual Machine
 
 
-FLIRT_ARCH_TO_ARCHNAME = {
+FLIRT_ARCH_TO_ARCHNAME: dict[int, dict[int, str]] = {
     FlirtArch.ARCH_386: {32: "X86", 64: "AMD64"},
     FlirtArch.ARCH_MIPS: {32: "MIPS32", 64: "MIPS64"},
     FlirtArch.ARCH_ARM: {32: "ARM", 64: "AARCH64"},

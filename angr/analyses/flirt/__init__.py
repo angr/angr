@@ -13,7 +13,7 @@ def flirt_arch_to_arch_name(flirt_arch: int, app_types: int) -> str:
     :return: Architecture name.
     """
     try:
-        arches = FLIRT_ARCH_TO_ARCHNAME.get(flirt_arch)
+        arches = FLIRT_ARCH_TO_ARCHNAME[flirt_arch]
     except KeyError:
         return "Unknown"
     if app_types & FlirtAppType.APP_32_BIT and 32 in arches:
