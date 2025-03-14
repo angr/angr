@@ -6,44 +6,10 @@ import json
 from collections import defaultdict
 import logging
 
-import nampa
+from angr.analyses.flirt import FlirtSignature, FlirtSignatureParsed, FlirtSignatureError
+
 
 _l = logging.getLogger(__name__)
-
-
-class FlirtSignature:
-    """
-    This class describes a FLIRT signature.
-    """
-
-    def __init__(
-        self,
-        arch: str,
-        platform: str,
-        sig_name: str,
-        sig_path: str,
-        unique_strings: set[str] | None = None,
-        compiler: str | None = None,
-        compiler_version: str | None = None,
-        os_name: str | None = None,
-        os_version: str | None = None,
-    ):
-        self.arch = arch
-        self.platform = platform
-        self.sig_name = sig_name
-        self.sig_path = sig_path
-        self.unique_strings = unique_strings
-        self.compiler = compiler
-        self.compiler_version = compiler_version
-        self.os_name = os_name
-        self.os_version = os_version
-
-    def __repr__(self):
-        if self.os_name:
-            if self.os_version:
-                return f"<{self.sig_name}@{self.arch}-{self.os_name}-{self.os_version}>"
-            return f"<{self.sig_name}@{self.arch}-{self.os_name}>"
-        return f"<{self.sig_name}@{self.arch}-{self.platform}>"
 
 
 FS = FlirtSignature
@@ -72,8 +38,8 @@ def load_signatures(path: str) -> None:
                 sig_path = os.path.join(root, filename)
                 try:
                     with open(sig_path, "rb") as f:
-                        flirt_header = nampa.flirt.parse_header(f)
-                except nampa.flirt.FlirtException:
+                        sig_parsed = FlirtSignatureParsed.parse(f)
+                except FlirtSignatureError:
                     _l.warning("Failed to load FLIRT signature file %s.", sig_path)
                     continue
 
@@ -95,8 +61,8 @@ def load_signatures(path: str) -> None:
                 else:
                     # nope... we need to extract information from the signature file
                     # TODO: Convert them to angr-specific strings
-                    arch = flirt_header.arch
-                    platform = flirt_header.os_types
+                    arch = sig_parsed.arch
+                    platform = sig_parsed.os_types
                     os_name = None
                     os_version = None
                     unique_strings = None
@@ -106,7 +72,7 @@ def load_signatures(path: str) -> None:
                 signature = FlirtSignature(
                     arch,
                     platform,
-                    flirt_header.library_name.decode("utf-8"),
+                    sig_parsed.libname,
                     sig_path,
                     unique_strings=unique_strings,
                     compiler=compiler,
