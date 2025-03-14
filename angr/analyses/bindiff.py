@@ -4,11 +4,13 @@ import math
 import types
 from collections import deque, defaultdict
 from typing import TYPE_CHECKING
+from functools import partial
 
 import networkx
 
-from angr.analyses import AnalysesHub, Analysis, CFGEmulated
+from angr.analyses import AnalysesHub, Analysis, CFGFast
 from angr.errors import SimEngineError, SimMemoryError
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 
 
 if TYPE_CHECKING:
@@ -140,6 +142,9 @@ def _is_better_match(x, y, matched_a, matched_b, attributes_dict_a, attributes_d
     :param attributes_dict_b:   The attributes for each element in the second set.
     :returns:                   True/False
     """
+    if x not in attributes_dict_a or y not in attributes_dict_b:
+        return False
+
     attributes_x = attributes_dict_a[x]
     attributes_y = attributes_dict_b[y]
     if x in matched_a:
@@ -162,6 +167,11 @@ def differing_constants(block_a, block_b):
     :returns:       Returns a list of differing constants in the form of ConstantChange, which has the offset in the
                     block and the respective constants.
     """
+    if block_a.size == 0 or block_b.size == 0:
+        return []
+    if not block_a.instruction_addrs or not block_b.instruction_addrs:
+        return []
+
     statements_a = [s for s in block_a.vex.statements if s.tag != "Ist_IMark"] + [block_a.vex.next]
     statements_b = [s for s in block_b.vex.statements if s.tag != "Ist_IMark"] + [block_b.vex.next]
     if len(statements_a) != len(statements_b):
@@ -858,36 +868,20 @@ class BinDiff(Analysis):
     This class computes the a diff between two binaries represented by angr Projects
     """
 
-    def __init__(self, other_project, enable_advanced_backward_slicing=False, cfg_a=None, cfg_b=None):
+    def __init__(self, other_project, cfg_a=None, cfg_b=None):
         """
         :param other_project: The second project to diff
         """
-        l.debug("Computing cfg's")
-
-        back_traversal = not enable_advanced_backward_slicing
-
         if cfg_a is None:
-            # self.cfg_a = self.project.analyses.CFG(resolve_indirect_jumps=True)
-            # self.cfg_b = other_project.analyses.CFG(resolve_indirect_jumps=True)
-            self.cfg_a = self.project.analyses[CFGEmulated].prep()(
-                context_sensitivity_level=1,
-                keep_state=True,
-                enable_symbolic_back_traversal=back_traversal,
-                enable_advanced_backward_slicing=enable_advanced_backward_slicing,
-            )
-
-            self.cfg_b = other_project.analyses[CFGEmulated].prep()(
-                context_sensitivity_level=1,
-                keep_state=True,
-                enable_symbolic_back_traversal=back_traversal,
-                enable_advanced_backward_slicing=enable_advanced_backward_slicing,
-            )
-
+            l.debug("Computing cfg's")
+            self.cfg_a = self.project.analyses[CFGFast].prep(fail_fast=self._fail_fast)().model
+            self.cfg_b = other_project.analyses[CFGFast].prep(fail_fast=self._fail_fast)().model
+            l.debug("Done computing cfg's")
         else:
             self.cfg_a = cfg_a
             self.cfg_b = cfg_b
-
-        l.debug("Done computing cfg's")
+        self.funcs_a = self.kb.functions
+        self.funcs_b = other_project.kb.functions
 
         self._p2 = other_project
         self._attributes_a = {}
@@ -908,8 +902,8 @@ class BinDiff(Analysis):
         :param func_b_addr: The address of the second function (in the second binary).
         :returns:           Whether or not the functions appear to be identical.
         """
-        if self.cfg_a.project.is_hooked(func_a_addr) and self.cfg_b.project.is_hooked(func_b_addr):
-            return self.cfg_a.project._sim_procedures[func_a_addr] == self.cfg_b.project._sim_procedures[func_b_addr]
+        if self.project.is_hooked(func_a_addr) and self._p2.is_hooked(func_b_addr):
+            return self.project._sim_procedures[func_a_addr] == self._p2._sim_procedures[func_b_addr]
 
         func_diff = self.get_function_diff(func_a_addr, func_b_addr)
         if check_consts:
@@ -992,36 +986,33 @@ class BinDiff(Analysis):
         """
         pair = (function_addr_a, function_addr_b)
         if pair not in self._function_diffs:
-            function_a = self.cfg_a.kb.functions.function(function_addr_a)
-            function_b = self.cfg_b.kb.functions.function(function_addr_b)
+            function_a = self.funcs_a.function(function_addr_a)
+            function_b = self.funcs_b.function(function_addr_b)
             self._function_diffs[pair] = FunctionDiff(function_a, function_b, self)
         return self._function_diffs[pair]
 
     @staticmethod
-    def _compute_function_attributes(cfg):
+    def _compute_function_attributes(funcs, exclude_func_addrs: set[int] | None = None):
         """
-        :param cfg: An angr CFG object
         :returns:    a dictionary of function addresses to tuples of attributes
         """
         # the attributes we use are the number of basic blocks, number of edges, and number of subfunction calls
         attributes = {}
-        all_funcs = set(cfg.kb.callgraph.nodes())
-        for function_addr in cfg.kb.functions:
-            # skip syscalls and functions which are None in the cfg
-            if cfg.kb.functions.function(function_addr) is None or cfg.kb.functions.function(function_addr).is_syscall:
+        all_funcs = set(funcs.callgraph)
+        for function_addr in funcs:
+            if not funcs.contains_addr(function_addr):
                 continue
-            if cfg.kb.functions.function(function_addr) is not None:
-                normalized_function = NormalizedFunction(cfg.kb.functions.function(function_addr))
-                number_of_basic_blocks = len(normalized_function.graph.nodes())
-                number_of_edges = len(normalized_function.graph.edges())
-            else:
-                number_of_basic_blocks = 0
-                number_of_edges = 0
-            if function_addr in all_funcs:
-                number_of_subfunction_calls = len(list(cfg.kb.callgraph.successors(function_addr)))
-            else:
-                number_of_subfunction_calls = 0
-            attributes[function_addr] = (number_of_basic_blocks, number_of_edges, number_of_subfunction_calls)
+            if exclude_func_addrs and function_addr in exclude_func_addrs:
+                continue
+            func = funcs.get_by_addr(function_addr)
+            # skip syscalls and functions which are None in the cfg
+            if func.is_syscall or func.is_alignment or func.is_plt:
+                continue
+            normalized_function = NormalizedFunction(func)
+            number_of_basic_blocks = len(normalized_function.graph.nodes())
+            number_of_edges = len(normalized_function.graph.edges())
+            number_of_subfunction_calls = funcs.callgraph.out_degree[function_addr] if function_addr in all_funcs else 0
+            attributes[function_addr] = number_of_basic_blocks, number_of_edges, number_of_subfunction_calls
 
         return attributes
 
@@ -1029,8 +1020,8 @@ class BinDiff(Analysis):
         possible_matches = set()
 
         # Make sure those functions are not SimProcedures
-        f_a = self.cfg_a.kb.functions.function(func_a)
-        f_b = self.cfg_b.kb.functions.function(func_b)
+        f_a = self.funcs_a.function(func_a)
+        f_b = self.funcs_b.function(func_b)
         if f_a.startpoint is None or f_b.startpoint is None:
             return possible_matches
 
@@ -1052,6 +1043,8 @@ class BinDiff(Analysis):
 
     def _get_plt_matches(self):
         plt_matches = []
+        if not hasattr(self.project.loader.main_object, "plt") or not hasattr(self._p2.loader.main_object, "plt"):
+            return []
         for name, addr in self.project.loader.main_object.plt.items():
             if name in self._p2.loader.main_object.plt:
                 plt_matches.append((addr, self._p2.loader.main_object.plt[name]))
@@ -1072,18 +1065,18 @@ class BinDiff(Analysis):
                 plt_matches.append((addr, func_to_addr_b[name]))
 
         # remove ones that aren't in the interfunction graph, because these seem to not be consistent
-        all_funcs_a = set(self.cfg_a.kb.callgraph.nodes())
-        all_funcs_b = set(self.cfg_b.kb.callgraph.nodes())
+        all_funcs_a = set(self.funcs_a.callgraph.nodes())
+        all_funcs_b = set(self.funcs_b.callgraph.nodes())
         return [x for x in plt_matches if x[0] in all_funcs_a and x[1] in all_funcs_b]
 
     def _get_name_matches(self):
         names_to_addrs_a = defaultdict(list)
-        for f in self.cfg_a.functions.values():
+        for f in self.funcs_a.values():
             if not f.name.startswith("sub_"):
                 names_to_addrs_a[f.name].append(f.addr)
 
         names_to_addrs_b = defaultdict(list)
-        for f in self.cfg_b.functions.values():
+        for f in self.funcs_b.values():
             if not f.name.startswith("sub_"):
                 names_to_addrs_b[f.name].append(f.addr)
 
@@ -1097,23 +1090,305 @@ class BinDiff(Analysis):
 
         return name_matches
 
-    def _compute_diff(self):
-        # get the attributes for all functions
-        self.attributes_a = self._compute_function_attributes(self.cfg_a)
-        self.attributes_b = self._compute_function_attributes(self.cfg_b)
+    def _get_string_reference_matches(self) -> list[tuple[int, int]]:
+        strs_main: dict[str, int | None] = {}
+        strs_secondary: dict[str, int | None] = {}
 
+        for mem_data in self.cfg_a.memory_data.values():
+            if mem_data.sort == MemoryDataSort.String:
+                if mem_data.content not in strs_main:
+                    strs_main[mem_data.content] = mem_data.addr
+                else:
+                    # unfortunately there are multiple strings with the same value...
+                    strs_main[mem_data.content] = None
+
+        for mem_data in self.cfg_b.memory_data.values():
+            if mem_data.sort == MemoryDataSort.String:
+                if mem_data.content not in strs_secondary:
+                    strs_secondary[mem_data.content] = mem_data.addr
+                else:
+                    # unfortunately there are multiple strings with the same value...
+                    strs_secondary[mem_data.content] = None
+
+        shared_strs = set(strs_main.keys()) & set(strs_secondary.keys())
+        matches = []
+        # check cross-references
+        for s in shared_strs:
+            if strs_main[s] is None or strs_secondary[s] is None:
+                continue
+            addr_main = strs_main[s]
+            addr_secondary = strs_secondary[s]
+            xrefs_main = self.kb.xrefs.get_xrefs_by_dst(addr_main)
+            xrefs_secondary = self._p2.kb.xrefs.get_xrefs_by_dst(addr_secondary)
+            if len(xrefs_main) == len(xrefs_secondary) == 1:
+                xref_main = next(iter(xrefs_main))
+                xref_secondary = next(iter(xrefs_secondary))
+                cfgnode_main = self.cfg_a.get_any_node(xref_main.block_addr)
+                cfgnode_secondary = self.cfg_b.get_any_node(xref_secondary.block_addr)
+                if cfgnode_main is not None and cfgnode_secondary is not None:
+                    matches.append((cfgnode_main.function_address, cfgnode_secondary.function_address))
+
+        return sorted(set(matches))
+
+    @staticmethod
+    def _approximate_matcher_func_block_and_edge_count(
+        main_funcs, secondary_funcs, new_matches: list, size_tolerance=0.1
+    ) -> None:
+        # functions likely match if they have the same number of blocks and the same number of edges
+        main_funcs = sorted(main_funcs, key=lambda x: x.addr)
+        secondary_funcs = sorted(secondary_funcs, key=lambda x: x.addr)
+        m, s = 0, 0
+        while m < len(main_funcs) and s < len(secondary_funcs):
+            mf = main_funcs[m]
+            sf = secondary_funcs[s]
+            # best case: there is a direct match
+            if len(mf.block_addrs_set) == len(sf.block_addrs_set) and len(mf.graph.edges) == len(sf.graph.edges):
+                # ensure function sizes are roughly the same
+                if abs(mf.size - sf.size) / max(mf.size, sf.size) < size_tolerance:
+                    l.info(
+                        "Approximate matcher (block&edge count) found %#x (%s) and %#x (%s).",
+                        mf.addr,
+                        mf.name,
+                        sf.addr,
+                        sf.name,
+                    )
+                    new_matches.append((mf.addr, sf.addr))
+                m += 1
+                s += 1
+            else:
+                if len(main_funcs) - m > len(secondary_funcs) - s:
+                    # more main funcs than secondary funcs; we increment m in case a function in the main binary
+                    # is removed
+                    m += 1
+                elif len(main_funcs) - m < len(secondary_funcs) - s:
+                    # more secondary funcs than main funcs; we increment s in case a function in the secondary
+                    # binary is removed
+                    s += 1
+                else:
+                    m += 1
+                    s += 1
+
+    @staticmethod
+    def _get_function_max_addr(func) -> int | None:
+        if not func.block_addrs_set:
+            return None
+        last_block_addr = max(func.block_addrs_set)
+        block_size = func.get_block_size(last_block_addr)
+        return last_block_addr + block_size
+
+    def _get_function_string_refs(self, proj, cfg, func) -> set[bytes]:
+        strs = set()
+        func_max_addr = self._get_function_max_addr(func)
+        if func_max_addr is None:
+            return strs
+        xrefs = proj.kb.xrefs.get_xrefs_by_ins_addr_region(func.addr, func_max_addr)
+        for xref in xrefs:
+            if xref.dst in cfg.memory_data:
+                md = cfg.memory_data[xref.dst]
+                if md.sort == MemoryDataSort.String:
+                    strs.add(md.content)
+        return strs
+
+    def _approximate_matcher_func_string_refs(self, main_funcs, secondary_funcs, new_matches: list) -> None:
+        # functions likely match if they both refer to the same strings
+        strs_to_funcs_main = defaultdict(list)
+        strs_to_funcs_secondary = defaultdict(list)
+
+        for func in main_funcs:
+            strs = self._get_function_string_refs(self.project, self.cfg_a, func)
+            if strs:
+                strs_to_funcs_main[frozenset(strs)].append(func)
+
+        for func in secondary_funcs:
+            strs = self._get_function_string_refs(self._p2, self.cfg_b, func)
+            if strs:
+                strs_to_funcs_secondary[frozenset(strs)].append(func)
+
+        for strs_main, funcs_main in strs_to_funcs_main.items():
+            if strs_main in strs_to_funcs_secondary and len(funcs_main) == 1:
+                funcs_secondary = strs_to_funcs_secondary[strs_main]
+                if len(funcs_secondary) == 1:
+                    # found a match!
+                    mf = funcs_main[0]
+                    sf = funcs_secondary[0]
+                    l.info(
+                        "Approximate matcher (string refs) found %#x (%s) and %#x (%s).",
+                        mf.addr,
+                        mf.name,
+                        sf.addr,
+                        sf.name,
+                    )
+                    new_matches.append((mf.addr, sf.addr))
+
+    @staticmethod
+    def _get_function_callees(
+        proj, funcs, func, main2secondary: dict[int, int] | None = None, funcs_secondary=None
+    ) -> tuple[str, ...]:
+        callees = proj.kb.functions.callgraph.successors(func.addr)
+        # convert callees to meaningful function names
+        callee_names = []
+        for callee in callees:
+            if callee == func.addr:
+                name = "!self"
+            else:
+                if main2secondary is not None and funcs_secondary is not None and callee in main2secondary:
+                    callee = main2secondary[callee]
+                    func = funcs_secondary.get_by_addr(callee)
+                    name = func.name
+                else:
+                    func = funcs.get_by_addr(callee)
+                    name = None if func.is_default_name else func.name
+            if name is not None:
+                callee_names.append(name)
+            else:
+                # has at least one unknown/unmatched callee
+                return ()
+        return tuple(sorted(callee_names))
+
+    def _approximate_matcher_func_callees(
+        self, main2secondary: dict[int, int], main_funcs, secondary_funcs, new_matches: list
+    ) -> None:
+        # functions likely match if they both call the same callees
+        callees_to_funcs_main = defaultdict(list)
+        callees_to_funcs_secondary = defaultdict(list)
+
+        for func in main_funcs:
+            callees = self._get_function_callees(
+                self.project, self.funcs_a, func, main2secondary=main2secondary, funcs_secondary=self.funcs_b
+            )
+            if callees:
+                callees_to_funcs_main[callees].append(func)
+
+        for func in secondary_funcs:
+            callees = self._get_function_callees(self._p2, self.funcs_b, func)
+            if callees:
+                callees_to_funcs_secondary[callees].append(func)
+
+        for callees_main, funcs_main in callees_to_funcs_main.items():
+            if callees_main in callees_to_funcs_secondary and len(funcs_main) == 1:
+                funcs_secondary = callees_to_funcs_secondary[callees_main]
+                if len(funcs_secondary) == 1:
+                    # found a match!
+                    mf = funcs_main[0]
+                    sf = funcs_secondary[0]
+                    l.info(
+                        "Approximate matcher (callees) found %#x (%s) and %#x (%s).",
+                        mf.addr,
+                        mf.name,
+                        sf.addr,
+                        sf.name,
+                    )
+                    new_matches.append((mf.addr, sf.addr))
+
+    def _get_approximate_matches_between_matched_pairs(self, matches: list[tuple[int, int]], matcher):
+        sorted_matches = sorted(matches, key=lambda x: x[0])
+        new_matches = []
+
+        for idx, (addr1_main, addr1_secondary) in enumerate(sorted_matches):
+            if idx == len(sorted_matches) - 1:
+                break
+            addr2_main, addr2_secondary = sorted_matches[idx + 1]
+            if addr1_secondary >= addr2_secondary:
+                continue
+
+            # either two main functions are named, or two secondary functions are named
+            f1_main = self.funcs_a.get_by_addr(addr1_main)
+            f2_main = self.funcs_a.get_by_addr(addr2_main)
+            f1_secondary = self.funcs_b.get_by_addr(addr1_secondary)
+            f2_secondary = self.funcs_b.get_by_addr(addr2_secondary)
+            if not (
+                (not f1_main.is_default_name and not f2_main.is_default_name)
+                or (not f1_secondary.is_default_name and not f2_secondary.is_default_name)
+            ):
+                continue
+
+            # are there any functions in between?
+            main_funcaddrs = list(self.funcs_a._function_map.irange(minimum=addr1_main + 1, maximum=addr2_main - 1))
+            secondary_funcaddrs = list(
+                self.funcs_b._function_map.irange(minimum=addr1_secondary + 1, maximum=addr2_secondary - 1)
+            )
+            # eliminate bad funcs
+            main_funcs = [self.funcs_a.get_by_addr(addr) for addr in main_funcaddrs]
+            main_funcs = [
+                f
+                for f in main_funcs
+                if not f.is_syscall and not f.is_simprocedure and not f.is_alignment and not f.is_plt
+            ]
+            secondary_funcs = [self.funcs_b.get_by_addr(addr) for addr in secondary_funcaddrs]
+            secondary_funcs = [
+                f
+                for f in secondary_funcs
+                if not f.is_syscall and not f.is_simprocedure and not f.is_alignment and not f.is_plt
+            ]
+            if (
+                main_funcs
+                and secondary_funcs
+                and len(main_funcs) > 0
+                and len(secondary_funcs) > 0
+                and len(main_funcs) < 100
+                and len(secondary_funcs) < 100
+            ):
+                # more checks
+                matcher(main_funcs, secondary_funcs, new_matches)
+
+        return new_matches
+
+    def _compute_diff(self):
         # get the initial matches
+        l.info("Getting PLT-based matches...")
         initial_matches = self._get_plt_matches()
+        l.info("... initial matches: %d", len(initial_matches))
+
+        l.info("Getting function name-based matches...")
         initial_matches += self._get_name_matches()
-        initial_matches += self._get_function_matches(self.attributes_a, self.attributes_b)
-        for a, b in initial_matches:
-            l.debug("Initially matched (%#x, %#x)", a, b)
+        l.info("... initial matches: %d", len(initial_matches))
+
+        l.info("Getting string reference-based matches...")
+        initial_matches += self._get_string_reference_matches()
+        l.info("... initial matches: %d", len(initial_matches))
+
+        l.info("Getting adjacent function matches based on function block and edge counts...")
+        initial_matches += self._get_approximate_matches_between_matched_pairs(
+            initial_matches, self._approximate_matcher_func_block_and_edge_count
+        )
+        l.info("... initial matches: %d", len(initial_matches))
+
+        l.info("Getting adjacent function matches based on string references...")
+        initial_matches += self._get_approximate_matches_between_matched_pairs(
+            initial_matches, self._approximate_matcher_func_string_refs
+        )
+        l.info("... initial matches: %d", len(initial_matches))
+
+        l.info("Getting adjacent function matches based on callees...")
+        main2secondary = dict(initial_matches)
+        initial_matches += self._get_approximate_matches_between_matched_pairs(
+            initial_matches, partial(self._approximate_matcher_func_callees, main2secondary)
+        )
+        l.info("... initial matches: %d", len(initial_matches))
+
+        # dedup
+        initial_matches = sorted(set(initial_matches))
+        l.info("We got %d initial matches so far. Time to get busy...", len(initial_matches))
+
+        # get the attributes for all functions
+        l.info("Computing function attributes for main project...")
+        self.attributes_a = self._compute_function_attributes(
+            self.funcs_a, exclude_func_addrs={a for a, _ in initial_matches}
+        )
+        l.info("Computing function attributes for secondary project...")
+        self.attributes_b = self._compute_function_attributes(
+            self.funcs_b, exclude_func_addrs={a for _, a in initial_matches}
+        )
+
+        l.info("Getting function attribute-based matches...")
+        attribute_based_matches = self._get_function_matches(self.attributes_a, self.attributes_b)
+        l.info("Got %d attribute-based matches.", len(attribute_based_matches))
 
         # Use a queue so we process matches in the order that they are found
-        to_process = deque(initial_matches)
+        to_process = deque(attribute_based_matches)
 
         # Keep track of which matches we've already added to the queue
-        processed_matches = set(initial_matches)
+        processed_matches = set(initial_matches + attribute_based_matches)
 
         # Keep a dict of current matches, which will be updated if better matches are found
         matched_a = {}
@@ -1122,8 +1397,8 @@ class BinDiff(Analysis):
             matched_a[x] = y
             matched_b[y] = x
 
-        callgraph_a_nodes = set(self.cfg_a.kb.callgraph.nodes())
-        callgraph_b_nodes = set(self.cfg_b.kb.callgraph.nodes())
+        callgraph_a_nodes = set(self.funcs_a.callgraph.nodes())
+        callgraph_b_nodes = set(self.funcs_b.callgraph.nodes())
 
         # while queue is not empty
         while to_process:
@@ -1136,10 +1411,10 @@ class BinDiff(Analysis):
             if not self._p2.loader.main_object.contains_addr(func_b):
                 continue
 
-            func_a_succ = self.cfg_a.kb.callgraph.successors(func_a) if func_a in callgraph_a_nodes else []
-            func_b_succ = self.cfg_b.kb.callgraph.successors(func_b) if func_b in callgraph_b_nodes else []
-            func_a_pred = self.cfg_a.kb.callgraph.predecessors(func_a) if func_a in callgraph_a_nodes else []
-            func_b_pred = self.cfg_b.kb.callgraph.predecessors(func_b) if func_b in callgraph_b_nodes else []
+            func_a_succ = self.funcs_a.callgraph.successors(func_a) if func_a in callgraph_a_nodes else []
+            func_b_succ = self.funcs_b.callgraph.successors(func_b) if func_b in callgraph_b_nodes else []
+            func_a_pred = self.funcs_a.callgraph.predecessors(func_a) if func_a in callgraph_a_nodes else []
+            func_b_pred = self.funcs_b.callgraph.predecessors(func_b) if func_b in callgraph_b_nodes else []
 
             # get possible new matches
             new_matches = set(
@@ -1155,10 +1430,10 @@ class BinDiff(Analysis):
             # for each of the possible new matches add it if it improves the matching
             for x, y in new_matches:
                 # skip none functions and syscalls
-                func_a = self.cfg_a.kb.functions.function(x)
+                func_a = self.funcs_a.function(x)
                 if func_a is None or func_a.is_simprocedure or func_a.is_syscall:
                     continue
-                func_b = self.cfg_b.kb.functions.function(y)
+                func_b = self.funcs_b.function(y)
                 if func_b is None or func_b.is_simprocedure or func_b.is_syscall:
                     continue
 
