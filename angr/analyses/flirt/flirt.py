@@ -190,8 +190,8 @@ class FlirtAnalysis(Analysis):
         return caller_funcs
 
     def _get_callee_name(
-        self, func, func_addr: int, call_addr: int, expected_name: str
-    ) -> str | None:  # pylint:disable=unused-argument
+        self, func, func_addr: int, call_addr: int, expected_name: str  # pylint:disable=unused-argument
+    ) -> str | None:
         for block_addr, (call_target, _) in func._call_sites.items():
             block = func.get_block(block_addr)
             call_ins_addr = (
