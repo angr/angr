@@ -1,8 +1,14 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+from collections.abc import Callable
 
 from .flirt_sig import FlirtSignatureParsed
 from .flirt_node import FlirtNode
 from .flirt_module import FlirtModule
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions import Function
+    from .flirt_function import FlirtFunction
 
 
 # crc 16 with pre-computed table
@@ -281,7 +287,15 @@ class FlirtMatcher:
     """
 
     def __init__(
-        self, sig: FlirtSignatureParsed, func, get_callee_name, func_matched, mismatch_bytes_tolerance: int = 0
+        self,
+        sig: FlirtSignatureParsed,
+        func: Function,
+        get_callee_name: Callable[
+            [Function, int, int, str],
+            str | None,
+        ],
+        func_matched: Callable[[Function, int, FlirtFunction], None],
+        mismatch_bytes_tolerance: int = 0,
     ):
         self.sig = sig
         self.func = func
