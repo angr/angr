@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, cast
 import logging
 
 import ailment
+from ailment.constant import UNDETERMINED_SIZE
 import claripy
 from unique_log_filter import UniqueLogFilter
 
@@ -30,8 +31,15 @@ class SimEngineVRAIL(
     The engine for variable recovery on AIL.
     """
 
-    def __init__(self, *args, call_info=None, vvar_to_vvar: dict[int, int] | None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        *args,
+        call_info=None,
+        vvar_to_vvar: dict[int, int] | None,
+        vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None,
+        **kwargs,
+    ):
+        super().__init__(*args, vvar_type_hints=vvar_type_hints, **kwargs)
 
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}
@@ -325,7 +333,9 @@ class SimEngineVRAIL(
         addr_r = self._expr_bv(expr.addr)
         size = expr.size
 
-        return self._load(addr_r, size, expr=expr)
+        if size != UNDETERMINED_SIZE:
+            return self._load(addr_r, size, expr=expr)
+        return self._top(8)
 
     def _handle_expr_VirtualVariable(self, expr: ailment.Expr.VirtualVariable):
         return self._read_from_vvar(expr, expr=expr, vvar_id=self._mapped_vvarid(expr.varid))
@@ -433,7 +443,7 @@ class SimEngineVRAIL(
     def _handle_binop_Add(self, expr):
         arg0, arg1 = expr.operands
         r0, r1 = self._expr_pair(arg0, arg1)
-        compute = r0.data + r1.data  # type: ignore
+        compute = r0.data + r1.data if r0.data.size() == r1.data.size() else self.state.top(expr.bits)  # type: ignore
 
         type_constraints = set()
         # create a new type variable and add constraints accordingly

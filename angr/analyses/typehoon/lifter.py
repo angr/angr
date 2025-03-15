@@ -13,6 +13,7 @@ from angr.sim_type import (
     SimTypeArray,
     SimTypeFloat,
     SimTypeDouble,
+    SimCppClass,
 )
 from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64, Struct, Array, Float32, Float64
 
@@ -77,6 +78,24 @@ class TypeLifter:
         obj.field_names = field_names
         return obj
 
+    def _lift_SimCppClass(self, ty: SimCppClass) -> TypeConstant | BottomType:
+        if ty in self.memo:
+            return BottomType()
+
+        obj = Struct(fields={}, name=ty.name, is_cppclass=True)
+        self.memo[ty] = obj
+        converted_fields = {}
+        field_names = {}
+        ty_offsets = ty.offsets
+        for field_name, simtype in ty.members.items():
+            if field_name not in ty_offsets:
+                return BottomType()
+            converted_fields[ty_offsets[field_name]] = self.lift(simtype)
+            field_names[ty_offsets[field_name]] = field_name
+        obj.fields = converted_fields
+        obj.field_names = field_names
+        return obj
+
     def _lift_SimTypeArray(self, ty: SimTypeArray) -> Array:
         elem_type = self.lift(ty.elem_type)
         return Array(elem_type, count=ty.length)
@@ -96,6 +115,7 @@ _mapping = {
     SimTypeLongLong: TypeLifter._lift_SimTypeLongLong,
     SimTypePointer: TypeLifter._lift_SimTypePointer,
     SimStruct: TypeLifter._lift_SimStruct,
+    SimCppClass: TypeLifter._lift_SimCppClass,
     SimTypeArray: TypeLifter._lift_SimTypeArray,
     SimTypeFloat: TypeLifter._lift_SimTypeFloat,
     SimTypeDouble: TypeLifter._lift_SimTypeDouble,
