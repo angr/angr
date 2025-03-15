@@ -27,7 +27,6 @@ dependencies = [
     "claripy==9.2.147.dev0",
     "cle==9.2.147.dev0",
     "mulpyplexer",
-    "nampa",
     "networkx!=2.8.1,>=2.0",
     "protobuf>=5.28.2",
     "psutil",
