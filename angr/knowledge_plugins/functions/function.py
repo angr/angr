@@ -612,7 +612,7 @@ class Function(Serializable):
 
     @property
     def size(self):
-        return sum(b.size for b in self.blocks)
+        return sum(self._block_sizes.values())
 
     @property
     def binary(self):
