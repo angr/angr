@@ -433,9 +433,9 @@ class Block(Serializable):
 
     @property
     def instructions(self) -> int:
-        if not self._instructions and self._vex is None:
-            # initialize from VEX
-            _ = self.vex
+        if not self._instructions and self._vex is None and self._vex_nostmt is None:
+            # initialize from VEX, but we do not need statements to know instructions
+            _ = self.vex_nostmt
 
         assert self._instructions is not None
         return self._instructions
@@ -446,9 +446,9 @@ class Block(Serializable):
             # hooks and other pseudo-functions
             return []
 
-        if not self._instruction_addrs and self._vex is None:
-            # initialize instruction addrs
-            _ = self.vex
+        if not self._instruction_addrs and self._vex is None and self._vex_nostmt is None:
+            # initialize instruction addrs, but we do not need statements
+            _ = self.vex_nostmt
 
         return self._instruction_addrs
 
