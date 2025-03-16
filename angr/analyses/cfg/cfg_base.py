@@ -1550,7 +1550,9 @@ class CFGBase(Analysis):
                 block = next((b for b in function.blocks), None)
                 if block is None:
                     continue
-                if all(self._is_noop_insn(insn) for insn in block.capstone.insns):
+                if self._is_noop_block(self.project.arch, block) or all(
+                    self._is_noop_insn(insn) for insn in block.capstone.insns
+                ):
                     # all nops. mark this function as a function alignment
                     l.debug("Function chunk %#x is probably used as a function alignment (all nops).", func_addr)
                     self.kb.functions[func_addr].alignment = True
@@ -2639,7 +2641,7 @@ class CFGBase(Analysis):
         :return: True if the instruction does no-op, False otherwise.
         """
 
-        insn_name = insn.insn_name()
+        insn_name = insn.mnemonic
 
         if insn_name == "nop":
             # nops
