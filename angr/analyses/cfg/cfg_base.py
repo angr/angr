@@ -2207,10 +2207,6 @@ class CFGBase(Analysis):
             out_edges = [e for e in g.out_edges(node_) if g.get_edge_data(*e)["jumpkind"] != "Ijk_FakeRet"]
             return len(out_edges) > 1
 
-        if len(src_function.block_addrs_set) > 10:
-            # ignore functions unless they are extremely small
-            return False
-
         if len(all_edges) == 1 and dst_addr != src_addr:
             the_edge = next(iter(all_edges))
             _, dst, data = the_edge
@@ -2253,15 +2249,41 @@ class CFGBase(Analysis):
                 candidate = True
 
             if candidate:
-                regs = {self.project.arch.sp_offset}
-                if hasattr(self.project.arch, "bp_offset") and self.project.arch.bp_offset is not None:
-                    regs.add(self.project.arch.bp_offset)
-                sptracker = self.project.analyses[StackPointerTracker].prep()(
-                    src_function, regs, track_memory=self._sp_tracking_track_memory
-                )
-                sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
-                if sp_delta == 0:
-                    return True
+                # we have two strategies; for small functions, we run SPTracker on the entire function and see if the
+                # stack pointer changes or not; for large functions, we simply detect how far away we jump as well as
+                # if there are any other functions identified between the source and the destination.
+                if len(src_function.block_addrs_set) <= 10:
+                    regs = {self.project.arch.sp_offset}
+                    if hasattr(self.project.arch, "bp_offset") and self.project.arch.bp_offset is not None:
+                        regs.add(self.project.arch.bp_offset)
+                    sptracker = self.project.analyses[StackPointerTracker].prep()(
+                        src_function, regs, track_memory=self._sp_tracking_track_memory
+                    )
+                    sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
+                    if sp_delta == 0:
+                        return True
+                else:
+                    # large function; to speed things up, we don't track sp
+                    minaddr, maxaddr = None, None
+                    if dst_addr - src_addr >= 0x100:
+                        minaddr = src_addr
+                        maxaddr = dst_addr
+                    elif dst_addr < src_addr:
+                        # jumping back; is it jumping beyond the function header?
+                        src_func = blockaddr_to_function[src_addr]
+                        if dst_addr < src_func.addr and src_func.addr - dst_addr >= 0x100:
+                            minaddr = dst_addr
+                            maxaddr = src_func.addr
+
+                    if minaddr is not None and maxaddr is not None:
+                        # are there other function in between?
+                        funcaddrs_in_between = list(
+                            known_functions._function_map.irange(minimum=minaddr + 1, maximum=maxaddr - 1)
+                        )
+                        funcs_in_between = [known_functions.get_by_addr(a) for a in funcaddrs_in_between]
+                        funcs_in_between = [func for func in funcs_in_between if not func.is_alignment]
+                        if len(funcs_in_between) >= 3:
+                            return True
 
         return False
 
