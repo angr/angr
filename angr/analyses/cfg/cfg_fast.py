@@ -1997,7 +1997,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                         is_arm and position % 4 == 0
                     ):
                         mapped_position = AT.from_rva(position, self._binary).to_mva()
-                        if self._addr_in_exec_memory_regions(mapped_position):
+                        if self._inside_regions(mapped_position) and self._addr_in_exec_memory_regions(mapped_position):
                             unassured_functions.append(mapped_position)
             # HACK part 2: Yes, i really have to do this
             for regex in thumb_regexes:
@@ -2006,7 +2006,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     position = mo.start() + start_
                     if position % self.project.arch.instruction_alignment == 0:
                         mapped_position = AT.from_rva(position, self._binary).to_mva()
-                        if self._addr_in_exec_memory_regions(mapped_position):
+                        if self._inside_regions(mapped_position) and self._addr_in_exec_memory_regions(mapped_position):
                             unassured_functions.append(mapped_position + 1)
 
         l.info("Found %d functions with prologue scanning.", len(unassured_functions))
@@ -3149,6 +3149,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         jump.resolved_targets = targets
         all_targets = set(targets)
         for addr in all_targets:
+            # skip all addresses that do not fall in any executable regions
+            if not self._addr_in_exec_memory_regions(addr):
+                continue
+
             to_outside = (
                 jump.jumpkind == "Ijk_Call"
                 or jump.type == IndirectJumpType.Vtable
