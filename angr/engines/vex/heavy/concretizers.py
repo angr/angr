@@ -159,6 +159,14 @@ def concretize_fscale(state, args):
 
     return claripy.FPV(arg_x * math.pow(2, arg_y), claripy.FSORT_DOUBLE)
 
+def concretize_fsqrt32(state, args):
+    # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
+    arg_1 = state.solver.eval(args[1])
+    if arg_1 < 0 or math.isnan(arg_1):
+        return claripy.FPV(math.nan, claripy.FSORT_FLOAT)
+
+    return claripy.FPV(math.sqrt(arg_1), claripy.FSORT_FLOAT)
+
 
 def concretize_fsqrt(state, args):
     # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
@@ -365,6 +373,7 @@ concretizers = {
     "Iop_Yl2xF64": concretize_yl2x,
     "Iop_ScaleF64": concretize_fscale,
     "Iop_2xm1F64": concretize_2xm1,
+    "Iop_SqrtF32": concretize_fsqrt32,
     "Iop_SqrtF64": concretize_fsqrt,
     "Iop_CosF64": concretize_trig_cos,
     "Iop_SinF64": concretize_trig_sin,
