@@ -7,6 +7,7 @@ import re
 import logging
 from collections import defaultdict
 
+from archinfo.arch_arm import is_arm_arch
 import pyvex
 
 from angr.analyses import ForwardAnalysis, visitors
@@ -16,7 +17,6 @@ from angr.knowledge_plugins import Function
 from angr.block import BlockNode
 from angr.errors import SimTranslationError
 from angr.calling_conventions import SimStackArg
-from archinfo.arch_arm import is_arm_arch
 
 from .analysis import Analysis
 
