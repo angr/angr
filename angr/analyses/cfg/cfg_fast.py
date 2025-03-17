@@ -1649,6 +1649,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             if addr is not None:
                 # if this is ARM and addr % 4 != 0, it has to be THUMB
                 if is_arm_arch(self.project.arch):
+                    if (
+                        "has_arm_code" in self._arch_options
+                        and self._arch_options["has_arm_code"] is False
+                        and addr % 2 == 0
+                    ):
+                        addr |= 1
+
                     if addr % 2 == 0 and addr % 4 != 0:
                         # it's not aligned by 4, so it's definitely not ARM mode
                         addr |= 1
@@ -1968,9 +1975,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         # Pre-compile all regexes
         regexes = []
-        for ins_regex in self.project.arch.function_prologs:
-            r = re.compile(ins_regex)
-            regexes.append(r)
+        if "has_arm_code" not in self._arch_options or self._arch_options["has_arm_code"]:
+            for ins_regex in self.project.arch.function_prologs:
+                r = re.compile(ins_regex)
+                regexes.append(r)
         # EDG says: I challenge anyone bothering to read this to come up with a better
         # way to handle CPU modes that affect instruction decoding.
         # Since the only one we care about is ARM/Thumb right now
@@ -2832,6 +2840,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     and not self._seg_list.is_occupied(v)
                     and v % self.project.arch.instruction_alignment == 0
                 ):
+                    if is_arm_arch(self.project.arch) and not self._arch_options.has_arm_code and v % 2 != 1:
+                        # no ARM code in this binary!
+                        return
+
                     # create a new CFG job
                     ce = CFGJob(
                         v,
@@ -4429,6 +4441,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                             ):
                                 self._cascading_remove_lifted_blocks(cfg_job.src_node.addr & 0xFFFF_FFFE)
                             return None, None, None, None
+
+                if not self._arch_options.has_arm_code and addr % 2 == 0:
+                    # No ARM code for this architecture!
+                    return None, None, None, None
 
             initial_regs = self._get_initial_registers(addr, cfg_job, current_function_addr)
 

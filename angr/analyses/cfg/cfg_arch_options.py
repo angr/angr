@@ -25,16 +25,20 @@ class CFGArchOptions:
             "switch_mode_on_nodecode": (bool, True),
             # Whether we should use byte-based pattern-matching to identify ifuncs
             "pattern_match_ifuncs": (bool, True),
+            # Do we consider ARM-mode code at all
+            "has_arm_code": (bool, True),
         },
         "ARMHF": {
             "ret_jumpkind_heuristics": (bool, True),
             "switch_mode_on_nodecode": (bool, True),
             "pattern_match_ifuncs": (bool, True),
+            "has_arm_code": (bool, True),
         },
         "ARMCortexM": {
             "ret_jumpkind_heuristics": (bool, True),
             "switch_mode_on_nodecode": (bool, False),
             "pattern_match_ifuncs": (bool, True),
+            "has_arm_code": (bool, False),
         },
     }
 
@@ -83,3 +87,9 @@ class CFGArchOptions:
 
         else:
             super().__setattr__(option_name, option_value)
+
+    def __getitem__(self, option_name: str):
+        return self._options[option_name]
+
+    def __contains__(self, option_name: str) -> bool:
+        return option_name in self._options
