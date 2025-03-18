@@ -545,8 +545,9 @@ class SimEngineSSARewriting(
                 oident=expr.offset,
                 **expr.tags,
             )
+            self.state.stackvars[expr.offset][1] = vvar
         else:
-            sz = 1 if 1 in self.stackvar_locs[expr.offset] else max(self.stackvar_locs[expr.offset])
+            sz = 1 if 1 in self.state.stackvars[expr.offset] else max(self.state.stackvars[expr.offset])
             vvar = self.state.stackvars[expr.offset][sz]
         return UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
 
