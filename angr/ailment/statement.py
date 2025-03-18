@@ -110,6 +110,68 @@ class Assignment(Statement):
         return Assignment(self.idx, self.dst, self.src, **self.tags)
 
 
+class WeakAssignment(Statement):
+    """
+    An assignment statement that does not create a new variable at its destination; It should be seen as
+    operator=(&dst, &src) in C++-like syntax.
+    """
+
+    __slots__ = (
+        "dst",
+        "src",
+    )
+
+    def __init__(self, idx: int | None, dst: Atom, src: Expression, **kwargs):
+        super().__init__(idx, **kwargs)
+
+        self.dst = dst
+        self.src = src
+
+    def __eq__(self, other):
+        return (
+            type(other) is WeakAssignment and self.idx == other.idx and self.dst == other.dst and self.src == other.src
+        )
+
+    def likes(self, other):
+        return type(other) is WeakAssignment and self.dst.likes(other.dst) and self.src.likes(other.src)
+
+    def matches(self, other):
+        return type(other) is WeakAssignment and self.dst.matches(other.dst) and self.src.matches(other.src)
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((WeakAssignment, self.idx, self.dst, self.src))
+
+    def __repr__(self):
+        return f"WeakAssignment ({self.dst}, {self.src})"
+
+    def __str__(self):
+        return f"{str(self.dst)} =W {str(self.src)}"
+
+    def replace(self, old_expr: Expression, new_expr: Expression):
+        if self.dst == old_expr:
+            r_dst = True
+            assert isinstance(new_expr, Atom)
+            replaced_dst = new_expr
+        else:
+            r_dst, replaced_dst = self.dst.replace(old_expr, new_expr)
+
+        if self.src == old_expr:
+            r_src = True
+            replaced_src = new_expr
+        else:
+            r_src, replaced_src = self.src.replace(old_expr, new_expr)
+
+        if r_dst or r_src:
+            return True, WeakAssignment(self.idx, replaced_dst, replaced_src, **self.tags)
+        else:
+            return False, self
+
+    def copy(self) -> WeakAssignment:
+        return WeakAssignment(self.idx, self.dst, self.src, **self.tags)
+
+
 class Store(Statement):
     """
     Store statement: *addr = data

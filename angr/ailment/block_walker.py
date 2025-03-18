@@ -4,7 +4,7 @@ from typing import Any
 from collections.abc import Callable
 
 from . import Block
-from .statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump, DirtyStatement
+from .statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump, DirtyStatement, WeakAssignment
 from .expression import (
     Load,
     Expression,
@@ -32,6 +32,7 @@ class AILBlockWalkerBase:
     def __init__(self, stmt_handlers=None, expr_handlers=None):
         _default_stmt_handlers = {
             Assignment: self._handle_Assignment,
+            WeakAssignment: self._handle_WeakAssignment,
             Call: self._handle_Call,
             Store: self._handle_Store,
             ConditionalJump: self._handle_ConditionalJump,
@@ -107,6 +108,10 @@ class AILBlockWalkerBase:
     #
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
+        self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
+        self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+
+    def _handle_WeakAssignment(self, stmt_idx: int, stmt: WeakAssignment, block: Block | None):
         self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
         self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
 
@@ -309,6 +314,29 @@ class AILBlockWalker(AILBlockWalkerBase):
         if changed:
             # update the statement directly in the block
             new_stmt = Assignment(stmt.idx, dst, src, **stmt.tags)
+            if self._update_block and block is not None:
+                block.statements[stmt_idx] = new_stmt
+            return new_stmt
+        return None
+
+    def _handle_WeakAssignment(self, stmt_idx: int, stmt: WeakAssignment, block: Block | None) -> WeakAssignment | None:
+        changed = False
+
+        dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
+        if dst is not None and dst is not stmt.dst:
+            changed = True
+        else:
+            dst = stmt.dst
+
+        src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+        if src is not None and src is not stmt.src:
+            changed = True
+        else:
+            src = stmt.src
+
+        if changed:
+            # update the statement directly in the block
+            new_stmt = WeakAssignment(stmt.idx, dst, src, **stmt.tags)
             if self._update_block and block is not None:
                 block.statements[stmt_idx] = new_stmt
             return new_stmt
