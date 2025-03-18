@@ -2480,6 +2480,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
+            Stmt.WeakAssignment: self._handle_Stmt_WeakAssignment,
             Stmt.Call: self._handle_Stmt_Call,
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
@@ -3280,6 +3281,45 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Assignment(self, stmt, **kwargs):
+        csrc = self._handle(stmt.src, lvalue=False)
+        cdst = None
+
+        src_type = csrc.type
+        dst_type = src_type
+        if hasattr(stmt, "type"):
+            src_type = stmt.type.get("src", None)
+            dst_type = stmt.type.get("dst", None)
+
+        if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
+
+            def negotiate(old_ty, proposed_ty):
+                # transfer casts from the dst to the src if possible
+                # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
+                nonlocal csrc
+                if not type_equals(old_ty, proposed_ty) and qualifies_for_simple_cast(old_ty, proposed_ty):
+                    csrc = CTypeCast(csrc.type, proposed_ty, csrc, codegen=self)
+                    return proposed_ty
+                return old_ty
+
+            if stmt.dst.variable is not None:
+                if "struct_member_info" in stmt.dst.tags:
+                    offset, var, _ = stmt.dst.struct_member_info
+                    cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
+                else:
+                    cvar = self._variable(stmt.dst.variable, stmt.dst.size, vvar_id=stmt.dst.varid)
+                    offset = stmt.dst.variable_offset or 0
+                assert type(offset) is int  # I refuse to deal with the alternative
+
+                cdst = self._access_constant_offset(
+                    self._get_variable_reference(cvar), offset, dst_type, True, negotiate
+                )
+
+        if cdst is None:
+            cdst = self._handle(stmt.dst, lvalue=True)
+
+        return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
+
+    def _handle_Stmt_WeakAssignment(self, stmt, **kwargs):
         csrc = self._handle(stmt.src, lvalue=False)
         cdst = None
 

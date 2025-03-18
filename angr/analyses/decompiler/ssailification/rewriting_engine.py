@@ -6,7 +6,17 @@ import logging
 from archinfo import Endness
 from ailment.block import Block
 from ailment.manager import Manager
-from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement, Jump
+from ailment.statement import (
+    Statement,
+    Assignment,
+    Store,
+    Call,
+    Return,
+    ConditionalJump,
+    DirtyStatement,
+    Jump,
+    WeakAssignment,
+)
 from ailment.expression import (
     Expression,
     Register,
@@ -179,6 +189,19 @@ class SimEngineSSARewriting(
             if stmt_base_reg is not None:
                 return new_stmt, stmt_base_reg
             return new_stmt
+        return None
+
+    def _handle_stmt_WeakAssignment(self, stmt) -> WeakAssignment | None:
+        new_src = self._expr(stmt.src)
+        new_dst = self._expr(stmt.dst)
+
+        if new_dst is not None or new_src is not None:
+            return WeakAssignment(
+                stmt.idx,
+                stmt.dst if new_dst is None else new_dst,
+                stmt.src if new_src is None else new_src,
+                **stmt.tags,
+            )
         return None
 
     def _handle_stmt_Store(self, stmt: Store) -> Store | Assignment | tuple[Assignment, ...] | None:

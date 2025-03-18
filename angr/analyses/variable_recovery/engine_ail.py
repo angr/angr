@@ -108,6 +108,13 @@ class SimEngineVRAIL(
         else:
             l.warning("Unsupported dst type %s.", dst_type)
 
+    def _handle_stmt_WeakAssignment(self, stmt) -> None:
+        src = self._expr(stmt.src)
+        dst = self._expr(stmt.dst)
+        if isinstance(src, RichR) and isinstance(dst, RichR) and src.typevar is not None and dst.typevar is not None:
+            tc = typevars.Subtype(src.typevar, dst.typevar)
+            self.state.add_type_constraint(tc)
+
     def _handle_stmt_Store(self, stmt: ailment.Stmt.Store):
         addr_r = self._expr_bv(stmt.addr)
         data = self._expr(stmt.data)

@@ -527,12 +527,14 @@ class Equivalence:
         "atom0",
         "atom1",
         "codeloc",
+        "is_weakassignment",
     )
 
-    def __init__(self, codeloc, atom0, atom1):
+    def __init__(self, codeloc, atom0, atom1, is_weakassignment: bool = False):
         self.codeloc = codeloc
         self.atom0 = atom0
         self.atom1 = atom1
+        self.is_weakassignment = is_weakassignment
 
     def __repr__(self):
         return f"<Eq@{self.codeloc!r}: {self.atom0!r}=={self.atom1!r}>"
@@ -543,7 +545,8 @@ class Equivalence:
             and other.codeloc == self.codeloc
             and other.atom0 == self.atom0
             and other.atom1 == self.atom1
+            and other.is_weakassignment == self.is_weakassignment
         )
 
     def __hash__(self):
-        return hash((Equivalence, self.codeloc, self.atom0, self.atom1))
+        return hash((Equivalence, self.codeloc, self.atom0, self.atom1, self.is_weakassignment))

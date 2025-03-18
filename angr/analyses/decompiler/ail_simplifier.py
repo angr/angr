@@ -9,7 +9,7 @@ import networkx
 
 from ailment import AILBlockWalker
 from ailment.block import Block
-from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement
+from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement, WeakAssignment
 from ailment.expression import (
     Register,
     Convert,
@@ -247,6 +247,9 @@ class AILSimplifier(Analysis):
                     ):
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
                         equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
+                elif isinstance(stmt, WeakAssignment):
+                    codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                    equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src, is_weakassignment=True))
                 elif isinstance(stmt, Call):
                     if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
@@ -1172,6 +1175,9 @@ class AILSimplifier(Analysis):
                     # register variable = Convert(Call)
                     call = eq.atom1
                     # call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
+                elif eq.is_weakassignment:
+                    # variable =w something else
+                    call = eq.atom1
                 else:
                     continue
 
@@ -1196,6 +1202,9 @@ class AILSimplifier(Analysis):
                 assert the_def.codeloc.stmt_idx is not None
 
                 all_uses: set[tuple[Any, CodeLocation]] = rd.get_vvar_uses_with_expr(the_def.atom)
+                if eq.is_weakassignment:
+                    # eliminate the "use" at the weak assignment site
+                    all_uses = {use for use in all_uses if use[1] != eq.codeloc}
 
                 if len(all_uses) != 1:
                     continue
@@ -1262,7 +1271,7 @@ class AILSimplifier(Analysis):
 
                 if isinstance(eq.atom0, VirtualVariable):
                     src = used_expr
-                    dst: Call | Convert = call.copy()
+                    dst: Expression = call.copy()
 
                     if isinstance(dst, Call) and dst.ret_expr is not None:
                         dst_bits = dst.ret_expr.bits
@@ -1272,7 +1281,7 @@ class AILSimplifier(Analysis):
                         dst.fp_ret_expr = None
                         dst.bits = dst_bits
 
-                    if src.bits != dst.bits:
+                    if src.bits != dst.bits and not eq.is_weakassignment:
                         dst = Convert(None, dst.bits, src.bits, False, dst)
                 else:
                     continue
@@ -1492,7 +1501,7 @@ class AILSimplifier(Analysis):
                         simplified = True
 
                 if idx in stmts_to_remove and idx not in stmts_to_keep and not isinstance(stmt, DirtyStatement):
-                    if isinstance(stmt, (Assignment, Store)):
+                    if isinstance(stmt, (Assignment, WeakAssignment, Store)):
                         # Special logic for Assignment and Store statements
 
                         # if this statement writes to a virtual variable that must be preserved, we ignore it

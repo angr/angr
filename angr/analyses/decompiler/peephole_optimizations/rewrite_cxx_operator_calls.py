@@ -4,7 +4,7 @@ from __future__ import annotations
 from archinfo import Endness
 from ailment.constant import UNDETERMINED_SIZE
 from ailment.expression import Const, VirtualVariable, BinaryOp, UnaryOp, Load
-from ailment.statement import Call, Assignment
+from ailment.statement import Call, WeakAssignment
 
 from angr.sim_type import SimTypeReference
 from angr.knowledge_plugins.key_definitions import atoms
@@ -36,7 +36,7 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
 
         return None
 
-    def _optimize_operator_equal(self, stmt: Call) -> Assignment | None:
+    def _optimize_operator_equal(self, stmt: Call) -> WeakAssignment | None:
         if stmt.args and len(stmt.args) == 2 and isinstance(stmt.args[0], UnaryOp) and stmt.args[0].op == "Reference":
             dst = stmt.args[0].operand
             if isinstance(dst, VirtualVariable):
@@ -49,10 +49,10 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
                 type = {"dst": dst_ty, "src": stmt.prototype.args[1]}
-            return Assignment(stmt.idx, stmt.args[0].operand, stmt.args[1], type=type, **stmt.tags)
+            return WeakAssignment(stmt.idx, stmt.args[0].operand, stmt.args[1], type=type, **stmt.tags)
         return None
 
-    def _optimize_operator_add(self, stmt: Call) -> Assignment | None:
+    def _optimize_operator_add(self, stmt: Call) -> WeakAssignment | None:
         if (
             stmt.args
             and len(stmt.args) == 3
@@ -64,5 +64,5 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
         ):
             arg2 = Load(None, stmt.args[2], UNDETERMINED_SIZE, Endness.BE, **stmt.tags)
             addition = BinaryOp(None, "Add", [stmt.args[1].operand, arg2], **stmt.tags)
-            return Assignment(stmt.idx, stmt.ret_expr, addition, **stmt.tags)
+            return WeakAssignment(stmt.idx, stmt.ret_expr, addition, **stmt.tags)
         return None

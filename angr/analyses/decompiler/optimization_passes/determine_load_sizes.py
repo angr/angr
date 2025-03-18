@@ -3,7 +3,7 @@ import logging
 
 from ailment.constant import UNDETERMINED_SIZE
 from ailment.expression import BinaryOp, Load, Const
-from ailment.statement import Assignment
+from ailment.statement import Assignment, WeakAssignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -38,7 +38,7 @@ class DetermineLoadSizes(OptimizationPass):
             for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
                 stmt = block.statements[idx]
                 if (
-                    isinstance(stmt, Assignment)
+                    isinstance(stmt, (Assignment, WeakAssignment))
                     and isinstance(stmt.src, BinaryOp)
                     and stmt.src.op == "Add"
                     and stmt.src.operands

@@ -60,6 +60,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
 
         self._expr(stmt.src)
 
+    def _handle_stmt_WeakAssignment(self, stmt):
+        self._expr(stmt.src)
+        self._expr(stmt.dst)
+
     def _handle_stmt_Store(self, stmt: Store):
         self._expr(stmt.addr)
         self._expr(stmt.data)
