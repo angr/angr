@@ -3791,7 +3791,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if expr.variable is not None:
             if "struct_member_info" in expr.tags:
                 offset, var, _ = expr.struct_member_info
-                cbasevar = self._variable(var, expr.size)
+                cbasevar = self._variable(var, expr.size, vvar_id=expr.varid)
                 cvar = self._access_constant_offset(
                     self._get_variable_reference(cbasevar), offset, cbasevar.type, False, negotiate
                 )
