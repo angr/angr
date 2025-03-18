@@ -1227,10 +1227,13 @@ class AILSimplifier(Analysis):
                         continue
 
                 # check if the use and the definition is within the same supernode
-                super_node_blocks = self._get_super_node_blocks(
-                    addr_and_idx_to_block[(the_def.codeloc.block_addr, the_def.codeloc.block_idx)]
-                )
-                if u.block_addr not in {b.addr for b in super_node_blocks}:
+                # also we do not allow any calls between the def site and the use site
+                if not self._loc_within_superblock(
+                    addr_and_idx_to_block[(the_def.codeloc.block_addr, the_def.codeloc.block_idx)],
+                    u.block_addr,
+                    u.block_idx,
+                    terminate_with_calls=True,
+                ):
                     continue
 
                 # ensure there are no other calls between the def site and the use site.
@@ -1254,10 +1257,6 @@ class AILSimplifier(Analysis):
                         skip_if_contains_vvar=the_def.atom.varid,
                     )
                 ):
-                    continue
-
-                # check if there are any calls in between the def site and the use site
-                if self._count_calls_in_supernodeblocks(super_node_blocks, the_def.codeloc, u) > 0:
                     continue
 
                 # replace all uses
@@ -1328,6 +1327,42 @@ class AILSimplifier(Analysis):
                 # too many successors
                 break
         return lst
+
+    def _loc_within_superblock(
+        self, start_node: Block, block_addr: int, block_idx: int | None, terminate_with_calls=False
+    ) -> bool:
+        b = start_node
+        if block_addr == b.addr and block_idx == b.idx:
+            return True
+
+        encountered_block_addrs: set[tuple[int, int | None]] = {(b.addr, b.idx)}
+        while True:
+            if terminate_with_calls and b.statements and isinstance(b.statements[-1], Call):
+                return False
+
+            encountered_block_addrs.add((b.addr, b.idx))
+            successors = list(self.func_graph.successors(b))
+            if len(successors) == 0:
+                # did not encounter the block before running out of successors
+                return False
+            if len(successors) == 1:
+                succ = successors[0]
+                # check its predecessors
+                succ_predecessors = list(self.func_graph.predecessors(succ))
+                if len(succ_predecessors) == 1:
+                    if (succ.addr, succ.idx) in encountered_block_addrs:
+                        # we are about to form a loop - bad!
+                        # example: binary ce1897b492c80bf94083dd783aefb413ab1f6d8d4981adce8420f6669d0cb3e1, block
+                        # 0x2976EF7.
+                        return False
+                    if block_addr == succ.addr and block_idx == succ.idx:
+                        return True
+                    b = succ
+                else:
+                    return False
+            else:
+                # too many successors
+                return False
 
     @staticmethod
     def _replace_expr_and_update_block(block, stmt_idx, stmt, src_expr, dst_expr) -> tuple[bool, Block | None]:
@@ -1733,26 +1768,6 @@ class AILSimplifier(Analysis):
             return True
 
         return False
-
-    @staticmethod
-    def _count_calls_in_supernodeblocks(blocks: list[Block], start: CodeLocation, end: CodeLocation) -> int:
-        """
-        Count the number of call statements in a list of blocks for a single super block between two given code
-        locations (exclusive).
-        """
-        calls = 0
-        started = False
-        for b in blocks:
-            if b.addr == start.block_addr:
-                started = True
-                continue
-            if b.addr == end.block_addr:
-                started = False
-                continue
-
-            if started and b.statements and isinstance(b.statements[-1], Call):
-                calls += 1
-        return calls
 
     @staticmethod
     def _exprs_contain_vvar(exprs: Iterable[Expression], vvar_ids: set[int]) -> bool:
