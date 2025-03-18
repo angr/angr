@@ -5,6 +5,7 @@ from collections.abc import Callable
 from collections import defaultdict, Counter
 import logging
 import struct
+import re
 
 from ailment import Block, Expr, Stmt, Tmp
 from ailment.constant import UNDETERMINED_SIZE
@@ -1260,6 +1261,7 @@ class CFunctionCall(CStatement, CExpression):
         "callee_func",
         "callee_target",
         "is_expr",
+        "prettify_thiscall",
         "ret_expr",
         "returning",
         "show_demangled_name",
@@ -1276,6 +1278,7 @@ class CFunctionCall(CStatement, CExpression):
         is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
+        prettify_thiscall: bool = True,
         tags=None,
         codegen=None,
         **kwargs,
@@ -1291,6 +1294,7 @@ class CFunctionCall(CStatement, CExpression):
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
+        self.prettify_thiscall = prettify_thiscall
 
     @property
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
@@ -1331,6 +1335,13 @@ class CFunctionCall(CStatement, CExpression):
 
         return False
 
+    @staticmethod
+    def _is_func_likely_cxx_class_method(func_name: str) -> bool:
+        if "::" not in func_name:
+            return False
+        chunks = func_name.split("::")
+        return re.match(r"[a-zA-Z_][a-zA-Z0-9_]*", chunks[-1]) is not None
+
     def c_repr_chunks(self, indent=0, asexpr: bool = False):
         """
 
@@ -1352,6 +1363,11 @@ class CFunctionCall(CStatement, CExpression):
                 func_name = self.callee_func.name
             if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
                 func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
+
+            if self.prettify_thiscall and self.args and self._is_func_likely_cxx_class_method(func_name):
+                yield from self._c_repr_chunks_thiscall(func_name, asexpr=asexpr)
+                return
+
             yield func_name, self
         elif isinstance(self.callee_target, str):
             yield self.callee_target, self
@@ -1362,6 +1378,38 @@ class CFunctionCall(CStatement, CExpression):
         yield "(", paren
 
         for i, arg in enumerate(self.args):
+            if i:
+                yield ", ", None
+            yield from CExpression._try_c_repr_chunks(arg)
+
+        yield ")", paren
+
+        if not self.is_expr and not asexpr:
+            yield ";", None
+            if not self.returning:
+                yield " /* do not return */", None
+            yield "\n", None
+
+    def _c_repr_chunks_thiscall(self, func_name: str, asexpr: bool = False):
+        # The first argument is the `this` pointer
+        assert self.args
+        this_ref = self.args[0]
+        if isinstance(this_ref, CUnaryOp) and this_ref.op == "Reference":
+            yield from CExpression._try_c_repr_chunks(this_ref.operand)
+        else:
+            yield from CExpression._try_c_repr_chunks(this_ref)
+
+        yield ".", None
+        short_funcname = func_name.split("::")[-1]
+        yield short_funcname, self
+
+        # the remaining arguments
+        paren = CClosingObject("(")
+        yield "(", paren
+
+        for i, arg in enumerate(self.args):
+            if i == 0:
+                continue
             if i:
                 yield ", ", None
             yield from CExpression._try_c_repr_chunks(arg)
