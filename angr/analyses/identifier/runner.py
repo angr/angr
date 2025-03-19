@@ -29,7 +29,7 @@ assert len(FLAG_DATA) == 0x1000
 class Runner:
     def __init__(self, project, cfg):
         # this is kind of fucked up
-        project.simos.syscall_library.update(SIM_LIBRARIES["cgcabi_tracer"])
+        project.simos.syscall_library.update(SIM_LIBRARIES["cgcabi_tracer"][0])
 
         self.project = project
         self.cfg = cfg
