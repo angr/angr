@@ -209,7 +209,7 @@ class FunctionParser:
                     stmt_idx=stmt_idx,
                     is_exception=edge_type == "exception",
                 )
-            elif edge_type == "call":
+            elif edge_type in ("call", "syscall"):
                 # find the corresponding fake_ret edge
                 fake_ret_edge = next(
                     iter(edge_ for edge_ in fake_return_edges[src_addr] if edge_[1].addr == src.addr + src.size), None
