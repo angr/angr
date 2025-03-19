@@ -36,6 +36,10 @@ class FunctionParser:
         obj.alignment = function.is_alignment
         obj.binary_name = function.binary_name or ""
         obj.normalized = function.normalized
+        obj.calling_convention = pickle.dumps(function.calling_convention)
+        obj.prototype = pickle.dumps(function.prototype)
+        obj.prototype_libname = (function.prototype_libname or "").encode()
+        obj.is_prototype_guessed = function.is_prototype_guessed
 
         # signature matched?
         if not function.from_signature:
@@ -107,6 +111,10 @@ class FunctionParser:
             returning=cmsg.returning,
             alignment=cmsg.alignment,
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
+            calling_convention=pickle.loads(cmsg.calling_convention),
+            prototype=pickle.loads(cmsg.prototype),
+            prototype_libname=cmsg.prototype_libname,
+            is_prototype_guessed=cmsg.is_prototype_guessed,
         )
         obj._project = project
         obj.normalized = cmsg.normalized
