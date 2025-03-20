@@ -1499,7 +1499,7 @@ class CFGBase(Analysis):
                 ):
                     # all nops. mark this function as a function alignment
                     l.debug("Function chunk %#x is probably used as a function alignment (all nops).", func_addr)
-                    self.kb.functions[func_addr].alignment = True
+                    self.kb.functions[func_addr].is_alignment = True
                     continue
                 node = function.get_node(block.addr)
                 assert node is not None
@@ -1507,7 +1507,7 @@ class CFGBase(Analysis):
                 if len(successors) == 1 and successors[0].addr == node.addr:
                     # self loop. mark this function as a function alignment
                     l.debug("Function chunk %#x is probably used as a function alignment (self-loop).", func_addr)
-                    self.kb.functions[func_addr].alignment = True
+                    self.kb.functions[func_addr].is_alignment = True
                     continue
 
     def make_functions(self):

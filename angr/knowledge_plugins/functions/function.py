@@ -23,7 +23,6 @@ from angr.procedures import SIM_LIBRARIES
 from angr.procedures.definitions import SimSyscallLibrary
 from angr.protos import function_pb2
 from angr.calling_conventions import DEFAULT_CC, default_cc
-from angr.misc.ux import deprecated
 from angr.sim_type import SimTypeFunction, parse_defns
 from angr.calling_conventions import SimCC
 from angr.project import Project
@@ -238,15 +237,6 @@ class Function(Serializable):
             self._returning = self._get_initial_returning()
 
         self._init_prototype_and_calling_convention()
-
-    @property
-    @deprecated(".is_alignment")
-    def alignment(self):
-        return self.is_alignment
-
-    @alignment.setter
-    def alignment(self, value):
-        self.is_alignment = value
 
     @property
     def name(self):
@@ -562,7 +552,7 @@ class Function(Serializable):
             f"  SP difference: {self.sp_delta}\n"
             f"  Has return: {self.has_return}\n"
             f"  Returning: {'Unknown' if self.returning is None else self.returning}\n"
-            f"  Alignment: {self.alignment}\n"
+            f"  Alignment: {self.is_alignment}\n"
             f"  Arguments: reg: {self._argument_registers}, stack: {self._argument_stack_variables}\n"
             f"  Blocks: [{', '.join(f'{i:#x}' for i in self.block_addrs)}]\n"
             f"  Cyclomatic Complexity: {self.cyclomatic_complexity}\n"
@@ -1677,7 +1667,7 @@ class Function(Serializable):
         func.calling_convention = self.calling_convention
         func.prototype = self.prototype
         func._returning = self._returning
-        func.alignment = self.is_alignment
+        func.is_alignment = self.is_alignment
         func.startpoint = self.startpoint
         func._addr_to_block_node = self._addr_to_block_node.copy()
         func._block_sizes = self._block_sizes.copy()

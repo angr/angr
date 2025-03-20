@@ -29,7 +29,7 @@ class TestDogboltRegressions(unittest.TestCase):
         funcs_to_decompile = [
             func
             for func in cfg.functions.values()
-            if not func.is_plt and not func.is_simprocedure and not func.alignment
+            if not func.is_plt and not func.is_simprocedure and not func.is_alignment
         ]
 
         for func in funcs_to_decompile:

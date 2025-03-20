@@ -83,7 +83,7 @@ class SootFunction(Function):
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
-        self.alignment = None
+        self.is_alignment = None
 
         # Determine returning status for SimProcedures and Syscalls
         hooker = None
