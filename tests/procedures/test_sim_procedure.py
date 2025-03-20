@@ -68,7 +68,7 @@ class TestSimProcedure(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True)
 
         # check syscall
-        node = cfg.get_any_node(proj.loader.kernel_object.mapped_base + 1)
+        node = cfg.model.get_any_node(proj.loader.kernel_object.mapped_base + 1)
         func = proj.kb.functions[node.addr]
 
         assert node.is_simprocedure
@@ -80,7 +80,7 @@ class TestSimProcedure(unittest.TestCase):
         assert isinstance(proj.factory.snippet(node.addr), SyscallNode)
 
         # check normal functions
-        node = cfg.get_any_node(0x80480A0)
+        node = cfg.model.get_any_node(0x80480A0)
         func = proj.kb.functions[node.addr]
 
         assert not node.is_simprocedure
@@ -93,7 +93,7 @@ class TestSimProcedure(unittest.TestCase):
         # check hooked functions
         proj.hook(0x80480A0, angr.SIM_PROCEDURES["libc"]["puts"]())
         cfg = proj.analyses.CFGFast(normalize=True)  # rebuild cfg to updated nodes
-        node = cfg.get_any_node(0x80480A0)
+        node = cfg.model.get_any_node(0x80480A0)
         func = proj.kb.functions[node.addr]
 
         assert node.is_simprocedure

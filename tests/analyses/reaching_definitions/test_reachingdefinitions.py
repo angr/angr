@@ -246,7 +246,9 @@ class TestReachingDefinitions(TestCase):
         strlen_edges = main_func.transition_graph.in_edges(strlen_func)
 
         # Only one call site for strlen in the `all` binary
-        strlen_call_site = next(cfg.get_any_node(edge_to.addr).instruction_addrs[-1] for edge_to, _ in strlen_edges)
+        strlen_call_site = next(
+            cfg.model.get_any_node(edge_to.addr).instruction_addrs[-1] for edge_to, _ in strlen_edges
+        )
 
         observation_points = [("insn", strlen_call_site, OP_AFTER)]
         handler = LibcHandlers()

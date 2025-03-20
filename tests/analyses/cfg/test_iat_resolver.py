@@ -21,7 +21,7 @@ class TestIatResolver(unittest.TestCase):
         p = angr.Project(os.path.join(test_location, "i386", "simple_windows.exe"), auto_load_libs=False)
         cfg = p.analyses.CFGFast()
 
-        strcmp_caller_bb = cfg.get_any_node(0x401010)
+        strcmp_caller_bb = cfg.model.get_any_node(0x401010)
         assert len(strcmp_caller_bb.successors) == 1
 
         strcmp = strcmp_caller_bb.successors[0]

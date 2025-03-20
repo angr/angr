@@ -35,7 +35,7 @@ class TestFactCollector(unittest.TestCase):
 
             cc_analysis = fauxware.analyses.CallingConvention(
                 authenticate,
-                cfg=cfg,
+                cfg=cfg.model,
                 analyze_callsites=True,
                 input_args=ffc.input_args,
                 retval_size=ffc.retval_size,

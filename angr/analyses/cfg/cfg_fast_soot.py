@@ -487,7 +487,7 @@ class CFGFastSoot(CFGFast):
                 # it might be a jumpout
                 target_func_addr = None
                 if target_addr in self._traced_addresses:
-                    node = self.get_any_node(target_addr)
+                    node = self.model.get_any_node(target_addr)
                     if node is not None:
                         target_func_addr = node.function_address
                 if target_func_addr is None:
@@ -578,7 +578,7 @@ class CFGFastSoot(CFGFast):
             if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys"):
                 function_nodes.add(dst)
 
-        entry_node = self.get_any_node(self._binary.entry)
+        entry_node = self.model.get_any_node(self._binary.entry)
         if entry_node is not None:
             function_nodes.add(entry_node)
 
@@ -616,7 +616,7 @@ class CFGFastSoot(CFGFast):
         secondary_function_nodes = set()
         # add all function chunks ("functions" that are not called from anywhere)
         for func_addr in tmp_functions:
-            node = self.get_any_node(func_addr)
+            node = self.model.get_any_node(func_addr)
             if node is None:
                 continue
             if node.addr not in blockaddr_to_function:
