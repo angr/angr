@@ -4961,6 +4961,27 @@ class TestDecompiler(unittest.TestCase):
         # Ssalification Pass 1
         assert re.search(r"return \S+.wParam;", dec.codegen.text) is not None
 
+    def test_decompiling_48460c9633d06cad3e3b41c87de04177d129906610c5bbdebc7507a211100e98_sub_401240(
+        self, decompiler_options=None
+    ):
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "48460c9633d06cad3e3b41c87de04177d129906610c5bbdebc7507a211100e98"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        func = proj.kb.functions[0x401240]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # ensure we do not have redundant masking
+        assert "& 0xff & 0xff" not in dec.codegen.text and "& 255 & 255" not in dec.codegen.text
+        # ensure that we do not have multi-statement expressions in while-loops
+        for line in dec.codegen.text.split("\n"):
+            if "while" in line:
+                assert line.count(";") <= 1, f"Multiple statements in while-loop: {line}"
+
     def test_regs_preserved_across_syscalls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "regs_preserved_across_syscalls")
         proj = angr.Project(bin_path, auto_load_libs=False)

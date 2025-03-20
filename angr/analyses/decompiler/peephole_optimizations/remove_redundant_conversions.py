@@ -164,6 +164,20 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                                 **expr.tags,
                             )
 
+        # simpler cases
+        # (A & mask) & mask  ==>  A & mask
+        if (
+            expr.op == "And"
+            and isinstance(expr.operands[1], Const)
+            and isinstance(expr.operands[0], BinaryOp)
+            and expr.operands[0].op == "And"
+        ):
+            inner_op0, inner_op1 = expr.operands[0].operands
+            if (isinstance(inner_op0, Const) and inner_op0.value == expr.operands[1].value) or (
+                isinstance(inner_op1, Const) and inner_op1.value == expr.operands[1].value
+            ):
+                return expr.operands[0]
+
         return None
 
     @staticmethod

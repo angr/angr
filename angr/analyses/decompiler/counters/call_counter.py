@@ -37,8 +37,10 @@ class AILCallCounter(SequenceWalker):
         }
         super().__init__(handlers)
         self.calls = 0
+        self.stmts = 0
 
     def _handle_Block(self, node: Block, **kwargs):  # pylint:disable=unused-argument
         ctr = AILBlockCallCounter()
         ctr.walk(node)
         self.calls += ctr.calls
+        self.stmts += len(node.statements)
