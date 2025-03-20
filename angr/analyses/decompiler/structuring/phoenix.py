@@ -542,7 +542,11 @@ class PhoenixStructurer(StructurerBase):
                             ):
                                 stmts = self._build_multistatementexpr_statements(succ)
                                 assert stmts is not None
-                                if stmts and len(stmts) <= self._multistmtexpr_stmt_threshold:
+                                if (
+                                    stmts
+                                    and sum(1 for stmt in stmts if not isinstance(stmt, Label))
+                                    <= self._multistmtexpr_stmt_threshold
+                                ):
                                     edge_cond_succhead = MultiStatementExpression(
                                         None,
                                         stmts,
@@ -2616,12 +2620,12 @@ class PhoenixStructurer(StructurerBase):
         if self._use_multistmtexprs == MultiStmtExprMode.ALWAYS:
             ctr = AILCallCounter()
             ctr.walk(node)
-            return ctr.stmts <= self._multistmtexpr_stmt_threshold
+            return ctr.non_label_stmts <= self._multistmtexpr_stmt_threshold
         if self._use_multistmtexprs == MultiStmtExprMode.MAX_ONE_CALL:
             # count the number of calls
             ctr = AILCallCounter()
             ctr.walk(node)
-            return ctr.calls <= 1 and ctr.stmts <= self._multistmtexpr_stmt_threshold
+            return ctr.calls <= 1 and ctr.non_label_stmts <= self._multistmtexpr_stmt_threshold
         l.warning("Unsupported enum value for _use_multistmtexprs: %s", self._use_multistmtexprs)
         return False
 
