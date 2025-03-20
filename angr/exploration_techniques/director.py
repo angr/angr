@@ -71,7 +71,7 @@ class BaseGoal:
 
         block_id = cfg._generate_block_id(call_stack_suffix, state.addr, is_syscall)
 
-        return cfg.get_node(block_id)
+        return cfg.model.get_node(block_id)
 
     @staticmethod
     def _dfs_edges(graph, source, max_steps=None):

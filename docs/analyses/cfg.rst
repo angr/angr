@@ -51,8 +51,8 @@ This means that all of the normal NetworkX APIs are available:
 
 .. code-block:: python
 
-   >>> print("This is the graph:", cfg.graph)
-   >>> print("It has %d nodes and %d edges" % (len(cfg.graph.nodes()), len(cfg.graph.edges())))
+   >>> print("This is the graph:", cfg.model.graph)
+   >>> print("It has %d nodes and %d edges" % (len(cfg.model.graph.nodes()), len(cfg.model.graph.edges())))
 
 The nodes of the CFG graph are instances of class ``CFGNode``. Due to context
 sensitivity, a given basic block can have multiple nodes in the graph (for
@@ -61,15 +61,15 @@ multiple contexts).
 .. code-block:: python
 
    # this grabs *any* node at a given location:
-   >>> entry_node = cfg.get_any_node(p.entry)
+   >>> entry_node = cfg.model.get_any_node(p.entry)
 
    # on the other hand, this grabs all of the nodes
-   >>> print("There were %d contexts for the entry block" % len(cfg.get_all_nodes(p.entry)))
+   >>> print("There were %d contexts for the entry block" % len(cfg.model.get_all_nodes(p.entry)))
 
    # we can also look up predecessors and successors
    >>> print("Predecessors of the entry point:", entry_node.predecessors)
    >>> print("Successors of the entry point:", entry_node.successors)
-   >>> print("Successors (and type of jump) of the entry point:", [ jumpkind + " to " + str(node.addr) for node,jumpkind in cfg.get_successors_and_jumpkind(entry_node) ])
+   >>> print("Successors (and type of jump) of the entry point:", [ jumpkind + " to " + str(node.addr) for node,jumpkind in cfg.model.get_successors_and_jumpkind(entry_node) ])
 
 Viewing the CFG
 ^^^^^^^^^^^^^^^

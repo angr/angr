@@ -205,7 +205,7 @@ class TestVfg(unittest.TestCase):
         }
         indirect_call_targets = set()
         for block_addr in cfg.kb.functions["main"].block_addrs_set:
-            cfg_node = cfg.get_any_node(block_addr)
+            cfg_node = cfg.model.get_any_node(block_addr)
             succs_and_jumpkinds = cfg_node.successors_and_jumpkinds()
             if (
                 len(succs_and_jumpkinds) == 1

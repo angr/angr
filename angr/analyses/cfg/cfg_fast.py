@@ -25,7 +25,6 @@ from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.knowledge_plugins.functions import Function
-from angr.misc.ux import deprecated
 from angr.codenode import HookNode
 from angr import sim_options as o
 from angr.errors import (
@@ -4333,7 +4332,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
             # extra check for ARM
             if is_arm_arch(self.project.arch) and self._seg_list.occupied_by_sort(addr) == "code":
-                existing_node = self.get_any_node(addr, anyaddr=True)
+                existing_node = self.model.get_any_node(addr, anyaddr=True)
                 if existing_node is not None and (addr & 1) != (existing_node.addr & 1):
                     # we are trying to break an existing ARM node with a THUMB node, or vice versa
                     # this is probably because our current node is unexpected
@@ -5211,19 +5210,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
     def output(self):
         return f"{self._graph.edges(data=True)}"
-
-    @deprecated(replacement="angr.analyses.CFB")
-    def generate_code_cover(self):
-        """
-        Generate a list of all recovered basic blocks.
-        """
-
-        lst = []
-        for cfg_node in self.graph.nodes():
-            size = cfg_node.size
-            lst.append((cfg_node.addr, size))
-
-        return sorted(lst, key=lambda x: x[0])
 
 
 AnalysesHub.register_default("CFGFast", CFGFast)

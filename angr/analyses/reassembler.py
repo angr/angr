@@ -2410,7 +2410,7 @@ class Reassembler(Analysis):
 
         # collect address of all instructions
         l.debug("Collecting instruction addresses...")
-        for cfg_node in self.cfg.nodes():
+        for cfg_node in self.cfg.model.nodes():
             self.all_insn_addrs |= set(cfg_node.instruction_addrs)
 
         # Functions

@@ -17,7 +17,6 @@ from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
-from angr.misc.ux import deprecated
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.procedures.procedure_dict import SIM_PROCEDURES
@@ -354,63 +353,8 @@ class CFGBase(Analysis):
 
         raise NotImplementedError("I'm too lazy to implement it right now")
 
-    @deprecated(replacement="self.model.get_predecessors()")
-    def get_predecessors(self, cfgnode, excluding_fakeret=True, jumpkind=None):
-        return self._model.get_predecessors(cfgnode, excluding_fakeret=excluding_fakeret, jumpkind=jumpkind)
-
-    @deprecated(replacement="self.model.get_successors()")
-    def get_successors(self, node, excluding_fakeret=True, jumpkind=None):
-        return self._model.get_successors(node, excluding_fakeret=excluding_fakeret, jumpkind=jumpkind)
-
-    @deprecated(replacement="self.model.get_successors_and_jumpkind")
-    def get_successors_and_jumpkind(self, node, excluding_fakeret=True):
-        return self._model.get_successors_and_jumpkind(node, excluding_fakeret=excluding_fakeret)
-
-    @deprecated(replacement="self.model.get_all_predecessors()")
-    def get_all_predecessors(self, cfgnode, depth_limit=None):
-        return self._model.get_all_predecessors(cfgnode, depth_limit)
-
-    @deprecated(replacement="self.model.get_all_successors()")
-    def get_all_successors(self, cfgnode, depth_limit=None):
-        return self._model.get_all_successors(cfgnode, depth_limit)
-
-    @deprecated(replacement="self.model.get_node()")
-    def get_node(self, block_id):
-        return self._model.get_node(block_id)
-
-    @deprecated(replacement="self.model.get_any_node()")
-    def get_any_node(self, addr, is_syscall=None, anyaddr=False, force_fastpath=False):
-        return self._model.get_any_node(addr, is_syscall=is_syscall, anyaddr=anyaddr, force_fastpath=force_fastpath)
-
-    @deprecated(replacement="self.model.get_all_nodes()")
-    def get_all_nodes(self, addr, is_syscall=None, anyaddr=False):
-        return self._model.get_all_nodes(addr, is_syscall=is_syscall, anyaddr=anyaddr)
-
-    @deprecated(replacement="self.model.nodes()")
-    def nodes(self):
-        return self._model.nodes()
-
-    @deprecated(replacement="nodes")
-    def nodes_iter(self):
-        """
-        (Decrepated) An iterator of all nodes in the graph. Will be removed in the future.
-
-        :return: The iterator.
-        :rtype: iterator
-        """
-
-        return self.nodes()
-
     def get_loop_back_edges(self):
         return self._loop_back_edges
-
-    @deprecated(replacement="self.model.get_branching_nodes()")
-    def get_branching_nodes(self):
-        return self._model.get_branching_nodes()
-
-    @deprecated(replacement="self.model.get_exit_stmt_idx")
-    def get_exit_stmt_idx(self, src_block, dst_block):
-        return self._model.get_exit_stmt_idx(src_block, dst_block)
 
     @property
     def graph(self) -> networkx.DiGraph[CFGNode]:
@@ -2110,7 +2054,7 @@ class CFGBase(Analysis):
                 continue
             if func_addr in jumptable_entries:
                 # is there any call edge pointing to it?
-                func_node = self.get_any_node(func_addr, force_fastpath=True)
+                func_node = self.model.get_any_node(func_addr, force_fastpath=True)
                 if func_node is not None:
                     in_edges = self.graph.in_edges(func_node, data=True)
                     has_transition_pred = None

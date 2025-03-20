@@ -472,7 +472,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 src_blocknode: BlockNode = back_edge[0]
                 dst_blocknode: BlockNode = back_edge[1]
 
-                for src in self.get_all_nodes(src_blocknode.addr):
+                for src in self.model.get_all_nodes(src_blocknode.addr):
                     for dst in graph.successors(src):
                         if dst.addr != dst_blocknode.addr:
                             continue
@@ -524,7 +524,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         start = self._starts[0]
         if isinstance(start, tuple):
             start, _ = start  # pylint: disable=unpacking-non-sequence
-        start_node = self.get_any_node(start)
+        start_node = self.model.get_any_node(start)
         if start_node is None:
             raise AngrCFGError("Cannot find start node when trying to unroll loops. The CFG might be empty.")
 
@@ -720,7 +720,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # FIXME: syscalls are not supported
         # FIXME: start should also take a CFGNode instance
 
-        start_node = self.get_any_node(start)
+        start_node = self.model.get_any_node(start)
         assert start_node is not None
 
         node_wrapper = (start_node, 0)
@@ -2286,9 +2286,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     # Remove that edge!
                     graph.remove_edge(call_func_addr, return_to_addr)
                     # Remove the edge in CFG
-                    nodes = self.get_all_nodes(callsite_block_addr)
+                    nodes = self.model.get_all_nodes(callsite_block_addr)
                     for n in nodes:
-                        successors = self.get_successors_and_jumpkind(n, excluding_fakeret=False)
+                        successors = self.model.get_successors_and_jumpkind(n, excluding_fakeret=False)
                         for successor, jumpkind in successors:
                             if jumpkind == "Ijk_FakeRet" and successor.addr == return_to_addr:
                                 self.remove_edge(n, successor)
@@ -2548,7 +2548,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         for start in starts:
             l.debug("Start symbolic execution at 0x%x on program slice.", start)
             # Get the state from our CFG
-            node = self.get_any_node(start)
+            node = self.model.get_any_node(start)
             if node is None:
                 # Well, we have to live with an empty state
                 base_state = self.project.factory.blank_state(addr=start)
@@ -2561,7 +2561,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 initial_nodes = [n for n in bc.taint_graph.nodes() if bc.taint_graph.in_degree(n) == 0]
                 for cl in initial_nodes:
                     # Iterate in all actions of this node, and pick corresponding actions
-                    cfg_nodes = self.get_all_nodes(cl.block_addr)
+                    cfg_nodes = self.model.get_all_nodes(cl.block_addr)
                     for n in cfg_nodes:
                         if not n.final_states:
                             continue
@@ -3376,9 +3376,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         all_predecessors = []
 
-        nodes = self.get_all_nodes(function_address)
+        nodes = self.model.get_all_nodes(function_address)
         for n in nodes:
-            predecessors = list(self.get_predecessors(n))
+            predecessors = list(self.model.get_predecessors(n))
             all_predecessors.extend(predecessors)
 
         return all_predecessors
@@ -3391,8 +3391,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         Return: a list of lists of nodes representing paths.
         """
         if isinstance(begin, int) and isinstance(end, int):
-            n_begin = self.get_any_node(begin)
-            n_end = self.get_any_node(end)
+            n_begin = self.model.get_any_node(begin)
+            n_end = self.model.get_any_node(end)
 
         elif isinstance(begin, CFGENode) and isinstance(end, CFGENode):
             n_begin = begin
@@ -3417,7 +3417,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         for ep in self._entry_points:
             # FIXME: This is not always correct. We'd better store CFGNodes in self._entry_points
-            ep_node = self.get_any_node(ep)
+            ep_node = self.model.get_any_node(ep)
 
             if not ep_node:
                 continue
