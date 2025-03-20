@@ -51,7 +51,7 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
             if not self._kb.functions.contains_addr(func_addr):
                 return None
             func = self._kb.functions[func_addr]
-            if func.is_simprocedure or func.is_plt or func.alignment:
+            if func.is_simprocedure or func.is_plt or func.is_alignment:
                 return None
             callsites = list(func.get_call_sites())
             if not callsites:
