@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ailment import Block
+from ailment.statement import Label
 from ailment.block_walker import AILBlockWalkerBase
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
@@ -37,8 +38,10 @@ class AILCallCounter(SequenceWalker):
         }
         super().__init__(handlers)
         self.calls = 0
+        self.non_label_stmts = 0
 
     def _handle_Block(self, node: Block, **kwargs):  # pylint:disable=unused-argument
         ctr = AILBlockCallCounter()
         ctr.walk(node)
         self.calls += ctr.calls
+        self.non_label_stmts += sum(1 for stmt in node.statements if not isinstance(stmt, Label))

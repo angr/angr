@@ -90,6 +90,7 @@ class PhoenixStructurer(StructurerBase):
         parent_region=None,
         improve_algorithm=False,
         use_multistmtexprs: MultiStmtExprMode = MultiStmtExprMode.MAX_ONE_CALL,
+        multistmtexpr_stmt_threshold: int = 5,
         **kwargs,
     ):
         super().__init__(
@@ -126,6 +127,7 @@ class PhoenixStructurer(StructurerBase):
         self._edge_virtualization_hints = []
 
         self._use_multistmtexprs = use_multistmtexprs
+        self._multistmtexpr_stmt_threshold = multistmtexpr_stmt_threshold
         self._analyze()
 
     @staticmethod
@@ -540,7 +542,11 @@ class PhoenixStructurer(StructurerBase):
                             ):
                                 stmts = self._build_multistatementexpr_statements(succ)
                                 assert stmts is not None
-                                if stmts:
+                                if (
+                                    stmts
+                                    and sum(1 for stmt in stmts if not isinstance(stmt, Label))
+                                    <= self._multistmtexpr_stmt_threshold
+                                ):
                                     edge_cond_succhead = MultiStatementExpression(
                                         None,
                                         stmts,
@@ -2612,12 +2618,14 @@ class PhoenixStructurer(StructurerBase):
         if self._use_multistmtexprs == MultiStmtExprMode.NEVER:
             return False
         if self._use_multistmtexprs == MultiStmtExprMode.ALWAYS:
-            return True
+            ctr = AILCallCounter()
+            ctr.walk(node)
+            return ctr.non_label_stmts <= self._multistmtexpr_stmt_threshold
         if self._use_multistmtexprs == MultiStmtExprMode.MAX_ONE_CALL:
             # count the number of calls
             ctr = AILCallCounter()
             ctr.walk(node)
-            return ctr.calls <= 1
+            return ctr.calls <= 1 and ctr.non_label_stmts <= self._multistmtexpr_stmt_threshold
         l.warning("Unsupported enum value for _use_multistmtexprs: %s", self._use_multistmtexprs)
         return False
 
