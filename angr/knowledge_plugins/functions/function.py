@@ -347,7 +347,8 @@ class Function(Serializable):
             # we know the size
             size = self._block_sizes[addr]
 
-        block = self._project.factory.block(addr, size=size, byte_string=byte_string)
+        assert self.project is not None
+        block = self.project.factory.block(addr, size=size, byte_string=byte_string)
         if size is None:
             # update block_size dict
             self._block_sizes[addr] = block.size
@@ -450,18 +451,19 @@ class Function(Serializable):
         """
         constants = set()
 
-        if not self._project.loader.main_object.contains_addr(self.addr):
+        assert self.project is not None
+        if not self.project.loader.main_object.contains_addr(self.addr):
             return constants
 
         # FIXME the old way was better for architectures like mips, but we need the initial irsb
         # reanalyze function with a new initial state (use persistent registers)
         # initial_state = self._function_manager._cfg.get_any_irsb(self.addr).initial_state
-        # fresh_state = self._project.factory.blank_state(mode="fastpath")
+        # fresh_state = self.project.factory.blank_state(mode="fastpath")
         # for reg in initial_state.arch.persistent_regs + ['ip']:
         #     fresh_state.registers.store(reg, initial_state.registers.load(reg))
 
         # reanalyze function with a new initial state
-        fresh_state = self._project.factory.blank_state(mode="fastpath")
+        fresh_state = self.project.factory.blank_state(mode="fastpath")
         fresh_state.regs.ip = self.addr
 
         graph_addrs = {x.addr for x in self.graph.nodes() if isinstance(x, BlockNode)}
@@ -476,10 +478,10 @@ class Function(Serializable):
             if state.solver.eval(state.ip) not in graph_addrs:
                 continue
             # don't trace into simprocedures
-            if self._project.is_hooked(state.solver.eval(state.ip)):
+            if self.project.is_hooked(state.solver.eval(state.ip)):
                 continue
             # don't trace outside of the binary
-            if not self._project.loader.main_object.contains_addr(state.solver.eval(state.ip)):
+            if not self.project.loader.main_object.contains_addr(state.solver.eval(state.ip)):
                 continue
             # don't trace unreachable blocks
             if state.history.jumpkind in {
@@ -496,7 +498,7 @@ class Function(Serializable):
             curr_ip = state.solver.eval(state.ip)
 
             # get runtime values from logs of successors
-            successors = self._project.factory.successors(state)
+            successors = self.project.factory.successors(state)
             for succ in successors.flat_successors + successors.unsat_successors:
                 for a in succ.history.recent_actions:
                     for ao in a.all_objects:
@@ -610,8 +612,8 @@ class Function(Serializable):
         Get the object this function belongs to.
         :return: The object this function belongs to.
         """
-
-        return self._project.loader.find_object_containing(self.addr, membership_check=False)
+        assert self.project is not None
+        return self.project.loader.find_object_containing(self.addr, membership_check=False)
 
     @property
     def offset(self) -> int:
@@ -688,10 +690,12 @@ class Function(Serializable):
             project = self.project
             if project.is_hooked(addr):
                 hooker = project.hooked_by(addr)
-                name = hooker.display_name
+                if hooker is not None:
+                    name = hooker.display_name
             elif project.simos.is_syscall_addr(addr):
                 syscall_inst = project.simos.syscall_from_addr(addr)
-                name = syscall_inst.display_name
+                if syscall_inst is not None:
+                    name = syscall_inst.display_name
 
         # generate an IDA-style sub_X name
         if name is None:
@@ -1328,7 +1332,8 @@ class Function(Serializable):
 
     @property
     def callable(self):
-        return self._project.factory.callable(self.addr)
+        assert self.project is not None
+        return self.project.factory.callable(self.addr)
 
     def normalize(self):
         """
@@ -1339,6 +1344,7 @@ class Function(Serializable):
 
         :return: None
         """
+        assert self.project is not None
 
         # let's put a check here
         if self.startpoint is None:
@@ -1367,8 +1373,8 @@ class Function(Serializable):
 
             # Break other nodes
             for n in other_nodes:
-                new_size = get_real_address_if_arm(self._project.arch, smallest_node.addr) - get_real_address_if_arm(
-                    self._project.arch, n.addr
+                new_size = get_real_address_if_arm(self.project.arch, smallest_node.addr) - get_real_address_if_arm(
+                    self.project.arch, n.addr
                 )
                 if new_size == 0:
                     # This is the node that has the same size as the smallest one
@@ -1587,6 +1593,7 @@ class Function(Serializable):
             ::<addr>::<name>   when the function binary is an unnamed non-main object, or when multiple functions with
                                the same name are defined in the function binary.
         """
+        assert self.project is not None
         must_disambiguate_by_addr = self.binary is not self.project.loader.main_object and self.binary_name is None
 
         # If there are multiple functions with the same name in the same object, disambiguate by address
@@ -1605,6 +1612,7 @@ class Function(Serializable):
         return n + (display_name or self.name)
 
     def apply_definition(self, definition: str, calling_convention: SimCC | type[SimCC] | None = None) -> None:
+        assert self.project is not None
         if not definition.endswith(";"):
             definition += ";"
         func_def = parse_defns(definition, arch=self.project.arch)
