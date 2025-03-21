@@ -3,7 +3,6 @@ from typing import TypeVar, Generic
 from collections.abc import Collection, Iterator
 from collections import defaultdict
 
-from angr.misc.ux import deprecated
 from angr.utils.algo import binary_insert
 
 NodeType = TypeVar("NodeType")
@@ -93,13 +92,6 @@ class GraphVisitor(Generic[NodeType]):
         """
 
         return iter(self.sort_nodes())
-
-    @deprecated(replacement="nodes")
-    def nodes_iter(self):
-        """
-        (Deprecated) Return an iterator of nodes following an optimal traversal order. Will be removed in the future.
-        """
-        return self.nodes()
 
     # Traversal
 
