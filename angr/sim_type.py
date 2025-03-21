@@ -16,7 +16,6 @@ import pycparser
 
 from angr.errors import AngrMissingTypeError, AngrTypeError
 from angr.sim_state import SimState
-from .misc.ux import deprecated
 
 if TYPE_CHECKING:
     from angr.procedures.definitions import SimTypeCollection
@@ -2995,21 +2994,6 @@ def _make_scope(predefined_types=None):
 
         scope[ty] = True
     return [scope]
-
-
-@deprecated(replacement="register_types(parse_type(struct_expr))")
-def define_struct(defn):
-    """
-    Register a struct definition globally
-
-    >>> define_struct('struct abcd {int x; int y;}')
-    """
-    struct = parse_type(defn)
-    if not isinstance(struct, SimStruct):
-        raise AngrTypeError("Passed a non-struct type to define_struct")
-    ALL_TYPES[struct.name] = struct
-    ALL_TYPES["struct " + struct.name] = struct
-    return struct
 
 
 def register_types(types):
