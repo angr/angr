@@ -14,7 +14,6 @@ from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
 from .sim_procedure import SimProcedure
 
-from .misc.ux import deprecated
 from .errors import AngrNoPluginError
 
 l = logging.getLogger(name=__name__)
@@ -825,15 +824,6 @@ class Project:
 
     def __repr__(self):
         return "<Project %s>" % (self.filename if self.filename is not None else "loaded from stream")
-
-    #
-    # Compatibility
-    #
-
-    @property
-    @deprecated(replacement="simos")
-    def _simos(self):
-        return self.simos
 
 
 from .factory import AngrObjectFactory
