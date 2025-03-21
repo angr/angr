@@ -962,27 +962,6 @@ class ConditionProcessor:
         return ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr, deep=False), memo)
 
     @staticmethod
-    def simplify_condition_deprecated(cond):
-        # Z3's simplification may yield weird and unreadable results
-        # hence we mostly rely on our own simplification. we only use Z3's simplification results when it returns a
-        # concrete value.
-        claripy_simplified = claripy.simplify(cond)
-        if not claripy_simplified.symbolic:
-            return claripy_simplified
-
-        simplified = ConditionProcessor._fold_double_negations(cond)
-        cond = simplified if simplified is not None else cond
-        simplified = ConditionProcessor._revert_short_circuit_conditions(cond)
-        cond = simplified if simplified is not None else cond
-        simplified = ConditionProcessor._extract_common_subexpressions(cond)
-        cond = simplified if simplified is not None else cond
-        # simplified = ConditionProcessor._remove_redundant_terms(cond)
-        # cond = simplified if simplified is not None else cond
-        # in the end, use claripy's simplification to handle really easy cases again
-        simplified = ConditionProcessor._simplify_trivial_cases(cond)
-        return simplified if simplified is not None else cond
-
-    @staticmethod
     def _simplify_trivial_cases(cond):
         if cond.op == "And":
             new_args = []
