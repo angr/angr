@@ -18,7 +18,6 @@ import typing
 from rich import progress
 
 from angr.misc.plugins import PluginVendor, VendorPreset
-from angr.misc.ux import deprecated
 from angr.misc import telemetry
 from angr.misc.testing import is_testing
 
@@ -120,10 +119,6 @@ class AnalysesHub(PluginVendor[A]):
     def __init__(self, project):
         super().__init__()
         self.project = project
-
-    @deprecated()
-    def reload_analyses(self):  # pylint: disable=no-self-use
-        return
 
     def _init_plugin(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
         return AnalysisFactory(self.project, plugin_cls)
