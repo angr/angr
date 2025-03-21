@@ -2116,6 +2116,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 src_func = self.functions.function(addr=cfg_job.src_node.addr, create=True)
             else:
                 src_func = self.functions.get_by_addr(cfg_job.src_node.addr)
+            assert src_func is not None
             if len(src_func.block_addrs_set) <= 1 and src_func.is_default_name:
                 # assign a name to the caller function that jumps to this procedure
                 src_func.name = procedure.display_name
@@ -3842,6 +3843,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
             for ep in endpoints:
                 src = self.model.get_any_node(ep.addr)
+                assert src is not None
                 for rt in return_targets:
                     if not src.instruction_addrs:
                         ins_addr = None
