@@ -3,11 +3,12 @@ import logging
 from typing import Any
 
 import networkx
-from ailment.statement import ConditionalJump
+from ailment.statement import ConditionalJump, Return
 
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 from angr.analyses.decompiler.optimization_passes.return_duplicator_base import ReturnDuplicatorBase
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.ailment.expression import Enum
 
 _l = logging.getLogger(name=__name__)
 
@@ -77,11 +78,17 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
         return bool(self._func.endpoints) and self.project.is_rust_binary, None
 
     def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False):
+        dst_is_const_ret = dst_is_const_ret or (
+            dst.statements
+            and isinstance(dst.statements[-1], Return)
+            and dst.statements[-1].ret_exprs
+            and isinstance(dst.statements[-1].ret_exprs[0], Enum)
+        )
         pred = next(graph.predecessors(src), None)
         if pred and pred.statements and isinstance(pred.statements[-1], ConditionalJump):
             jump = pred.statements[-1]
-            return "scrutinee" in jump.condition.tags
-        return False
+            return "scrutinee" in jump.condition.tags or dst_is_const_ret
+        return dst_is_const_ret
 
     def _analyze(self, cache=None):
         # since we run before the RegionIdentification pass in the decompiler, we need to collect it early here
