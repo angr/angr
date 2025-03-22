@@ -9,7 +9,7 @@ import networkx
 
 from ailment import AILBlockWalker
 from ailment.block import Block
-from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement
+from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement, WeakAssignment
 from ailment.expression import (
     Register,
     Convert,
@@ -247,6 +247,9 @@ class AILSimplifier(Analysis):
                     ):
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
                         equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
+                elif isinstance(stmt, WeakAssignment):
+                    codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                    equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src, is_weakassignment=True))
                 elif isinstance(stmt, Call):
                     if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
                         codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
@@ -1172,6 +1175,9 @@ class AILSimplifier(Analysis):
                     # register variable = Convert(Call)
                     call = eq.atom1
                     # call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
+                elif eq.is_weakassignment:
+                    # variable =w something else
+                    call = eq.atom1
                 else:
                     continue
 
@@ -1196,6 +1202,9 @@ class AILSimplifier(Analysis):
                 assert the_def.codeloc.stmt_idx is not None
 
                 all_uses: set[tuple[Any, CodeLocation]] = rd.get_vvar_uses_with_expr(the_def.atom)
+                if eq.is_weakassignment:
+                    # eliminate the "use" at the weak assignment site
+                    all_uses = {use for use in all_uses if use[1] != eq.codeloc}
 
                 if len(all_uses) != 1:
                     continue
@@ -1218,10 +1227,13 @@ class AILSimplifier(Analysis):
                         continue
 
                 # check if the use and the definition is within the same supernode
-                super_node_blocks = self._get_super_node_blocks(
-                    addr_and_idx_to_block[(the_def.codeloc.block_addr, the_def.codeloc.block_idx)]
-                )
-                if u.block_addr not in {b.addr for b in super_node_blocks}:
+                # also we do not allow any calls between the def site and the use site
+                if not self._loc_within_superblock(
+                    addr_and_idx_to_block[(the_def.codeloc.block_addr, the_def.codeloc.block_idx)],
+                    u.block_addr,
+                    u.block_idx,
+                    terminate_with_calls=True,
+                ):
                     continue
 
                 # ensure there are no other calls between the def site and the use site.
@@ -1247,10 +1259,6 @@ class AILSimplifier(Analysis):
                 ):
                     continue
 
-                # check if there are any calls in between the def site and the use site
-                if self._count_calls_in_supernodeblocks(super_node_blocks, the_def.codeloc, u) > 0:
-                    continue
-
                 # replace all uses
                 old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
                 if old_block is None:
@@ -1262,7 +1270,7 @@ class AILSimplifier(Analysis):
 
                 if isinstance(eq.atom0, VirtualVariable):
                     src = used_expr
-                    dst: Call | Convert = call.copy()
+                    dst: Expression = call.copy()
 
                     if isinstance(dst, Call) and dst.ret_expr is not None:
                         dst_bits = dst.ret_expr.bits
@@ -1272,7 +1280,7 @@ class AILSimplifier(Analysis):
                         dst.fp_ret_expr = None
                         dst.bits = dst_bits
 
-                    if src.bits != dst.bits:
+                    if src.bits != dst.bits and not eq.is_weakassignment:
                         dst = Convert(None, dst.bits, src.bits, False, dst)
                 else:
                     continue
@@ -1319,6 +1327,42 @@ class AILSimplifier(Analysis):
                 # too many successors
                 break
         return lst
+
+    def _loc_within_superblock(
+        self, start_node: Block, block_addr: int, block_idx: int | None, terminate_with_calls=False
+    ) -> bool:
+        b = start_node
+        if block_addr == b.addr and block_idx == b.idx:
+            return True
+
+        encountered_block_addrs: set[tuple[int, int | None]] = {(b.addr, b.idx)}
+        while True:
+            if terminate_with_calls and b.statements and isinstance(b.statements[-1], Call):
+                return False
+
+            encountered_block_addrs.add((b.addr, b.idx))
+            successors = list(self.func_graph.successors(b))
+            if len(successors) == 0:
+                # did not encounter the block before running out of successors
+                return False
+            if len(successors) == 1:
+                succ = successors[0]
+                # check its predecessors
+                succ_predecessors = list(self.func_graph.predecessors(succ))
+                if len(succ_predecessors) == 1:
+                    if (succ.addr, succ.idx) in encountered_block_addrs:
+                        # we are about to form a loop - bad!
+                        # example: binary ce1897b492c80bf94083dd783aefb413ab1f6d8d4981adce8420f6669d0cb3e1, block
+                        # 0x2976EF7.
+                        return False
+                    if block_addr == succ.addr and block_idx == succ.idx:
+                        return True
+                    b = succ
+                else:
+                    return False
+            else:
+                # too many successors
+                return False
 
     @staticmethod
     def _replace_expr_and_update_block(block, stmt_idx, stmt, src_expr, dst_expr) -> tuple[bool, Block | None]:
@@ -1492,8 +1536,17 @@ class AILSimplifier(Analysis):
                         simplified = True
 
                 if idx in stmts_to_remove and idx not in stmts_to_keep and not isinstance(stmt, DirtyStatement):
-                    if isinstance(stmt, (Assignment, Store)):
+                    if isinstance(stmt, (Assignment, WeakAssignment, Store)):
                         # Special logic for Assignment and Store statements
+
+                        # if this statement writes to a virtual variable that must be preserved, we ignore it
+                        if (
+                            isinstance(stmt, Assignment)
+                            and isinstance(stmt.dst, VirtualVariable)
+                            and stmt.dst.varid in self._avoid_vvar_ids
+                        ):
+                            new_statements.append(stmt)
+                            continue
 
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
                         codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
@@ -1715,26 +1768,6 @@ class AILSimplifier(Analysis):
             return True
 
         return False
-
-    @staticmethod
-    def _count_calls_in_supernodeblocks(blocks: list[Block], start: CodeLocation, end: CodeLocation) -> int:
-        """
-        Count the number of call statements in a list of blocks for a single super block between two given code
-        locations (exclusive).
-        """
-        calls = 0
-        started = False
-        for b in blocks:
-            if b.addr == start.block_addr:
-                started = True
-                continue
-            if b.addr == end.block_addr:
-                started = False
-                continue
-
-            if started and b.statements and isinstance(b.statements[-1], Call):
-                calls += 1
-        return calls
 
     @staticmethod
     def _exprs_contain_vvar(exprs: Iterable[Expression], vvar_ids: set[int]) -> bool:
