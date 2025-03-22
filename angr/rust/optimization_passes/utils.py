@@ -18,6 +18,34 @@ def extract_callee(obj, kb):
     return None
 
 
+def extract_str(project, str_ptr, str_len):
+    """
+    Extract Rust string literal with given ptr and len
+    """
+    decoded_str = None
+    memory = project.loader.memory
+    if str_ptr >= 0 and (
+        (section := project.loader.find_section_containing(str_ptr)) and section.is_readable and not section.is_writable
+    ):
+        try:
+            decoded_str = memory.load(str_ptr, str_len).decode("utf-8")
+            decoded_str = (
+                decoded_str if decoded_str.replace("\n", "").replace("\t", "").replace("\r", "").isprintable() else None
+            )
+        except UnicodeDecodeError:
+            pass
+    return decoded_str
+
+
+def extract_str_from_addr(project, addr):
+    memory = project.loader.memory
+    if addr >= 0 and ((section := project.loader.find_section_containing(addr)) and section.is_readable):
+        str_ptr = memory.unpack(addr, project.arch.struct_fmt())[0]
+        str_len = memory.unpack(addr + project.arch.bytes, project.arch.struct_fmt())[0]
+        return extract_str(project, str_ptr, str_len)
+    return None
+
+
 class CallReplacer(AILBlockWalker):
     def __init__(self, callback):
         super().__init__()

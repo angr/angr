@@ -18,7 +18,7 @@ prototypes = {
     "String::from": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(RustSimTypeStr())],
         returnty=None,
-        is_returnty_struct=True,
+        is_arg0_retbuf=True,
     ),
     "Vec::with_capacity": RustSimTypeFunction(
         args=[RustSimTypeSize()],
@@ -35,27 +35,25 @@ prototypes = {
     "alloc::fmt::format::format_inner": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(Arguments)],
         returnty=None,
-        is_returnty_struct=True,
+        is_arg0_retbuf=True,
     ),
     "alloc::fmt::format": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(Arguments)],
         returnty=None,
-        is_returnty_struct=True,
+        is_arg0_retbuf=True,
     ),
     "std::io::stdio::_eprint": RustSimTypeFunction(
         args=[RustSimTypeReference(Arguments)],
         returnty=None,
     ),
-    "std::env::args": RustSimTypeFunction(
-        args=[RustSimTypeReference(Arguments)], returnty=None, is_returnty_struct=True
-    ),
+    "std::env::args": RustSimTypeFunction(args=[RustSimTypeReference(Arguments)], returnty=None, is_arg0_retbuf=True),
     "std::env::Args::len": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=RustSimTypeSize(), is_class_member_function=True
     ),
     "std::env::Args::next": RustSimTypeFunction(
         args=[RustSimTypeReference(RustSimTypeInt(64)), RustSimTypeReference(RustSimTypeInt(64))],
         returnty=RustSimTypeSize(),
-        is_returnty_struct=True,
+        is_arg0_retbuf=True,
         is_class_member_function=True,
     ),
     "core::result::unwrap": RustSimTypeFunction(

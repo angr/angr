@@ -76,7 +76,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         label=None,
         arg_names=None,
         variadic=False,
-        is_returnty_struct=False,
+        is_arg0_retbuf=False,
         is_class_member_function=False,
     ):
         """
@@ -86,7 +86,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         :param variadic: Whether the function accepts varargs
         """
         super().__init__(args, returnty, label, arg_names, variadic)
-        self.is_arg0_retbuf = is_returnty_struct
+        self.is_arg0_retbuf = is_arg0_retbuf
         self.is_class_member_function = is_class_member_function
 
     def __repr__(self):
@@ -122,7 +122,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             label=self.label,
             arg_names=self.arg_names,
             variadic=self.variadic,
-            is_returnty_struct=self.is_arg0_retbuf,
+            is_arg0_retbuf=self.is_arg0_retbuf,
             is_class_member_function=self.is_class_member_function,
         )
         out._arch = arch
@@ -165,7 +165,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             label=self.label,
             arg_names=self.arg_names,
             variadic=self.variadic,
-            is_returnty_struct=self.is_arg0_retbuf,
+            is_arg0_retbuf=self.is_arg0_retbuf,
             is_class_member_function=self.is_class_member_function,
         )
 

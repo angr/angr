@@ -23,6 +23,23 @@ class SRDAMixin:
                 break
         return self.srda_view.get_vvar_value(vvar)
 
+    def get_terminal_vvar_values(self, vvar, visited=None):
+        visited = visited if visited else set()
+        value = vvar
+        visited.add(value)
+        while (value := self.get_vvar_value(value)) and value not in visited:
+            visited.add(value)
+            if isinstance(value, VirtualVariable):
+                continue
+            elif isinstance(value, Phi):
+                result = set()
+                for _, phi_vvar in value.src_and_vvars:
+                    result |= self.get_terminal_vvar_values(phi_vvar, visited)
+                return result
+            else:
+                return {value}
+        return {}
+
     def get_terminal_vvar_value(self, vvar, visited=None):
         visited = visited if visited else set()
         value = vvar

@@ -1,4 +1,4 @@
-from ailment import Const
+from ailment import Const, AILBlockWalker, Block, Statement
 from ailment.statement import Call
 
 from angr.analyses.decompiler.clinic import ClinicMode
@@ -25,21 +25,39 @@ class FunctionPrototypeInference(TransformationPass):
         if not isinstance(self._func.prototype, RustSimTypeFunction):
             rcc = self.project.analyses.RustCallingConvention(self._func)
             self._func.prototype = rcc.model.inferred_prototype
+
+        class CallWalker(AILBlockWalker):
+
+            def __init__(self, context: "FunctionPrototypeInference"):
+                super().__init__()
+                self.context = context
+
+            def _handle_call(self, call):
+                if (
+                    call
+                    and not isinstance(call.prototype, RustSimTypeFunction)
+                    and isinstance(call.target, Const)
+                    and call.target.value in self.context.kb.functions
+                ):
+                    func = self.context.kb.functions[call.target.value]
+                    if isinstance(func.prototype, RustSimTypeFunction):
+                        call.prototype = func.prototype
+                    else:
+                        post_callsite_block = (
+                            self.context.get_one_successor(block) if self.context.num_successors(block) == 1 else None
+                        )
+                        rcc = self.context.project.analyses.RustCallingConvention(
+                            func, callsite_block=block, post_callsite_block=post_callsite_block
+                        )
+                        call.prototype = rcc.model.inferred_prototype
+                        func.prototype = call.prototype
+
+            def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+                self._handle_call(stmt)
+
+            def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+                self._handle_call(expr)
+
+        walker = CallWalker(self)
         for block in self._graph.nodes:
-            call = get_terminal_call(block)
-            if (
-                call
-                and not isinstance(call.prototype, RustSimTypeFunction)
-                and isinstance(call.target, Const)
-                and call.target.value in self.kb.functions
-            ):
-                func = self.kb.functions[call.target.value]
-                if isinstance(func.prototype, RustSimTypeFunction):
-                    call.prototype = func.prototype
-                else:
-                    post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
-                    rcc = self.project.analyses.RustCallingConvention(
-                        func, callsite_block=block, post_callsite_block=post_callsite_block
-                    )
-                    call.prototype = rcc.model.inferred_prototype
-                    func.prototype = call.prototype
+            walker.walk(block)

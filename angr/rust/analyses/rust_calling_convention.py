@@ -1,6 +1,5 @@
 import logging
 import traceback
-from pprint import pformat
 from typing import Tuple, Optional, List
 from collections import OrderedDict
 
@@ -14,6 +13,7 @@ from ..mixins.dfa_mixin import DFAMixin
 from ..mixins.srda_mixin import SRDAMixin
 from ..optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
+from ..optimization_passes.utils import extract_str_from_addr
 from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
@@ -24,6 +24,16 @@ from ...knowledge_plugins import Function
 l = logging.getLogger(name=__name__)
 
 
+CONST_STR_ERRORS = {
+    "stream did not contain valid UTF-8": "INVALID_UTF8",
+    "failed to fill whole buffer": "READ_EXACT_EOF",
+    "The number of hardware threads is not known for the target platform": "UNKNOWN_THREAD_COUNT",
+    "operation not supported on this platform": "UNSUPPORTED_PLATFORM",
+    "failed to write whole buffer": "WRITE_ALL_EOF",
+    "cannot set a 0 duration timeout": "ZERO_TIMEOUT",
+}
+
+
 class FunctionBodyFactCollector(AILBlockWalker):
     def __init__(self, context: "RustCallingConventionAnalysis"):
         super().__init__()
@@ -31,6 +41,8 @@ class FunctionBodyFactCollector(AILBlockWalker):
         self.project = context.model.clinic.project
         self.model = context.model
         self.graph = context.model.clinic.graph
+        self.has_write_to_arg0 = False
+        self.const_ret_values = set()
 
         self._path = None
 
@@ -116,21 +128,41 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 deduplicated_paths.add(tuple(path))
         return list(deduplicated_paths)
 
+    def _is_ret_block(self, block):
+        return block.statements and isinstance(block.statements[-1], Return)
+
     def collect(self):
         """
         Calculate paths that write return values to the first argument
         Collect facts from every path and every callsite in this function
         """
         paths = set()
+        callsites = set()
         for block in self.model.clinic.graph.nodes:
-            if block.statements and isinstance(block.statements[-1], Return):
+            if self._is_ret_block(block):
                 paths |= set(self.calculate_paths(block, max_paths=4))
             if self._has_call(block):
-                paths.add((block,))
-        for path in paths:
+                callsites.add((block,))
+        for path in paths | callsites:
             self._path = path
             for block in path:
                 self.walk(block)
+
+        if len(paths) == 0:
+            for block in self.model.clinic.graph.nodes:
+                if self._is_ret_block(block):
+                    stmt = block.statements[-1]
+                    ret_expr = stmt.ret_exprs[0] if stmt.ret_exprs else None
+                    if isinstance(ret_expr, VirtualVariable):
+                        self.const_ret_values |= set(
+                            value.value
+                            for value in self.context.get_terminal_vvar_values(ret_expr)
+                            if isinstance(value, Const)
+                        )
+                    elif isinstance(ret_expr, Const):
+                        self.const_ret_values.add(stmt.ret_expr.value)
+        else:
+            self.has_write_to_arg0 = True
 
     def add_memory_write(self, arg_idx, block_or_path, offset, expr):
         if block_or_path not in self.model.memory_writes[arg_idx]:
@@ -172,6 +204,8 @@ class FunctionBodyFactCollector(AILBlockWalker):
                     func, callsite_block=block, depth=self.context.depth + 1, max_depth=self.context.max_depth
                 )
                 self.model.memory_writes[0] |= result.model.memory_writes[0]
+                if result.fact_collector.has_write_to_arg0:
+                    self.has_write_to_arg0 = True
             elif func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
                 tmp = Tmp(None, None, 0, call.args[2].value * self.context.project.arch.byte_width)
                 self.add_memory_write(0, self._path, 0, tmp)
@@ -217,6 +251,8 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                 except Exception as e:
                     l.debug(f"Failed to recover AIL graph for {normalize(self.func.name)}")
                     l.debug("".join(traceback.format_exception(e)))
+
+        self.fact_collector = FunctionBodyFactCollector(self)
 
         if self.model.clinic:
             CFAMixin.__init__(self, self.model.clinic, self.project)
@@ -371,7 +407,16 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
     def _infer_return_type(self):
         # The first argument is not used as return buffer
-        if len(self.model.callsite_memory_writes[0]) != 0:
+        if len(self.model.callsite_memory_writes[0]) != 0 or not self.fact_collector.has_write_to_arg0:
+            # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
+            if len(self.fact_collector.const_ret_values) == 2 and 0 in self.fact_collector.const_ret_values:
+                addr = max(self.fact_collector.const_ret_values)
+                str_literal = extract_str_from_addr(self.project, addr)
+                if str_literal in CONST_STR_ERRORS:
+                    ok_type = RustSimStruct({}, "()", True)
+                    # err_type = RustS
+                    # return RustSimTypeResult(ok_type, err_type, 0, None, 0)
+                    # TODO
             return None
 
         memory_writes = self.model.memory_writes[0]
@@ -423,7 +468,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
     def infer_prototype(self):
         returnty = self._infer_return_type()
-        is_arg0_ret_buf = returnty is not None
+        is_arg0_ret_buf = self.fact_collector.has_write_to_arg0 and returnty is not None
         args = []
         for arg_idx, old_arg_type in zip(range(len(self.model.clinic.arg_list)), self.func.prototype.args):
             if is_arg0_ret_buf and arg_idx == 0:
@@ -440,11 +485,11 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             label=prototype.label,
             arg_names=prototype.arg_names,
             variadic=prototype.variadic,
-            is_returnty_struct=is_arg0_ret_buf,
+            is_arg0_retbuf=is_arg0_ret_buf,
         )
 
     def collect_function_body_facts(self):
-        FunctionBodyFactCollector(self).collect()
+        self.fact_collector.collect()
 
     def add_callsite_memory_write(self, arg_idx, block, offset, expr):
         if block not in self.model.callsite_memory_writes[arg_idx]:
