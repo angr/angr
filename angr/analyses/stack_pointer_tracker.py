@@ -520,7 +520,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 # Setting register values to fresh ones will cause problems down the line when merging with normal
                 # register values happen. therefore, we set their values to BOTTOM. these BOTTOMs will be replaced once
                 # a merge with normal blocks happen.
-                initial_regs = {r: BOTTOM for r in self.reg_offsets}
+                initial_regs = dict.fromkeys(self.reg_offsets, BOTTOM)
 
         return StackPointerTrackerState(
             regs=initial_regs, memory={}, is_tracking_memory=self.track_mem, resilient=self._resilient

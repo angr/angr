@@ -387,12 +387,9 @@ class Analysis:
 
     def __getstate__(self):
         d = dict(self.__dict__)
-        if "_progressbar" in d:
-            del d["_progressbar"]
-        if "_progress_callback" in d:
-            del d["_progress_callback"]
-        if "_statusbar" in d:
-            del d["_statusbar"]
+        d.pop("_progressbar", None)
+        d.pop("_progress_callback", None)
+        d.pop("_statusbar", None)
         return d
 
     def __setstate__(self, state):
