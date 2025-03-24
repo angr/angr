@@ -22,6 +22,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from angr.analyses import AnalysesHub
+from angr.misc.ux import once
 from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.knowledge_plugins.functions import Function
@@ -588,10 +589,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         regions=None,
         pickle_intermediate_results=False,
         symbols=True,
-        function_prologues=True,
+        function_prologues: bool | None = None,
         resolve_indirect_jumps=True,
         force_segment=False,
-        force_smart_scan=True,
+        force_smart_scan: bool | None = None,
         force_complete_scan=False,
         indirect_jump_target_limit=100000,
         data_references=True,
@@ -710,6 +711,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         if binary is not None and not objects:
             objects = [binary]
+
+        is_dotnet = (
+            isinstance(self.project.loader.main_object, cle.backends.pe.PE)
+            and self.project.loader.main_object.is_dotnet
+        )
+
+        if function_prologues is None:
+            function_prologues = not is_dotnet
+            if is_dotnet and once("dotnet_native"):
+                l.warning("You're trying to analyze a .NET binary as native code. Are you sure?")
+        if force_smart_scan is None:
+            force_smart_scan = not is_dotnet
+            if is_dotnet and once("dotnet_native"):
+                l.warning("You're trying to analyze a .NET binary as native code. Are you sure?")
 
         CFGBase.__init__(
             self,
