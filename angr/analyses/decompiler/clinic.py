@@ -601,7 +601,7 @@ class Clinic(Analysis):
         )
 
         # Run simplification passes
-        self._update_progress(65.0, text="Running simplifications 3 ")
+        self._update_progress(65.0, text="Running simplifications 3")
         ail_graph = self._run_simplification_passes(
             ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
         )
@@ -639,6 +639,11 @@ class Clinic(Analysis):
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=arg_vvars,
             preserve_vvar_ids=preserve_vvar_ids,
+        )
+
+        self._update_progress(79.0, text="Running simplifications 4")
+        ail_graph = self._run_simplification_passes(
+            ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
         )
 
         # update arg_list
