@@ -3,10 +3,12 @@ from typing import TYPE_CHECKING
 import logging
 import re
 
-from ailment.statement import Assignment
+from archinfo import Endness
+
+from ailment.constant import UNDETERMINED_SIZE
+from ailment.statement import Assignment, WeakAssignment
 from ailment.expression import VirtualVariable, BinaryOp, Const, Load
 
-from angr.code_location import ExternalCodeLocation
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
@@ -23,7 +25,7 @@ class EagerStdStringConcatenationPass(OptimizationPass):
 
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Condense multiple constant std::string creation calls into one when possible"
     DESCRIPTION = __doc__.strip()
 
@@ -33,16 +35,15 @@ class EagerStdStringConcatenationPass(OptimizationPass):
 
     def _check(self):
         # TODO: ensure func calls std::string::operator+ and std::string::operator=
-
-        return True, {}
+        return False, {}
 
     def _analyze(self, cache=None):
-
         rd = self.project.analyses.SReachingDefinitions(subject=self._func, func_graph=self._graph).model
         cfg = self.kb.cfgs.get_most_accurate()
 
         # update each block
-        for block in self.blocks_by_addr_and_idx.values():
+        for key in list(self.blocks_by_addr_and_idx):
+            block = self.blocks_by_addr_and_idx[key]
             new_block = None
             for idx, stmt in enumerate(block.statements):
                 if (
@@ -69,16 +70,21 @@ class EagerStdStringConcatenationPass(OptimizationPass):
                         ):
                             op1_str = cfg.memory_data[op1.addr.value].content
                             # is op0 also an std::string?
-                            op0_str = self._get_vvar_def_string(op0.varid, rd, cfg)
+                            op0_str = self._get_vvar_def_string(op0.varid, rd, cfg, block.addr, block.idx)
                             if op0_str is not None:
                                 # let's create a new string
                                 final_str = op0_str + op1_str
                                 str_id = self.kb.custom_strings.allocate(final_str)
                                 # replace the assignment with a new assignment
-                                new_stmt = Assignment(
+                                new_stmt = WeakAssignment(
                                     stmt.idx,
                                     stmt.dst,
-                                    Const(None, None, str_id, self.project.arch.bits, custom_string=True),
+                                    Load(
+                                        None,
+                                        Const(None, None, str_id, self.project.arch.bits, custom_string=True),
+                                        UNDETERMINED_SIZE,
+                                        Endness.BE,
+                                    ),
                                     **stmt.tags,
                                 )
                                 new_block = block.copy() if new_block is None else new_block
@@ -86,22 +92,44 @@ class EagerStdStringConcatenationPass(OptimizationPass):
             if new_block is not None:
                 self._update_block(block, new_block)
 
-    def _get_vvar_def_string(self, vvar_id: int, rd: SRDAModel, cfg) -> bytes | None:
-        op0_defloc = rd.all_vvar_definitions[vvar_id]
-        if isinstance(op0_defloc, ExternalCodeLocation):
-            return None
-        block = self.blocks_by_addr_and_idx[op0_defloc.block_addr, op0_defloc.block_idx]
-        stmt = block.statements[op0_defloc.stmt_idx]
-        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == vvar_id:
-            if (
-                isinstance(stmt.src, Load)
-                and isinstance(stmt.src.addr, Const)
-                and stmt.src.addr.value in cfg.memory_data
-            ):
-                if cfg.memory_data[stmt.src.addr.value].sort == "string":
-                    return cfg.memory_data[stmt.src.addr.value].content
-            elif isinstance(stmt.src, Const) and hasattr(stmt.src, "custom_string") and stmt.src.custom_string:
-                return self.kb.custom_strings.get(stmt.src.value)
+    def _get_vvar_def_string(self, vvar_id: int, rd: SRDAModel, cfg, block_addr, block_idx) -> bytes | None:
+        # search for the closest weak definition of the specified variable
+        # TODO: Optimize this logic in the future
+
+        starting_block = self.blocks_by_addr_and_idx[(block_addr, block_idx)]
+        queue = [starting_block]
+        visited = set()
+        while queue:
+            block = queue.pop(0)
+            if block in visited:
+                continue
+            visited.add(block)
+
+            if not (block.addr == block_addr and block.idx == block_idx):
+                for stmt in block.statements:
+                    if (
+                        isinstance(stmt, WeakAssignment)
+                        and isinstance(stmt.dst, VirtualVariable)
+                        and stmt.dst.varid == vvar_id
+                    ):
+                        if (
+                            isinstance(stmt.src, Load)
+                            and isinstance(stmt.src.addr, Const)
+                            and stmt.src.addr.value in cfg.memory_data
+                        ):
+                            if cfg.memory_data[stmt.src.addr.value].sort == "string":
+                                return cfg.memory_data[stmt.src.addr.value].content
+                        elif (
+                            isinstance(stmt.src, Const)
+                            and hasattr(stmt.src, "custom_string")
+                            and stmt.src.custom_string
+                        ):
+                            return self.kb.custom_strings.get(stmt.src.value)
+
+            preds = list(self._graph.predecessors(block))
+            if len(preds) == 1:
+                queue.append(preds[0])
+
         return None
 
     @staticmethod
