@@ -91,6 +91,10 @@ class Function(Serializable):
         is_plt: bool | None = None,
         returning=None,
         alignment=False,
+        calling_convention: SimCC | None = None,
+        prototype: SimTypeFunction | None = None,
+        prototype_libname: str | None = None,
+        is_prototype_guessed: bool = True,
     ):
         """
         Function constructor. If the optional parameters are not provided, they will be automatically determined upon
@@ -138,11 +142,11 @@ class Function(Serializable):
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self.calling_convention: SimCC | None = None
+        self.calling_convention = calling_convention
         # Function prototype
-        self.prototype: SimTypeFunction | None = None
-        self.prototype_libname: str | None = None
-        self.is_prototype_guessed: bool = True
+        self.prototype = prototype
+        self.prototype_libname = prototype_libname
+        self.is_prototype_guessed = is_prototype_guessed
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
