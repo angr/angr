@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Generic, cast, TypeVar
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from collections import defaultdict
 import contextlib
 
@@ -741,6 +741,7 @@ class SimCC:
             )
         if self.return_in_implicit_outparam(ty):
             if perspective_returned:
+                assert self.RETURN_VAL is not None
                 ptr_loc = self.RETURN_VAL
             else:
                 ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()))
@@ -754,6 +755,7 @@ class SimCC:
         if self.RETURN_VAL is None or isinstance(ty, SimTypeBottom):
             return None
         if ty.size > self.RETURN_VAL.size * self.arch.byte_width:
+            assert self.OVERFLOW_RETURN_VAL is not None
             return SimComboArg([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
         return self.RETURN_VAL.refine(size=ty.size // self.arch.byte_width, arch=self.arch, is_fp=False)
 
@@ -1032,7 +1034,8 @@ class SimCC:
                 else:
                     raise TypeError("PointerWrapper(buffer=True) can only be used with a bitvector or a bytestring")
             else:
-                child_type = SimTypeArray(ty.pts_to) if type(arg.value) in (str, bytes, list) else ty.pts_to
+                sub = ty.pts_to if isinstance(ty, SimTypePointer) else ty.refs
+                child_type = SimTypeArray(sub) if isinstance(arg.value, (str, bytes, list)) else sub
                 try:
                     real_value = SimCC._standardize_value(arg.value, child_type, state, alloc)
                 except TypeError as e:  # this is a dangerous catch...
@@ -1044,32 +1047,34 @@ class SimCC:
 
         if isinstance(arg, (str, bytes)):
             # sanitize the argument and request standardization again with SimTypeArray
-            if type(arg) is str:
+            if isinstance(arg, str):
                 arg = arg.encode()
             arg += b"\0"
             if isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimTypeChar):
                 pass
-            elif isinstance(ty, SimTypeFixedSizeArray) and isinstance(ty.elem_type, SimTypeChar):
-                if len(arg) > ty.length:
-                    raise TypeError(f"String {arg!r} is too long for {ty}")
-                arg = arg.ljust(ty.length, b"\0")
-            elif isinstance(ty, SimTypeArray) and isinstance(ty.elem_type, SimTypeChar):
+            elif (isinstance(ty, SimTypeFixedSizeArray) and isinstance(ty.elem_type, SimTypeChar)) or (
+                isinstance(ty, SimTypeArray) and isinstance(ty.elem_type, SimTypeChar)
+            ):
                 if ty.length is not None:
                     if len(arg) > ty.length:
                         raise TypeError(f"String {arg!r} is too long for {ty}")
                     arg = arg.ljust(ty.length, b"\0")
             elif isinstance(ty, SimTypeString):
-                if len(arg) > ty.length + 1:
-                    raise TypeError(f"String {arg!r} is too long for {ty}")
-                arg = arg.ljust(ty.length + 1, b"\0")
+                if ty.length is not None:
+                    if len(arg) > ty.length + 1:
+                        raise TypeError(f"String {arg!r} is too long for {ty}")
+                    arg = arg.ljust(ty.length + 1, b"\0")
             else:
                 raise TypeError(f"Type mismatch: Expected {ty}, got char*")
             return SimCC._standardize_value(list(arg), SimTypeArray(SimTypeChar(), len(arg)), state, alloc)
 
         if isinstance(arg, list):
-            if isinstance(ty, (SimTypePointer, SimTypeReference)):
+            if isinstance(ty, SimTypePointer):
                 ref = True
                 subty = ty.pts_to
+            elif isinstance(ty, SimTypeReference):
+                ref = True
+                subty = ty.refs
             elif isinstance(ty, SimTypeArray):
                 ref = True
                 subty = ty.elem_type
@@ -1086,7 +1091,7 @@ class SimCC:
         if isinstance(arg, (tuple, dict, SimStructValue)):
             if not isinstance(ty, SimStruct):
                 raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
-            if type(arg) is not SimStructValue:
+            if not isinstance(arg, SimStructValue):
                 if len(arg) != len(ty.fields):
                     raise TypeError(f"Wrong number of fields in struct, expected {len(ty.fields)} got {len(arg)}")
                 arg = SimStructValue(ty, arg)
@@ -1116,14 +1121,16 @@ class SimCC:
                     raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
                 return arg
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
-                return arg.val_to_bv(ty.size, ty.signed)
+                return arg.val_to_bv(ty.size, ty.signed if isinstance(ty, SimTypeNum) else False)
             raise TypeError(f"Type mismatch: expected {ty}, got {arg.sort}")
 
         if isinstance(arg, claripy.ast.BV):
             if isinstance(ty, (SimTypeReg, SimTypeNum)):
                 if len(arg) != ty.size:
                     if arg.concrete:
-                        return claripy.BVV(arg.concrete_value, ty.size)
+                        size = ty.size
+                        assert size is not None
+                        return claripy.BVV(arg.concrete_value, size)
                     raise TypeError(f"Type mismatch of symbolic data: expected {ty}, got {len(arg)} bits")
                 return arg
             if isinstance(ty, (SimTypeFloat)):
@@ -1142,7 +1149,7 @@ class SimCC:
         return isinstance(other, self.__class__)
 
     @classmethod
-    def _match(cls, arch, args: list, sp_delta):
+    def _match(cls, arch, args: list[SimRegArg | SimStackArg], sp_delta):
         if (
             cls.arches() is not None and ":" not in arch.name and not isinstance(arch, cls.arches())
         ):  # pylint:disable=isinstance-second-argument-not-valid-type
@@ -1180,13 +1187,16 @@ class SimCC:
     @classmethod
     def _guess_arg_count(cls, args, limit: int = 64) -> int:
         # pylint:disable=not-callable
+        assert cls.ARCH is not None
         stack_args = [a for a in args if isinstance(a, SimStackArg)]
-        stack_arg_count = (max(a.stack_offset for a in stack_args) // cls.ARCH().bytes + 1) if stack_args else 0
+        stack_arg_count = (
+            (max(a.stack_offset for a in stack_args) // cls.ARCH(archinfo.Endness.LE).bytes + 1) if stack_args else 0
+        )
         return min(limit, max(len(args), stack_arg_count))
 
     @staticmethod
     def find_cc(
-        arch: archinfo.Arch, args: Sequence[SimFunctionArgument], sp_delta: int, platform: str = "Linux"
+        arch: archinfo.Arch, args: list[SimRegArg | SimStackArg], sp_delta: int, platform: str = "Linux"
     ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
