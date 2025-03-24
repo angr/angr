@@ -5006,9 +5006,9 @@ class TestDecompiler(unittest.TestCase):
             '76nxrsA5DhQJC97MLOwGWdvnzSqHmqlR"'
         ) in dec.codegen.text
         assert (
-            '""N+Q4bkoREDIQBXhd/wLjapNMJePuge+m5sf3vaATritf3gk0n59QcuHY4yv+lSxhuxVY/n/M0XZyrTq1hmoHsw6mPN'
+            '"N+Q4bkoREDIQBXhd/wLjapNMJePuge+m5sf3vaATritf3gk0n59QcuHY4yv+lSxhuxVY/n/M0XZyrTq1hmoHsw6mPN'
             "H2ot1U3SZjpj3baesq82nSl0yeBzkR9uK2fQX0ltDWq4pFB+ZW8A5jrjdaJWpR/lHjop1mbh74i5ptEpO/7EvXtxZWMZP"
-            'evNqGU9fDnzPVPIo6EY3FMe5ckwJmYpyOjmbZ05""'
+            'evNqGU9fDnzPVPIo6EY3FMe5ckwJmYpyOjmbZ05"'
         ) in dec.codegen.text
         # assert C++ class methods are properly rewritten
         assert ".size()" in dec.codegen.text
