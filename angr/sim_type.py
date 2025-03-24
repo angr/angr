@@ -270,7 +270,7 @@ class SimTypeBottom(SimType):
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
     ):  # pylint: disable=unused-argument
         if name is None:
-            return "int"
+            return "int" if self.label is None else self.label
         return f'{"int" if self.label is None else self.label} {name}'
 
     def _init_str(self):
