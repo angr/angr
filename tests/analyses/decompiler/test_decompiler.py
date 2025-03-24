@@ -4947,8 +4947,7 @@ class TestDecompiler(unittest.TestCase):
         assert f"{wndclass_var}.hInstance = " in dec.codegen.text
         assert f"{wndclass_var}.hIcon = LoadIconA(" in dec.codegen.text
         assert f"{wndclass_var}.hCursor = LoadCursorA(" in dec.codegen.text
-        # FIXME: the following line should be uncommented when https://github.com/angr/angr/pull/5336 is merged.
-        # assert f"{wndclass_var}.hbrBackground = GetStockObject(4);" in dec.codegen.text
+        assert f"{wndclass_var}.hbrBackground = GetStockObject(4);" in dec.codegen.text
         assert f"{wndclass_var}.lpszMenuName = 109;" in dec.codegen.text
         assert f'{wndclass_var}.lpszClassName = "BOLHAS";' in dec.codegen.text
         assert f"{wndclass_var}.hIconSm = 0;" in dec.codegen.text

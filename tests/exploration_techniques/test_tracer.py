@@ -29,7 +29,7 @@ def tracer_cgc(
     symbolic_stdin=True,
 ):
     p = angr.Project(filename)
-    p.simos.syscall_library.update(angr.SIM_LIBRARIES["cgcabi_tracer"])
+    p.simos.syscall_library.update(angr.SIM_LIBRARIES["cgcabi_tracer"][0])
 
     trace, magic, crash_mode, crash_addr = do_trace(p, test_name, stdin)
     s = p.factory.entry_state(

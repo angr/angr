@@ -169,10 +169,10 @@ class SimEngineVRAIL(
 
             type_collections = []
             if prototype_libname is not None:
-                prototype_lib = SIM_LIBRARIES[prototype_libname]
-                if prototype_lib.type_collection_names:
-                    for typelib_name in prototype_lib.type_collection_names:
-                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                for prototype_lib in SIM_LIBRARIES[prototype_libname]:
+                    if prototype_lib.type_collection_names:
+                        for typelib_name in prototype_lib.type_collection_names:
+                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
 
             for arg, arg_type in zip(args, prototype.args):
                 if arg.typevar is not None:
@@ -262,10 +262,10 @@ class SimEngineVRAIL(
 
             type_collections = []
             if prototype_libname is not None:
-                prototype_lib = SIM_LIBRARIES[prototype_libname]
-                if prototype_lib.type_collection_names:
-                    for typelib_name in prototype_lib.type_collection_names:
-                        type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
+                for prototype_lib in SIM_LIBRARIES[prototype_libname]:
+                    if prototype_lib.type_collection_names:
+                        for typelib_name in prototype_lib.type_collection_names:
+                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
 
             for arg, arg_type in zip(args, prototype.args):
                 if arg.typevar is not None:
