@@ -3537,28 +3537,6 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     # CppHeaderParser does not support specialization
     s = normalize_cpp_function_name(cpp_decl)
 
-    # CppHeaderParser does not like missing parameter names
-    # FIXME: The following logic is only dealing with *one* C++ function declaration. Support multiple declarations
-    # FIXME: when needed in the future.
-    if not with_param_names:
-        last_pos = 0
-        i = 0
-        while True:
-            idx = s.find(",", last_pos)
-            if idx == -1:
-                break
-            arg_name = f"a{i}"
-            i += 1
-            s = s[:idx] + " " + arg_name + s[idx:]
-            last_pos = idx + len(arg_name) + 1 + 1
-
-        # the last parameter
-        idx = s.find(")", last_pos)
-        # TODO: consider the case where there are one or multiple spaces between ( and )
-        if idx != -1 and s[idx - 1] != "(":
-            arg_name = f"a{i}"
-            s = s[:idx] + " " + arg_name + s[idx:]
-
     # CppHeaderParser does not like missing function body
     s += "\n\n{}"
 

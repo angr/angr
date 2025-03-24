@@ -18,7 +18,7 @@ class DetermineLoadSizes(OptimizationPass):
 
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_MAKING_CALLSITES
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Determine sizes of loads whose sizes are undetermined"
     DESCRIPTION = __doc__.strip()
 
@@ -37,13 +37,15 @@ class DetermineLoadSizes(OptimizationPass):
         for block in self._graph.nodes:
             for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
                 stmt = block.statements[idx]
-                if (
-                    isinstance(stmt, (Assignment, WeakAssignment))
-                    and isinstance(stmt.src, BinaryOp)
-                    and stmt.src.op == "Add"
-                    and stmt.src.operands
-                ):
-                    for operand in stmt.src.operands:
+                if isinstance(stmt, (Assignment, WeakAssignment)):
+                    if isinstance(stmt.src, BinaryOp) and stmt.src.op == "Add" and stmt.src.operands:
+                        operands = stmt.src.operands
+                    elif isinstance(stmt.src, Load):
+                        operands = [stmt.src]
+                    else:
+                        continue
+
+                    for operand in operands:
                         if (
                             isinstance(operand, Load)
                             and isinstance(operand.addr, Const)

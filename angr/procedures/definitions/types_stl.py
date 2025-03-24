@@ -8,8 +8,8 @@ from angr.sim_type import SimCppClass, SimTypePointer, SimTypeChar, SimTypeInt
 typelib = SimTypeCollection()
 typelib.set_names("cpp::std")
 typelib.types = {
-    "std::string": SimCppClass(
-        unique_name="std::string_gnu",
+    "class std::basic_string<char, struct std::char_traits<char>, class std::allocator<char>>": SimCppClass(
+        unique_name="class std::basic_string<char, struct std::char_traits<char>, class std::allocator<char>>",
         name="std::string",
         members=OrderedDict(
             [

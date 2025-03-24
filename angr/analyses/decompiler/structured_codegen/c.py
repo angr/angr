@@ -160,13 +160,14 @@ def guess_value_type(value: int, project: angr.Project) -> SimType | None:
 
 
 def type_equals(t0: SimType, t1: SimType) -> bool:
+    # special logic for C++ classes
     if isinstance(t0, SimCppClass) and isinstance(t1, SimTypeBottom):
         t0, t1 = t1, t0
     if isinstance(t0, SimTypeBottom) and isinstance(t1, SimCppClass):  # noqa: SIM102
+        # TODO: Use the information (class names, etc.) in types_stl
         if (
             t1.name == "std::string"
-            and t0.label
-            == "class std::basic_string<char a0, struct std::char_traits<char> a1, class std::allocator<char>>"
+            and t0.label == "class std::basic_string<char, struct std::char_traits<char>, class std::allocator<char>>"
         ):
             return True
     return t0 == t1
@@ -1827,6 +1828,13 @@ class CBinaryOp(CExpression):
         # C spec https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2596.pdf 6.3.1.8 Usual arithmetic conversions
         rhs_ptr = isinstance(rhs_ty, SimTypePointer)
         lhs_ptr = isinstance(lhs_ty, SimTypePointer)
+        rhs_cls = isinstance(unpack_typeref(rhs_ty), SimCppClass)
+        lhs_cls = isinstance(unpack_typeref(lhs_ty), SimCppClass)
+
+        if lhs_cls:
+            return lhs_ty
+        if rhs_cls:
+            return rhs_ty
 
         if op in ("Add", "Sub"):
             if lhs_ptr and rhs_ptr:
