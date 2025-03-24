@@ -505,6 +505,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
     def rebuild_callgraph(self):
         self.callgraph = networkx.MultiDiGraph()
+        cfg = self._kb.cfgs.get_most_accurate()
         for func_addr in self._function_map:
             self.callgraph.add_node(func_addr)
         for func in self._function_map.values():
@@ -512,6 +513,14 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
                 for node in func.transition_graph.nodes():
                     if isinstance(node, Function):
                         self.callgraph.add_edge(func.addr, node.addr)
+                    else:
+                        cfgnode = cfg.get_any_node(node.addr)
+                        if (
+                            cfgnode is not None
+                            and cfgnode.function_address is not None
+                            and cfgnode.function_address != func.addr
+                        ):
+                            self.callgraph.add_edge(func.addr, cfgnode.function_address)
 
 
 KnowledgeBasePlugin.register_default("functions", FunctionManager)
