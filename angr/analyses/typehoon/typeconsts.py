@@ -114,6 +114,18 @@ class Int512(Int):
         return "int512"
 
 
+class IntVar(Int):
+    def __init__(self, size):
+        self._size = size
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    def __repr__(self, memo=None):
+        return "intvar"
+
+
 class Float(TypeConstant):
     def __repr__(self, memo=None) -> str:
         return "floatbase"
@@ -313,9 +325,7 @@ def int_type(bits: int) -> Int:
         256: Int256,
         512: Int512,
     }
-    if bits in mapping:
-        return mapping[bits]()
-    raise TypeError(f"Not a known size of int: {bits}")
+    return mapping[bits]() if bits in mapping else IntVar(bits)
 
 
 def float_type(bits: int) -> Float | None:
