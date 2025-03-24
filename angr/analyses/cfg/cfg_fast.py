@@ -588,7 +588,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         regions=None,
         pickle_intermediate_results=False,
         symbols=True,
-        function_prologues=True,
+        function_prologues: bool | None = None,
         resolve_indirect_jumps=True,
         force_segment=False,
         force_smart_scan=True,
@@ -710,6 +710,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         if binary is not None and not objects:
             objects = [binary]
+
+        if function_prologues is None:
+            function_prologues = not (
+                isinstance(self.project.loader.main_object, cle.backends.pe.PE)
+                and self.project.loader.main_object.is_dotnet
+            )
+            if not function_prologues:
+                l.warning("You're trying to analyze a .NET binary as native code. Are you sure?")
 
         CFGBase.__init__(
             self,
