@@ -17,7 +17,6 @@ from .sim_procedure import SimProcedure
 from .errors import AngrNoPluginError
 
 l = logging.getLogger(name=__name__)
-l.setLevel("DEBUG")
 
 
 def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0, thumb=False, **kwargs):
