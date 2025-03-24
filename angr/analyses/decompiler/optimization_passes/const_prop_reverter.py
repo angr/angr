@@ -66,7 +66,7 @@ class PairAILBlockWalker:
         def _handle_call_expr(expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block_):
             walked_objs[Call].add(expr)
 
-        _stmt_handlers = {typ: _handle_ail_obj for typ in walked_objs}
+        _stmt_handlers = dict.fromkeys(walked_objs, _handle_ail_obj)
         walker.stmt_handlers = _stmt_handlers
         walker.expr_handlers[Call] = _handle_call_expr
 

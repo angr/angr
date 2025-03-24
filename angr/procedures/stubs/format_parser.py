@@ -164,7 +164,7 @@ class FormatString:
                     negative = claripy.SLT(target_variable, 0)
 
                     # how many digits does it take to represent this variable fully?
-                    max_digits = int(math.ceil(math.log(2**bits, base)))
+                    max_digits = math.ceil(math.log(2**bits, base))
 
                     # how many digits does the format specify?
                     spec_digits = component.length_spec
