@@ -440,9 +440,9 @@ class Project:
         """
         # First, filter the SIM_LIBRARIES to a reasonable subset based on the hint
         if hint == "win":
-            hinted_libs = filter(lambda lib: lib if lib.endswith(".dll") else None, SIM_LIBRARIES)
+            hinted_libs = [lib for lib in SIM_LIBRARIES if lib.endswith(".dll")]
         else:
-            hinted_libs = filter(lambda lib: lib if ".so" in lib else None, SIM_LIBRARIES)
+            hinted_libs = [lib for lib in SIM_LIBRARIES if ".so" in lib]
 
         for lib in hinted_libs:
             for simlib in SIM_LIBRARIES[lib]:
@@ -832,7 +832,7 @@ class Project:
 
 
 from .factory import AngrObjectFactory
-from angr.simos import SimOS, os_mapping
+from .simos import SimOS, os_mapping
 from .analyses.analysis import AnalysesHub, AnalysesHubWithDefault
 from .knowledge_base import KnowledgeBase
 from .procedures import SIM_PROCEDURES, SIM_LIBRARIES

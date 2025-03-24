@@ -38,8 +38,8 @@ class SimTypeCollection:
         self.names: list[str] | None = None
         self.types: dict[str, SimType] = {}
 
-    def set_names(self, *names):
-        self.names = names
+    def set_names(self, *names: str):
+        self.names = list(names)
         for name in names:
             SIM_TYPE_COLLECTIONS[name] = self
 
@@ -121,7 +121,7 @@ class SimLibrary:
         o.names = list(self.names)
         return o
 
-    def update(self, other):
+    def update(self, other: SimLibrary):
         """
         Augment this SimLibrary with the information from another SimLibrary
 
@@ -255,7 +255,7 @@ class SimLibrary:
             proc.guessed_prototype = False
             if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
-                proc.prototype.arg_names = inspect.getfullargspec(proc.run).args[1:]
+                proc.prototype.arg_names = tuple(inspect.getfullargspec(proc.run).args[1:])
             if not proc.ARGS_MISMATCH:
                 proc.num_args = len(proc.prototype.args)
         if proc.display_name in self.non_returning:
@@ -403,7 +403,6 @@ class SimCppLibrary(SimLibrary):
                 stub.prototype = stub.prototype.with_arch(arch)
                 stub.guessed_prototype = False
                 if not stub.ARGS_MISMATCH:
-                    stub.cc.num_args = len(stub.prototype.args)
                     stub.num_args = len(stub.prototype.args)
         return stub
 
@@ -485,9 +484,10 @@ class SimSyscallLibrary(SimLibrary):
 
     def update(self, other):
         super().update(other)
-        self.syscall_number_mapping.update(other.syscall_number_mapping)
-        self.syscall_name_mapping.update(other.syscall_name_mapping)
-        self.default_cc_mapping.update(other.default_cc_mapping)
+        if isinstance(other, SimSyscallLibrary):
+            self.syscall_number_mapping.update(other.syscall_number_mapping)
+            self.syscall_name_mapping.update(other.syscall_name_mapping)
+            self.default_cc_mapping.update(other.default_cc_mapping)
 
     def minimum_syscall_number(self, abi):
         """
@@ -526,7 +526,7 @@ class SimSyscallLibrary(SimLibrary):
         :param mapping: A dict mapping syscall numbers to function names
         """
         self.syscall_number_mapping[abi].update(mapping)
-        self.syscall_name_mapping[abi].update(dict(reversed(i) for i in mapping.items()))
+        self.syscall_name_mapping[abi].update({b: a for a, b in mapping.items()})
 
     def set_abi_cc(self, abi, cc_cls):
         """
