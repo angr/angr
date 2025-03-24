@@ -4981,6 +4981,39 @@ class TestDecompiler(unittest.TestCase):
             if "while" in line:
                 assert line.count(";") <= 1, f"Multiple statements in while-loop: {line}"
 
+    def test_decompiling_48460c9633d06cad3e3b41c87de04177d129906610c5bbdebc7507a211100e98_sub_4025F0(
+        self, decompiler_options=None
+    ):
+        # we altered the binary to speed up this test case
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "48460c9633d06cad3e3b41c87de04177d129906610c5bbdebc7507a211100e98_altered"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        func = proj.kb.functions[0x4025F0]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # ensure the call to _security_check_cookie is removed
+        assert "security_check_cookie" not in dec.codegen.text
+        assert " ^ " not in dec.codegen.text
+        # ensure the strings are around
+        assert (
+            '"MtBb9zH8LtvuilOPN7q0luBa32ie0ohB2WVuPjWlto0YtgeMoImVy94sugMFRTcv3UCf23PP0/2ScOrYYXc9du431l3/Dy'
+            "4iV2xF69IrlscgUbjkwZALua+XmiR2pagfb+oqBnYgncF/9b5mHA1oqZGgwALG3EIDzu+Rp20iLCVfVnNT3pWvqCKBfwTlpy"
+            '76nxrsA5DhQJC97MLOwGWdvnzSqHmqlR"'
+        ) in dec.codegen.text
+        assert (
+            '""N+Q4bkoREDIQBXhd/wLjapNMJePuge+m5sf3vaATritf3gk0n59QcuHY4yv+lSxhuxVY/n/M0XZyrTq1hmoHsw6mPN'
+            "H2ot1U3SZjpj3baesq82nSl0yeBzkR9uK2fQX0ltDWq4pFB+ZW8A5jrjdaJWpR/lHjop1mbh74i5ptEpO/7EvXtxZWMZP"
+            'evNqGU9fDnzPVPIo6EY3FMe5ckwJmYpyOjmbZ05""'
+        ) in dec.codegen.text
+        # assert C++ class methods are properly rewritten
+        assert ".size()" in dec.codegen.text
+        assert ".c_str()" in dec.codegen.text
+
     def test_regs_preserved_across_syscalls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "regs_preserved_across_syscalls")
         proj = angr.Project(bin_path, auto_load_libs=False)
