@@ -851,7 +851,8 @@ class SimEngineSSARewriting(
             and expr.size in self.stackvar_locs[expr.addr.offset]
         ):
             if expr.size not in self.state.stackvars[expr.addr.offset]:
-                # create it on the fly
+                # we have not seen its use before (which does not necessarily mean it's never created!), so we create
+                # it on the fly and record it in self.state.stackvars
                 vvar_id = self.get_vvid_by_def(
                     self.block.addr,
                     self.block.idx,
@@ -859,7 +860,7 @@ class SimEngineSSARewriting(
                     atoms.MemoryLocation(expr.addr.offset, expr.size, Endness(expr.endness)),
                     "l",
                 )
-                return VirtualVariable(
+                var = VirtualVariable(
                     self.ail_manager.next_atom(),
                     vvar_id,
                     expr.size * self.arch.byte_width,
@@ -867,6 +868,8 @@ class SimEngineSSARewriting(
                     oident=expr.addr.offset,
                     **expr.tags,
                 )
+                self.state.stackvars[expr.addr.offset][expr.size] = var
+                return var
 
             # TODO: Support truncation
             # TODO: Maybe also support concatenation
