@@ -113,7 +113,7 @@ class FunctionParser:
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
             calling_convention=pickle.loads(cmsg.calling_convention),
             prototype=pickle.loads(cmsg.prototype),
-            prototype_libname=cmsg.prototype_libname,
+            prototype_libname=cmsg.prototype_libname if cmsg.prototype_libname else None,
             is_prototype_guessed=cmsg.is_prototype_guessed,
         )
         obj._project = project
