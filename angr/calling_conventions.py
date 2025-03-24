@@ -470,7 +470,7 @@ class SimStructArg(SimFunctionArgument):
             elif isinstance(loc, SimRegArg):
                 regs.append(loc)
             else:
-                raise Exception("Why would a struct have layout elements other than stack and reg?")
+                assert False, "Why would a struct have layout elements other than stack and reg?"
 
         # things to consider...
         # what happens if we return the concat of two registers but there's slack space missing?
@@ -480,12 +480,12 @@ class SimStructArg(SimFunctionArgument):
 
         if stack_min is not None:
             if regs:
-                raise Exception(
-                    "Unknown CC argument passing structure - why are we passing both regs and stack at the same time?"
-                )
+                assert (
+                    False
+                ), "Unknown CC argument passing structure - why are we passing both regs and stack at the same time?"
             return SimStackArg(stack_min, self.struct.size // self.struct._arch.byte_width)
         if not regs:
-            raise Exception("huh??????")
+            assert False, "huh??????"
         if len(regs) == 1:
             return regs[0]
         return SimComboArg(regs)
@@ -1270,7 +1270,7 @@ class SimCCUsercall(SimCC):
     def next_arg(self, session, arg_type):
         return next(session.real_args)
 
-    def return_val(self, ty, **kwargs):
+    def return_val(self, ty, **kwargs):  # pylint: disable=unused-argument
         return self.ret_loc
 
 
