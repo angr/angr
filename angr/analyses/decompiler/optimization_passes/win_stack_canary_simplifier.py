@@ -63,16 +63,17 @@ class WinStackCanarySimplifier(OptimizationPass):
         first_block, canary_init_stmt_ids = init_stmts
         canary_init_stmt = first_block.statements[canary_init_stmt_ids[-1]]
         # where is the stack canary stored?
-        if not isinstance(canary_init_stmt, ailment.Stmt.Store) or not isinstance(
-            canary_init_stmt.addr, ailment.Expr.StackBaseOffset
-        ):
-            _l.debug(
-                "Unsupported canary storing location %s. Expects an ailment.Expr.StackBaseOffset.",
-                canary_init_stmt.addr,
-            )
-            return
+        store_offset: int | None = None
 
-        store_offset = canary_init_stmt.addr.offset
+        if isinstance(canary_init_stmt, ailment.Stmt.Store):
+            store_offset = self._get_bp_offset(canary_init_stmt.addr, canary_init_stmt.ins_addr)
+            if store_offset is None:
+                _l.debug(
+                    "Unsupported canary storing location %s. Expects a StackBaseOffset or (bp - Const).",
+                    canary_init_stmt.addr,
+                )
+                return
+
         if not isinstance(store_offset, int):
             _l.debug("Unsupported canary storing offset %s. Expects an int.", store_offset)
 
@@ -154,17 +155,42 @@ class WinStackCanarySimplifier(OptimizationPass):
                 store_offset, canary_init_stmt.size, "canary", StackItemType.STACK_CANARY
             )
 
-    def _find_canary_init_stmt(self):
+    def _find_canary_init_stmt(self) -> tuple[ailment.Block, list[int]] | None:
         first_block = self._get_block(self._func.addr)
         if first_block is None:
             return None
 
+        r = self._extract_canary_init_stmt_from_block(first_block)
+        if r is not None:
+            return first_block, r
+
+        # if the first block is calling alloca_probe, we may want to take the second block instead
+        if (
+            first_block.statements
+            and first_block.original_size > 0
+            and isinstance(first_block.statements[-1], ailment.statement.Call)
+            and isinstance(first_block.statements[-1].target, ailment.expression.Const)
+        ):
+            # check if the target is alloca_probe
+            callee_addr = first_block.statements[-1].target.value
+            if (
+                self.kb.functions.contains_addr(callee_addr)
+                and self.kb.functions.get_by_addr(callee_addr).info.get("is_alloca_probe", False) is True
+            ):
+                second_block = self._get_block(first_block.addr + first_block.original_size)
+                if second_block is not None:
+                    r = self._extract_canary_init_stmt_from_block(second_block)
+                    if r is not None:
+                        return second_block, r
+        return None
+
+    def _extract_canary_init_stmt_from_block(self, block: ailment.Block) -> list[int] | None:
         load_stmt_idx = None
         load_reg = None
         xor_stmt_idx = None
         xored_reg = None
 
-        for idx, stmt in enumerate(first_block.statements):
+        for idx, stmt in enumerate(block.statements):
             # if we are lucky and things get folded into one statement:
             if (
                 isinstance(stmt, ailment.Stmt.Store)
@@ -178,7 +204,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                 # Check addr: must be __security_cookie
                 load_addr = stmt.data.operands[0].addr.value
                 if load_addr == self._security_cookie_addr:
-                    return first_block, [idx]
+                    return [idx]
             # or if we are unlucky and the load and the xor are two different statements
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
@@ -191,33 +217,48 @@ class WinStackCanarySimplifier(OptimizationPass):
                 if load_addr == self._security_cookie_addr:
                     load_stmt_idx = idx
                     load_reg = stmt.dst.reg_offset
-            if load_stmt_idx is not None and idx == load_stmt_idx + 1:
+            if load_stmt_idx is not None and xor_stmt_idx is None and idx >= load_stmt_idx + 1:  # noqa:SIM102
                 if (
                     isinstance(stmt, ailment.Stmt.Assignment)
                     and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                     and stmt.dst.was_reg
+                    and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
                     and isinstance(stmt.src, ailment.Expr.BinaryOp)
                     and stmt.src.op == "Xor"
                     and isinstance(stmt.src.operands[0], ailment.Expr.VirtualVariable)
                     and stmt.src.operands[0].was_reg
                     and stmt.src.operands[0].reg_offset == load_reg
-                    and isinstance(stmt.src.operands[1], ailment.Expr.StackBaseOffset)
+                    and (
+                        isinstance(stmt.src.operands[1], ailment.Expr.StackBaseOffset)
+                        or (
+                            isinstance(stmt.src.operands[1], ailment.Expr.VirtualVariable)
+                            and stmt.src.operands[1].was_reg
+                            and stmt.src.operands[1].reg_offset == self.project.arch.registers["ebp"][0]
+                        )
+                    )
                 ):
                     xor_stmt_idx = idx
                     xored_reg = stmt.dst.reg_offset
-                else:
-                    break
             if xor_stmt_idx is not None and idx == xor_stmt_idx + 1:
                 if (
                     isinstance(stmt, ailment.Stmt.Store)
-                    and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                    and (
+                        isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                        or (
+                            isinstance(stmt.addr, ailment.Expr.BinaryOp)
+                            and stmt.addr.op == "Sub"
+                            and isinstance(stmt.addr.operands[0], ailment.Expr.VirtualVariable)
+                            and stmt.addr.operands[0].was_reg
+                            and stmt.addr.operands[0].reg_offset == self.project.arch.registers["ebp"][0]
+                            and isinstance(stmt.addr.operands[1], ailment.Expr.Const)
+                        )
+                    )
                     and isinstance(stmt.data, ailment.Expr.VirtualVariable)
                     and stmt.data.was_reg
                     and stmt.data.reg_offset == xored_reg
                 ):
-                    return first_block, [load_stmt_idx, xor_stmt_idx, idx]
+                    return [load_stmt_idx, xor_stmt_idx, idx]
                 break
-
         return None
 
     def _find_amd64_canary_storing_stmt(self, block, canary_value_stack_offset):
@@ -275,6 +316,7 @@ class WinStackCanarySimplifier(OptimizationPass):
 
     def _find_x86_canary_storing_stmt(self, block, canary_value_stack_offset):
         load_stmt_idx = None
+        canary_reg_dst_offset = None
 
         for idx, stmt in enumerate(block.statements):
             # when we are lucky, we have one instruction
@@ -283,7 +325,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     isinstance(stmt, ailment.Stmt.Assignment)
                     and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                     and stmt.dst.was_reg
-                    and stmt.dst.reg_offset == self.project.arch.registers["eax"][0]
+                    and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
                 )
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op == "Xor"
@@ -291,8 +333,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                 op0, op1 = stmt.src.operands
                 if (
                     isinstance(op0, ailment.Expr.Load)
-                    and isinstance(op0.addr, ailment.Expr.StackBaseOffset)
-                    and op0.addr.offset == canary_value_stack_offset
+                    and self._get_bp_offset(op0.addr, stmt.ins_addr) == canary_value_stack_offset
                 ) and isinstance(op1, ailment.Expr.StackBaseOffset):
                     # found it
                     return idx
@@ -300,12 +341,12 @@ class WinStackCanarySimplifier(OptimizationPass):
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-                and stmt.dst.reg_offset == self.project.arch.registers["eax"][0]
+                and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
                 and isinstance(stmt.src, ailment.Expr.Load)
-                and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
-                and stmt.src.addr.offset == canary_value_stack_offset
+                and self._get_bp_offset(stmt.src.addr, stmt.ins_addr) == canary_value_stack_offset
             ):
                 load_stmt_idx = idx
+                canary_reg_dst_offset = stmt.dst.reg_offset
             if (
                 load_stmt_idx is not None
                 and idx >= load_stmt_idx + 1
@@ -313,17 +354,47 @@ class WinStackCanarySimplifier(OptimizationPass):
                     isinstance(stmt, ailment.Stmt.Assignment)
                     and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                     and stmt.dst.was_reg
+                    and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
                     and isinstance(stmt.src, ailment.Expr.BinaryOp)
                     and stmt.src.op == "Xor"
                 )
                 and (
                     isinstance(stmt.src.operands[0], ailment.Expr.VirtualVariable)
                     and stmt.src.operands[0].was_reg
-                    and stmt.src.operands[0].reg_offset == self.project.arch.registers["eax"][0]
-                    and isinstance(stmt.src.operands[1], ailment.Expr.StackBaseOffset)
+                    and stmt.src.operands[0].reg_offset == canary_reg_dst_offset
+                    and self._get_bp_offset(stmt.src.operands[1], stmt.ins_addr) is not None
                 )
             ):
                 return idx
+        return None
+
+    def _get_bp_offset(self, expr: ailment.Expr.Expression, ins_addr: int) -> int | None:
+        if isinstance(expr, ailment.Expr.StackBaseOffset):
+            return expr.offset
+        if (
+            isinstance(expr, ailment.Expr.VirtualVariable)
+            and expr.was_reg
+            and expr.reg_offset == self.project.arch.bp_offset
+        ):
+            if self._stack_pointer_tracker is None:
+                return None
+            return self._stack_pointer_tracker.offset_before(ins_addr, self.project.arch.bp_offset)
+        if (
+            isinstance(expr, ailment.Expr.BinaryOp)
+            and expr.op == "Sub"
+            and isinstance(expr.operands[0], ailment.Expr.VirtualVariable)
+            and expr.operands[0].was_reg
+            and expr.operands[0].reg_offset == self.project.arch.bp_offset
+            and isinstance(expr.operands[1], ailment.Expr.Const)
+        ):
+            if self._stack_pointer_tracker is None:
+                return None
+            base_bp_offset = self._stack_pointer_tracker.offset_before(ins_addr, self.project.arch.bp_offset)
+            if base_bp_offset is None:
+                return None
+            bp_off = base_bp_offset - expr.operands[1].value
+            mask = 0xFFFF_FFFF if self.project.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
+            return bp_off & mask
         return None
 
     @staticmethod

@@ -525,7 +525,10 @@ class Clinic(Analysis):
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
         ail_graph = self._run_simplification_passes(
-            ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
+            ail_graph,
+            stack_pointer_tracker=spt,
+            stack_items=self.stack_items,
+            stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION,
         )
 
         # Simplify the entire function for the first time
@@ -1423,6 +1426,7 @@ class Clinic(Analysis):
         stage: OptimizationPassStage = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
         variable_kb=None,
         stack_items: dict[int, StackItem] | None = None,
+        stack_pointer_tracker=None,
         **kwargs,
     ):
         addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
@@ -1457,6 +1461,7 @@ class Clinic(Analysis):
                 scratch=self.optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
                 complete_successors=self._complete_successors,
+                stack_pointer_tracker=stack_pointer_tracker,
                 **kwargs,
             )
             if a.out_graph:
