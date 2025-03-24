@@ -77,6 +77,15 @@ class SimplifierAILEngine(
 
         return stmt
 
+    def _handle_stmt_WeakAssignment(self, stmt: ailment.statement.WeakAssignment):
+        src = self._expr(stmt.src)
+        dst = self._expr(stmt.dst)
+
+        if (src, dst) != (stmt.src, stmt.dst):
+            return ailment.statement.WeakAssignment(stmt.idx, dst, src, **stmt.tags)
+
+        return stmt
+
     def _handle_stmt_Store(self, stmt):
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
