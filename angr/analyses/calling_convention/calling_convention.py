@@ -22,6 +22,7 @@ from angr.calling_conventions import (
     SimCCMicrosoftThiscall,
 )
 from angr.sim_type import (
+    SimTypeCppFunction,
     SimTypeInt,
     SimTypeFunction,
     SimType,
@@ -374,7 +375,12 @@ class CallingConventionAnalysis(Analysis):
         if not parsed or len(parsed) != 1:
             return None
         proto = next(iter(parsed.values()))
-        if self.project.simos.name == "Win32" and self.project.arch.name == "X86" and proto.convention == "__thiscall":
+        if (
+            isinstance(proto, SimTypeCppFunction)
+            and self.project.simos.name == "Win32"
+            and self.project.arch.name == "X86"
+            and proto.convention == "__thiscall"
+        ):
             cc_cls = SimCCMicrosoftThiscall
         else:
             cc_cls = default_cc(self.project.arch.name, self.project.simos.name)
