@@ -553,6 +553,12 @@ class Clinic(Analysis):
             type_hints=type_hints,
         )
 
+        # Run simplification passes
+        self._update_progress(49.0, text="Running simplifications 2")
+        ail_graph = self._run_simplification_passes(
+            ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
+        )
+
         # rewrite (qualified) stack variables into SSA form
         ail_graph = self._transform_to_ssa_level1(ail_graph, func_args)
 
