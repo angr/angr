@@ -7,6 +7,7 @@ from archinfo import Endness
 from ailment.expression import Const, StackBaseOffset, VirtualVariable
 from ailment.statement import Call, Assignment
 
+from angr import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase
 
@@ -44,6 +45,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                         Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                         Const(None, None, len(s), self.project.arch.bits),
                     ],
+                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy"),
                     **stmt.tags,
                 )
 
@@ -85,6 +87,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                                 Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                                 Const(None, None, len(s), self.project.arch.bits),
                             ],
+                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy"),
                             **stmt.tags,
                         )
 

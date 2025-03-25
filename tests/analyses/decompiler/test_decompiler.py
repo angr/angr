@@ -5016,6 +5016,12 @@ class TestDecompiler(unittest.TestCase):
         # assert C++ class methods are properly rewritten
         assert ".size()" in dec.codegen.text
         assert ".c_str()" in dec.codegen.text
+        # assert there exists a stack-based buffer that is 12-byte long
+        # this is to test the type hint that strncpy provides
+        m = re.search(r"char (v\d+)\[12];", dec.codegen.text)
+        assert m is not None
+        bufvar = m.group(1)
+        assert f'strncpy({bufvar}, "FWe#JID%WkOC", 12);' in dec.codegen.text
 
     def test_regs_preserved_across_syscalls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "regs_preserved_across_syscalls")
