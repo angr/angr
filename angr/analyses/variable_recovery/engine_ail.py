@@ -436,6 +436,29 @@ class SimEngineVRAIL(
             self._reference(richr, codeloc, src=expr)
         return richr
 
+    def _handle_unop_Reference(self, expr: ailment.Expr.UnaryOp):
+        if isinstance(expr.operand, ailment.Expr.VirtualVariable) and expr.operand.was_stack:
+            off = expr.operand.stack_offset
+            refbase_typevar = self.state.stack_offset_typevars.get(off, None)
+            if refbase_typevar is None:
+                # allocate a new type variable
+                refbase_typevar = typevars.TypeVariable()
+                self.state.stack_offset_typevars[off] = refbase_typevar
+
+            ref_typevar = typevars.TypeVariable()
+            access_derived_typevar = self._create_access_typevar(ref_typevar, False, None, 0)
+            load_constraint = typevars.Subtype(refbase_typevar, access_derived_typevar)
+            self.state.add_type_constraint(load_constraint)
+
+            value_v = self.state.stack_address(off)
+            richr = RichR(value_v, typevar=ref_typevar)
+            codeloc = self._codeloc()
+            self._ensure_variable_existence(richr, codeloc, src_expr=expr.operand)
+            if self._reference_spoffset:
+                self._reference(richr, codeloc, src=expr.operand)
+            return richr
+        return RichR(self.state.top(expr.bits))
+
     def _handle_expr_BasePointerOffset(self, expr):
         # TODO
         return self._top(expr.bits)
@@ -861,7 +884,6 @@ class SimEngineVRAIL(
         self._expr(expr.operands[0])
         return RichR(self.state.top(expr.bits))
 
-    _handle_unop_Reference = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_Clz = _handle_unop_Default
     _handle_unop_Ctz = _handle_unop_Default
