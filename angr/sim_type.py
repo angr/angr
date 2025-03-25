@@ -1779,7 +1779,7 @@ class SimCppClass(SimStruct):
         self.fields = value
 
     def __repr__(self):
-        return f"class {self.name}"
+        return f"class {self.name}" if not self.name.startswith("class") else self.name
 
     def extract(self, state, addr, concrete=False) -> SimCppClassValue:
         values = {}

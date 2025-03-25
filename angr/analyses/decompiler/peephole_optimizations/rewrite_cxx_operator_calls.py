@@ -6,7 +6,7 @@ from ailment.constant import UNDETERMINED_SIZE
 from ailment.expression import Const, VirtualVariable, BinaryOp, UnaryOp, Load
 from ailment.statement import Call, WeakAssignment
 
-from angr.sim_type import SimTypeReference, SimTypeBottom
+from angr.sim_type import SimTypeReference, SimCppClass
 from angr.knowledge_plugins.key_definitions import atoms
 from .base import PeepholeOptimizationStmtBase
 
@@ -83,6 +83,6 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
 
     @staticmethod
     def _type_hint_from_typeref(typeref: SimTypeReference) -> str | None:
-        if isinstance(typeref.refs, SimTypeBottom) and typeref.refs.label:
-            return typeref.refs.label
+        if isinstance(typeref.refs, SimCppClass) and typeref.refs.unique_name:
+            return typeref.refs.unique_name
         return None

@@ -161,14 +161,12 @@ def guess_value_type(value: int, project: angr.Project) -> SimType | None:
 
 def type_equals(t0: SimType, t1: SimType) -> bool:
     # special logic for C++ classes
-    if isinstance(t0, SimCppClass) and isinstance(t1, SimTypeBottom):
-        t0, t1 = t1, t0
-    if isinstance(t0, SimTypeBottom) and isinstance(t1, SimCppClass):  # noqa: SIM102
+    if isinstance(t0, SimCppClass) and isinstance(t1, SimCppClass):  # noqa: SIM102
         # TODO: Use the information (class names, etc.) in types_stl
-        if (
-            t1.name == "std::string"
-            and t0.label == "class std::basic_string<char, struct std::char_traits<char>, class std::allocator<char>>"
-        ):
+        if {t1.name, t0.name} == {
+            "std::string",
+            "class std::basic_string<char, struct std::char_traits<char>, class std::allocator<char>>",
+        }:
             return True
     return t0 == t1
 
