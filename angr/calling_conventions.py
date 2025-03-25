@@ -1196,7 +1196,7 @@ class SimCC:
 
     @staticmethod
     def find_cc(
-        arch: archinfo.Arch, args: list[SimRegArg | SimStackArg], sp_delta: int, platform: str = "Linux"
+        arch: archinfo.Arch, args: list[SimRegArg | SimStackArg], sp_delta: int, platform: str | None = "Linux"
     ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
@@ -1335,6 +1335,21 @@ class SimCCMicrosoftCdecl(SimCCCdecl):
     STRUCT_RETURN_THRESHOLD = 64
 
 
+class SimCCMicrosoftThiscall(SimCCCdecl):
+    CALLEE_CLEANUP = True
+    ARG_REGS = ["ecx"]
+    CALLER_SAVED_REGS = ["eax", "ecx", "edx"]
+    STRUCT_RETURN_THRESHOLD = 64
+
+    def arg_locs(self, prototype) -> list[SimFunctionArgument]:
+        if prototype._arch is None:
+            prototype = prototype.with_arch(self.arch)
+        session = self.arg_session(prototype.returnty)
+        if not prototype.args:
+            return []
+        return [SimRegArg("ecx", self.arch.bytes)] + [self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]]
+
+
 class SimCCStdcall(SimCCMicrosoftCdecl):
     CALLEE_CLEANUP = True
 
@@ -1469,7 +1484,7 @@ class SimCCSyscall(SimCC):
         self.ERROR_REG.set_value(state, error_reg_val)
         return expr
 
-    def set_return_val(self, state, val, ty, **kwargs):  # pylint:disable=arguments-differ
+    def set_return_val(self, state, val, ty, **kwargs):  # type:ignore  # pylint:disable=arguments-differ
         if self.ERROR_REG is not None:
             val = self.linux_syscall_update_error_reg(state, val)
         super().set_return_val(state, val, ty, **kwargs)
@@ -1607,6 +1622,7 @@ class SimCCSystemVAMD64(SimCC):
         classification = self._classify(ty)
         if any(cls == "MEMORY" for cls in classification):
             assert all(cls == "MEMORY" for cls in classification)
+            assert ty.size is not None
             byte_size = ty.size // self.arch.byte_width
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
@@ -1645,6 +1661,7 @@ class SimCCSystemVAMD64(SimCC):
         if isinstance(ty, (SimTypeFloat,)):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
+            assert ty.size is not None
             if ty.size > 512:
                 return ["MEMORY"] * nchunks
             flattened = self._flatten(ty)
@@ -1723,7 +1740,7 @@ class SimCCAMD64LinuxSyscall(SimCCSyscall):
     CALLER_SAVED_REGS = ["rax", "rcx", "r11"]
 
     @staticmethod
-    def _match(arch, args, sp_delta):  # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta):  # type:ignore # pylint: disable=unused-argument
         # doesn't appear anywhere but syscalls
         return False
 
@@ -1855,6 +1872,7 @@ class SimCCARM(SimCC):
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
+            assert ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
@@ -2273,7 +2291,7 @@ class SimCCUnknown(SimCC):
     """
 
     @staticmethod
-    def _match(arch, args, sp_delta):  # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta):  # type:ignore  # pylint: disable=unused-argument
         # It always returns True
         return True
 
@@ -2317,7 +2335,7 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
         "default": [SimCCCdecl],
         "Linux": [SimCCCdecl],
         "CGC": [SimCCCdecl],
-        "Win32": [SimCCMicrosoftCdecl, SimCCMicrosoftFastcall],
+        "Win32": [SimCCMicrosoftCdecl, SimCCMicrosoftFastcall, SimCCMicrosoftThiscall],
     },
     "ARMEL": {
         "default": [SimCCARM],

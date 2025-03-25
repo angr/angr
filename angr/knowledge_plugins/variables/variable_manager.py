@@ -1040,7 +1040,7 @@ class VariableManagerInternal(Serializable):
         reg_vars: set[SimRegisterVariable] = set()
 
         # unify stack variables based on their locations
-        for v in self.get_variables():
+        for v in self.get_variables() + list(self._phi_variables):
             if v in self._variables_to_unified_variables:
                 # do not unify twice
                 continue

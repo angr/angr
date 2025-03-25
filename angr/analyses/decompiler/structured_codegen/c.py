@@ -5,8 +5,10 @@ from collections.abc import Callable
 from collections import defaultdict, Counter
 import logging
 import struct
+import re
 
 from ailment import Block, Expr, Stmt, Tmp
+from ailment.constant import UNDETERMINED_SIZE
 from ailment.expression import StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
@@ -34,6 +36,7 @@ from angr.sim_type import (
     SimTypeInt128,
     SimTypeInt256,
     SimTypeInt512,
+    SimCppClass,
 )
 from angr.knowledge_plugins.functions import Function
 from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -156,6 +159,18 @@ def guess_value_type(value: int, project: angr.Project) -> SimType | None:
     return None
 
 
+def type_equals(t0: SimType, t1: SimType) -> bool:
+    # special logic for C++ classes
+    if isinstance(t0, SimCppClass) and isinstance(t1, SimCppClass):  # noqa: SIM102
+        # TODO: Use the information (class names, etc.) in types_stl
+        if {t1.name, t0.name} == {
+            "std::string",
+            "class std::basic_string<char, struct std::char_traits<char>, class std::allocator<char>>",
+        }:
+            return True
+    return t0 == t1
+
+
 def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
@@ -164,7 +179,10 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
         if full:
             # struct def preamble
             yield indent_str, None
-            yield "typedef struct ", None
+            if isinstance(ty, SimCppClass):
+                yield "class ", None
+            else:
+                yield "typedef struct ", None
             yield ty.name, ty
             yield " {\n", None
 
@@ -1242,6 +1260,7 @@ class CFunctionCall(CStatement, CExpression):
         "callee_func",
         "callee_target",
         "is_expr",
+        "prettify_thiscall",
         "ret_expr",
         "returning",
         "show_demangled_name",
@@ -1258,6 +1277,7 @@ class CFunctionCall(CStatement, CExpression):
         is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
+        prettify_thiscall: bool = True,
         tags=None,
         codegen=None,
         **kwargs,
@@ -1273,6 +1293,7 @@ class CFunctionCall(CStatement, CExpression):
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
+        self.prettify_thiscall = prettify_thiscall
 
     @property
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
@@ -1313,6 +1334,13 @@ class CFunctionCall(CStatement, CExpression):
 
         return False
 
+    @staticmethod
+    def _is_func_likely_cxx_class_method(func_name: str) -> bool:
+        if "::" not in func_name:
+            return False
+        chunks = func_name.split("::")
+        return re.match(r"[a-zA-Z_][a-zA-Z0-9_]*", chunks[-1]) is not None
+
     def c_repr_chunks(self, indent=0, asexpr: bool = False):
         """
 
@@ -1332,8 +1360,12 @@ class CFunctionCall(CStatement, CExpression):
                 func_name = get_cpp_function_name(self.callee_func.demangled_name, specialized=False, qualified=True)
             else:
                 func_name = self.callee_func.name
+            if self.prettify_thiscall and self.args and self._is_func_likely_cxx_class_method(func_name):
+                yield from self._c_repr_chunks_thiscall(func_name, asexpr=asexpr)
+                return
             if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
                 func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
+
             yield func_name, self
         elif isinstance(self.callee_target, str):
             yield self.callee_target, self
@@ -1344,6 +1376,38 @@ class CFunctionCall(CStatement, CExpression):
         yield "(", paren
 
         for i, arg in enumerate(self.args):
+            if i:
+                yield ", ", None
+            yield from CExpression._try_c_repr_chunks(arg)
+
+        yield ")", paren
+
+        if not self.is_expr and not asexpr:
+            yield ";", None
+            if not self.returning:
+                yield " /* do not return */", None
+            yield "\n", None
+
+    def _c_repr_chunks_thiscall(self, func_name: str, asexpr: bool = False):
+        # The first argument is the `this` pointer
+        assert self.args
+        this_ref = self.args[0]
+        if isinstance(this_ref, CUnaryOp) and this_ref.op == "Reference":
+            yield from CExpression._try_c_repr_chunks(this_ref.operand)
+        else:
+            yield from CExpression._try_c_repr_chunks(this_ref)
+
+        yield ".", None
+        short_funcname = func_name.split("::")[-1]
+        yield short_funcname, self
+
+        # the remaining arguments
+        paren = CClosingObject("(")
+        yield "(", paren
+
+        for i, arg in enumerate(self.args):
+            if i == 0:
+                continue
             if i:
                 yield ", ", None
             yield from CExpression._try_c_repr_chunks(arg)
@@ -1761,6 +1825,13 @@ class CBinaryOp(CExpression):
         # C spec https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2596.pdf 6.3.1.8 Usual arithmetic conversions
         rhs_ptr = isinstance(rhs_ty, SimTypePointer)
         lhs_ptr = isinstance(lhs_ty, SimTypePointer)
+        rhs_cls = isinstance(unpack_typeref(rhs_ty), SimCppClass)
+        lhs_cls = isinstance(unpack_typeref(lhs_ty), SimCppClass)
+
+        if lhs_cls:
+            return lhs_ty
+        if rhs_cls:
+            return rhs_ty
 
         if op in ("Add", "Sub"):
             if lhs_ptr and rhs_ptr:
@@ -2462,6 +2533,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
+            Stmt.WeakAssignment: self._handle_Stmt_WeakAssignment,
             Stmt.Call: self._handle_Stmt_Call,
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
@@ -2798,17 +2870,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if offset == 0:
             data_type = renegotiate_type(data_type, base_type)
-            if base_type == data_type or (
+            if type_equals(base_type, data_type) or (
                 base_type.size is not None and data_type.size is not None and base_type.size < data_type.size
             ):
                 # case 1: we're done because we found it
                 # case 2: we're done because we can never find it and we might as well stop early
                 if base_expr:
-                    if base_type != data_type:
+                    if not type_equals(base_type, data_type):
                         return _force_type_cast(base_type, data_type, base_expr)
                     return base_expr
 
-                if base_type != data_type:
+                if not type_equals(base_type, data_type):
                     return _force_type_cast(base_type, data_type, expr)
                 return CUnaryOp("Dereference", expr, codegen=self)
 
@@ -3265,13 +3337,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         csrc = self._handle(stmt.src, lvalue=False)
         cdst = None
 
+        src_type = csrc.type
+        dst_type = src_type
+        if hasattr(stmt, "type"):
+            src_type = stmt.type.get("src", None)
+            dst_type = stmt.type.get("dst", None)
+
         if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
 
             def negotiate(old_ty, proposed_ty):
                 # transfer casts from the dst to the src if possible
                 # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
                 nonlocal csrc
-                if old_ty != proposed_ty and qualifies_for_simple_cast(old_ty, proposed_ty):
+                if not type_equals(old_ty, proposed_ty) and qualifies_for_simple_cast(old_ty, proposed_ty):
                     csrc = CTypeCast(csrc.type, proposed_ty, csrc, codegen=self)
                     return proposed_ty
                 return old_ty
@@ -3286,7 +3364,46 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 assert type(offset) is int  # I refuse to deal with the alternative
 
                 cdst = self._access_constant_offset(
-                    self._get_variable_reference(cvar), offset, csrc.type, True, negotiate
+                    self._get_variable_reference(cvar), offset, dst_type, True, negotiate
+                )
+
+        if cdst is None:
+            cdst = self._handle(stmt.dst, lvalue=True)
+
+        return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
+
+    def _handle_Stmt_WeakAssignment(self, stmt, **kwargs):
+        csrc = self._handle(stmt.src, lvalue=False)
+        cdst = None
+
+        src_type = csrc.type
+        dst_type = src_type
+        if hasattr(stmt, "type"):
+            src_type = stmt.type.get("src", None)
+            dst_type = stmt.type.get("dst", None)
+
+        if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
+
+            def negotiate(old_ty, proposed_ty):
+                # transfer casts from the dst to the src if possible
+                # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
+                nonlocal csrc
+                if not type_equals(old_ty, proposed_ty) and qualifies_for_simple_cast(old_ty, proposed_ty):
+                    csrc = CTypeCast(csrc.type, proposed_ty, csrc, codegen=self)
+                    return proposed_ty
+                return old_ty
+
+            if stmt.dst.variable is not None:
+                if "struct_member_info" in stmt.dst.tags:
+                    offset, var, _ = stmt.dst.struct_member_info
+                    cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
+                else:
+                    cvar = self._variable(stmt.dst.variable, stmt.dst.size, vvar_id=stmt.dst.varid)
+                    offset = stmt.dst.variable_offset or 0
+                assert type(offset) is int  # I refuse to deal with the alternative
+
+                cdst = self._access_constant_offset(
+                    self._get_variable_reference(cvar), offset, dst_type, True, negotiate
                 )
 
         if cdst is None:
@@ -3413,7 +3530,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CRegister(expr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
-        ty = self.default_simtype_from_bits(expr.bits)
+        if expr.size == UNDETERMINED_SIZE:
+            # the size is undetermined; we force it to 1
+            expr_size = 1
+            expr_bits = 8
+        else:
+            expr_size = expr.size
+            expr_bits = expr.bits
+
+        if expr.size > 100 and isinstance(expr.addr, Expr.Const):
+            return self._handle_Expr_Const(expr.addr, type_=SimTypePointer(SimTypeChar()).with_arch(self.project.arch))
+
+        ty = self.default_simtype_from_bits(expr_bits)
 
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
             # we do not allow returning a struct for a primitive type
@@ -3430,7 +3558,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 offset, var, _ = expr.struct_member_info
                 cvar = self._variable(var, var.size)
             else:
-                cvar = self._variable(expr.variable, expr.size)
+                cvar = self._variable(expr.variable, expr_size)
                 offset = expr.variable_offset or 0
 
             assert type(offset) is int  # I refuse to deal with the alternative
@@ -3449,7 +3577,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         inline_string = False
         function_pointer = False
 
-        if reference_values is None and hasattr(expr, "reference_values"):
+        if type_ is None and hasattr(expr, "type"):
+            type_ = expr.type
+
+        if type_ is None and reference_values is None and hasattr(expr, "reference_values"):
             reference_values = expr.reference_values.copy()
             if reference_values:
                 type_ = next(iter(reference_values))
@@ -3665,7 +3796,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if expr.variable is not None:
             if "struct_member_info" in expr.tags:
                 offset, var, _ = expr.struct_member_info
-                cbasevar = self._variable(var, expr.size)
+                cbasevar = self._variable(var, expr.size, vvar_id=expr.varid)
                 cvar = self._access_constant_offset(
                     self._get_variable_reference(cbasevar), offset, cbasevar.type, False, negotiate
                 )

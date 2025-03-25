@@ -6,7 +6,17 @@ import logging
 from archinfo import Endness
 from ailment.block import Block
 from ailment.manager import Manager
-from ailment.statement import Statement, Assignment, Store, Call, Return, ConditionalJump, DirtyStatement, Jump
+from ailment.statement import (
+    Statement,
+    Assignment,
+    Store,
+    Call,
+    Return,
+    ConditionalJump,
+    DirtyStatement,
+    Jump,
+    WeakAssignment,
+)
 from ailment.expression import (
     Expression,
     Register,
@@ -179,6 +189,19 @@ class SimEngineSSARewriting(
             if stmt_base_reg is not None:
                 return new_stmt, stmt_base_reg
             return new_stmt
+        return None
+
+    def _handle_stmt_WeakAssignment(self, stmt) -> WeakAssignment | None:
+        new_src = self._expr(stmt.src)
+        new_dst = self._expr(stmt.dst)
+
+        if new_dst is not None or new_src is not None:
+            return WeakAssignment(
+                stmt.idx,
+                stmt.dst if new_dst is None else new_dst,  # type: ignore
+                stmt.src if new_src is None else new_src,
+                **stmt.tags,
+            )
         return None
 
     def _handle_stmt_Store(self, stmt: Store) -> Store | Assignment | tuple[Assignment, ...] | None:
@@ -505,7 +528,28 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_expr_StackBaseOffset(self, expr):
-        return None
+        if expr.offset not in self.state.stackvars:
+            # create it on the fly
+            vvar_id = self.get_vvid_by_def(
+                self.block.addr,
+                self.block.idx,
+                self.stmt_idx,
+                atoms.MemoryLocation(expr.offset, 1, self.project.arch.memory_endness),
+                "l",
+            )
+            vvar = VirtualVariable(
+                self.ail_manager.next_atom(),
+                vvar_id,
+                1 * self.arch.byte_width,
+                category=VirtualVariableCategory.STACK,
+                oident=expr.offset,
+                **expr.tags,
+            )
+            self.state.stackvars[expr.offset][1] = vvar
+        else:
+            sz = 1 if 1 in self.state.stackvars[expr.offset] else max(self.state.stackvars[expr.offset])
+            vvar = self.state.stackvars[expr.offset][sz]
+        return UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
 
     def _handle_expr_VirtualVariable(self, expr):
         return None
@@ -807,7 +851,8 @@ class SimEngineSSARewriting(
             and expr.size in self.stackvar_locs[expr.addr.offset]
         ):
             if expr.size not in self.state.stackvars[expr.addr.offset]:
-                # create it on the fly
+                # we have not seen its use before (which does not necessarily mean it's never created!), so we create
+                # it on the fly and record it in self.state.stackvars
                 vvar_id = self.get_vvid_by_def(
                     self.block.addr,
                     self.block.idx,
@@ -815,7 +860,7 @@ class SimEngineSSARewriting(
                     atoms.MemoryLocation(expr.addr.offset, expr.size, Endness(expr.endness)),
                     "l",
                 )
-                return VirtualVariable(
+                var = VirtualVariable(
                     self.ail_manager.next_atom(),
                     vvar_id,
                     expr.size * self.arch.byte_width,
@@ -823,6 +868,8 @@ class SimEngineSSARewriting(
                     oident=expr.addr.offset,
                     **expr.tags,
                 )
+                self.state.stackvars[expr.addr.offset][expr.size] = var
+                return var
 
             # TODO: Support truncation
             # TODO: Maybe also support concatenation

@@ -13,8 +13,16 @@ import ailment
 
 from angr.code_location import ExternalCodeLocation
 
-from angr.calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, default_cc
+from angr.calling_conventions import (
+    SimFunctionArgument,
+    SimRegArg,
+    SimStackArg,
+    SimCC,
+    default_cc,
+    SimCCMicrosoftThiscall,
+)
 from angr.sim_type import (
+    SimTypeCppFunction,
     SimTypeInt,
     SimTypeFunction,
     SimType,
@@ -24,6 +32,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeFloat,
     SimTypeDouble,
+    parse_cpp_file,
 )
 from angr.sim_variable import SimStackVariable, SimRegisterVariable
 from angr.knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
@@ -152,6 +161,13 @@ class CallingConventionAnalysis(Analysis):
         """
 
         assert self._function is not None
+
+        demangled_name = self._function.demangled_name
+        if demangled_name != self._function.name:
+            r_demangled = self._analyze_demangled_name(demangled_name)
+            if r_demangled is not None:
+                self.cc, self.prototype, self.prototype_libname = r_demangled
+            return
 
         if self._function.is_simprocedure:
             hooker = self.project.hooked_by(self._function.addr)
@@ -347,6 +363,30 @@ class CallingConventionAnalysis(Analysis):
             return cc, prototype, None
 
         return None
+
+    def _analyze_demangled_name(self, name: str) -> tuple[SimCC, SimTypeFunction, str | None] | None:
+        """
+        Analyze a function with a demangled name. Only C++ names are supported for now.
+
+        :param name:    The demangled name of the function.
+        :return:        A tuple of the calling convention, the function type, and the library name if available.
+        """
+        parsed, _ = parse_cpp_file(name)
+        if not parsed or len(parsed) != 1:
+            return None
+        proto = next(iter(parsed.values()))
+        if (
+            isinstance(proto, SimTypeCppFunction)
+            and self.project.simos.name == "Win32"
+            and self.project.arch.name == "X86"
+            and proto.convention == "__thiscall"
+        ):
+            cc_cls = SimCCMicrosoftThiscall
+        else:
+            cc_cls = default_cc(self.project.arch.name, self.project.simos.name)
+            assert cc_cls is not None
+        cc = cc_cls(self.project.arch)
+        return cc, proto, None
 
     def _analyze_function(self) -> tuple[SimCC, SimTypeFunction] | None:
         """

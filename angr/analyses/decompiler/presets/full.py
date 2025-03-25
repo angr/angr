@@ -27,6 +27,7 @@ from angr.analyses.decompiler.optimization_passes import (
     CallStatementRewriter,
     SwitchReusedEntryRewriter,
     ConditionConstantPropagation,
+    DetermineLoadSizes,
 )
 
 
@@ -59,6 +60,7 @@ preset_full = DecompilationPreset(
         CallStatementRewriter,
         SwitchReusedEntryRewriter,
         ConditionConstantPropagation,
+        DetermineLoadSizes,
     ],
 )
 

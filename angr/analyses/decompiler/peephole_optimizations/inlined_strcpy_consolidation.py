@@ -4,6 +4,7 @@ from __future__ import annotations
 from ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset
 from ailment.statement import Call, Store
 
+from angr import SIM_LIBRARIES
 from .base import PeepholeOptimizationMultiStmtBase
 from .inlined_strcpy import InlinedStrcpy
 
@@ -58,6 +59,7 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         last_stmt.args[0],
                         Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True),
                     ]
+                    prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strcpy")
                 else:
                     call_name = "strncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
@@ -66,8 +68,9 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True),
                         Const(None, None, len(new_str), self.project.arch.bits),
                     ]
+                    prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
 
-                return [Call(stmt.idx, call_name, args=args, **stmt.tags)]
+                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **stmt.tags)]
 
         return None
 

@@ -73,7 +73,16 @@ class SimplifierAILEngine(
             self.state.store_variable(dst, src)
 
         if (src, dst) != (stmt.src, stmt.dst):
-            return ailment.statement.Assignment(stmt.idx, dst, src, **stmt.tags)
+            return ailment.statement.Assignment(stmt.idx, dst, src, **stmt.tags)  # type:ignore
+
+        return stmt
+
+    def _handle_stmt_WeakAssignment(self, stmt: ailment.statement.WeakAssignment):
+        src = self._expr(stmt.src)
+        dst = self._expr(stmt.dst)
+
+        if (src, dst) != (stmt.src, stmt.dst):
+            return ailment.statement.WeakAssignment(stmt.idx, dst, src, **stmt.tags)  # type:ignore
 
         return stmt
 
@@ -150,7 +159,7 @@ class SimplifierAILEngine(
     def _handle_stmt_DirtyStatement(self, stmt):
         expr = self._expr(stmt.dirty)
         if expr != stmt.dirty:
-            return ailment.statement.DirtyStatement(stmt.idx, expr, **stmt.tags)
+            return ailment.statement.DirtyStatement(stmt.idx, expr, **stmt.tags)  # type:ignore
         return stmt
 
     def _handle_stmt_Label(self, stmt):

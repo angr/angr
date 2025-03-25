@@ -851,11 +851,16 @@ def peephole_optimize_stmts(block, stmt_opts):
                     r = opt.optimize(stmt, stmt_idx=stmt_idx, block=block)
                     if r is not None and r is not stmt:
                         stmt = r
+                        if r == ():
+                            # the statement is gone; no more redo
+                            redo = False
+                            break
                         redo = True
                         break
 
         if stmt is not None and stmt is not old_stmt:
-            statements.append(stmt)
+            if stmt != ():
+                statements.append(stmt)
             any_update = True
         else:
             statements.append(old_stmt)

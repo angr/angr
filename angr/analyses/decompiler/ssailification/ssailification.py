@@ -134,7 +134,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         if self._ssa_stackvars:
             # for stack variables, we collect all definitions and identify stack variable locations using heuristics
 
-            stackvar_locs = self._synthesize_stackvar_locs([def_ for def_, _ in def_to_loc if isinstance(def_, Store)])
+            stackvar_locs = self._synthesize_stackvar_locs(
+                [def_ for def_, _ in def_to_loc if isinstance(def_, (Store, StackBaseOffset))]
+            )
             # handle function arguments
             if self._func_args:
                 for func_arg in self._func_args:
@@ -173,6 +175,20 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         if def_.size in stackvar_locs[off] and def_.size < full_sz:
                             udef_to_defs[("stack", off, def_.size)].add(def_)
                             udef_to_blockkeys[("stack", off, def_.size)].add((loc.block_addr, loc.block_idx))
+            elif isinstance(def_, StackBaseOffset):
+                sz = 1
+                idx_begin = bisect_left(sorted_stackvar_offs, def_.offset)
+                for i in range(idx_begin, len(sorted_stackvar_offs)):
+                    off = sorted_stackvar_offs[i]
+                    if off >= def_.offset + sz:
+                        break
+                    full_sz = max(stackvar_locs[off])
+                    udef_to_defs[("stack", off, full_sz)].add(def_)
+                    udef_to_blockkeys[("stack", off, full_sz)].add((loc.block_addr, loc.block_idx))
+                    # add a definition for the partial stack variable
+                    if sz in stackvar_locs[off] and sz < full_sz:
+                        udef_to_defs[("stack", off, sz)].add(def_)
+                        udef_to_blockkeys[("stack", off, sz)].add((loc.block_addr, loc.block_idx))
             elif isinstance(def_, Tmp):
                 # Tmps are local to each block and do not need phi nodes
                 pass
@@ -211,7 +227,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         return last_frontier
 
     @staticmethod
-    def _synthesize_stackvar_locs(defs: list[Store]) -> dict[int, set[int]]:
+    def _synthesize_stackvar_locs(defs: list[Store | StackBaseOffset]) -> dict[int, set[int]]:
         """
         Derive potential locations (in terms of offsets and sizes) for stack variables based on all stack variable
         definitions provided.
@@ -224,7 +240,11 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         offs: set[int] = set()
 
         for def_ in defs:
-            if isinstance(def_.addr, StackBaseOffset):
+            if isinstance(def_, StackBaseOffset):
+                stack_off = def_.offset
+                accesses[stack_off].add(1)
+                offs.add(stack_off)
+            elif isinstance(def_, Store) and isinstance(def_.addr, StackBaseOffset):
                 stack_off = def_.addr.offset
                 accesses[stack_off].add(def_.size)
                 offs.add(stack_off)

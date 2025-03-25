@@ -533,6 +533,7 @@ class SimEngineLightAIL(
     def __init__(self, *args, **kwargs):
         self._stmt_handlers: dict[str, Callable[[Any], StmtDataType]] = {
             "Assignment": self._handle_stmt_Assignment,
+            "WeakAssignment": self._handle_stmt_WeakAssignment,
             "Store": self._handle_stmt_Store,
             "Jump": self._handle_stmt_Jump,
             "ConditionalJump": self._handle_stmt_ConditionalJump,
@@ -696,6 +697,9 @@ class SimEngineLightAIL(
 
     @abstractmethod
     def _handle_stmt_Assignment(self, stmt: ailment.statement.Assignment) -> StmtDataType: ...
+
+    @abstractmethod
+    def _handle_stmt_WeakAssignment(self, stmt: ailment.statement.WeakAssignment) -> StmtDataType: ...
 
     @abstractmethod
     def _handle_stmt_Store(self, stmt: ailment.statement.Store) -> StmtDataType: ...
@@ -1004,6 +1008,9 @@ class SimEngineNostmtAIL(
     """
 
     def _handle_stmt_Assignment(self, stmt) -> StmtDataType | None:
+        pass
+
+    def _handle_stmt_WeakAssignment(self, stmt) -> StmtDataType | None:
         pass
 
     def _handle_stmt_Store(self, stmt) -> StmtDataType | None:

@@ -48,6 +48,8 @@ from .inlined_wstrcpy import InlinedWstrcpy
 from .cmpord_rewriter import CmpORDRewriter
 from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 from .a_mul_const_sub_a import AMulConstSubA
+from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
+from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
 
@@ -100,6 +102,8 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     CmpORDRewriter,
     CoalesceAdjacentShiftRights,
     ShlToMul,
+    RewriteCxxOperatorCalls,
+    RemoveCxxDestructorCalls,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [

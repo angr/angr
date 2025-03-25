@@ -114,6 +114,18 @@ class Int512(Int):
         return "int512"
 
 
+class IntVar(Int):
+    def __init__(self, size):
+        self._size = size
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    def __repr__(self, memo=None):
+        return "intvar"
+
+
 class Float(TypeConstant):
     def __repr__(self, memo=None) -> str:
         return "floatbase"
@@ -211,10 +223,11 @@ class Array(TypeConstant):
 
 
 class Struct(TypeConstant):
-    def __init__(self, fields=None, name=None, field_names=None):
+    def __init__(self, fields=None, name=None, field_names=None, is_cppclass: bool = False):
         self.fields = {} if fields is None else fields  # offset to type
         self.name = name
         self.field_names = field_names
+        self.is_cppclass = is_cppclass
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
@@ -236,9 +249,9 @@ class Struct(TypeConstant):
 
     @memoize
     def __repr__(self, memo=None):
-        prefix = "struct"
+        prefix = "CppClass" if self.is_cppclass else "struct"
         if self.name:
-            prefix = f"struct {self.name}"
+            prefix = f"{prefix} {self.name}"
         return (
             prefix
             + "{"
@@ -312,9 +325,7 @@ def int_type(bits: int) -> Int:
         256: Int256,
         512: Int512,
     }
-    if bits in mapping:
-        return mapping[bits]()
-    raise TypeError(f"Not a known size of int: {bits}")
+    return mapping[bits]() if bits in mapping else IntVar(bits)
 
 
 def float_type(bits: int) -> Float | None:

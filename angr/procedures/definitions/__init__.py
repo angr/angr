@@ -397,7 +397,7 @@ class SimCppLibrary(SimLibrary):
         stub = super().get_stub(demangled_name, arch)
         # try to determine a prototype from the function name if possible
         if demangled_name != name:
-            # itanium-mangled function name
+            # mangled function name
             stub.prototype = self._proto_from_demangled_name(demangled_name)
             if stub.prototype is not None:
                 stub.prototype = stub.prototype.with_arch(arch)

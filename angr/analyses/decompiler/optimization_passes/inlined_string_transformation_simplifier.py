@@ -161,13 +161,28 @@ class InlinedStringTransformationAILEngine(
             return addr.value, "mem"
         if isinstance(addr, StackBaseOffset):
             return (addr.offset + self.STACK_BASE) & self.MASK, "stack"
-        if isinstance(addr, BinaryOp) and isinstance(addr.operands[0], StackBaseOffset):
+        if (
+            isinstance(addr, UnaryOp)
+            and addr.op == "Reference"
+            and isinstance(addr.operand, VirtualVariable)
+            and addr.operand.was_stack
+        ):
+            return (addr.operand.stack_offset + self.STACK_BASE) & self.MASK, "stack"
+        if (
+            isinstance(addr, BinaryOp)
+            and addr.op in {"Add", "Sub"}
+            and isinstance(addr.operands[0], (StackBaseOffset, UnaryOp, Const))
+        ):
             v0_and_type = self._process_address(addr.operands[0])
             if v0_and_type is not None:
                 v0 = v0_and_type[0]
                 v1 = self._expr(addr.operands[1])
                 if isinstance(v1, claripy.ast.Bits) and v1.concrete:
-                    return (v0 + v1.concrete_value) & self.MASK, "stack"
+                    if addr.op == "Add":
+                        return (v0 + v1.concrete_value) & self.MASK, "stack"
+                    if addr.op == "Sub":
+                        return (v0 - v1.concrete_value) & self.MASK, "stack"
+                    raise NotImplementedError("Unreachable")
         return None
 
     def _handle_stmt_Assignment(self, stmt):

@@ -53,12 +53,14 @@ class OptimizationPassStage(Enum):
     AFTER_AIL_GRAPH_CREATION = 0
     BEFORE_SSA_LEVEL0_TRANSFORMATION = 1
     AFTER_SINGLE_BLOCK_SIMPLIFICATION = 2
-    AFTER_MAKING_CALLSITES = 3
-    AFTER_GLOBAL_SIMPLIFICATION = 4
-    AFTER_VARIABLE_RECOVERY = 5
-    BEFORE_REGION_IDENTIFICATION = 6
-    DURING_REGION_IDENTIFICATION = 7
-    AFTER_STRUCTURING = 8
+    BEFORE_SSA_LEVEL1_TRANSFORMATION = 3
+    AFTER_MAKING_CALLSITES = 4
+    AFTER_GLOBAL_SIMPLIFICATION = 5
+    BEFORE_VARIABLE_RECOVERY = 6
+    AFTER_VARIABLE_RECOVERY = 7
+    BEFORE_REGION_IDENTIFICATION = 8
+    DURING_REGION_IDENTIFICATION = 9
+    AFTER_STRUCTURING = 10
 
 
 class BaseOptimizationPass:
@@ -137,6 +139,7 @@ class OptimizationPass(BaseOptimizationPass):
         avoid_vvar_ids: set[int] | None = None,
         arg_vvars: set[int] | None = None,
         peephole_optimizations=None,
+        stack_pointer_tracker=None,
         **kwargs,
     ):
         super().__init__(func)
@@ -158,6 +161,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._complete_successors = complete_successors
         self._avoid_vvar_ids = avoid_vvar_ids or set()
         self._peephole_optimizations = peephole_optimizations
+        self._stack_pointer_tracker = stack_pointer_tracker
 
         # output
         self.out_graph: networkx.DiGraph | None = None

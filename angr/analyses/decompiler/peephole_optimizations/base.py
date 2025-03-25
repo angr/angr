@@ -4,6 +4,7 @@ from ailment.statement import Statement, Assignment
 from ailment import Block
 from angr.project import Project
 from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.key_definitions import atoms
 
 
 class PeepholeOptimizationStmtBase:
@@ -14,20 +15,33 @@ class PeepholeOptimizationStmtBase:
     __slots__ = (
         "func_addr",
         "kb",
+        "preserve_vvar_ids",
         "project",
+        "type_hints",
     )
     project: Project | None
     kb: KnowledgeBase | None
     func_addr: int | None
+    preserve_vvar_ids: set[int]
+    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
 
     NAME = "Peephole Optimization - Statement"
     DESCRIPTION = "Peephole Optimization - Statement"
     stmt_classes = None
 
-    def __init__(self, project: Project | None, kb: KnowledgeBase | None, func_addr: int | None = None):
+    def __init__(
+        self,
+        project: Project | None,
+        kb: KnowledgeBase | None,
+        func_addr: int | None = None,
+        preserve_vvar_ids: set[int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+    ):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
+        self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
+        self.type_hints = [] if type_hints is None else type_hints
 
     def optimize(self, stmt, stmt_idx: int | None = None, block=None, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
@@ -41,20 +55,33 @@ class PeepholeOptimizationMultiStmtBase:
     __slots__ = (
         "func_addr",
         "kb",
+        "preserve_vvar_ids",
         "project",
+        "type_hints",
     )
     project: Project | None
     kb: KnowledgeBase | None
     func_addr: int | None
+    preserve_vvar_ids: set[int]
+    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
 
     NAME = "Peephole Optimization - Multi-statement"
     DESCRIPTION = "Peephole Optimization - Multi-statement"
     stmt_classes = None
 
-    def __init__(self, project: Project | None, kb: KnowledgeBase | None, func_addr: int | None = None):
+    def __init__(
+        self,
+        project: Project | None,
+        kb: KnowledgeBase | None,
+        func_addr: int | None = None,
+        preserve_vvar_ids: set[int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+    ):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
+        self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
+        self.type_hints = [] if type_hints is None else type_hints
 
     def optimize(self, stmts: list[Statement], stmt_idx: int | None = None, block=None, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
@@ -68,20 +95,33 @@ class PeepholeOptimizationExprBase:
     __slots__ = (
         "func_addr",
         "kb",
+        "preserve_vvar_ids",
         "project",
+        "type_hints",
     )
     project: Project | None
     kb: KnowledgeBase | None
     func_addr: int | None
+    preserve_vvar_ids: set[int]
+    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
 
     NAME = "Peephole Optimization - Expression"
     DESCRIPTION = "Peephole Optimization - Expression"
     expr_classes = None
 
-    def __init__(self, project: Project | None, kb: KnowledgeBase | None, func_addr: int | None = None):
+    def __init__(
+        self,
+        project: Project | None,
+        kb: KnowledgeBase | None,
+        func_addr: int | None = None,
+        preserve_vvar_ids: set[int] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
+    ):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
+        self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
+        self.type_hints = [] if type_hints is None else type_hints
 
     def optimize(self, expr, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
