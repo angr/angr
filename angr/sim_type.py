@@ -2086,10 +2086,11 @@ GLIBC_EXTERNAL_BASIC_TYPES = {
 }
 ALL_TYPES.update(GLIBC_EXTERNAL_BASIC_TYPES)
 
-
+# TODO: switch to stl types declared in types_stl
 CXX_TYPES = {
     "string": SimTypeString(),
     "wstring": SimTypeWString(),
+    "std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>>": SimTypeString(),
     "basic_string": SimTypeString(),
     "CharT": SimTypeChar(),
 }
@@ -3444,7 +3445,15 @@ CPP_DECL_TYPES = (
 
 def _cpp_decl_to_type(
     decl: CPP_DECL_TYPES, extra_types: dict[str, SimType], opaque_classes=True
-) -> SimTypeCppFunction | SimCppClass | SimTypeReference | SimTypePointer | SimTypeArray | SimTypeBottom:
+) -> (
+    SimTypeCppFunction
+    | SimTypeFunction
+    | SimCppClass
+    | SimTypeReference
+    | SimTypePointer
+    | SimTypeArray
+    | SimTypeBottom
+):
     if cxxheaderparser is None:
         raise ImportError("Please install cxxheaderparser to parse C++ definitions")
     if isinstance(decl, cxxheaderparser.types.Method):
@@ -3479,8 +3488,47 @@ def _cpp_decl_to_type(
             convention=the_func.msvc_convention,
         )
 
+    if isinstance(decl, cxxheaderparser.types.Function):
+        # a function declaration
+        the_func = decl
+        func_name = the_func.name.format()
+        # translate parameters
+        args = []
+        arg_names: list[str] = []
+        for param in the_func.parameters:
+            arg_type = param.type
+            args.append(_cpp_decl_to_type(arg_type, extra_types, opaque_classes=opaque_classes))
+            arg_name = param.name
+            arg_names.append(arg_name)
+
+        args = tuple(args)
+        arg_names_tuple: tuple[str, ...] = tuple(arg_names)
+        # returns
+        if the_func.return_type is None:
+            returnty = SimTypeBottom()
+        else:
+            returnty = _cpp_decl_to_type(the_func.return_type, extra_types, opaque_classes=opaque_classes)
+
+        return SimTypeFunction(args, returnty, label=func_name, arg_names=arg_names_tuple)
+
     if isinstance(decl, cxxheaderparser.types.Type):
-        return SimTypeBottom(label=decl.format())
+        # attempt to parse it as one of the existing types
+        lbl = decl.format()
+        lbl = lbl.removeprefix("const ")
+        if lbl in extra_types:
+            t = extra_types[lbl]
+        elif lbl in ALL_TYPES:
+            t = ALL_TYPES[lbl]
+        elif opaque_classes is True:
+            # create a class without knowing the internal members
+            t = SimCppClass(unique_name=lbl, name=lbl, members={})
+        else:
+            raise TypeError(f'Unknown type "{lbl}"')
+
+        if isinstance(t, NamedTypeMixin):
+            t = t.copy()
+            t.name = lbl  # pylint:disable=attribute-defined-outside-init
+        return t
 
     if isinstance(decl, cxxheaderparser.types.Array):
         subt = _cpp_decl_to_type(decl.array_of, extra_types, opaque_classes=opaque_classes)
@@ -3519,11 +3567,7 @@ def normalize_cpp_function_name(name: str) -> str:
     for pre in prefixes:
         name = name.removeprefix(pre)
 
-    s = name
-    m = re.search(r"{([a-z\s]+)}", s)
-    if m is not None:
-        s = s[: m.start()] + "__" + m.group(1).replace(" ", "_") + "__" + s[m.end() :]
-    return s
+    return name.removesuffix(";")
 
 
 def parse_cpp_file(cpp_decl, with_param_names: bool = False):
@@ -3547,20 +3591,19 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     if not h.namespace:
         return None, None
 
-    func_decls: dict[str, SimTypeCppFunction] = {}
-    for the_func in h.namespace.method_impls:
+    func_decls: dict[str, SimTypeCppFunction | SimTypeFunction] = {}
+    for the_func in h.namespace.functions + h.namespace.method_impls:
         # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
-        proto = cast(SimTypeCppFunction | None, _cpp_decl_to_type(the_func, {}, opaque_classes=True))
+        proto = cast(SimTypeCppFunction | SimTypeFunction | None, _cpp_decl_to_type(the_func, {}, opaque_classes=True))
         if proto is not None:
             func_name = the_func.name.format()
-            proto.args = (
-                SimTypePointer(pts_to=SimTypeBottom(label="void")),
-                *proto.args,
-            )  # pylint:disable=attribute-defined-outside-init
-            proto.arg_names = ("this", *proto.arg_names)  # pylint:disable=attribute-defined-outside-init
-        else:
-            raise ValueError("proto is None but class is also None... not sure what this edge case means")
-        func_decls[func_name] = proto
+            if isinstance(proto, SimTypeCppFunction):
+                proto.args = (
+                    SimTypePointer(pts_to=SimTypeBottom(label="void")),
+                    *proto.args,
+                )  # pylint:disable=attribute-defined-outside-init
+                proto.arg_names = ("this", *proto.arg_names)  # pylint:disable=attribute-defined-outside-init
+            func_decls[func_name] = proto
 
     return func_decls, {}
 
