@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions,unused-argument
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
@@ -20,7 +21,7 @@ _l = logging.getLogger(name=__name__)
 
 class EagerStdStringConcatenationPass(OptimizationPass):
     """
-    TODO:
+    TODO: Unfinished
     """
 
     ARCHES = None

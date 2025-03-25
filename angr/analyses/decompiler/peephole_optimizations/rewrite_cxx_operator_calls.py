@@ -1,4 +1,4 @@
-# pylint:disable=arguments-differ
+# pylint:disable=arguments-differ,too-many-boolean-expressions,no-self-use
 from __future__ import annotations
 
 from archinfo import Endness
@@ -51,13 +51,13 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                 if isinstance(stmt.args[1], Const)
                 else stmt.args[1]
             )
-            type = None
+            type_ = None
             if stmt.prototype is not None:
                 dst_ty = stmt.prototype.returnty
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
-                type = {"dst": dst_ty, "src": stmt.prototype.args[1]}
-            return WeakAssignment(stmt.idx, stmt.args[0].operand, arg1, type=type, **stmt.tags)
+                type_ = {"dst": dst_ty, "src": stmt.prototype.args[1]}
+            return WeakAssignment(stmt.idx, stmt.args[0].operand, arg1, type=type_, **stmt.tags)
         return None
 
     def _optimize_operator_add(self, stmt: Call) -> WeakAssignment | None:
@@ -72,13 +72,13 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
         ):
             arg2 = Load(None, stmt.args[2], UNDETERMINED_SIZE, Endness.BE, **stmt.tags)
             addition = BinaryOp(None, "Add", [stmt.args[1].operand, arg2], **stmt.tags)
-            type = None
+            type_ = None
             if stmt.prototype is not None:
                 dst_ty = stmt.prototype.returnty
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
-                type = {"dst": dst_ty, "src": stmt.prototype.args[1]}
-            return WeakAssignment(stmt.idx, stmt.ret_expr, addition, type=type, **stmt.tags)
+                type_ = {"dst": dst_ty, "src": stmt.prototype.args[1]}
+            return WeakAssignment(stmt.idx, stmt.ret_expr, addition, type=type_, **stmt.tags)
         return None
 
     @staticmethod

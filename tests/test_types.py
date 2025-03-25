@@ -121,13 +121,13 @@ class TestTypes(unittest.TestCase):
 
     def test_cppproto_parse_operator_new(self):
         proto = "operator new(unsigned long)"
-        name, proto, _ = convert_cppproto_to_py(proto)
+        _, proto, _ = convert_cppproto_to_py(proto)
         assert proto is not None
         assert len(proto.args) == 1
 
     def test_cppproto_parse_operator_shl(self):
         proto = "std::ostream::operator<<(std::ostream& (*)(std::ostream&))"
-        name, proto, _ = convert_cppproto_to_py(proto)
+        _, proto, _ = convert_cppproto_to_py(proto)
         assert proto is not None
         assert len(proto.args) == 2
 
