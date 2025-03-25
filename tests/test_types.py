@@ -119,6 +119,18 @@ class TestTypes(unittest.TestCase):
         assert isinstance(proto.args[0].refs, SimTypeInt)
         assert isinstance(proto.returnty, SimTypeBottom)
 
+    def test_cppproto_parse_operator_new(self):
+        proto = "operator new(unsigned long)"
+        name, proto, _ = convert_cppproto_to_py(proto)
+        assert proto is not None
+        assert len(proto.args) == 1
+
+    def test_cppproto_parse_operator_shl(self):
+        proto = "std::ostream::operator<<(std::ostream& (*)(std::ostream&))"
+        name, proto, _ = convert_cppproto_to_py(proto)
+        assert proto is not None
+        assert len(proto.args) == 2
+
     def test_struct_deduplication(self):
         angr.types.register_types(angr.types.parse_type("struct ahdr { int a ;}"))
         angr.types.register_types(angr.types.parse_type("struct bhdr { int b ;}"))

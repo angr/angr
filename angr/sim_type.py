@@ -3567,6 +3567,10 @@ def normalize_cpp_function_name(name: str) -> str:
     for pre in prefixes:
         name = name.removeprefix(pre)
 
+    if name.startswith("operator"):
+        # the return type is missing; give it a default type
+        name = "int " + name
+
     return name.removesuffix(";")
 
 
@@ -3587,7 +3591,15 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
     try:
         h = cxxheaderparser.simple.parse_string(s)
     except cxxheaderparser.errors.CxxParseError:
-        return None, None
+        # GCC-mangled (and thus, demangled) function names do not have return types encoded; let's try to prefix s with
+        # "void" and try again
+        s = "void " + s
+        try:
+            h = cxxheaderparser.simple.parse_string(s)
+        except cxxheaderparser.errors.CxxParseError:
+            # if it still fails, we give up
+            return None, None
+
     if not h.namespace:
         return None, None
 
