@@ -3609,16 +3609,19 @@ class TestDecompiler(unittest.TestCase):
         vars_in_use[0].variable.name = "puts"
         vars_in_use[0].variable.renamed = True
         d.codegen.regenerate_text()
+        self._print_decompilation_result(d)
         assert "::puts" in d.codegen.text
 
         # Test function has same name as another function
         d = proj.analyses[Decompiler]("main", cfg=cfg.model)
         proj.kb.functions["authenticate"].name = "puts"
         d.codegen.regenerate_text()
+        self._print_decompilation_result(d)
         assert "::0x400510::puts" in d.codegen.text
 
         # Test function has same name as calling function (PLT stub)
         d = proj.analyses[Decompiler](proj.kb.functions.function(name="puts", plt=True), cfg=cfg.model)
+        self._print_decompilation_result(d)
         assert "::libc.so.0::puts" in d.codegen.text
 
     @unittest.skip("This test is disabled until CodeMotion is reimplemented")

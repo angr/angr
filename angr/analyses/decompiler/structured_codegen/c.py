@@ -1362,12 +1362,11 @@ class CFunctionCall(CStatement, CExpression):
                 func_name = get_cpp_function_name(self.callee_func.demangled_name, specialized=False, qualified=True)
             else:
                 func_name = self.callee_func.name
-            if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
-                func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
-
             if self.prettify_thiscall and self.args and self._is_func_likely_cxx_class_method(func_name):
                 yield from self._c_repr_chunks_thiscall(func_name, asexpr=asexpr)
                 return
+            if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
+                func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
 
             yield func_name, self
         elif isinstance(self.callee_target, str):
