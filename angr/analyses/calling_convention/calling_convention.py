@@ -384,6 +384,7 @@ class CallingConventionAnalysis(Analysis):
             cc_cls = SimCCMicrosoftThiscall
         else:
             cc_cls = default_cc(self.project.arch.name, self.project.simos.name)
+            assert cc_cls is not None
         cc = cc_cls(self.project.arch)
         return cc, proto, None
 

@@ -23,7 +23,7 @@ class PeepholeOptimizationStmtBase:
     kb: KnowledgeBase | None
     func_addr: int | None
     preserve_vvar_ids: set[int]
-    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation], str]
+    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
 
     NAME = "Peephole Optimization - Statement"
     DESCRIPTION = "Peephole Optimization - Statement"
@@ -35,7 +35,7 @@ class PeepholeOptimizationStmtBase:
         kb: KnowledgeBase | None,
         func_addr: int | None = None,
         preserve_vvar_ids: set[int] | None = None,
-        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation], str] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
     ):
         self.project = project
         self.kb = kb
@@ -63,7 +63,7 @@ class PeepholeOptimizationMultiStmtBase:
     kb: KnowledgeBase | None
     func_addr: int | None
     preserve_vvar_ids: set[int]
-    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation], str]
+    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
 
     NAME = "Peephole Optimization - Multi-statement"
     DESCRIPTION = "Peephole Optimization - Multi-statement"
@@ -75,13 +75,13 @@ class PeepholeOptimizationMultiStmtBase:
         kb: KnowledgeBase | None,
         func_addr: int | None = None,
         preserve_vvar_ids: set[int] | None = None,
-        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation], str] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
     ):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
-        self.type_hints = {} if type_hints is None else type_hints
+        self.type_hints = [] if type_hints is None else type_hints
 
     def optimize(self, stmts: list[Statement], stmt_idx: int | None = None, block=None, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")
@@ -103,7 +103,7 @@ class PeepholeOptimizationExprBase:
     kb: KnowledgeBase | None
     func_addr: int | None
     preserve_vvar_ids: set[int]
-    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation], str]
+    type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]]
 
     NAME = "Peephole Optimization - Expression"
     DESCRIPTION = "Peephole Optimization - Expression"
@@ -115,13 +115,13 @@ class PeepholeOptimizationExprBase:
         kb: KnowledgeBase | None,
         func_addr: int | None = None,
         preserve_vvar_ids: set[int] | None = None,
-        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation], str] | None = None,
+        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
     ):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
-        self.type_hints = {} if type_hints is None else type_hints
+        self.type_hints = [] if type_hints is None else type_hints
 
     def optimize(self, expr, **kwargs):
         raise NotImplementedError("_optimize() is not implemented.")

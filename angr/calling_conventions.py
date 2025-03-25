@@ -1196,7 +1196,7 @@ class SimCC:
 
     @staticmethod
     def find_cc(
-        arch: archinfo.Arch, args: list[SimRegArg | SimStackArg], sp_delta: int, platform: str = "Linux"
+        arch: archinfo.Arch, args: list[SimRegArg | SimStackArg], sp_delta: int, platform: str | None = "Linux"
     ) -> SimCC | None:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
