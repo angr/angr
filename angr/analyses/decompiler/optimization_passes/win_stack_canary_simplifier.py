@@ -29,7 +29,7 @@ class WinStackCanarySimplifier(OptimizationPass):
     PLATFORMS = ["windows"]
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Simplify stack canaries in Windows PE files"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = __doc__.strip()  # type:ignore
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -63,19 +63,15 @@ class WinStackCanarySimplifier(OptimizationPass):
         first_block, canary_init_stmt_ids = init_stmts
         canary_init_stmt = first_block.statements[canary_init_stmt_ids[-1]]
         # where is the stack canary stored?
-        store_offset: int | None = None
-
-        if isinstance(canary_init_stmt, ailment.Stmt.Store):
-            store_offset = self._get_bp_offset(canary_init_stmt.addr, canary_init_stmt.ins_addr)
-            if store_offset is None:
-                _l.debug(
-                    "Unsupported canary storing location %s. Expects a StackBaseOffset or (bp - Const).",
-                    canary_init_stmt.addr,
-                )
-                return
-
-        if not isinstance(store_offset, int):
-            _l.debug("Unsupported canary storing offset %s. Expects an int.", store_offset)
+        if not isinstance(canary_init_stmt, ailment.Stmt.Store):
+            return
+        store_offset = self._get_bp_offset(canary_init_stmt.addr, canary_init_stmt.ins_addr)
+        if store_offset is None:
+            _l.debug(
+                "Unsupported canary storing location %s. Expects a StackBaseOffset or (bp - Const).",
+                canary_init_stmt.addr,
+            )
+            return
 
         # The function should have at least one end point calling _security_check_cookie
         # note that (at least for now) we rely on FLIRT to identify the _security_check_cookie function inside the
@@ -239,7 +235,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                 ):
                     xor_stmt_idx = idx
                     xored_reg = stmt.dst.reg_offset
-            if xor_stmt_idx is not None and idx == xor_stmt_idx + 1:
+            if load_stmt_idx is not None and xor_stmt_idx is not None and idx == xor_stmt_idx + 1:
                 if (
                     isinstance(stmt, ailment.Stmt.Store)
                     and (
@@ -410,11 +406,13 @@ class WinStackCanarySimplifier(OptimizationPass):
         return None
 
     def _find_stmt_calling_security_check_cookie(self, node):
+        assert self._security_cookie_addr is not None
         for idx, stmt in enumerate(node.statements):
             if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
                 const_target = stmt.target.value
-                if const_target in self.kb.functions:
-                    func = self.kb.functions.function(addr=const_target)
+                if self.kb.functions.contains_addr(const_target):
+                    func = self.kb.functions.get_by_addr(const_target)
+                    assert func is not None
                     if func.name == "_security_check_cookie" or is_function_security_check_cookie(
                         func, self.project, self._security_cookie_addr
                     ):

@@ -115,7 +115,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         if new_dst is not None or new_src is not None:
             return WeakAssignment(
                 stmt.idx,
-                stmt.dst if new_dst is None else new_dst,
+                stmt.dst if new_dst is None else new_dst,  # type: ignore
                 stmt.src if new_src is None else new_src,
                 **stmt.tags,
             )
@@ -321,7 +321,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             return VEXCCallExpression(
                 expr.idx,
                 expr.callee,
-                new_operands,
+                tuple(new_operands),
                 bits=expr.bits,
                 **expr.tags,
             )

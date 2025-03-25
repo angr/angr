@@ -13,14 +13,14 @@ _l = logging.getLogger(name=__name__)
 
 class DetermineLoadSizes(OptimizationPass):
     """
-    TODO:
+    Determine the sizes of Load expressions whose sizes are undetermined.
     """
 
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Determine sizes of loads whose sizes are undetermined"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = __doc__.strip()  # type: ignore
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)

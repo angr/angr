@@ -28,7 +28,7 @@ class EagerStdStringConcatenationPass(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Condense multiple constant std::string creation calls into one when possible"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = __doc__.strip()  # type: ignore
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -41,6 +41,7 @@ class EagerStdStringConcatenationPass(OptimizationPass):
     def _analyze(self, cache=None):
         rd = self.project.analyses.SReachingDefinitions(subject=self._func, func_graph=self._graph).model
         cfg = self.kb.cfgs.get_most_accurate()
+        assert cfg is not None
 
         # update each block
         for key in list(self.blocks_by_addr_and_idx):
@@ -65,6 +66,7 @@ class EagerStdStringConcatenationPass(OptimizationPass):
                             isinstance(op0, VirtualVariable)
                             and isinstance(op1, Load)
                             and isinstance(op1.addr, Const)
+                            and isinstance(op1.addr.value, int)
                             # is op1 a constant string?
                             and op1.addr.value in cfg.memory_data
                             and cfg.memory_data[op1.addr.value].sort == "string"
@@ -72,7 +74,7 @@ class EagerStdStringConcatenationPass(OptimizationPass):
                             op1_str = cfg.memory_data[op1.addr.value].content
                             # is op0 also an std::string?
                             op0_str = self._get_vvar_def_string(op0.varid, rd, cfg, block.addr, block.idx)
-                            if op0_str is not None:
+                            if op0_str is not None and op1_str is not None:
                                 # let's create a new string
                                 final_str = op0_str + op1_str
                                 str_id = self.kb.custom_strings.allocate(final_str)

@@ -1143,6 +1143,7 @@ class SimEngineVRBase(
 
         # handle type hints
         if vvar.varid in self.vvar_type_hints:
+            assert isinstance(typevar, typevars.TypeVariable)
             self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
 
         return RichR(value, variable=var, typevar=typevar)

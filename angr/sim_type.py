@@ -15,6 +15,7 @@ import cxxheaderparser.simple
 import cxxheaderparser.errors
 import cxxheaderparser.types
 import pycparser
+from pycparser import c_ast
 
 from angr.errors import AngrMissingTypeError, AngrTypeError
 from angr.sim_state import SimState
@@ -503,7 +504,9 @@ class SimTypeFixedSizeInt(SimTypeInt):
     _base_name: str = "int"
     _fixed_size: int = 32
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0):
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True  # pylint:disable=unused-argument
+    ):
         out = self._base_name
         if not self.signed:
             out = "u" + out
@@ -1509,6 +1512,7 @@ class SimStruct(NamedTypeMixin, SimType):
         else:
             raise TypeError(f"Can't store struct of type {type(value)}")
 
+        assert isinstance(value, dict)
         if len(value) != len(self.fields):
             raise ValueError(f"Passed bad values for {self}; expected {len(self.offsets)}, got {len(value)}")
 
@@ -1801,6 +1805,7 @@ class SimCppClass(SimStruct):
         else:
             raise TypeError(f"Can't store struct of type {type(value)}")
 
+        assert isinstance(value, dict)
         if len(value) != len(self.fields):
             raise ValueError(f"Passed bad values for {self}; expected {len(self.offsets)}, got {len(value)}")
 
@@ -3123,7 +3128,7 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
 
     # pylint: disable=unexpected-keyword-arg
     node = pycparser.c_parser.CParser().parse(defn, scope_stack=_make_scope(predefined_types))
-    if not isinstance(node, pycparser.c_ast.FileAST):
+    if not isinstance(node, c_ast.FileAST):
         raise ValueError("Something went horribly wrong using pycparser")
     out = {}
     extra_types = {}
@@ -3133,9 +3138,9 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
         extra_types = dict(predefined_types)
 
     for piece in node.ext:
-        if isinstance(piece, pycparser.c_ast.FuncDef):
+        if isinstance(piece, c_ast.FuncDef):
             out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types, arch=arch)
-        elif isinstance(piece, pycparser.c_ast.Decl):
+        elif isinstance(piece, c_ast.Decl):
             ty = _decl_to_type(piece.type, extra_types, arch=arch)
             if piece.name is not None:
                 out[piece.name] = ty
@@ -3151,7 +3156,7 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
                             assert isinstance(i, SimUnion)
                             i.members = ty.members
 
-        elif isinstance(piece, pycparser.c_ast.Typedef):
+        elif isinstance(piece, c_ast.Typedef):
             extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
             extra_types[piece.name].label = piece.name
 
@@ -3172,6 +3177,7 @@ def type_parser_singleton() -> pycparser.CParser:
             optimize=False,
             errorlog=errorlog,
         )
+    assert _type_parser_singleton is not None
     return _type_parser_singleton
 
 
@@ -3201,7 +3207,7 @@ def parse_type_with_name(
 
     # pylint: disable=unexpected-keyword-arg
     node = type_parser_singleton().parse(text=defn, scope_stack=_make_scope(predefined_types))
-    if not isinstance(node, pycparser.c_ast.Typename) and not isinstance(node, pycparser.c_ast.Decl):
+    if not isinstance(node, c_ast.Typename) and not isinstance(node, c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
     decl = node.type
@@ -3230,17 +3236,17 @@ def _decl_to_type(
     if extra_types is None:
         extra_types = {}
 
-    if isinstance(decl, pycparser.c_ast.FuncDecl):
+    if isinstance(decl, c_ast.FuncDecl):
         argtyps = (
             ()
             if decl.args is None
             else [
                 (
                     ...
-                    if type(x) is pycparser.c_ast.EllipsisParam
+                    if type(x) is c_ast.EllipsisParam
                     else (
                         SimTypeBottom().with_arch(arch)
-                        if type(x) is pycparser.c_ast.ID
+                        if type(x) is c_ast.ID
                         else _decl_to_type(x.type, extra_types, arch=arch)
                     )
                 )
@@ -3248,9 +3254,7 @@ def _decl_to_type(
             ]
         )
         arg_names = (
-            [arg.name for arg in decl.args.params if type(arg) is not pycparser.c_ast.EllipsisParam]
-            if decl.args
-            else None
+            [arg.name for arg in decl.args.params if type(arg) is not c_ast.EllipsisParam] if decl.args else None
         )
         # special handling: func(void) is func()
         if (
@@ -3275,20 +3279,20 @@ def _decl_to_type(
         r._arch = arch
         return r
 
-    if isinstance(decl, pycparser.c_ast.TypeDecl):
+    if isinstance(decl, c_ast.TypeDecl):
         if decl.declname == "TOP":
             r = SimTypeTop()
             r._arch = arch
             return r
         return _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
 
-    if isinstance(decl, pycparser.c_ast.PtrDecl):
+    if isinstance(decl, c_ast.PtrDecl):
         pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
         r = SimTypePointer(pts_to)
         r._arch = arch
         return r
 
-    if isinstance(decl, pycparser.c_ast.ArrayDecl):
+    if isinstance(decl, c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
 
         if decl.dim is None:
@@ -3304,7 +3308,7 @@ def _decl_to_type(
         r._arch = arch
         return r
 
-    if isinstance(decl, pycparser.c_ast.Struct):
+    if isinstance(decl, c_ast.Struct):
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
@@ -3343,7 +3347,7 @@ def _decl_to_type(
             struct._arch = arch
         return struct
 
-    if isinstance(decl, pycparser.c_ast.Union):
+    if isinstance(decl, c_ast.Union):
         if decl.decls is not None:
             fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
@@ -3377,7 +3381,7 @@ def _decl_to_type(
             union._arch = arch
         return union
 
-    if isinstance(decl, pycparser.c_ast.IdentifierType):
+    if isinstance(decl, c_ast.IdentifierType):
         key = " ".join(decl.names)
         if bitsize is not None:
             return SimTypeNumOffset(int(bitsize.value), signed=False)
@@ -3387,7 +3391,7 @@ def _decl_to_type(
             return ALL_TYPES[key].with_arch(arch)
         raise TypeError(f"Unknown type '{key}'")
 
-    if isinstance(decl, pycparser.c_ast.Enum):
+    if isinstance(decl, c_ast.Enum):
         # See C99 at 6.7.2.2
         return ALL_TYPES["int"].with_arch(arch)
 
@@ -3395,9 +3399,9 @@ def _decl_to_type(
 
 
 def _parse_const(c, arch=None, extra_types=None):
-    if type(c) is pycparser.c_ast.Constant:
+    if type(c) is c_ast.Constant:
         return int(c.value, base=0)
-    if type(c) is pycparser.c_ast.BinaryOp:
+    if type(c) is c_ast.BinaryOp:
         if c.op == "+":
             return _parse_const(c.children()[0][1], arch, extra_types) + _parse_const(
                 c.children()[1][1], arch, extra_types
@@ -3423,28 +3427,29 @@ def _parse_const(c, arch=None, extra_types=None):
                 c.children()[1][1], arch, extra_types
             )
         raise ValueError(f"Binary op {c.op}")
-    if type(c) is pycparser.c_ast.UnaryOp:
+    if type(c) is c_ast.UnaryOp:
         if c.op == "sizeof":
             return _decl_to_type(c.expr.type, extra_types=extra_types, arch=arch).size
         raise ValueError(f"Unary op {c.op}")
-    if type(c) is pycparser.c_ast.Cast:
+    if type(c) is c_ast.Cast:
         return _parse_const(c.expr, arch, extra_types)
     raise ValueError(c)
 
 
 CPP_DECL_TYPES = (
-    cxxheaderparser.types.Method,
-    cxxheaderparser.types.Array,
-    cxxheaderparser.types.Pointer,
-    cxxheaderparser.types.MoveReference,
-    cxxheaderparser.types.Reference,
-    cxxheaderparser.types.FunctionType,
-    cxxheaderparser.types.Type,
+    cxxheaderparser.types.Method
+    | cxxheaderparser.types.Array
+    | cxxheaderparser.types.Pointer
+    | cxxheaderparser.types.MoveReference
+    | cxxheaderparser.types.Reference
+    | cxxheaderparser.types.FunctionType
+    | cxxheaderparser.types.Function
+    | cxxheaderparser.types.Type
 )
 
 
 def _cpp_decl_to_type(
-    decl: CPP_DECL_TYPES, extra_types: dict[str, SimType], opaque_classes=True
+    decl: CPP_DECL_TYPES, extra_types: dict[str, SimType], opaque_classes: bool = True
 ) -> (
     SimTypeCppFunction
     | SimTypeFunction
@@ -3462,10 +3467,10 @@ def _cpp_decl_to_type(
         # translate parameters
         args = []
         arg_names: list[str] = []
-        for param in the_func.parameters:
+        for idx, param in enumerate(the_func.parameters):
             arg_type = param.type
             args.append(_cpp_decl_to_type(arg_type, extra_types, opaque_classes=opaque_classes))
-            arg_name = param.name
+            arg_name = param.name if param.name is not None else f"unknown_{idx}"
             arg_names.append(arg_name)
 
         args = tuple(args)
@@ -3495,10 +3500,10 @@ def _cpp_decl_to_type(
         # translate parameters
         args = []
         arg_names: list[str] = []
-        for param in the_func.parameters:
+        for idx, param in enumerate(the_func.parameters):
             arg_type = param.type
             args.append(_cpp_decl_to_type(arg_type, extra_types, opaque_classes=opaque_classes))
-            arg_name = param.name
+            arg_name = param.name if param.name is not None else f"unknown_{idx}"
             arg_names.append(arg_name)
 
         args = tuple(args)
@@ -3528,7 +3533,7 @@ def _cpp_decl_to_type(
         if isinstance(t, NamedTypeMixin):
             t = t.copy()
             t.name = lbl  # pylint:disable=attribute-defined-outside-init
-        return t
+        return t  # type:ignore
 
     if isinstance(decl, cxxheaderparser.types.Array):
         subt = _cpp_decl_to_type(decl.array_of, extra_types, opaque_classes=opaque_classes)
@@ -3551,7 +3556,7 @@ def _cpp_decl_to_type(
             _cpp_decl_to_type(param.type, extra_types, opaque_classes=opaque_classes) for param in decl.parameters
         )
         param_names = (
-            tuple(param.name.format() for param in decl.parameters)
+            tuple(param.name.format() for param in decl.parameters)  # type:ignore
             if all(param.name is not None for param in decl.parameters)
             else None
         )

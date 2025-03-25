@@ -21,7 +21,9 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
     NAME = "Rewrite C++ operator function calls into operations"
     stmt_classes = (Call,)
 
-    def optimize(self, stmt: Call, block=None, **kwargs):
+    def optimize(self, stmt: Call, block=None, **kwargs):  # type: ignore
+        assert self.project is not None
+
         # are we calling a function that we deem as an overridden operator function?
         if isinstance(stmt.target, Const):
             func_addr = stmt.target.value
@@ -57,7 +59,7 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
                 type_ = {"dst": dst_ty, "src": stmt.prototype.args[1]}
-            return WeakAssignment(stmt.idx, stmt.args[0].operand, arg1, type=type_, **stmt.tags)
+            return WeakAssignment(stmt.idx, stmt.args[0].operand, arg1, type=type_, **stmt.tags)  # type:ignore
         return None
 
     def _optimize_operator_add(self, stmt: Call) -> WeakAssignment | None:
