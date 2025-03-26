@@ -26,15 +26,15 @@ addresses_fauxware = {
 
 
 class TestSimulationManager(unittest.TestCase):
-    def _run_fauxware(self, arch, threads):
+    def _run_fauxware(self, arch):
         p = angr.Project(os.path.join(test_location, arch, "fauxware"), load_options={"auto_load_libs": False})
 
-        pg = p.factory.simulation_manager(threads=threads)
+        pg = p.factory.simulation_manager()
         assert len(pg.active) == 1
         assert pg.active[0].history.depth == 0
 
         # step until the backdoor split occurs
-        pg2 = pg.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune())
+        pg2 = pg.run(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune())
         assert len(pg2.active) == 2
         assert any(b"SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items)
         assert not all(b"SOSNEAKY" in s for s in pg2.mp_active.posix.dumps(0).mp_items)
@@ -46,7 +46,7 @@ class TestSimulationManager(unittest.TestCase):
         assert len(pg3.auth) == 1
 
         # step the backdoor path until it returns to main
-        pg4 = pg3.step(until=lambda lpg: lpg.backdoor[0].history.jumpkinds[-1] == "Ijk_Ret", stash="backdoor")
+        pg4 = pg3.run(until=lambda lpg: lpg.backdoor[0].history.jumpkinds[-1] == "Ijk_Ret", stash="backdoor")
         main_addr = pg4.backdoor[0].addr
 
         assert len(pg4.active) == 0
@@ -76,7 +76,7 @@ class TestSimulationManager(unittest.TestCase):
 
         # test selecting paths to step
         pg8 = p.factory.simulation_manager()
-        pg8.step(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash="pruned"))
+        pg8.run(until=lambda lpg: len(lpg.active) > 1, step_func=lambda lpg: lpg.prune().drop(stash="pruned"))
         st1, st2 = pg8.active
         pg8.step(selector_func=lambda p: p is st1, step_func=lambda lpg: lpg.prune().drop(stash="pruned"))
         assert st2 is pg8.active[1]
@@ -98,25 +98,25 @@ class TestSimulationManager(unittest.TestCase):
         assert all(len(s) == 0 for s in pg8.stashes.values())
 
     def test_fauxware_armel(self):
-        self._run_fauxware("armel", None)
+        self._run_fauxware("armel")
 
     def test_fauxware_armhf(self):
-        self._run_fauxware("armhf", None)
+        self._run_fauxware("armhf")
 
     def test_fauxware_mips(self):
-        self._run_fauxware("mips", None)
+        self._run_fauxware("mips")
 
     def test_fauxware_mipsel(self):
-        self._run_fauxware("mipsel", None)
+        self._run_fauxware("mipsel")
 
     def test_fauxware_ppc(self):
-        self._run_fauxware("ppc", None)
+        self._run_fauxware("ppc")
 
     def test_fauxware_ppc64(self):
-        self._run_fauxware("ppc64", None)
+        self._run_fauxware("ppc64")
 
     def test_fauxware_x86_64(self):
-        self._run_fauxware("x86_64", None)
+        self._run_fauxware("x86_64")
 
     def test_find_to_middle(self):
         # Test the ability of PathGroup to execute until an instruction in the middle of a basic block
