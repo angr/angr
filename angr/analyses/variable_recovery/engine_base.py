@@ -999,8 +999,10 @@ class SimEngineVRBase(
                         ident=self.state.variable_manager[self.func_addr].next_variable_ident("register"),
                         region=self.func_addr,
                     )
-                    value = self.state.annotate_with_variables(value, [(0, variable)])
                     self.state.variable_manager[self.func_addr].add_variable("register", offset, variable)
+                else:
+                    variable = next(iter(existing_vars))[0]
+                value = self.state.annotate_with_variables(value, [(0, variable)])
             self.state.register_region.store(offset, value)
             value_list = [{value}]
         else:
