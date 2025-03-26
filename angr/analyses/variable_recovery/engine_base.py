@@ -987,14 +987,20 @@ class SimEngineVRBase(
             value = self.state.top(size * self.project.arch.byte_width)
             if create_variable:
                 # create a new variable if necessary
-                variable = SimRegisterVariable(
-                    offset,
-                    size if force_variable_size is None else force_variable_size,
-                    ident=self.state.variable_manager[self.func_addr].next_variable_ident("register"),
-                    region=self.func_addr,
-                )
-                value = self.state.annotate_with_variables(value, [(0, variable)])
-                self.state.variable_manager[self.func_addr].add_variable("register", offset, variable)
+
+                # check if there is an existing variable for the atom at this location already
+                existing_vars: set[tuple[SimVariable, int]] = self.state.variable_manager[
+                    self.func_addr
+                ].find_variables_by_atom(self.block.addr, self.stmt_idx, expr)
+                if not existing_vars:
+                    variable = SimRegisterVariable(
+                        offset,
+                        size if force_variable_size is None else force_variable_size,
+                        ident=self.state.variable_manager[self.func_addr].next_variable_ident("register"),
+                        region=self.func_addr,
+                    )
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+                    self.state.variable_manager[self.func_addr].add_variable("register", offset, variable)
             self.state.register_region.store(offset, value)
             value_list = [{value}]
         else:

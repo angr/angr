@@ -934,7 +934,7 @@ class VariableManagerInternal(Serializable):
 
         for var in chain(sorted_stack_variables, sorted_reg_variables, phi_only_vars):
             idx = next(var_ctr)
-            if var.name is not None and not reset:
+            if var.name is not None and var.name != var.ident and not reset:
                 continue
             if isinstance(var, (SimStackVariable, SimRegisterVariable)):
                 var.name = f"v{idx}"
@@ -946,7 +946,7 @@ class VariableManagerInternal(Serializable):
         arg_vars = sorted(arg_vars, key=lambda v: _id_from_varident(v.ident))
         for var in arg_vars:
             idx = next(arg_ctr)
-            if var.name is not None and not reset:
+            if var.name is not None and var.name != var.ident and not reset:
                 continue
             var.name = arg_names[idx] if arg_names else f"a{idx}"
             var._hash = None
