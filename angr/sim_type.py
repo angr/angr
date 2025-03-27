@@ -1243,6 +1243,19 @@ class SimTypeCppFunction(SimTypeFunction):
             ", variadic=True" if self.variadic else "",
         )
 
+    def _with_arch(self, arch):
+        out = SimTypeCppFunction(
+            [a.with_arch(arch) for a in self.args],
+            self.returnty.with_arch(arch) if self.returnty is not None else None,
+            label=self.label,
+            arg_names=self.arg_names,
+            ctor=self.ctor,
+            dtor=self.dtor,
+            convention=self.convention,
+        )
+        out._arch = arch
+        return out
+
     def copy(self):
         return SimTypeCppFunction(
             self.args,
