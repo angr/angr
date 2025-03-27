@@ -3475,14 +3475,28 @@ def _cpp_decl_to_type(
 
         args = tuple(args)
         arg_names_tuple: tuple[str, ...] = tuple(arg_names)
+
+        # note that the constructor and destructor handling in cxxheaderparser is a bit weird and I could not get it to
+        # work, hence the following hack
+        ctor = dtor = False
+        convention = the_func.msvc_convention
+        if len(the_func.name.segments) >= 2:
+            seg1, seg0 = the_func.name.segments[-2:]
+            seg1 = seg1.format()
+            seg0 = seg0.format()
+            if seg0 == seg1:
+                ctor = True
+                if the_func.return_type is not None:
+                    convention = the_func.return_type.format()  # it's usually just "__thiscall"
+            elif seg0 == "~" + seg1:
+                dtor = True
+                if the_func.return_type is not None:
+                    convention = the_func.return_type.format()  # it's usually just "__thiscall"
         # returns
-        if the_func.return_type is None:
+        if the_func.return_type is None or ctor or dtor:
             returnty = SimTypeBottom()
         else:
             returnty = _cpp_decl_to_type(the_func.return_type, extra_types, opaque_classes=opaque_classes)
-        # other properties
-        ctor = the_func.constructor
-        dtor = the_func.destructor
         return SimTypeCppFunction(
             args,
             returnty,
@@ -3490,7 +3504,7 @@ def _cpp_decl_to_type(
             arg_names=arg_names_tuple,
             ctor=ctor,
             dtor=dtor,
-            convention=the_func.msvc_convention,
+            convention=convention,
         )
 
     if isinstance(decl, cxxheaderparser.types.Function):
