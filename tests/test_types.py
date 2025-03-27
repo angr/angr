@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 import archinfo
+import pydemumble
 
 import angr
 from angr.sim_type import (
@@ -24,6 +25,7 @@ from angr.sim_type import (
     SimTypeTop,
     SimTypeString,
     dereference_simtype,
+    SimTypeCppFunction,
 )
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 
@@ -129,6 +131,25 @@ class TestTypes(unittest.TestCase):
         proto = "std::ostream::operator<<(std::ostream& (*)(std::ostream&))"
         _, proto, _ = convert_cppproto_to_py(proto)
         assert proto is not None
+        assert len(proto.args) == 2
+
+    def test_cppproto_parse_class_destructor(self):
+        mangled_proto = "??1?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QAE@XZ"
+        proto = pydemumble.demangle(mangled_proto)
+        _, proto, _ = convert_cppproto_to_py(proto)
+        assert isinstance(proto, SimTypeCppFunction)
+        assert proto.dtor is True
+        assert proto.convention == "__thiscall"
+        assert len(proto.args) == 1
+
+    def test_cppproto_parse_std_string_operator_equals(self):
+        mangled_proto = "??4?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@QAEAAV01@ABV01@@Z"
+        proto = pydemumble.demangle(mangled_proto)
+        _, proto, _ = convert_cppproto_to_py(proto)
+        assert isinstance(proto, SimTypeCppFunction)
+        assert proto.ctor is False
+        assert proto.dtor is False
+        assert proto.convention == "__thiscall"
         assert len(proto.args) == 2
 
     def test_struct_deduplication(self):
