@@ -130,6 +130,7 @@ class SRDAView:
 
             for stmt in reversed(stmts):
                 r = predicate(stmt)
+                predicate_returned_true |= r
                 should_break = (predicate_returned_true and r is False) if consecutive else r
                 if should_break:
                     break
