@@ -39,7 +39,7 @@ jobs:
       - name: Install dependencies
         run: cd angr && uv sync --dev
       - name: Run tests
-        run: cd angr && uv run pytest -nauto --splits 5 --group ${{ matrix.group }}
+        run: cd angr && uv run pytest -nauto --splits 5 --group ${{ matrix.group }} tests
 
   ecosystem:
     name: angr Ecosystem
