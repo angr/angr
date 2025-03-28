@@ -2332,7 +2332,7 @@ class TestDecompiler(unittest.TestCase):
         cgc_allocate_call = re.search(r"cgc_allocate\(([^\n]+)\)", d.codegen.text)
         assert cgc_allocate_call is not None, "Expect a call to cgc_allocate(), found None"
         comma_count = cgc_allocate_call.group(1).count(",")
-        assert comma_count == 1, f"Expect cgc_allocate() to have two arguments, found {comma_count + 1}"
+        assert comma_count == 2, f"Expect cgc_allocate() to have three arguments, found {comma_count + 1}"
 
     @structuring_algo("sailr")
     def test_reverting_switch_lowering_cksum_digest_print_filename(self, decompiler_options=None):

@@ -260,7 +260,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         proj.analyses.VariableRecoveryFast(func)
         cca = proj.analyses.CallingConvention(func, analyze_callsites=True)
         assert cca.prototype is not None
-        assert len(cca.prototype.args) == 6
+        assert len(cca.prototype.args) == 7
 
     def test_x64_return_value_used(self):
         binary_path = os.path.join(test_location, "x86_64", "cwebp-0.3.1-feh-original")
