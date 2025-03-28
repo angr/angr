@@ -5022,6 +5022,15 @@ class TestDecompiler(unittest.TestCase):
         assert m is not None
         bufvar = m.group(1)
         assert f'strncpy({bufvar}, "FWe#JID%WkOC", 12);' in dec.codegen.text
+        # ensure the stack argument for sub_401a90 is correct
+        assert "sub_401a90(2406527224);" in dec.codegen.text
+        # ensure the stack argument for the first indirect call is incorrect
+        m = re.search(r"(v\d+) = [^;]*sub_401a90\(", dec.codegen.text)
+        assert m is not None
+        indir_v = m.group(1)
+        the_line = next(iter(line for line in dec.codegen.text.split("\n") if f"{indir_v}(" in line), None)
+        assert the_line is not None
+        assert the_line.count(",") == 2
 
     def test_regs_preserved_across_syscalls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "regs_preserved_across_syscalls")

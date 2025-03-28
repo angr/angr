@@ -721,7 +721,7 @@ class CallingConventionAnalysis(Analysis):
                     # no more arguments
                     temp_args.append(None)
             elif isinstance(arg_loc, SimStackArg):
-                if arg_loc.stack_offset in defs_by_stack_offset:
+                if arg_loc.stack_offset - cc.STACKARG_SP_DIFF in defs_by_stack_offset:
                     temp_args.append(arg_loc)
                 else:
                     # no more arguments
