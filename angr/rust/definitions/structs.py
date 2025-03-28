@@ -1,7 +1,5 @@
 from collections import OrderedDict
 
-from sympy import discriminant
-
 from ...rust.sim_type import (
     RustSimStruct,
     RustSimTypeReference,
@@ -40,19 +38,42 @@ class ArrayReference(RustSimStruct):
         return out
 
 
-class StrReference(RustSimStruct):
+class StrSlice(RustSimStruct):
     def __init__(self):
-        super().__init__(fields={"ptr": RustSimTypeReference(RustSimTypeInt(8)), "len": RustSimTypeSize()}, name="&str")
+        super().__init__(
+            fields=OrderedDict((("ptr", RustSimTypeReference(RustSimTypeInt(8))), ("len", RustSimTypeSize()))),
+            name="&str",
+        )
         PreDefinedStructs["&str"] = self
 
     def copy(self):
-        return StrReference().with_arch(self._arch)
+        return StrSlice().with_arch(self._arch)
 
     def _with_arch(self, arch):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
 
-        out = StrReference()
+        out = StrSlice()
+        out._arch = arch
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+
+        self._arch_memo[arch.name] = out
+
+        return out
+
+
+class SimpleMessage(RustSimStruct):
+    def __init__(self):
+        super().__init__(fields={"kind": RustSimTypeSize(), "message": StrSlice()}, name="SimpleMessage")
+
+    def copy(self):
+        return SimpleMessage().with_arch(self._arch)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = SimpleMessage()
         out._arch = arch
         out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
 
@@ -69,7 +90,7 @@ Argument = RustSimStruct(
 Arguments = RustSimStruct(
     name="Arguments",
     fields={
-        "pieces": ArrayReference(StrReference()),
+        "pieces": ArrayReference(StrSlice()),
         "args": ArrayReference(Argument),
         "fmt": RustSimTypeOption(RustSimTypeInt(64), none_discriminant=None),
     },

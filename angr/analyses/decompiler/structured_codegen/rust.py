@@ -9,7 +9,7 @@ from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp
 
 from ....rust.ailment.statement import FunctionLikeMacro
-from ....rust.definitions.structs import StrReference
+from ....rust.definitions.structs import StrSlice
 from ....rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 from ....sim_type import (
     SimTypeLongLong,
@@ -3779,13 +3779,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         str_len = memory.unpack(expr.value + self.project.arch.bytes, self.project.arch.struct_fmt())[0]
                         try:
                             decoded_str = memory.load(str_addr, str_len).decode("utf-8")
-                            type_ = StrReference()
+                            type_ = StrSlice()
                             reference_values[type_] = decoded_str
                             inline_string = True
                         except UnicodeDecodeError:
                             pass
                     # If we failed to extract UTF-8 characters, it might be an empty string
-                    if not inline_string and isinstance(type_, StrReference):
+                    if not inline_string and isinstance(type_, StrSlice):
                         decoded_str = ""
                         reference_values[type_] = decoded_str
                         inline_string = True

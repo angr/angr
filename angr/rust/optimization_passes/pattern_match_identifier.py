@@ -48,6 +48,8 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
         Find the statements that move the associated data out of enum instance
         Unify the move statements and return a list of unified Assignment statements
         """
+        if enum_vvar.was_reg:
+            return ()
         moves = []
         src_offset = enum_vvar.stack_offset + variant.data_offset
         for ty in variant.associated_data.keys():
@@ -87,10 +89,13 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                     vvar, value = None, None
                     cond_op0 = cond.operands[0]
                     if isinstance(cond_op0, VirtualVariable):
+                        vvar = cond_op0
                         cond_op0 = self.get_terminal_vvar_value(cond_op0)
                     if isinstance(cond_op0, Load) and isinstance(cond_op0.addr, StackBaseOffset):
                         vvar = self.get_stack_vvar_by_insn(cond_op0.addr.offset, last_stmt.ins_addr, block.idx)
                         value = self.get_terminal_vvar_value(vvar) if vvar else None
+                    elif isinstance(cond_op0, Call):
+                        value = cond_op0
                     if (
                         isinstance(value, Call)
                         and value.prototype

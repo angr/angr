@@ -1,10 +1,15 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 import ailment
 from ailment.expression import Op
 from ailment.tagged_object import TaggedObject
 from ailment.utils import stable_hash
 
-from angr.rust.definitions.structs import ArrayReference
 from angr.rust.sim_type import RustSimStruct, EnumVariant, RustSimEnum
+
+if TYPE_CHECKING:
+    from angr.rust.definitions.structs import ArrayReference
 
 
 class String(ailment.Const):
