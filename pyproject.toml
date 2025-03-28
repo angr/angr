@@ -58,23 +58,24 @@ docs = [
     "sphinx",
     "sphinx-autodoc-typehints",
 ]
+keystone = ["keystone-engine"]
 pcode = ["pypcode~=3.0"]
 telemetry = ["opentelemetry-api"]
-testing = [
-    "keystone-engine",
-    "pypcode~=3.0",
-    "pytest",
-    "pytest-split",
-    "pytest-xdist",
-    "sqlalchemy",
-    "unicorn==2.0.1.post1",
-]
-unicorn = [
-    "unicorn==2.0.1.post1",
-]
+unicorn = ["unicorn==2.0.1.post1"]
 
 [project.scripts]
 angr = "angr.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-split",
+    "pytest-xdist",
+    "keystone-engine",
+    "pypcode~=3.0",
+    "sqlalchemy",
+    "unicorn==2.0.1.post1",
+]
 
 [tool.setuptools]
 include-package-data = true

@@ -8,5 +8,37 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10"]
+        group: [1, 2, 3, 4, 5]
+      fail-fast: false
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout angr
+        uses: actions/checkout@v4
+      - name: Checkout binaries
+        uses: actions/checkout@v4
+        with:
+          repository: angr/binaries
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: cd angr && uv sync --dev
+      - name: Run tests
+        run: cd angr && uv run pytest -nauto --splits 5 --group ${{ matrix.group }}
+
+  ecosystem:
+    name: angr Ecosystem
     uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
+    with:
+      include_self: false
