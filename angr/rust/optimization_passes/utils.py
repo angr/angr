@@ -40,9 +40,12 @@ def extract_str(project, str_ptr, str_len):
 def extract_str_from_addr(project, addr):
     memory = project.loader.memory
     if addr >= 0 and ((section := project.loader.find_section_containing(addr)) and section.is_readable):
-        str_ptr = memory.unpack(addr, project.arch.struct_fmt())[0]
-        str_len = memory.unpack(addr + project.arch.bytes, project.arch.struct_fmt())[0]
-        return extract_str(project, str_ptr, str_len)
+        try:
+            str_ptr = memory.unpack(addr, project.arch.struct_fmt())[0]
+            str_len = memory.unpack(addr + project.arch.bytes, project.arch.struct_fmt())[0]
+            return extract_str(project, str_ptr, str_len)
+        except KeyError:
+            return None
     return None
 
 

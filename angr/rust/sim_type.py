@@ -256,12 +256,6 @@ class RustSimStruct(RustSimType, SimStruct):
     def __init__(self, fields: Union[Dict[str, SimType], OrderedDict], name=None, pack=False, align=None):
         SimStruct.__init__(self, fields, name, pack, align)
 
-    @property
-    def size(self):
-        if not self.fields:
-            return 0
-        return super().size
-
     def _with_arch(self, arch):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
@@ -283,6 +277,8 @@ class RustSimStruct(RustSimType, SimStruct):
 
     @property
     def size(self):
+        if not self.fields:
+            return 0
         size = super().size
         if size % self.alignment != 0:
             size += self.alignment - (size % self.alignment)
@@ -312,6 +308,9 @@ class RustSimStruct(RustSimType, SimStruct):
 
     def copy(self):
         return RustSimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
+
+    def match(self, field_exprs, **kwargs) -> bool:
+        return False
 
 
 class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):

@@ -13,11 +13,12 @@ from ..mixins.dfa_mixin import DFAMixin
 from ..mixins.srda_mixin import SRDAMixin
 from ..optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
-from ..optimization_passes.utils import extract_str_from_addr
 from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
 from ..utils.library import normalize
+from ..knowledge_plugins.known_structs import KnownStructs
+from ..analyses.struct_memory_layout import SimpleMessageLayoutInference
 from ...analyses import Analysis, AnalysesHub
 from ...knowledge_plugins import Function
 
@@ -411,12 +412,10 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
             if len(self.fact_collector.const_ret_values) == 2 and 0 in self.fact_collector.const_ret_values:
                 addr = max(self.fact_collector.const_ret_values)
-                str_literal = extract_str_from_addr(self.project, addr)
-                if str_literal in CONST_STR_ERRORS:
-                    ok_type = RustSimStruct({}, "()", True)
-                    # err_type = RustS
-                    # return RustSimTypeResult(ok_type, err_type, 0, None, 0)
-                    # TODO
+                if SimpleMessageLayoutInference(self.project).is_const_simple_message(addr):
+                    ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
+                    err_type = self.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
+                    return RustSimTypeResult(ok_type, err_type, 0, None, 0)
             return None
 
         memory_writes = self.model.memory_writes[0]
@@ -481,7 +480,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         prototype = self.func.prototype
         return RustSimTypeFunction(
             args=args,
-            returnty=prototype.returnty,
+            returnty=prototype.returnty if is_arg0_ret_buf or returnty is None else returnty,
             label=prototype.label,
             arg_names=prototype.arg_names,
             variadic=prototype.variadic,
