@@ -4841,66 +4841,68 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
             # determine if the function uses ebp as a general purpose register or not
             if addr == func_addr or 0 < addr - func_addr <= 0x20:
-                ebp_as_gpr = True
-                cap = self._lift(addr, size=cfg_node.size).capstone
-                for insn in cap.insns:
-                    if (
-                        insn.mnemonic == "mov"
-                        and len(insn.operands) == 2
-                        and insn.operands[0].type == capstone.x86.X86_OP_REG
-                        and insn.operands[1].type == capstone.x86.X86_OP_REG
-                    ):
+                func = self.kb.functions.get_by_addr(func_addr)
+                if "bp_as_gpr" not in func.info:
+                    ebp_as_gpr = True
+                    cap = self._lift(addr, size=cfg_node.size).capstone
+                    for insn in cap.insns:
                         if (
+                            insn.mnemonic == "mov"
+                            and len(insn.operands) == 2
+                            and insn.operands[0].type == capstone.x86.X86_OP_REG
+                            and insn.operands[1].type == capstone.x86.X86_OP_REG
+                        ):
+                            if (
+                                insn.operands[0].reg == capstone.x86.X86_REG_EBP
+                                and insn.operands[1].reg == capstone.x86.X86_REG_ESP
+                            ):
+                                ebp_as_gpr = False
+                                break
+                        elif (
+                            insn.mnemonic == "lea"
+                            and len(insn.operands) == 2
+                            and insn.operands[0].type == capstone.x86.X86_OP_REG
+                            and insn.operands[1].type == capstone.x86.X86_OP_MEM
+                        ) and (
                             insn.operands[0].reg == capstone.x86.X86_REG_EBP
-                            and insn.operands[1].reg == capstone.x86.X86_REG_ESP
+                            and insn.operands[1].mem.base == capstone.x86.X86_REG_ESP
                         ):
                             ebp_as_gpr = False
                             break
-                    elif (
-                        insn.mnemonic == "lea"
-                        and len(insn.operands) == 2
-                        and insn.operands[0].type == capstone.x86.X86_OP_REG
-                        and insn.operands[1].type == capstone.x86.X86_OP_MEM
-                    ) and (
-                        insn.operands[0].reg == capstone.x86.X86_REG_EBP
-                        and insn.operands[1].mem.base == capstone.x86.X86_REG_ESP
-                    ):
-                        ebp_as_gpr = False
-                        break
-                func = self.kb.functions.get_by_addr(func_addr)
-                func.info["bp_as_gpr"] = ebp_as_gpr
+                    func.info["bp_as_gpr"] = ebp_as_gpr
 
         elif self.project.arch.name == "AMD64":
             # determine if the function uses rbp as a general purpose register or not
             if addr == func_addr or 0 < addr - func_addr <= 0x20:
-                rbp_as_gpr = True
-                cap = self._lift(addr, size=cfg_node.size).capstone
-                for insn in cap.insns:
-                    if (
-                        insn.mnemonic == "mov"
-                        and len(insn.operands) == 2
-                        and insn.operands[0].type == capstone.x86.X86_OP_REG
-                        and insn.operands[1].type == capstone.x86.X86_OP_REG
-                    ):
+                func = self.kb.functions.get_by_addr(func_addr)
+                if "bp_as_gpr" not in func.info:
+                    rbp_as_gpr = True
+                    cap = self._lift(addr, size=cfg_node.size).capstone
+                    for insn in cap.insns:
                         if (
+                            insn.mnemonic == "mov"
+                            and len(insn.operands) == 2
+                            and insn.operands[0].type == capstone.x86.X86_OP_REG
+                            and insn.operands[1].type == capstone.x86.X86_OP_REG
+                        ):
+                            if (
+                                insn.operands[0].reg == capstone.x86.X86_REG_RBP
+                                and insn.operands[1].reg == capstone.x86.X86_REG_RSP
+                            ):
+                                rbp_as_gpr = False
+                                break
+                        elif (
+                            insn.mnemonic == "lea"
+                            and len(insn.operands) == 2
+                            and insn.operands[0].type == capstone.x86.X86_OP_REG
+                            and insn.operands[1].type == capstone.x86.X86_OP_MEM
+                        ) and (
                             insn.operands[0].reg == capstone.x86.X86_REG_RBP
-                            and insn.operands[1].reg == capstone.x86.X86_REG_RSP
+                            and insn.operands[1].mem.base == capstone.x86.X86_REG_RSP
                         ):
                             rbp_as_gpr = False
                             break
-                    elif (
-                        insn.mnemonic == "lea"
-                        and len(insn.operands) == 2
-                        and insn.operands[0].type == capstone.x86.X86_OP_REG
-                        and insn.operands[1].type == capstone.x86.X86_OP_MEM
-                    ) and (
-                        insn.operands[0].reg == capstone.x86.X86_REG_RBP
-                        and insn.operands[1].mem.base == capstone.x86.X86_REG_RSP
-                    ):
-                        rbp_as_gpr = False
-                        break
-                func = self.kb.functions.get_by_addr(func_addr)
-                func.info["bp_as_gpr"] = rbp_as_gpr
+                    func.info["bp_as_gpr"] = rbp_as_gpr
 
     def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> set[int]:
         to_remove = {addr}
