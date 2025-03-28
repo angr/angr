@@ -123,7 +123,7 @@ class Clinic(Analysis):
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
-        max_type_constraints: int = 750,
+        max_type_constraints: int = 4000,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -1777,7 +1777,7 @@ class Clinic(Analysis):
             must_struct = None
         total_type_constraints = sum(len(tc) for tc in vr.type_constraints.values()) if vr.type_constraints else 0
         if total_type_constraints > self._max_type_constraints:
-            l.info(
+            l.warning(
                 "The number of type constraints (%d) is greater than the threshold (%d). Skipping type inference.",
                 total_type_constraints,
                 self._max_type_constraints,
