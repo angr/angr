@@ -2332,7 +2332,7 @@ class TestDecompiler(unittest.TestCase):
         cgc_allocate_call = re.search(r"cgc_allocate\(([^\n]+)\)", d.codegen.text)
         assert cgc_allocate_call is not None, "Expect a call to cgc_allocate(), found None"
         comma_count = cgc_allocate_call.group(1).count(",")
-        assert comma_count == 1, f"Expect cgc_allocate() to have two arguments, found {comma_count + 1}"
+        assert comma_count == 2, f"Expect cgc_allocate() to have three arguments, found {comma_count + 1}"
 
     @structuring_algo("sailr")
     def test_reverting_switch_lowering_cksum_digest_print_filename(self, decompiler_options=None):
@@ -5022,6 +5022,15 @@ class TestDecompiler(unittest.TestCase):
         assert m is not None
         bufvar = m.group(1)
         assert f'strncpy({bufvar}, "FWe#JID%WkOC", 12);' in dec.codegen.text
+        # ensure the stack argument for sub_401a90 is correct
+        assert "sub_401a90(2406527224);" in dec.codegen.text
+        # ensure the stack argument for the first indirect call is incorrect
+        m = re.search(r"(v\d+) = [^;]*sub_401a90\(", dec.codegen.text)
+        assert m is not None
+        indir_v = m.group(1)
+        the_line = next(iter(line for line in dec.codegen.text.split("\n") if f"{indir_v}(" in line), None)
+        assert the_line is not None
+        assert the_line.count(",") == 2
 
     def test_regs_preserved_across_syscalls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "regs_preserved_across_syscalls")
