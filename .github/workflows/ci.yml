@@ -20,10 +20,14 @@ jobs:
     steps:
       - name: Checkout angr
         uses: actions/checkout@v4
+        with:
+          path: angr
+
       - name: Checkout binaries
         uses: actions/checkout@v4
         with:
           repository: angr/binaries
+          path: binaries
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
