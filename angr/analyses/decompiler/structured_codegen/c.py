@@ -1408,7 +1408,7 @@ class CFunctionCall(CStatement, CExpression):
         for i, arg in enumerate(self.args):
             if i == 0:
                 continue
-            if i:
+            if i > 1:
                 yield ", ", None
             yield from CExpression._try_c_repr_chunks(arg)
 
