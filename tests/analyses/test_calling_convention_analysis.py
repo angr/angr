@@ -260,7 +260,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         proj.analyses.VariableRecoveryFast(func)
         cca = proj.analyses.CallingConvention(func, analyze_callsites=True)
         assert cca.prototype is not None
-        assert len(cca.prototype.args) == 6
+        assert len(cca.prototype.args) == 7
 
     def test_x64_return_value_used(self):
         binary_path = os.path.join(test_location, "x86_64", "cwebp-0.3.1-feh-original")
@@ -572,6 +572,22 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert isinstance(func_main.calling_convention, SimCCCdecl)
         assert func_main.prototype is not None
         assert len(func_main.prototype.args) == 4
+
+    @cca_mode("fast,variables")
+    def test_cdecl_nonconsecutive_stack_args_3(self, *, mode):
+        binary_path = os.path.join(
+            test_location, "i386", "windows", "48460c9633d06cad3e3b41c87de04177d129906610c5bbdebc7507a211100e98"
+        )
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
+
+        func_main = cfg.kb.functions[0x401A90]
+        assert func_main.info["bp_as_gpr"] is False
+        assert isinstance(func_main.calling_convention, SimCCCdecl)
+        assert func_main.prototype is not None
+        assert len(func_main.prototype.args) == 1
 
 
 if __name__ == "__main__":
