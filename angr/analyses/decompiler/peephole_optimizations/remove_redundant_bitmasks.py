@@ -20,10 +20,11 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Remove redundant bitmasks"
-    expr_classes = (BinaryOp,)
+    expr_classes = (BinaryOp, Convert)
 
-    def optimize(self, expr: BinaryOp, **kwargs):
+    def optimize(self, expr: (BinaryOp|Convert), **kwargs):
         # And(expr, full_N_bitmask) ==> expr
+        # And(SHR(expr, N), bitmask)) ==> SHR(expr, N)
         # And(Conv(1->N, expr), bitmask) ==> Conv(1->N, expr)
         # And(Conv(1->N, bool_expr), bitmask) ==> Conv(1->N, bool_expr)
         # And(ITE(?, const_expr, const_expr), bitmask) ==> ITE(?, const_expr, const_expr)
@@ -31,6 +32,19 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             inner_expr = expr.operands[0]
             if expr.operands[1].value == _MASKS.get(inner_expr.bits, None):
                 return inner_expr
+            
+            if (
+                isinstance(inner_expr, BinaryOp) 
+                and inner_expr.op == "Shr" 
+            ):
+                mask = expr.operands[1]
+                shift_val = inner_expr.operands[1]
+                if (isinstance(shift_val, Const)
+                    and shift_val.value in _MASKS
+                    and mask == _MASKS.get(64 - shift_val.value)
+                ):
+                    return inner_expr
+           
             if isinstance(inner_expr, Convert) and self.is_bool_expr(inner_expr.operand):
                 # useless masking
                 return inner_expr
@@ -45,5 +59,47 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 if mask == 0xFF and ite.iftrue.value <= 0xFF and ite.iffalse.value <= 0xFF:
                     # yes!
                     return ite
-
+                
+        # Conv(64->32, (expr & bitmask) + expr)
+        # => Conv(64->32, (expr + expr))
+        elif (
+            expr.op == "Convert" 
+            and expr.from_bits > expr.to_bits
+            and isinstance(expr.operand, BinaryOp)
+            and expr.operand.op == "Add"
+        ):
+            operand_expr = expr.operand
+            op0, op1 = operand_expr.operands
+            if (
+                isinstance(op0, BinaryOp)
+                and op0.op == "And"
+                and isinstance(op0.operands[1], Const)
+                and op0.operands[1].value == _MASKS.get(expr.to_bits, None)
+            ):
+                new_op0 = op0.operands[0]
+                replaced, new_operand_expr = operand_expr.replace(op0, new_op0)
+                if replaced:
+                    expr.operand = new_operand_expr
+                    return expr 
+        # Conv(64->32, (expr) - (expr) & 0xffffffff<64>)))
+        # => Conv(64->32, (expr - expr))
+        elif (
+            expr.op == "Convert" 
+            and expr.from_bits > expr.to_bits
+            and isinstance(expr.operand, BinaryOp)
+            and expr.operand.op == "Sub"
+        ):
+            operand_expr = expr.operand
+            op0, op1 = operand_expr.operands
+            if (
+                isinstance(op1, BinaryOp)
+                and op1.op == "And"
+                and isinstance(op1.operands[1], Const)
+                and op1.operands[1].value == _MASKS.get(expr.to_bits, None)
+            ):
+                new_op1 = op1.operands[0]
+                replaced, new_operand_expr = operand_expr.replace(op1, new_op1)
+                if replaced:
+                    expr.operand = new_operand_expr
+                    return expr 
         return None
