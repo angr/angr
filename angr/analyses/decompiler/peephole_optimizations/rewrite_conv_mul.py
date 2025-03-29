@@ -10,7 +10,7 @@ class RewriteConvMul(PeepholeOptimizationExprBase):
     NAME = "Rewrite Conv Mul"
     expr_classes = (BinaryOp,)
 
-    # Conv(64->32, (Conv(32->64, expr) * N<64>)) * N<32>) 
+    # Conv(64->32, (Conv(32->64, expr) * N<64>)) * N<32>)
     # => Conv(64->32, (Conv(32->64, expr) * N<64>) * Conv(32->64,N<32>))
     def optimize(self, expr: BinaryOp, **kwargs):
         if (

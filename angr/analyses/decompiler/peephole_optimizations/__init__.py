@@ -105,7 +105,7 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     ShlToMul,
     RewriteCxxOperatorCalls,
     RemoveCxxDestructorCalls,
-    RewriteConvMul
+    RewriteConvMul,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [

@@ -22,7 +22,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     NAME = "Remove redundant bitmasks"
     expr_classes = (BinaryOp, Convert)
 
-    def optimize(self, expr: (BinaryOp|Convert), **kwargs):
+    def optimize(self, expr: BinaryOp | Convert, **kwargs):
         # And(expr, full_N_bitmask) ==> expr
         # And(SHR(expr, N), bitmask)) ==> SHR(expr, N)
         # And(Conv(1->N, expr), bitmask) ==> Conv(1->N, expr)
@@ -32,19 +32,17 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             inner_expr = expr.operands[0]
             if expr.operands[1].value == _MASKS.get(inner_expr.bits, None):
                 return inner_expr
-            
-            if (
-                isinstance(inner_expr, BinaryOp) 
-                and inner_expr.op == "Shr" 
-            ):
+
+            if isinstance(inner_expr, BinaryOp) and inner_expr.op == "Shr":
                 mask = expr.operands[1]
                 shift_val = inner_expr.operands[1]
-                if (isinstance(shift_val, Const)
+                if (
+                    isinstance(shift_val, Const)
                     and shift_val.value in _MASKS
                     and mask == _MASKS.get(64 - shift_val.value)
                 ):
                     return inner_expr
-           
+
             if isinstance(inner_expr, Convert) and self.is_bool_expr(inner_expr.operand):
                 # useless masking
                 return inner_expr
@@ -59,11 +57,11 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 if mask == 0xFF and ite.iftrue.value <= 0xFF and ite.iffalse.value <= 0xFF:
                     # yes!
                     return ite
-                
+
         # Conv(64->32, (expr & bitmask) + expr)
         # => Conv(64->32, (expr + expr))
         elif (
-            expr.op == "Convert" 
+            expr.op == "Convert"
             and expr.from_bits > expr.to_bits
             and isinstance(expr.operand, BinaryOp)
             and expr.operand.op == "Add"
@@ -80,11 +78,11 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 replaced, new_operand_expr = operand_expr.replace(op0, new_op0)
                 if replaced:
                     expr.operand = new_operand_expr
-                    return expr 
+                    return expr
         # Conv(64->32, (expr) - (expr) & 0xffffffff<64>)))
         # => Conv(64->32, (expr - expr))
         elif (
-            expr.op == "Convert" 
+            expr.op == "Convert"
             and expr.from_bits > expr.to_bits
             and isinstance(expr.operand, BinaryOp)
             and expr.operand.op == "Sub"
@@ -101,5 +99,5 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 replaced, new_operand_expr = operand_expr.replace(op1, new_op1)
                 if replaced:
                     expr.operand = new_operand_expr
-                    return expr 
+                    return expr
         return None
