@@ -1398,7 +1398,7 @@ class CFunctionCall(CStatement, CExpression):
             yield from CExpression._try_c_repr_chunks(this_ref)
 
         yield ".", None
-        short_funcname = func_name.split("::")[-1]
+        short_funcname = self.callee_func.short_name
         yield short_funcname, self
 
         # the remaining arguments
