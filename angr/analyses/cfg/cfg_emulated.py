@@ -2970,7 +2970,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 preserved_constraints = [
                     c for c in new_state.solver.constraints if c.op != "BoolV" or c.args[0] is not False
                 ]
-                new_solver = new_state.solver.blank_copy()
+                new_solver = new_state.solver._solver.blank_copy()
                 new_solver.add(preserved_constraints)
                 new_state.solver._solver = new_solver
 
