@@ -27,7 +27,7 @@ from angr.sim_type import SimTypeFunction, parse_defns
 from angr.calling_conventions import SimCC
 from angr.project import Project
 from .function_parser import FunctionParser
-from ...utils.library import get_cpp_function_name
+from angr.utils.library import get_cpp_function_name
 
 l = logging.getLogger(name=__name__)
 
