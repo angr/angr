@@ -1616,7 +1616,7 @@ class Function(Serializable):
                     break
 
                 unescaped = {"SP": "@", "BP": "*", "RF": "&", "LT": "<", "GT": ">", "LP": "(", "RP": ")", "C": ","}.get(
-                    escape, None
+                    escape
                 )
 
                 if unescaped is None and escape.startswith("u"):
