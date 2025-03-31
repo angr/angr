@@ -4268,7 +4268,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert "linux_encryptor::files::create_note::hd3c91fc90c0b0684" in d.codegen.text
+        assert "linux_encryptor::files::create_note" in d.codegen.text
         assert "Luna.ini.exe.dll.lnk" in d.codegen.text  # sanity check
         assert "probe_stack" not in d.codegen.text
         # "{reg 48}" would show up if SPTracker does not understand __rust_probestack

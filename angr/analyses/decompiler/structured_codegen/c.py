@@ -1361,6 +1361,7 @@ class CFunctionCall(CStatement, CExpression):
             else:
                 func_name = self.callee_func.name
             if self.prettify_thiscall and self.args and self._is_func_likely_cxx_class_method(func_name):
+                func_name = self.callee_func.short_name
                 yield from self._c_repr_chunks_thiscall(func_name, asexpr=asexpr)
                 return
             if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
@@ -1398,8 +1399,7 @@ class CFunctionCall(CStatement, CExpression):
             yield from CExpression._try_c_repr_chunks(this_ref)
 
         yield ".", None
-        short_funcname = self.callee_func.short_name
-        yield short_funcname, self
+        yield func_name, self
 
         # the remaining arguments
         paren = CClosingObject("(")

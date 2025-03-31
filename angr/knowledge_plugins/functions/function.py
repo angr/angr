@@ -27,6 +27,7 @@ from angr.sim_type import SimTypeFunction, parse_defns
 from angr.calling_conventions import SimCC
 from angr.project import Project
 from .function_parser import FunctionParser
+from ...utils.library import get_cpp_function_name
 
 l = logging.getLogger(name=__name__)
 
@@ -1651,7 +1652,8 @@ class Function(Serializable):
         if self.is_rust_function():
             ast = pydemumble.demangle(self.name)
             return Function._rust_fmt_node(ast.split("::")[-2])
-        return self.demangled_name.split("::")[-1]
+        func_name = get_cpp_function_name(self.demangled_name, specialized=False, qualified=True)
+        return func_name.split("::")[-1]
 
     def get_unambiguous_name(self, display_name: str | None = None) -> str:
         """
