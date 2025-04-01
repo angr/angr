@@ -16,9 +16,10 @@ from angr.analyses.typehoon.typevars import (
     FuncIn,
     FuncOut,
     Load,
+    Store,
     HasField,
 )
-from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64, Float32
+from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64, Float32, Float64
 from angr.analyses.typehoon.translator import TypeTranslator
 
 from tests.common import bin_location
@@ -117,6 +118,28 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(t0_solution.basetype.fields[0], Pointer64)
         assert t0_solution.basetype.fields[0].basetype is t0_solution.basetype
         assert isinstance(t0_solution.basetype.fields[4], Int32)
+
+    def test_type_inference_transitive(self):
+        # a <: b <: c ==> a <: c
+        func_f = TypeVariable(name="F")
+        t0 = TypeVariable(name="T0")
+        t1 = TypeVariable(name="T1")
+        t2 = DerivedTypeVariable(t1, None, labels=[Store(), HasField(64, 0)])
+
+        type_constraints = {
+            func_f: {
+                Subtype(Float64(), t0),
+                Subtype(t0, t2),
+            },
+        }
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f)
+        soln = typehoon.solution
+
+        assert isinstance(soln[t0], Float64)
+        assert isinstance(soln[t1], Pointer64)
+        assert isinstance(soln[t1].basetype, Float64)
+        assert isinstance(soln[t2], Float64)
 
 
 class TestTypeTranslator(unittest.TestCase):
