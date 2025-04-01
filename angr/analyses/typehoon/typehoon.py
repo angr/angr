@@ -10,7 +10,7 @@ from angr.sim_variable import SimVariable, SimStackVariable
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
-from .typevars import Equivalence, Subtype, TypeVariable
+from .typevars import Equivalence, Subtype, TypeVariable, DerivedTypeVariable
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
@@ -187,6 +187,10 @@ class Typehoon(Analysis):
         if self._ground_truth and self.simtypes_solution is not None:
             self.simtypes_solution.update(self._ground_truth)
 
+    @staticmethod
+    def _resolve_derived(tv):
+        return tv.type_var if isinstance(tv, DerivedTypeVariable) else tv
+
     def _solve(self):
         typevars = set()
         if self._var_mapping:
@@ -198,9 +202,10 @@ class Typehoon(Analysis):
             for constraint in self._constraints[self.func_var]:
                 if isinstance(constraint, Subtype):
                     if isinstance(constraint.sub_type, TypeVariable):
-                        typevars.add(constraint.sub_type)
+                        typevars.add(self._resolve_derived(constraint.sub_type))
                     if isinstance(constraint.super_type, TypeVariable):
-                        typevars.add(constraint.super_type)
+                        typevars.add(self._resolve_derived(constraint.super_type))
+
         solver = SimpleSolver(self.bits, self._constraints, typevars, stackvar_max_sizes=self._stackvar_max_sizes)
         self.solution = solver.solution
 
