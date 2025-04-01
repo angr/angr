@@ -2972,7 +2972,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 ]
                 new_solver = new_state.solver._solver.blank_copy()
                 new_solver.add(preserved_constraints)
-                new_state.solver._solver = new_solver
+                new_state.solver._stored_solver = new_solver
 
                 # Swap them
                 saved_state, job.state = job.state, new_state
