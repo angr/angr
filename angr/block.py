@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 
 import pyvex
 from pyvex import IRSB
-from archinfo import Arch, ArchARM
+from archinfo import Arch, ArchARM, ArchRISCV64
+from pwnlib.asm import disasm
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
@@ -54,23 +55,26 @@ class DisassemblerInsn:
     Helper class to represent a disassembled target architecture instruction
     """
 
-    __slots__ = ()
+    def __init__(self):
+        self.size = None
+        self.address = None
+        self.mnemonic = None
+        self.op_str = None
+    #@property
+    #def size(self) -> int:
+    #    raise NotImplementedError
 
-    @property
-    def size(self) -> int:
-        raise NotImplementedError
+    #@property
+    #def address(self) -> int:
+    #    raise NotImplementedError
 
-    @property
-    def address(self) -> int:
-        raise NotImplementedError
+    #@property
+    #def mnemonic(self) -> str:
+    #    raise NotImplementedError
 
-    @property
-    def mnemonic(self) -> str:
-        raise NotImplementedError
-
-    @property
-    def op_str(self) -> str:
-        raise NotImplementedError
+    #@property
+    #def op_str(self) -> str:
+    #    raise NotImplementedError
 
     def __str__(self):
         return f"{self.address:#x}:\t{self.mnemonic}\t{self.op_str}"
@@ -405,8 +409,26 @@ class Block(Serializable):
         block_bytes = self.bytes
         if self.size is not None:
             block_bytes = block_bytes[: self.size]
-        for cs_insn in cs.disasm(block_bytes, self.addr):
-            insns.append(CapstoneInsn(cs_insn))
+        if isinstance(self.arch, ArchRISCV64):
+            try:
+                for cs_insn in disasm(block_bytes, self.addr, arch='riscv64').splitlines():
+                    elems = cs_insn.split(':', 1)
+                    addr = elems[0].strip()
+                    addr = int(addr, 16)
+                    insn_str = elems[1].strip().split(' ', 1)[1].strip()
+                    elems = insn_str.split(' ', 1)
+
+                    insn = DisassemblerInsn()
+                    insn.size = len(block_bytes)
+                    insn.address = addr
+                    insn.mnemonic = elems[0].strip()
+                    insn.op_str = elems[1].strip() if len(elems) > 1 else ''
+                    insns.append(insn)
+            except Exception as e:
+                print(e)
+        else:
+            for cs_insn in cs.disasm(block_bytes, self.addr):
+                insns.append(CapstoneInsn(cs_insn))
         block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
 
         self._capstone = block
