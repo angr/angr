@@ -26,6 +26,7 @@ from angr.calling_conventions import DEFAULT_CC, default_cc
 from angr.sim_type import SimTypeFunction, parse_defns
 from angr.calling_conventions import SimCC
 from angr.project import Project
+from angr.utils.library import get_cpp_function_name
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
@@ -1582,10 +1583,77 @@ class Function(Serializable):
         # int, long
         return addr
 
+    def is_rust_function(self):
+        ast = pydemumble.demangle(self.name)
+        if ast:
+            nodes = ast.split("::")
+            if len(nodes) >= 2:
+                last_node = nodes[-1]
+                return (
+                    len(last_node) == 17
+                    and last_node.startswith("h")
+                    and all(c in "0123456789abcdef" for c in last_node[1:])
+                )
+        return False
+
+    @staticmethod
+    def _rust_fmt_node(node):
+        result = []
+        rest = node
+        if rest.startswith("_$"):
+            rest = rest[1:]
+        while True:
+            if rest.startswith("."):
+                if len(rest) > 1 and rest[1] == ".":
+                    result.append("::")
+                    rest = rest[2:]
+                else:
+                    result.append(".")
+                    rest = rest[1:]
+            elif rest.startswith("$"):
+                if "$" in rest[1:]:
+                    escape, rest = rest[1:].split("$", 1)
+                else:
+                    break
+
+                unescaped = {"SP": "@", "BP": "*", "RF": "&", "LT": "<", "GT": ">", "LP": "(", "RP": ")", "C": ","}.get(
+                    escape
+                )
+
+                if unescaped is None and escape.startswith("u"):
+                    digits = escape[1:]
+                    if all(c in "0123456789abcdef" for c in digits):
+                        c = chr(int(digits, 16))
+                        if ord(c) >= 32 and ord(c) != 127:
+                            result.append(c)
+                            continue
+                if unescaped:
+                    result.append(unescaped)
+                else:
+                    break
+            else:
+                idx = min((rest.find(c) for c in "$." if c in rest), default=len(rest))
+                result.append(rest[:idx])
+                rest = rest[idx:]
+                if not rest:
+                    break
+        return "".join(result)
+
     @property
     def demangled_name(self):
         ast = pydemumble.demangle(self.name)
+        if self.is_rust_function():
+            nodes = ast.split("::")[:-1]
+            ast = "::".join([Function._rust_fmt_node(node) for node in nodes])
         return ast if ast else self.name
+
+    @property
+    def short_name(self):
+        if self.is_rust_function():
+            ast = pydemumble.demangle(self.name)
+            return Function._rust_fmt_node(ast.split("::")[-2])
+        func_name = get_cpp_function_name(self.demangled_name, specialized=False, qualified=True)
+        return func_name.split("::")[-1]
 
     def get_unambiguous_name(self, display_name: str | None = None) -> str:
         """
