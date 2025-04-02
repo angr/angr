@@ -60,7 +60,7 @@ test file corpus.
 sudo $(which act) \
   -W .github/workflows/corpus_test.yml \
   --eventpath pr.event \
-  -s GITHUB_TOKEN="$(gh auth token)" \
+  -s GH_TOKEN="$(gh auth token)" \
   -s SNAPSHOTS_PAT="$(gh auth token)" \
   workflow_call
 ```
