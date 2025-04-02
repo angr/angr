@@ -58,6 +58,8 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                     # yes!
                     return ite
 
+        return None
+
     def optimize(self, expr: Convert, **kwargs):
         # Conv(64->32, (expr & bitmask) + expr)
         # => Conv(64->32, (expr + expr))
