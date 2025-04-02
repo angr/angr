@@ -1,6 +1,10 @@
-from ailment import Assignment
+from typing import Optional, Tuple
+
+from ailment import Assignment, Expression
 from ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBaseOffset, BinaryOp, Const
 from ailment.statement import Store
+
+from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
 
 
 class DFAMixin:
@@ -15,6 +19,25 @@ class DFAMixin:
         if isinstance(expr, BinaryOp) and expr.op == "Add" and isinstance(expr.operands[1], Const):
             return expr.operands[0], expr.operands[1].value
         return expr, 0
+
+    def collect_stack_writes(self, block):
+        stack_writes = {}
+        offset_to_stmt = {}
+        for stmt in block.statements:
+            dst_vvar, data = self.extract_write_to_stack_vvar(stmt)
+            if dst_vvar and data:
+                stack_writes[dst_vvar.stack_offset] = data
+                offset_to_stmt[dst_vvar.stack_offset] = stmt
+        return stack_writes, offset_to_stmt
+
+    def extract_write_to_stack_vvar(self, stmt) -> Tuple[Optional[VirtualVariable], Optional[Expression]]:
+        if isinstance(stmt, Assignment):
+            if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
+                return stmt.dst, stmt.src
+        elif isinstance(stmt, Store):
+            if dst := unwrap_stack_vvar_reference(stmt.addr):
+                return dst, stmt.data
+        return None, None
 
     def extract_stack_dest_data_flow(self, stmt):
         dst_offset = None

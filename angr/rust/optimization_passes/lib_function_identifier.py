@@ -26,7 +26,7 @@ class LibFunctionIdentifier(OptimizationPass):
         return None
 
     def _analyze(self, cache=None):
-        librust = SIM_LIBRARIES["librust"]
+        librust = SIM_LIBRARIES["librust"][0]
 
         class CallWalker(AILBlockWalker):
             def __init__(self, pass_):

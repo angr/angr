@@ -4,7 +4,7 @@ from typing import Tuple, Optional, List
 from collections import OrderedDict
 
 from ailment import BinaryOp, Const, AILBlockWalker, Block
-from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi, StackBaseOffset
+from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi
 from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment, Jump, Label
 from networkx import DiGraph
 
@@ -16,6 +16,7 @@ from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixe
 from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
+from ..utils.ail_util import unwrap_stack_vvar_reference
 from ..utils.library import normalize
 from ..knowledge_plugins.known_structs import KnownStructs
 from ..analyses.struct_memory_layout import SimpleMessageLayoutInference
@@ -69,6 +70,10 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 self.has_call = False
 
             def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+                self.has_call = True
+                return None
+
+            def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
                 self.has_call = True
                 return None
 
@@ -161,7 +166,7 @@ class FunctionBodyFactCollector(AILBlockWalker):
                             if isinstance(value, Const)
                         )
                     elif isinstance(ret_expr, Const):
-                        self.const_ret_values.add(stmt.ret_expr.value)
+                        self.const_ret_values.add(ret_expr.value)
         else:
             self.has_write_to_arg0 = True
 
@@ -186,7 +191,8 @@ class FunctionBodyFactCollector(AILBlockWalker):
         ):
             offset = addr.operands[1].value
             addr = addr.operands[0]
-        addr = self.context.get_terminal_vvar(addr)
+        if isinstance(addr, VirtualVariable):
+            addr = self.context.get_terminal_vvar(addr)
         if isinstance(addr, VirtualVariable) and addr.was_parameter:
             self.add_memory_write(addr.varid, self._path, offset, stmt.data)
 
@@ -446,17 +452,19 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         candidates = []
 
         for block_or_path in memory_writes:
-            fields = {}
-            block_memory_writes = memory_writes[block_or_path]
-            for offset in sorted(block_memory_writes.keys()):
-                expr, func_addr = block_memory_writes[offset]
-                arg_ty = RustSimTypeInt(expr.bits, signed=False)
-                fields[f"field_{offset}"] = arg_ty
-            struct_ty = RustSimStruct(
-                fields,
-                name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
-                pack=True,
-            ).with_arch(self.project.arch)
+            fields = OrderedDict()
+            field_exprs = {offset: expr for offset, (expr, _) in memory_writes[block_or_path].items()}
+            struct_ty = self.project.kb.known_structs.match_with_known_structs(field_exprs)
+            if not struct_ty:
+                for offset in sorted(field_exprs):
+                    expr = field_exprs[offset]
+                    arg_ty = RustSimTypeInt(expr.bits, signed=False)
+                    fields[f"field_{offset}"] = arg_ty
+                struct_ty = RustSimStruct(
+                    fields,
+                    name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
+                    pack=True,
+                ).with_arch(self.project.arch)
             candidates.append(struct_ty)
 
         final_ty = sorted(candidates, key=lambda candidate: candidate.size, reverse=True)[0] if candidates else None
@@ -496,30 +504,42 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         self.model.callsite_memory_writes[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
 
     def collect_callsite_facts(self):
+        """
+        Collect memory writes to stack regions that are probably used by callee function
+        """
         callsite_block = self.model.callsite_block
         if callsite_block is None:
             return
         call = self.terminal_call(callsite_block)
         if call and call.args:
-            stack_offsets = []
+            # Calculate arguments' stack offsets
+            stack_offsets = set()
             for arg in call.args:
-                if isinstance(arg, BasePointerOffset):
-                    stack_offsets.append(arg.offset)
+                if vvar := unwrap_stack_vvar_reference(arg):
+                    stack_offsets.add(vvar.stack_offset)
+            stack_offsets = sorted(stack_offsets)
+            if len(stack_offsets) == 0:
+                return
+            # Calculate the next argument stack offset that is larger than current stack offset
+            next_offsets = {}
+            for i in range(len(stack_offsets) - 1):
+                next_offsets[stack_offsets[i]] = stack_offsets[i + 1]
+            next_offsets[stack_offsets[-1]] = None
+            # Collect memory writes to stack variables in callsite block
+            stack_writes = {}
+            for stmt in callsite_block.statements:
+                dst_vvar, src_data = self.extract_write_to_stack_vvar(stmt)
+                if dst_vvar and src_data:
+                    stack_writes[dst_vvar.stack_offset] = src_data
             for idx, arg in enumerate(call.args):
-                if isinstance(arg, BasePointerOffset):
-                    cur_offset = arg.offset
-                    while len(list(filter(lambda offset: cur_offset >= offset, stack_offsets))) == len(
-                        list(filter(lambda offset: arg.offset >= offset, stack_offsets))
-                    ):
-                        data = None
-                        for stmt in reversed(callsite_block.statements):
-                            dst_offset, src_data = self.extract_stack_dest_data_flow(stmt)
-                            if dst_offset == cur_offset and src_data:
-                                data = src_data
-                                break
+                if vvar := unwrap_stack_vvar_reference(arg):
+                    cur_offset = vvar.stack_offset
+                    next_offset = next_offsets[cur_offset]
+                    while next_offset is None or cur_offset < next_offset:
+                        data = stack_writes.get(cur_offset, None)
                         if data is None:
                             break
-                        self.add_callsite_memory_write(idx, callsite_block, cur_offset - arg.offset, data)
+                        self.add_callsite_memory_write(idx, callsite_block, cur_offset - vvar.stack_offset, data)
                         cur_offset += data.size
 
     def collect_post_callsite_facts(self):

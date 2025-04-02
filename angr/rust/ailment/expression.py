@@ -154,6 +154,10 @@ class Struct(ailment.Expression):
         return None
 
     @property
+    def name(self):
+        return self.type.name
+
+    @property
     def size(self):
         return self.type.size // 8
 

@@ -2,7 +2,7 @@ from typing import Optional
 
 from ailment import Block, Assignment, Const
 from ailment.expression import Convert
-from ailment.statement import Statement, Label, Call, Return
+from ailment.statement import Statement, Label, Call, Return, ConditionalJump, Jump
 
 from angr.rust.utils.library import normalize
 
@@ -47,6 +47,8 @@ class CFAMixin:
 
     def terminal_call(self, block) -> Optional[Call]:
         stmt = self.last_stmt(block)
+        if isinstance(stmt, (ConditionalJump, Jump)) and len(block.statements) >= 2:
+            stmt = block.statements[-2]
         if isinstance(stmt, Return) and stmt.ret_exprs:
             stmt = stmt.ret_exprs[0]
             if isinstance(stmt, Convert):

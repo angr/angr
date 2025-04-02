@@ -1,6 +1,7 @@
 from typing import Any
 
-from ailment import Block, AILBlockWalker, Expression
+from ailment import Block, AILBlockWalker, Expression, UnaryOp
+from ailment.expression import VirtualVariable
 from ailment.statement import Call, Statement
 
 
@@ -28,4 +29,15 @@ def get_terminal_call(block: Block):
         finder = CallFinder()
         finder.walk_statement(terminal)
         return finder.call
+    return None
+
+
+def unwrap_stack_vvar_reference(expr) -> VirtualVariable | None:
+    if (
+        isinstance(expr, UnaryOp)
+        and expr.op == "Reference"
+        and isinstance(expr.operand, VirtualVariable)
+        and expr.operand.was_stack
+    ):
+        return expr.operand
     return None
