@@ -22,7 +22,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     NAME = "Remove redundant bitmasks"
     expr_classes = (BinaryOp, Convert)
 
-    def optimize(self, expr: BinaryOp | Convert, **kwargs):
+    def optimize(self, expr: BinaryOp, **kwargs):
         # And(expr, full_N_bitmask) ==> expr
         # And(SHR(expr, N), bitmask)) ==> SHR(expr, N)
         # And(Conv(1->N, expr), bitmask) ==> Conv(1->N, expr)
@@ -39,7 +39,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 if (
                     isinstance(shift_val, Const)
                     and shift_val.value in _MASKS
-                    and mask.value == _MASKS.get(64 - shift_val.value)
+                    and mask.value == _MASKS.get(int(64 - shift_val.value), None)
                 ):
                     return inner_expr
 
@@ -58,9 +58,10 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                     # yes!
                     return ite
 
+    def optimize(self, expr: Convert, **kwargs):
         # Conv(64->32, (expr & bitmask) + expr)
         # => Conv(64->32, (expr + expr))
-        elif (
+        if (
             expr.op == "Convert"
             and expr.from_bits > expr.to_bits
             and isinstance(expr.operand, BinaryOp)

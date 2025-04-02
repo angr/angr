@@ -5,6 +5,9 @@ from .base import PeepholeOptimizationExprBase
 
 
 class RewriteConvMul(PeepholeOptimizationExprBase):
+    """
+    Rewrites multiplication to be inside conversion.
+    """
     __slots__ = ()
 
     NAME = "Rewrite Conv Mul"
