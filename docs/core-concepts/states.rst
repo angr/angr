@@ -201,7 +201,7 @@ val)`` methods:
 .. code-block:: python
 
    >>> s = proj.factory.blank_state()
-   >>> s.memory.store(0x4000, s.solver.BVV(0x0123456789abcdef0123456789abcdef, 128))
+   >>> s.memory.store(0x4000, claripy.BVV(0x0123456789abcdef0123456789abcdef, 128))
    >>> s.memory.load(0x4004, 6) # load-size is in bytes
    <BV48 0x89abcdef0123>
 
