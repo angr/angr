@@ -525,7 +525,9 @@ class RustSimEnum(RustSimType, SimType):
         self.variants = variants
         self.discriminant_size = discriminant_size
 
-        self._size = max(
+    @property
+    def size(self) -> int | None:
+        return max(
             variant.size + (self.discriminant_size * 8 if variant.discriminant is not None else 0)
             for variant in self.variants
         )

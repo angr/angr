@@ -15,6 +15,8 @@ class SRDAMixin:
         self.srda_view = SRDAView(self.srda.model)
 
     def get_vvar_value(self, vvar: VirtualVariable) -> Expression | None:
+        if not vvar:
+            return None
         # Fix the vvar value not found issue caused by unmatched expr idx
         for key in self.srda.model.all_vvar_definitions:
             key = self.srda.model.varid_to_vvar[key]

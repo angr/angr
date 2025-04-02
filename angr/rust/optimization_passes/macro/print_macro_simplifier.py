@@ -1,13 +1,15 @@
 from typing import Tuple
 
 from ailment import Block
-from ailment.expression import StackBaseOffset, Const
-from ailment.statement import Store, Call
+from ailment.expression import Const, VirtualVariable
+from ailment.statement import Call
 
+from angr.rust.optimization_passes.utils import extract_str_from_addr
+from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.ailment.expression import Struct, Array, String
+from angr.rust.ailment.expression import Struct, Array, StringLiteral
 from angr.rust.ailment.statement import FunctionLikeMacro
-from angr.rust.mixins.cfa_mixin import CFAMixin
+from angr.rust.mixins import CFAMixin, DFAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
 from angr.rust.sim_type import RustSimType, RustSimTypeString
 from angr.rust.utils.library import demangle
@@ -21,11 +23,11 @@ PRINT_FUNCTIONS = (
 )
 
 
-class PrintMacroSimplifier(OptimizationPass, CFAMixin):
+class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
-    NAME = "Recover print-family macros"
+    NAME = "Recover print-like macros"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -36,23 +38,6 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
 
     def _check(self):
         return self.project.is_rust_binary, None
-
-    def _extract_string_from_const(self, expr: Const):
-        decoded_str = ""
-        if (section := self.project.loader.find_section_containing(expr.value)) and section.is_readable:
-            memory = self.project.loader.memory
-            str_addr = memory.unpack(expr.value, self.project.arch.struct_fmt())[0]
-            if (
-                (section := self.project.loader.find_section_containing(str_addr))
-                and section.is_readable
-                and not section.is_writable
-            ):
-                str_len = memory.unpack(expr.value + self.project.arch.bytes, self.project.arch.struct_fmt())[0]
-                try:
-                    decoded_str = memory.load(str_addr, str_len).decode("utf-8")
-                except UnicodeDecodeError:
-                    pass
-        return decoded_str
 
     @staticmethod
     def _select_macro(func_name, fmt_str) -> Tuple[str, str, RustSimType | None] | Tuple[None, None, None]:
@@ -83,16 +68,11 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
         if (
             (name := self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False))
             and call.args
-            and isinstance(call.args[-1], StackBaseOffset)
+            and (arg_vvar := unwrap_stack_vvar_reference(call.args[-1]))
         ):
-            stack = {}
-            offset_to_stmt = {}
-            for stmt in block.statements:
-                if isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
-                    stack[stmt.addr.offset] = stmt.data
-                    offset_to_stmt[stmt.addr.offset] = stmt
-            arg = stack.get(call.args[-1].offset, None)
-            if isinstance(arg, Struct) and arg.type.name == "Arguments":
+            stack_writes, offset_to_stmt = self.collect_stack_writes(block)
+            arg = stack_writes.get(arg_vvar.stack_offset, None)
+            if isinstance(arg, Struct) and arg.name == "Arguments":
                 pieces = arg.get_field("pieces")
                 args = arg.get_field("args")
                 if (
@@ -100,19 +80,20 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
                     and isinstance(args, Array)
                     and 0 <= pieces.length - args.length <= 1
                     and all(
-                        isinstance(arg, StackBaseOffset)
-                        and arg.offset in stack
-                        and isinstance(stack[arg.offset], Struct)
-                        and stack[arg.offset].type.name == "Argument"
+                        isinstance(arg, VirtualVariable)
+                        and arg.was_stack
+                        and arg.stack_offset in stack_writes
+                        and isinstance(stack_writes[arg.stack_offset], Struct)
+                        and stack_writes[arg.stack_offset].name == "Argument"
                         for arg in args.elements
                     )
                     and all(isinstance(piece, Const) for piece in pieces.elements)
                 ):
-                    stmts_to_remove = [offset_to_stmt[arg.offset] for arg in args.elements]
-                    stmts_to_remove.append(offset_to_stmt[call.args[-1].offset])
+                    stmts_to_remove = [offset_to_stmt[arg.stack_offset] for arg in args.elements]
+                    stmts_to_remove.append(offset_to_stmt[arg_vvar.stack_offset])
 
-                    pieces = [self._extract_string_from_const(piece) for piece in pieces.elements]
-                    args = [stack[arg.offset] for arg in args.elements]
+                    pieces = [extract_str_from_addr(self.project, piece.value) for piece in pieces.elements]
+                    args = [stack_writes[arg.stack_offset] for arg in args.elements]
 
                     if len(pieces) == len(args):
                         pieces.append("")
@@ -127,7 +108,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin):
                         returnty = returnty.with_arch(self.project.arch)
                     if macro_name and fmt_str:
                         args = [arg.get_field("value") for arg in args]
-                        args.insert(0, String(None, None, 0, self.project.arch.bits, fmt_str))
+                        args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
                         macro = FunctionLikeMacro(
                             None, macro_name, args, bits=call.bits if is_expr else None, returnty=returnty, **call.tags
                         )
