@@ -22,16 +22,16 @@ Arithmetic and Logic
      - ``x.RotateRight(8)``
    * - And
      - Logical And (on boolean expressions)
-     - ``solver.And(x == y, x > 0)``
+     - ``claripy.And(x == y, x > 0)``
    * - Or
      - Logical Or (on boolean expressions)
-     - ``solver.Or(x == y, y < 10)``
+     - ``claripy.Or(x == y, y < 10)``
    * - Not
      - Logical Not (on a boolean expression)
-     - ``solver.Not(x == y)`` is the same as ``x != y``
+     - ``claripy.Not(x == y)`` is the same as ``x != y``
    * - If
      - An If-then-else
-     - Choose the maximum of two expressions: ``solver.If(x > y, x, y)``
+     - Choose the maximum of two expressions: ``claripy.If(x > y, x, y)``
    * - ULE
      - Unsigned less than or equal to
      - Check if x is less than or equal to y: ``x.ULE(y)``
