@@ -39,7 +39,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 if (
                     isinstance(shift_val, Const)
                     and shift_val.value in _MASKS
-                    and mask == _MASKS.get(64 - shift_val.value)
+                    and mask.value == _MASKS.get(64 - shift_val.value)
                 ):
                     return inner_expr
 
