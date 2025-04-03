@@ -972,7 +972,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph_flag = True
 
-        self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"), without_insts=False, super_graph_only=False)
+        self.draw_graph(new_cfg, self.project_dir /  "final_result.svg", without_insts=False, super_graph_only=False)
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
