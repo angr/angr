@@ -966,7 +966,7 @@ class VMDeobfuscation(Analysis):
         # with open(pickled_file_name,'rb') as load_addr_mba_to_jump_addr_mapping_pickle:
         #     self.project.load_addr_mba_to_jump_addr_mapping = pickle.load(load_addr_mba_to_jump_addr_mapping_pickle)
 
-        pickled_file_name = os.path.dirname(self.project.filename) + "/calls_as_rets"
+        pickled_file_name = self.project_dir / "calls_as_rets"
         with open(pickled_file_name, 'rb') as calls_as_rets_pickle:
             calls_as_rets = pickle.load(calls_as_rets_pickle)
 
