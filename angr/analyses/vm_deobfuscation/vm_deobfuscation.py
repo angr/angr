@@ -4699,7 +4699,7 @@ class VMDeobfuscation(Analysis):
         #     super_graph.add_edge(edge[0], edge[1])
         return super_graph
 
-    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=False, super_graph_only=True):
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True, super_graph_only=True):
         if not self.draw_graph_flag:
             print("skip graph drawing")
             return
