@@ -270,6 +270,37 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                     loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
                                                           endness=self.state.arch.memory_endness)
                     loaded_values.append(loaded_value)
+                if len(simplified_addr.variables) == 2:
+                    is_mba_addr_1 = False
+                    is_mba_addr_2 = False
+                    for var in simplified_addr.variables:
+                        if var.startswith('mba_state_split_cond'):
+                            is_mba_addr_1 = True
+                        elif var.startswith('precon_sp'):
+                            is_mba_addr_2 = True
+                    if is_mba_addr_2 and is_mba_addr_1:
+                        print("experimental")
+                        import ipdb;ipdb.set_trace()
+
+                if simplified_addr.symbolic and len(simplified_addr.variables) == 1 and list(simplified_addr.variables)[0].startswith('mba_state_split_cond'):
+                    print("experimental")
+                    import ipdb;
+                    ipdb.set_trace()
+                    for ast in list(simplified_addr.leaf_asts()):
+                        if ast.symbolic:
+                            state_split_cond = ast
+                    solns = self.state.partial_symbolic_constraint_solver._solver.batch_eval([state_split_cond, simplified_addr], 2)
+                    loaded_value_0 = self.state.memory.load(solns[0][1], self._ty_to_bytes(ty),
+                                                            endness=self.state.arch.memory_endness)
+                    loaded_value_1 = self.state.memory.load(solns[1][1], self._ty_to_bytes(ty),
+                                                            endness=self.state.arch.memory_endness)
+                    if solns[0][0] is True:
+                        to_return = claripy.If(state_split_cond, loaded_value_0, loaded_value_1)
+                    else:
+                        to_return = claripy.If(state_split_cond, loaded_value_1, loaded_value_0)
+
+                    # import ipdb;ipdb.set_trace()
+                    return to_return
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 ## IF OPTIMIZATION IS ZERO THEN WE HAVE TO STORE THIS IN THE REGISTER WHICH CREATED THIS TMP AS WELL,SINCE THE TEMP WILL NOT BE USED LATER WHEN THE REGISTER IS READ
                 ## OR WE CAN JUST DO _replacement on all regs and current temps....... but still possible it might be on stack
@@ -502,7 +533,7 @@ class VMDeobfuscation(Analysis):
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
-                 ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None):
+                 ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=6.45):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -520,6 +551,8 @@ class VMDeobfuscation(Analysis):
         self.nodes_to_prune = nodes_to_prune
         calls_as_rets = {}
         self.project.byte_code_regions=byte_code_regions
+        self.project.min_entropy_threshold = min_entropy_threshold
+        self.project.start_deobfuscation_immediately = start_deobfuscation_immediately
 
         DUMP = "dump"
         LOAD = "load"
@@ -1983,6 +2016,8 @@ class VMDeobfuscation(Analysis):
     def keep_only_one_graph(self, cfg, start_addr):
         conn_comps = nx.weakly_connected_components(cfg.graph)
         conn_comps = list(conn_comps)
+        if len(conn_comps) == 1:
+            return cfg
         sub_graph_to_keep = None
         for comp in conn_comps:
             for node in comp:
@@ -4650,7 +4685,7 @@ class VMDeobfuscation(Analysis):
         #     super_graph.add_edge(edge[0], edge[1])
         return super_graph
 
-    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True, super_graph_only=False):
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True, super_graph_only=True):
         if not self.draw_graph_flag:
             print("skip graph drawing")
             return
