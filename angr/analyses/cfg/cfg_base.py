@@ -2596,7 +2596,7 @@ class CFGBase(Analysis):
                 if THUMB_NOOPS.issuperset(insns):
                     return True
 
-        return block.vex_nostmt.is_noop_block
+        return getattr(block.vex_nostmt, "is_noop_block", False)
 
     @staticmethod
     def _is_noop_insn(insn):
