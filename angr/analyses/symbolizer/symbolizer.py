@@ -364,6 +364,38 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                                                           endness=self.state.arch.memory_endness)
                     loaded_values.append(loaded_value)
 
+                if len(simplified_addr.variables) == 2:
+                    is_mba_addr_1 = False
+                    is_mba_addr_2 = False
+                    for var in simplified_addr.variables:
+                        if var.startswith('mba_state_split_cond'):
+                            is_mba_addr_1 = True
+                        elif var.startswith('precon_sp'):
+                            is_mba_addr_2 = True
+                    if is_mba_addr_2 and is_mba_addr_1:
+                        import ipdb;ipdb.set_trace()
+
+                if simplified_addr.symbolic and len(simplified_addr.variables) == 1 and list(simplified_addr.variables)[0].startswith('mba_state_split_cond'):
+                    print("experimental")
+                    import ipdb;
+                    ipdb.set_trace()
+                    for ast in list(simplified_addr.leaf_asts()):
+                        if ast.symbolic:
+                            state_split_cond = ast
+                    solns = self.state.partial_symbolic_constraint_solver._solver.batch_eval([state_split_cond, simplified_addr], 2)
+
+                    loaded_value_0 = self.state.memory.load(solns[0][1], self._ty_to_bytes(ty),
+                                                            endness=self.state.arch.memory_endness)
+                    loaded_value_1 = self.state.memory.load(solns[1][1], self._ty_to_bytes(ty),
+                                                            endness=self.state.arch.memory_endness)
+                    if solns[0][0] is True:
+                        to_return = claripy.If(state_split_cond, loaded_value_0, loaded_value_1)
+                    else:
+                        to_return = claripy.If(state_split_cond, loaded_value_1, loaded_value_0)
+
+                    # import ipdb;ipdb.set_trace()
+                    return to_return
+
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 addr_mba=claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1])
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr, addr_mba)
