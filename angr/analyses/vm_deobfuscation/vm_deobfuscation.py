@@ -974,7 +974,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph(new_cfg, self.project_dir /  "final_result.svg", without_insts=False, super_graph_only=False)
 
-        self.try_decompilation(new_cfg, decomp_function_addresses=decomp_function_addresses,
+        self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
                                decomp_main_func_prototype=decomp_main_func_prototype, calls_as_rets=calls_as_rets,
                                allow_global_dead_ass_elim=allow_global_dead_ass_elim, ail_propagator_init_values=ail_propagator_init_values)
@@ -1297,20 +1297,33 @@ class VMDeobfuscation(Analysis):
             return new_cfg
 
     @logtime
-    def try_decompilation(self, new_cfg, decomp_function_addresses=None, decomp_function_prototypes=None,
+    def try_decompilation(self, new_cfg, decomp_start_end_node_str=None, decomp_function_addresses=None, decomp_function_prototypes=None,
                           semantic_verf_hooks=[], decomp_main_func_prototype=None, calls_as_rets={}, allow_global_dead_ass_elim=False,
                           ail_propagator_init_values=None):
         visited_nodes = {}
-
+        if decomp_start_end_node_str is not None:
+            traversal_start_node = decomp_start_end_node_str[0][0]
+            end_points = decomp_start_end_node_str[1]
+        else:
+            traversal_start_node = None
+            end_points = None
         end_node_block_ids = []
         node_stack = []
         start_node= None
         for cur_node in new_cfg.nodes():
-            if new_cfg.graph.in_degree(cur_node) == 0:
-                start_node = cur_node
-                node_stack.append(cur_node)
-            elif new_cfg.graph.out_degree(cur_node) == 0:
-                end_node_block_ids.append(cur_node.block_id)
+            # If the decomp start end node str is provided then use that
+            if decomp_start_end_node_str is not None:
+                if str(cur_node) == traversal_start_node:
+                    node_stack.append(cur_node)
+                    start_node = cur_node
+                elif str(cur_node) in end_points:
+                    end_node_block_ids.append(cur_node.block_id)
+            else:
+                if new_cfg.graph.in_degree(cur_node) == 0:
+                    start_node = cur_node
+                    node_stack.append(cur_node)
+                elif new_cfg.graph.out_degree(cur_node) == 0:
+                    end_node_block_ids.append(cur_node.block_id)
         VM_1_func = Function(self.project.kb.functions, self.convert_addr_to_int(start_node.addr, start_node.block_id), 'VM_1', None, is_simprocedure=False)
         #set the calling convention
         VM_1_func.calling_convention = self.project.factory._default_cc(self.project.arch)
@@ -1352,7 +1365,7 @@ class VMDeobfuscation(Analysis):
                                                                    end_node_block_ids,
                                                                    decomp_function_addresses=decomp_function_addresses,
                                                                    calls_as_rets=calls_as_rets)
-            if cur_node is start_node:
+            if (decomp_start_end_node_str is not None and str(cur_node) == traversal_start_node) or cur_node is start_node:
                 VM_1_func.startpoint = new_cur_node
             if len(new_cfg.nodes()) == 1:
                 #ONLY ONE NODE IN THE FUNCTION
