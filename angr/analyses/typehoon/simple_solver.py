@@ -874,6 +874,13 @@ class SimpleSolver:
         self._constraint_graph_add_recall_edges(graph, forward_src)
         self._constraint_graph_add_forget_edges(graph, forward_dst)
 
+        # reflective edges
+        if left_tag != ConstraintGraphTag.UNKNOWN:
+            forward_src_r = ConstraintGraphNode(
+                subtype, Variance.COVARIANT, ConstraintGraphTag.RIGHT, FORGOTTEN.PRE_FORGOTTEN
+            )
+            graph.add_edge(forward_src_r, forward_dst)
+
         # backward edges
         backward_src = forward_dst.inverse()
         backward_dst = forward_src.inverse()
