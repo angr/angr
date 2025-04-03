@@ -28,15 +28,15 @@ bounded integer for arithmetic. Let's make a few.
 .. code-block:: python
 
    # 64-bit bitvectors with concrete values 1 and 100
-   >>> one = state.solver.BVV(1, 64)
+   >>> one = claripy.BVV(1, 64)
    >>> one
     <BV64 0x1>
-   >>> one_hundred = state.solver.BVV(100, 64)
+   >>> one_hundred =claripy.BVV(100, 64)
    >>> one_hundred
     <BV64 0x64>
 
    # create a 27-bit bitvector with concrete value 9
-   >>> weird_nine = state.solver.BVV(9, 27)
+   >>> weird_nine = claripy.BVV(9, 27)
    >>> weird_nine
    <BV27 0x9>
 
@@ -76,10 +76,10 @@ Now, let's introduce some symbols into the mix.
 .. code-block:: python
 
    # Create a bitvector symbol named "x" of length 64 bits
-   >>> x = state.solver.BVS("x", 64)
+   >>> x = claripy.BVS("x", 64)
    >>> x
    <BV64 x_9_64>
-   >>> y = state.solver.BVS("y", 64)
+   >>> y = claripy.BVS("y", 64)
    >>> y
    <BV64 y_10_64>
 
@@ -217,7 +217,7 @@ the chapter - finding the input that produced a given output.
 
    # get a fresh state without constraints
    >>> state = proj.factory.entry_state()
-   >>> input = state.solver.BVS('input', 64)
+   >>> input = claripy.BVS('input', 64)
    >>> operation = (((input + 4) * 3) >> 1) + input
    >>> output = 200
    >>> state.solver.add(operation == output)
@@ -275,11 +275,11 @@ point number has a *sort*. You can create floating point symbols and values with
 
    # fresh state
    >>> state = proj.factory.entry_state()
-   >>> a = state.solver.FPV(3.2, state.solver.fp.FSORT_DOUBLE)
+   >>> a = claripy.FPV(3.2, claripy.fp.FSORT_DOUBLE)
    >>> a
    <FP64 FPV(3.2, DOUBLE)>
 
-   >>> b = state.solver.FPS('b', state.solver.fp.FSORT_DOUBLE)
+   >>> b = claripy.FPS('b', claripy.fp.FSORT_DOUBLE)
    >>> b
    <FP64 FPS('FP_b_0_64', DOUBLE)>
 
@@ -298,8 +298,8 @@ a third parameter, implicitly added when you use the binary operators - the
 rounding mode. The IEEE754 spec supports multiple rounding modes
 (round-to-nearest, round-to-zero, round-to-positive, etc), so z3 has to support
 them. If you want to specify the rounding mode for an operation, use the fp
-operation explicitly (``solver.fpAdd`` for example) with a rounding mode (one of
-``solver.fp.RM_*``) as the first argument.
+operation explicitly (``claripy.fpAdd`` for example) with a rounding mode (one of
+``claripy.fp.RM_*``) as the first argument.
 
 Constraints and solving work in the same way, but with ``eval`` returning a floating point number:
 
@@ -321,9 +321,9 @@ floats and vice versa, with the methods ``raw_to_bv`` and ``raw_to_fp``:
    >>> b.raw_to_bv()
    <BV64 fpToIEEEBV(FPS('FP_b_0_64', DOUBLE))>
 
-   >>> state.solver.BVV(0, 64).raw_to_fp()
+   >>> claripy.BVV(0, 64).raw_to_fp()
    <FP64 FPV(0.0, DOUBLE)>
-   >>> state.solver.BVS('x', 64).raw_to_fp()
+   >>> claripy.BVS('x', 64).raw_to_fp()
    <FP64 fpToFP(x_1_64, DOUBLE)>
 
 These conversions preserve the bit-pattern, as if you casted a float pointer to
@@ -339,7 +339,7 @@ floating-point nature of floats.
    <FP64 FPV(3.2, DOUBLE)>
    >>> a.val_to_bv(12)
    <BV12 0x3>
-   >>> a.val_to_bv(12).val_to_fp(state.solver.fp.FSORT_FLOAT)
+   >>> a.val_to_bv(12).val_to_fp(claripy.fp.FSORT_FLOAT)
    <FP32 FPV(3.0, FLOAT)>
 
 These methods can also take a ``signed`` parameter, designating the signedness of the source or target bitvector.
@@ -376,7 +376,7 @@ Additionally, all of these methods can take the following keyword arguments:
 * ``cast_to`` can be passed a data type to cast the result to. Currently, this
   can only be ``int`` and ``bytes``, which will cause the method to return the
   corresponding representation of the underlying data. For example,
-  ``state.solver.eval(state.solver.BVV(0x41424344, 32), cast_to=bytes)`` will
+  ``state.solver.eval(claripy.BVV(0x41424344, 32), cast_to=bytes)`` will
   return ``b'ABCD'``.
 
 Summary

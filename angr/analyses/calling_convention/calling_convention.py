@@ -167,7 +167,7 @@ class CallingConventionAnalysis(Analysis):
             r_demangled = self._analyze_demangled_name(demangled_name)
             if r_demangled is not None:
                 self.cc, self.prototype, self.prototype_libname = r_demangled
-            return
+                return
 
         if self._function.is_simprocedure:
             hooker = self.project.hooked_by(self._function.addr)
