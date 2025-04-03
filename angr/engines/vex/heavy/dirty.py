@@ -267,6 +267,7 @@ def x86g_dirtyhelper_CPUID_sse0(state, _):
 
     SET_ABCD(0x543, 0, 0, 0x8001BF)
     SET_ABCD(0x1, 0x72676E41, 0x21444955, 0x50432079, 0)
+    # SET_ABCD(0x906ed, 0x10800, 0xDEDA220B, 0x178BFBFF)
 
     return None, []
 
