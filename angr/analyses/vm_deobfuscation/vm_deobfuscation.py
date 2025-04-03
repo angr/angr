@@ -1365,7 +1365,7 @@ class VMDeobfuscation(Analysis):
                                                                    end_node_block_ids,
                                                                    decomp_function_addresses=decomp_function_addresses,
                                                                    calls_as_rets=calls_as_rets)
-            if (decomp_start_end_node_str is not None and str(cur_node) == traversal_start_node) or cur_node is start_node:
+            if str(cur_node) == traversal_start_node or (traversal_start_node is None and cur_node is start_node):
                 VM_1_func.startpoint = new_cur_node
             if len(new_cfg.nodes()) == 1:
                 #ONLY ONE NODE IN THE FUNCTION
