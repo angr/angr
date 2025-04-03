@@ -1677,9 +1677,9 @@ class VMDeobfuscation(Analysis):
                 true_addr_block_id = None
                 false_addr_block_id = None
                 for succ in successors:
-                    if succ.addr == orig_exit_stmt.dst.value:
+                    if succ.addr == orig_exit_stmt.dst.value and succ.block_id == orig_exit_stmt.dst.block_id:
                         true_addr_block_id = succ.block_id
-                    elif succ.addr == old_node.irsb.next.con.value:
+                    elif succ.addr == old_node.irsb.next.con.value and succ.block_id == old_node.irsb.next.con.block_id:
                         false_addr_block_id = succ.block_id
                     else:
                         import ipdb;ipdb.set_trace()
@@ -4699,7 +4699,7 @@ class VMDeobfuscation(Analysis):
         #     super_graph.add_edge(edge[0], edge[1])
         return super_graph
 
-    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=True, super_graph_only=True):
+    def draw_graph(self, cfg, filename, start_node_str=None, without_insts=False, super_graph_only=False):
         if not self.draw_graph_flag:
             print("skip graph drawing")
             return
