@@ -445,6 +445,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         actual_stack_end = initial_state.solver.eval(initial_state.regs.sp)
         initial_state.globals['sp_start_value'] = actual_stack_end
         initial_state.globals['cur_vm_reg'] = None
+        initial_state.globals['vpc'] = None
         initial_state.globals['cur_vm_vpc'] = None
         initial_state.globals['vm_graph_exploration'] = True
 
@@ -1473,6 +1474,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         src_ins_addr = job.src_ins_addr
         addr = job.addr
 
+        should_skip = False
         # Log this address
         if l.level == logging.DEBUG:
             self._analyzed_addrs.add(addr)
@@ -1489,13 +1491,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # SimInspect breakpoints support
         job.state._inspect('cfg_handle_job', BP_BEFORE)
 
-        l.debug("\n\n")
-        l.debug("Job: " + str(job))
-        l.debug("Block Id: " + str(block_id))
-        l.debug("Pending Jobs: " + str(self._pending_jobs))
-        l.debug("Job List: "+str(self._job_info_queue))
-        l.debug("Data offset: "+str(job.vm_vpc))
-        # Get a SimSuccessors out of current job
 
         if self.unroll_same_vpc_loop:
             if block_id in self._nodes and block_id.vm_vpc == src_block_id.vm_vpc:
@@ -1520,8 +1515,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     finished.add(node)
                     return False
 
-                if str(self._nodes[block_id]) == "<CFGENode 0x405135 ()vm-vpc:106188972753810 [17]>":
-                    import ipdb;ipdb.set_trace()
                 same_vpc_loop = dfs_find_source_with_same_vpc(self._nodes[block_id], self._nodes[block_id].block_id.vm_vpc)
 
                 if same_vpc_loop:
@@ -1535,13 +1528,24 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                     job.state.globals['cur_vm_vpc'] = new_vpc
 
-        # remove btc, btr
-        cur_block = job.state.block(addr)
-        for ins in cur_block.capstone.insns:
-            if ins.mnemonic in ['btc', 'bts', 'bt', 'btr', 'rdtsc']:
-                job.state.memory.store(ins.address, ins.size*b"\x90")
-            elif ins.address in self.remove_insts:
-                job.state.memory.store(ins.address, ins.size * b"\x90")
+        l.debug("\n\n")
+        l.debug("Job: " + str(job))
+        l.debug("Block Id: " + str(block_id))
+        l.debug("Pending Jobs: " + str(self._pending_jobs))
+        l.debug("Job List: "+str(self._job_info_queue))
+        if block_id.vm_vpc:
+            l.debug("Data offset: "+str(hex(block_id.vm_vpc)))
+        # Get a SimSuccessors out of current job
+
+        if not self.project.is_hooked(addr):
+            # remove btc, btr
+            cur_block = job.state.block(addr)
+            for ins in cur_block.capstone.insns:
+                if ins.mnemonic in ['btc', 'bts', 'bt', 'btr', 'rdtsc']:
+                    job.state.memory.store(ins.address, ins.size*b"\x90")
+                elif ins.address in self.remove_insts:
+                    job.state.memory.store(ins.address, ins.size * b"\x90")
+
         self.project.factory.default_engine.clear_cache()
 
         if 'to_use_symbolic_exprs' in job.state.globals:
@@ -1572,6 +1576,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
+        # if 0x3331000 <= addr <= 0x334D000:
+        #     # in .text section
+        #     with open('./text_entry_points.txt', 'a') as f:
+        #         f.write(str(hex(addr)) + "==>" + str(hex(sim_successors.all_successors[0].addr)) + "\n")
         if self.saved_call_stack is None:
             #save the call stack suffix at the start of the function
             self.saved_call_stack = job.call_stack_copy()
@@ -1892,7 +1900,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("After pruning: " + str(sim_successors.all_successors))
 
         # Should we skip tracing this block?
-        should_skip = False
         if 'stop_analysis' in job.state.globals and job.state.globals['stop_analysis'] is True:
             l.debug("Trying to STOP the analysis!")
             raise AngrSkipJobNotice()
@@ -3619,6 +3626,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if n.addr == addr:
                     block_size = n.size
                     break
+        if block_size is None and addr in self.deobfuscation_end_addr:
+            #This is for spearating overlapping blocks in the non vpc sensitive blocks at the exit of the VMs
+            smallest_gap = 100
+            for end_addr in self.deobfuscation_end_addr:
+                if end_addr > addr and end_addr-addr < smallest_gap:
+                    smallest_gap = end_addr-addr
+
+            if smallest_gap < 10:
+                block_size = smallest_gap
 
         try:
             sim_successors = None
