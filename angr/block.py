@@ -409,6 +409,25 @@ class Block(Serializable):
         block_bytes = self.bytes
         if self.size is not None:
             block_bytes = block_bytes[: self.size]
+        for cs_insn in cs.disasm(block_bytes, self.addr):
+            insns.append(CapstoneInsn(cs_insn))
+        block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
+
+        self._capstone = block
+        return block
+
+    @property
+    def capstone2(self) -> CapstoneBlock:
+        if self._capstone:
+            return self._capstone
+
+        cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb  # type:ignore
+
+        insns = []
+
+        block_bytes = self.bytes
+        if self.size is not None:
+            block_bytes = block_bytes[: self.size]
         if isinstance(self.arch, ArchRISCV64):
             try:
                 for cs_insn in disasm(block_bytes, self.addr, arch='riscv64').splitlines():
@@ -424,8 +443,8 @@ class Block(Serializable):
                     insn.mnemonic = elems[0].strip()
                     insn.op_str = elems[1].strip() if len(elems) > 1 else ''
                     insns.append(insn)
-            except Exception as e:
-                print(e)
+            except Exception:
+                pass
         else:
             for cs_insn in cs.disasm(block_bytes, self.addr):
                 insns.append(CapstoneInsn(cs_insn))
