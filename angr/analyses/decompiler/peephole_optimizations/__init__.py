@@ -50,6 +50,7 @@ from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 from .a_mul_const_sub_a import AMulConstSubA
 from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
 from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
+from .rewrite_conv_mul import RewriteConvMul
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
 
@@ -104,6 +105,7 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     ShlToMul,
     RewriteCxxOperatorCalls,
     RemoveCxxDestructorCalls,
+    RewriteConvMul,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
