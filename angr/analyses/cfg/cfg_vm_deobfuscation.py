@@ -3626,7 +3626,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if n.addr == addr:
                     block_size = n.size
                     break
-        if block_size is None and addr in self.deobfuscation_end_addr:
+        if block_size is None and self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
             #This is for spearating overlapping blocks in the non vpc sensitive blocks at the exit of the VMs
             smallest_gap = 100
             for end_addr in self.deobfuscation_end_addr:
