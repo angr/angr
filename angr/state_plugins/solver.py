@@ -545,7 +545,7 @@ class SimSolver(SimStatePlugin):
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def max(self, e, extra_constraints=(), exact=None, signed=False):
+    def max(self, e, extra_constraints=(), exact=None):
         """
         Return the maximum value of expression `e`.
 
@@ -556,21 +556,17 @@ class SimSolver(SimStatePlugin):
         :return: the maximum possible value of e (backend object)
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
-            ar = self._solver.max(
-                e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False, signed=signed
-            )
-            er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), signed=signed)
+            ar = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            er = self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
             assert er <= ar
             return ar
-        return self._solver.max(
-            e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact, signed=signed
-        )
+        return self._solver.max(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @concrete_path_scalar
     @timed_function
     @ast_stripping_decorator
     @error_converter
-    def min(self, e, extra_constraints=(), exact=None, signed=False):
+    def min(self, e, extra_constraints=(), exact=None):
         """
         Return the minimum value of expression `e`.
 
@@ -581,15 +577,11 @@ class SimSolver(SimStatePlugin):
         :return: the minimum possible value of e (backend object)
         """
         if exact is False and o.VALIDATE_APPROXIMATIONS in self.state.options:
-            ar = self._solver.min(
-                e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False, signed=signed
-            )
-            er = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), signed=signed)
+            ar = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=False)
+            er = self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints))
             assert ar <= er
             return ar
-        return self._solver.min(
-            e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact, signed=signed
-        )
+        return self._solver.min(e, extra_constraints=self._adjust_constraint_list(extra_constraints), exact=exact)
 
     @timed_function
     @ast_stripping_decorator
