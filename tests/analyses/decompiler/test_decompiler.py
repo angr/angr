@@ -4211,10 +4211,7 @@ class TestDecompiler(unittest.TestCase):
         assert isinstance(arg0_type, SimTypePointer)
         assert isinstance(arg0_type.pts_to, SimTypeBottom)
         assert isinstance(arg1_type, SimTypePointer)
-        if isinstance(arg1_type.pts_to, SimTypeArray):
-            assert isinstance(arg1_type.pts_to.elem_type, SimTypeChar)
-        else:
-            assert isinstance(arg1_type.pts_to, SimTypeChar)
+        assert isinstance(arg1_type.pts_to, SimTypeBottom)
         assert isinstance(arg2_type, SimTypeLongLong)
         assert arg2_type.signed is False
 
