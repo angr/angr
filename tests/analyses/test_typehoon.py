@@ -141,6 +141,29 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(soln[t1].basetype, Float64)
         assert isinstance(soln[t2], Float64)
 
+    def test_struct_with_multiple_same_typed_members(self):
+        func_f = TypeVariable(name="F")
+        t0 = TypeVariable(name="T0")
+        type_constraints = {
+            func_f: {
+                Subtype(DerivedTypeVariable(t0, None, labels=[Store(), HasField(64, 0)]), t0),
+                Subtype(DerivedTypeVariable(t0, None, labels=[Store(), HasField(64, 8)]), t0),
+            },
+        }
+        proj = angr.load_shellcode(b"\x90\x90", "AMD64")
+        typehoon = proj.analyses.Typehoon(type_constraints, func_f)
+
+        sol = typehoon.solution[t0]
+        assert isinstance(sol, Pointer64)
+        assert isinstance(sol.basetype, Struct)
+        assert len(sol.basetype.fields) == 2
+        assert 0 in sol.basetype.fields
+        assert 8 in sol.basetype.fields
+        assert isinstance(sol.basetype.fields[0], Pointer64)
+        assert sol.basetype.fields[0].basetype == sol.basetype
+        assert isinstance(sol.basetype.fields[8], Pointer64)
+        assert sol.basetype.fields[8].basetype == sol.basetype
+
 
 class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):
