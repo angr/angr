@@ -820,6 +820,7 @@ class SimpleSolver:
         """
 
         graph = networkx.DiGraph()
+        constraints = self._get_transitive_subtype_constraints(constraints)
         for constraint in constraints:
             if isinstance(constraint, Subtype):
                 self._constraint_graph_add_edges(
@@ -829,6 +830,33 @@ class SimpleSolver:
         self._constraint_graph_remove_self_loops(graph)
         self._constraint_graph_recall_forget_split(graph)
         return graph
+
+    @staticmethod
+    def _get_transitive_subtype_constraints(constraints: set[TypeConstraint]) -> set[TypeConstraint]:
+        """
+        Apply the S-Trans rule: a <: b, b <: c => a <: c
+        """
+        tv2supertypes = defaultdict(set)
+        for constraint in constraints:
+            if isinstance(constraint, Subtype):
+                tv2supertypes[constraint.sub_type].add(constraint.super_type)
+
+        new_constraints = set()
+        while True:
+            changed = False
+            for subtype, supertypes in tv2supertypes.items():
+                supertypes_copy = set(supertypes)
+                for supertype in supertypes_copy:
+                    if supertype in tv2supertypes:
+                        for supertype_ in tv2supertypes[supertype]:
+                            if supertype_ not in supertypes_copy:
+                                changed = True
+                                supertypes.add(supertype_)
+                                new_constraints.add(Subtype(subtype, supertype_))
+            if not changed:
+                break
+
+        return constraints | new_constraints
 
     @staticmethod
     def _constraint_graph_add_recall_edges(graph: networkx.DiGraph, node: ConstraintGraphNode) -> None:
