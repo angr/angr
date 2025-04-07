@@ -315,7 +315,7 @@ class ConstraintGraphNode:
             tag_str = "R"
         else:
             tag_str = "U"
-        forgotten_str = "PRE" if FORGOTTEN.PRE_FORGOTTEN else "POST"
+        forgotten_str = "PRE" if self.forgotten == FORGOTTEN.PRE_FORGOTTEN else "POST"
         s = f"{self.typevar}#{variance_str}.{tag_str}.{forgotten_str}"
         if ":" in s:
             return '"' + s + '"'
