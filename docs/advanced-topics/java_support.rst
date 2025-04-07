@@ -17,6 +17,11 @@ works on Linux). For every class of the generated IR (for instance,
 ``SootMethod``), you can nicely print its instructions (in a format similar to
 ``Soot`` ``shimple``) using ``print()`` or ``str()``.
 
+.. note::
+   Windows and macOS support is available on a branch. It should pass all tests
+   and generally work well, but due to issues integrating JPype into CI
+   infrastructure, it has not yet been merged.
+
 We then leverage the generated IR in a new angr engine able to run code in Soot
 IR: `angr/engines/soot/engine.py
 <https://github.com/angr/angr/blob/master/angr/engines/soot/engine.py>`_. This
@@ -31,13 +36,17 @@ solver.
 How to install
 --------------
 
-Enabling Java support requires few more steps than typical angr installation.
-Assuming you installed `angr-dev <https://github.com/angr/angr-dev>`_, activate
-the virtualenv and run:
+Java support requires the ``pysoot`` package, which is not included in the
+default angr installation. You can install it from GitHub using pip:
 
 .. code-block:: bash
+   git clone https://github.com/angr/pysoot.git
+   cd pysoot
+   pip install -e .
 
-   pip install -e ./claripy[cvc4-solver]
+Alternatively, pysoot can be installed with the setup script in angr-dev:
+
+.. code-block:: bash
    ./setup.sh pysoot
 
 Analyzing Android apps.
