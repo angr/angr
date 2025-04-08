@@ -3,7 +3,8 @@
 from __future__ import annotations
 import unittest
 import networkx as nx
-from angr.utils.graph import Dominators, TemporaryNode
+from ailment.block import Block
+from angr.utils.graph import Dominators, TemporaryNode, GraphUtils
 
 
 class TestGraph(unittest.TestCase):
@@ -36,6 +37,25 @@ class TestGraph(unittest.TestCase):
             end_node: {},
         }
         assert d.dom.succ == idom_succ
+
+    def test_quasi_topological_sort_nodes_panic_mode_int_nodes(self):
+        G = nx.DiGraph()
+        num_nodes = 100
+        for src in range(num_nodes):
+            for dst in range(num_nodes):
+                G.add_edge(src, dst)
+        G_sorted = GraphUtils.quasi_topological_sort_nodes(G, panic_mode_threshold=num_nodes // 2)
+        assert G_sorted == list(range(num_nodes))
+
+    def test_quasi_topological_sort_nodes_panic_mode_ail_block_nodes(self):
+        G = nx.DiGraph()
+        num_nodes = 100
+        nodes = [Block(i, 20) for i in range(num_nodes)]
+        for src in range(num_nodes):
+            for dst in range(num_nodes):
+                G.add_edge(nodes[src], nodes[dst])
+        G_sorted = GraphUtils.quasi_topological_sort_nodes(G, panic_mode_threshold=num_nodes // 2)
+        assert G_sorted == nodes
 
 
 if __name__ == "__main__":
