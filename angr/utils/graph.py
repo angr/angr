@@ -693,7 +693,10 @@ class GraphUtils:
 
     @staticmethod
     def quasi_topological_sort_nodes(
-        graph: networkx.DiGraph, nodes: list | None = None, loop_heads: list | None = None
+        graph: networkx.DiGraph,
+        nodes: list | None = None,
+        loop_heads: list | None = None,
+        panic_mode_threshold: int = 3000,
     ) -> list:
         """
         Sort a given set of nodes from a graph based on the following rules:
@@ -707,6 +710,7 @@ class GraphUtils:
         :param graph:       A local transition graph of the function.
         :param nodes:       A list of nodes to sort. None if you want to sort all nodes inside the graph.
         :param loop_heads:  A list of nodes that should be treated loop heads.
+        :param panic_mode_threshold: Threshold of nodes in an SCC to begin aggressively removing edges.
         :return:            A list of ordered nodes.
         """
 
@@ -754,7 +758,13 @@ class GraphUtils:
         ordered_nodes = []
         for n in tmp_nodes:
             if isinstance(n, SCCPlaceholder):
-                GraphUtils._append_scc(graph, ordered_nodes, sccs[n.scc_id], loop_head_candidates=loop_heads)
+                GraphUtils._append_scc(
+                    graph,
+                    ordered_nodes,
+                    sccs[n.scc_id],
+                    loop_head_candidates=loop_heads,
+                    panic_mode_threshold=panic_mode_threshold,
+                )
             else:
                 ordered_nodes.append(n)
 
@@ -771,7 +781,11 @@ class GraphUtils:
 
     @staticmethod
     def _append_scc(
-        graph: networkx.DiGraph, ordered_nodes: list, scc: set, loop_head_candidates: list | None = None
+        graph: networkx.DiGraph,
+        ordered_nodes: list,
+        scc: set,
+        loop_head_candidates: list | None = None,
+        panic_mode_threshold: int = 3000,
     ) -> None:
         """
         Append all nodes from a strongly connected component to a list of ordered nodes and ensure the topological
@@ -780,6 +794,7 @@ class GraphUtils:
         :param graph: The graph where all nodes belong to.
         :param ordered_nodes:     Ordered nodes.
         :param scc:           A set of nodes that forms a strongly connected component in the graph.
+        :param panic_mode_threshold: Threshold of nodes in an SCC to begin aggressively removing edges.
         """
 
         loop_head = None
@@ -828,7 +843,7 @@ class GraphUtils:
         # will take too long to converge if we only remove one node out of the component each time. we introduce a
         # panic mode that will aggressively remove edges
 
-        if len(subgraph) > 3000 and len(subgraph.edges) > len(subgraph) * 1.4:
+        if len(subgraph) > panic_mode_threshold and len(subgraph.edges) > len(subgraph) * 1.4:
             for n0, n1 in sorted(dfs_back_edges(subgraph, loop_head), key=GraphUtils._sort_edge):
                 subgraph.remove_edge(n0, n1)
                 if len(subgraph.edges) <= len(subgraph) * 1.4:
