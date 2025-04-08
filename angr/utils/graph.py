@@ -673,6 +673,15 @@ class GraphUtils:
         return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
 
     @staticmethod
+    def _sort_node(node):
+        """
+        A sorter to make a deterministic order of nodes.
+        """
+        if hasattr(node, "addr"):
+            return node.addr
+        return node
+
+    @staticmethod
     def _sort_edge(edge):
         """
         A sorter to make a deterministic order of edges.
@@ -832,8 +841,8 @@ class GraphUtils:
                     break
 
         if loop_head is None:
-            # randomly pick one
-            loop_head = next(iter(scc))
+            # pick the first one
+            loop_head = sorted(scc, key=GraphUtils._sort_node)[0]
 
         subgraph: networkx.DiGraph = graph.subgraph(scc).copy()
         for src, _ in list(subgraph.in_edges(loop_head)):
