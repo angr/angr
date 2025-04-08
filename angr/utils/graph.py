@@ -673,6 +673,25 @@ class GraphUtils:
         return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
 
     @staticmethod
+    def _sort_edge(edge):
+        """
+        A sorter to make a deterministic order of edges.
+        """
+        _src, _dst = edge
+        src_addr, dst_addr = 0, 0
+        if hasattr(_src, "addr"):
+            src_addr = _src.addr
+        elif isinstance(_src, int):
+            src_addr = _src
+
+        if hasattr(_dst, "addr"):
+            dst_addr = _dst.addr
+        elif isinstance(_dst, int):
+            dst_addr = _dst
+
+        return src_addr + dst_addr
+
+    @staticmethod
     def quasi_topological_sort_nodes(
         graph: networkx.DiGraph, nodes: list | None = None, loop_heads: list | None = None
     ) -> list:
@@ -703,27 +722,8 @@ class GraphUtils:
         # find all strongly connected components in the graph
         sccs = [scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1]
 
-        def _sort_edge(edge):
-            """
-            A sorter to make a deterministic order of edges.
-            """
-            _src, _dst = edge
-            src_addr, dst_addr = 0, 0
-            if hasattr(_src, "addr"):
-                src_addr = _src.addr
-            elif isinstance(_src, int):
-                src_addr = _src
-
-            if hasattr(_dst, "addr"):
-                dst_addr = _dst.addr
-            elif isinstance(_dst, int):
-                dst_addr = _dst
-
-            return src_addr + dst_addr
-
         # collapse all strongly connected components
-        edges = sorted(graph.edges(), key=_sort_edge)
-        for src, dst in edges:
+        for src, dst in sorted(graph.edges(), key=GraphUtils._sort_edge):
             scc_index = GraphUtils._components_index_node(sccs, src)
             if scc_index is not None:
                 src = SCCPlaceholder(scc_index)
