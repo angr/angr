@@ -97,7 +97,7 @@ class PatchFinderAnalysis(Analysis):
     # - Looking for instruction partials broken by a patch (nodecode)
     # - Unusual stack manipulation
 
-    atypical_alignments: list[Function]
+    atypical_alignments: list[AtypicallyAlignedFunction]
     possibly_patched_out: list[PatchedOutFunctionality]
 
     def __init__(self):
