@@ -181,7 +181,7 @@ class Sketch:
 
     def __init__(self, solver: SimpleSolver, root: TypeVariable):
         self.root: SketchNode = SketchNode(root)
-        self.graph = networkx.DiGraph()
+        self.graph = networkx.MultiDiGraph()
         self.node_mapping: dict[TypeVariable | DerivedTypeVariable, SketchNodeBase] = {}
         self.solver = solver
 
@@ -200,7 +200,7 @@ class Sketch:
             for label in typevar.labels:
                 succs = []
                 for _, dst, data in self.graph.out_edges(node, data=True):
-                    if "label" in data and data["label"] == label:
+                    if "label" in data and data["label"] == label and dst not in succs:
                         succs.append(dst)
                 if len(succs) > 1:
                     _l.warning(
@@ -215,6 +215,11 @@ class Sketch:
         return node
 
     def add_edge(self, src: SketchNodeBase, dst: SketchNodeBase, label) -> None:
+        # ensure the label does not already exist in existing edges
+        if self.graph.has_edge(src, dst):
+            for data in self.graph.get_edge_data(src, dst).values():
+                if "label" in data and data["label"] == label:
+                    return
         self.graph.add_edge(src, dst, label=label)
 
     def add_constraint(self, constraint: TypeConstraint) -> None:
@@ -1262,21 +1267,21 @@ class SimpleSolver:
                     offset_to_maxsize[base] = max(offset_to_maxsize[base], (last_label.offset - base) + access_size)
                     offset_to_sizes[base].add(access_size)
 
-            node_to_base = {}
+            idx_to_base = {}
 
-            for labels, succ in path_and_successors:
+            for idx, (labels, _) in enumerate(path_and_successors):
                 last_label = labels[-1] if labels else None
                 if isinstance(last_label, HasField):
                     prev_offset = next(offset_to_base.irange(maximum=last_label.offset, reverse=True))
-                    node_to_base[succ] = offset_to_base[prev_offset]
+                    idx_to_base[idx] = offset_to_base[prev_offset]
 
             node_by_offset = defaultdict(set)
 
-            for labels, succ in path_and_successors:
+            for idx, (labels, succ) in enumerate(path_and_successors):
                 last_label = labels[-1] if labels else None
                 if isinstance(last_label, HasField):
-                    if succ in node_to_base:
-                        node_by_offset[node_to_base[succ]].add(succ)
+                    if idx in idx_to_base:
+                        node_by_offset[idx_to_base[idx]].add(succ)
                     else:
                         node_by_offset[last_label.offset].add(succ)
 

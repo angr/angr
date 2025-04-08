@@ -219,13 +219,16 @@ class Typehoon(Analysis):
         if not self.solution:
             return
 
+        memo = set()
         for tv in list(self.solution.keys()):
             if self._must_struct and tv in self._must_struct:
                 continue
             sol = self.solution[tv]
-            specialized = self._specialize_struct(sol)
+            specialized = self._specialize_struct(sol, memo=memo)
             if specialized is not None:
                 self.solution[tv] = specialized
+            else:
+                memo.add(sol)
 
     def _specialize_struct(self, tc, memo: set | None = None):
         if isinstance(tc, Pointer):
@@ -245,7 +248,11 @@ class Typehoon(Analysis):
                 return field0
 
             # are all fields the same?
-            if len(tc.fields) > 1 and all(tc.fields[off] == field0 for off in offsets):
+            if (
+                len(tc.fields) > 1
+                and not self._is_pointer_to(field0, tc)
+                and all(tc.fields[off] == field0 for off in offsets)
+            ):
                 # are all fields aligned properly?
                 try:
                     alignment = field0.size
@@ -261,6 +268,10 @@ class Typehoon(Analysis):
                     return Array(field0, count=count)
 
         return None
+
+    @staticmethod
+    def _is_pointer_to(pointer_to: TypeConstant, base_type: TypeConstant) -> bool:
+        return isinstance(pointer_to, Pointer) and pointer_to.basetype == base_type
 
     def _translate_to_simtypes(self):
         """
