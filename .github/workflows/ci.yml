@@ -9,4 +9,6 @@ on:
 
 jobs:
   ci:
-    uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
+    uses: angr/ci-settings/.github/workflows/angr-ci.yml@feat/corpus
+    with:
+      container_image: rhelmot/angr-ci-corpus
