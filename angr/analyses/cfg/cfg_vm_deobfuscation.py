@@ -445,7 +445,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         actual_stack_end = initial_state.solver.eval(initial_state.regs.sp)
         initial_state.globals['sp_start_value'] = actual_stack_end
         initial_state.globals['cur_vm_reg'] = None
-        initial_state.globals['vpc'] = None
+        initial_state.globals['vpc'] = 0
         initial_state.globals['cur_vm_vpc'] = None
         initial_state.globals['vm_graph_exploration'] = True
 
@@ -1517,6 +1517,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                 same_vpc_loop = dfs_find_source_with_same_vpc(self._nodes[block_id], self._nodes[block_id].block_id.vm_vpc)
 
+                if src_block_id == block_id:
+                    #loop with one node
+                    same_vpc_loop = True
+
                 if same_vpc_loop:
                     # there is a loop within the same vpc we need to unroll it
                     new_vpc = (job.state.globals['vpc']<<24) + self.loop_counter
@@ -1576,6 +1580,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
+        if 'use_vip_finder' in job.state.globals and job.state.globals['use_vip_finder'] and len(sim_successors.all_successors) > 0 and \
+                block_id.vm_vpc != sim_successors.all_successors[0].globals['cur_vm_vpc']:
+            job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
+                                            sim_successors.all_successors[0].globals['cur_vm_vpc'])
+            job.vm_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
+            block_id = job.block_id
+            l.debug("UPDATED Block Id!!: " + str(block_id))
+
         # if 0x3331000 <= addr <= 0x334D000:
         #     # in .text section
         #     with open('./text_entry_points.txt', 'a') as f:
@@ -1590,6 +1602,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 succ.globals['start_deobfuscation'] = True
 
             job.state.globals['start_deobfuscation'] = True
+            # self._context_sensitivity_level = 0
+            #
+            # job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal', sim_successors.all_successors[0].globals['cur_vm_vpc'])
+            # job.vm_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
+            # block_id = job.block_id
 
         if self.deobfuscation_end_addr and addr in self.deobfuscation_end_addr:
             for succ in sim_successors.all_successors:
