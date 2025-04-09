@@ -1524,7 +1524,7 @@ class VMDeobfuscation(Analysis):
         pretty_dump_ail_cfg(dec.clinic.cc_graph, self.project)
 
         import pickle
-        pickled_file_name = os.path.dirname(self.project.filename) + "/raw_ail_pickle.pickle"
+        pickled_file_name = self.project_dir / "raw_ail_pickle.pickle"
         with open(pickled_file_name, 'wb') as f:
             pickle.dump(dec.clinic.cc_graph, f)
 
