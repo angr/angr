@@ -22,7 +22,7 @@ from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
-from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER, ObservationPointType
 from angr.errors import SimMemoryMissingError
 from pyvex.expr import DataSensitiveRdTmp
 from pyvex.const import U64, U32
@@ -161,6 +161,23 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                 pass
 
         result = super()._perform_vex_expr_Load(simplified_addr, ty, endness, **kwargs)
+
+
+        if 'vm_graph_exploration' in self.state.globals and self.state.globals['vm_graph_exploration'] and \
+                'use_mem_vpc_finder' in self.state.globals and self.state.globals['use_mem_vpc_finder'] and \
+                not self.state.globals['mem_vpc_bp_set'] and \
+                not result.symbolic and \
+                self.state.project.loader.main_object.contains_addr(self.state.partial_symbolic_constraint_solver.eval_one(result)) and \
+                self.state.project.loader.main_object.contains_addr(self.state.partial_symbolic_constraint_solver.eval_one(simplified_addr)):
+            addr = self.state.partial_symbolic_constraint_solver.eval_one(result)
+            bl=self.state.block()
+            dis = bl.disassembly
+            mnemonic = dis.insns[bl.instruction_addrs.index(self.state.scratch.ins_addr)].mnemonic
+            if mnemonic == "mov":
+                print("VPC loc: "+str(hex(simplified_addr.args[0])))
+                self.state.inspect.add_breakpoint('mem_write',
+                                                   BP(BP_AFTER, mem_write_address=simplified_addr, action=save_vpc_at_mem_loc))
+                self.state.globals['mem_vpc_bp_set'] = True
 
         if not self.state.solver.symbolic(simplified_addr):
             return result
@@ -536,7 +553,7 @@ class VMDeobfuscation(Analysis):
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
-                 ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=6.45):
+                 ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=6.45, use_mem_vpc_finder=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -563,7 +580,7 @@ class VMDeobfuscation(Analysis):
         THEMIDA = True
 
         if only_verification_test:
-            pickled_file_name = self.project_dir / "themida_simplification_cfg"
+            pickled_file_name = self.project_dir / "mid_way_cfg"
             new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
 
@@ -609,6 +626,9 @@ class VMDeobfuscation(Analysis):
                                            BP(BP_AFTER, mem_write_address=vpc_mem_loc, action=save_vpc_at_mem_loc))
         elif use_vip_finder:
             start_state.globals['use_vip_finder'] = True
+        elif use_mem_vpc_finder:
+            start_state.globals['use_mem_vpc_finder'] = True
+            start_state.globals['mem_vpc_bp_set'] = False
 
 
         proj=self.project
@@ -954,7 +974,7 @@ class VMDeobfuscation(Analysis):
             pickled_file_name = self.project_dir / "themida_simplification_cfg"
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
-        # pickled_file_name = os.path.dirname(self.project.filename) + "/themida_simplification_cfg"
+        # pickled_file_name = self.project_dir / "themida_simplification_cfg"
         # new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
         new_cfg = self.remove_segment_selector_vex_inst(new_cfg)
@@ -972,7 +992,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph_flag = True
 
-        self.draw_graph(new_cfg, self.project_dir /  "final_result.svg", without_insts=False, super_graph_only=False)
+        self.draw_graph(new_cfg, self.project_dir /  "final_result.svg", without_insts=True, super_graph_only=True)
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
@@ -1911,6 +1931,9 @@ class VMDeobfuscation(Analysis):
             node_dict[node.block_id] = node
 
         if do_replacements:
+            # self.project.replacements = prop.replacements
+            # verification_state_copy = self.project.verifi_state.copy()
+            # self.perform_semantic_verification(cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=None)
             for key, value in prop.replacements.items():
                 node = node_dict[key]
                 if not node.is_simprocedure:
@@ -2854,24 +2877,28 @@ class VMDeobfuscation(Analysis):
                             continue
                         if use.sim_procedure:
                             import ipdb;ipdb.set_trace()
-                        if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
-                            ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
-                            if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
-                                replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
-                            elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
-                                replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+
+                        if len(rd.all_uses.get_uses_by_location(use)) == 1:
+                            if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
+                                ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
+                                if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
+                                    replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                                elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
+                                    replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+
                 elif isinstance(d.atom, atoms.MemoryLocation) and \
                     isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Store) and \
                     isinstance(node.irsb.statements[d.codeloc.stmt_idx].addr, pyvex.expr.Const):
                     for use in uses:
-                        if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.WrTmp) and \
-                                isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load) and \
-                                isinstance(node.irsb.statements[use.stmt_idx].data.addr, pyvex.expr.Const):
-                            ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
-                            if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
-                                replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
-                            elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
-                                replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                        if len(rd.all_uses.get_uses_by_location(use)) == 1:
+                            if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx], pyvex.stmt.WrTmp) and \
+                                    isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load) and \
+                                    isinstance(node.irsb.statements[use.stmt_idx].data.addr, pyvex.expr.Const):
+                                ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
+                                if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
+                                    replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                                elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
+                                    replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
 
 
 
