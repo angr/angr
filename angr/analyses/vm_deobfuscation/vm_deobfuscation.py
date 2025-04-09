@@ -580,7 +580,7 @@ class VMDeobfuscation(Analysis):
         THEMIDA = True
 
         if only_verification_test:
-            pickled_file_name = self.project_dir / "mid_way_cfg"
+            pickled_file_name = self.project_dir / "themida_simplification_cfg"
             new_cfg = self.pickle_dump_load_cfg(None, pickled_file_name, LOAD)
 
 
@@ -1931,9 +1931,6 @@ class VMDeobfuscation(Analysis):
             node_dict[node.block_id] = node
 
         if do_replacements:
-            # self.project.replacements = prop.replacements
-            # verification_state_copy = self.project.verifi_state.copy()
-            # self.perform_semantic_verification(cfg, proj, start_state=verification_state_copy, start_addr=start_addr,semantic_verf_hooks=None)
             for key, value in prop.replacements.items():
                 node = node_dict[key]
                 if not node.is_simprocedure:
