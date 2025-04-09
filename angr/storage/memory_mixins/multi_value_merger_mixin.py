@@ -70,9 +70,9 @@ class MultiValueMergerMixin(MemoryMixin):
 
         # This is to deal with values that are the same but have different annotations, and only one value exists
         # This was added because of issues in variable recovery and reaching defs after merging when two stack pointers have same value but different annots
-        stripped_values_set = {v._apply_to_annotations(lambda alist: None) for v in values_set}
+        stripped_values_set = {v._apply_to_annotations(lambda alist: None).cache_key for v in values_set}
         if len(stripped_values_set) == 1:
-            ret_val = next(iter(stripped_values_set))
+            ret_val = next(iter(stripped_values_set)).ast
             # migrate annotations
             annotations = []
             annotations_set = set()
