@@ -8,6 +8,7 @@ from ailment.expression import Op
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
 from angr.analyses.decompiler.utils import (
     structured_node_is_simple_return,
+    structured_node_is_simple_return_strict,
     sequence_to_statements,
     structured_node_has_multi_predecessors,
 )
@@ -44,7 +45,7 @@ class FlipBooleanWalker(SequenceWalker):
                 and node.true_node is not None
                 and node.false_node is None
                 and idx < len(seq_node.nodes) - 1
-                and structured_node_is_simple_return(seq_node.nodes[idx + 1], self._graph)
+                and structured_node_is_simple_return_strict(seq_node.nodes[idx + 1])
                 and node not in type1_condition_nodes
             ):
                 # Type 2: Special Filter:
