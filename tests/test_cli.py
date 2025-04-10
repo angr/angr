@@ -8,6 +8,7 @@ import io
 import os
 import re
 import unittest
+from unittest import mock
 
 import angr
 from angr.__main__ import main
@@ -20,9 +21,9 @@ test_location = os.path.join(bin_location, "tests")
 
 
 def run_cli(*args):
-    output = io.StringIO()
-    main(args, output)
-    return output.getvalue()
+    with mock.patch("sys.stdout", new=io.StringIO()) as fake_out:
+        main(args)
+        return fake_out.getvalue()
 
 
 class TestCommandLineInterface(unittest.TestCase):
