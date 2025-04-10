@@ -5052,6 +5052,38 @@ class TestDecompiler(unittest.TestCase):
 
         assert text == expected
 
+    def test_flipbooleancmp_fallthru_with_side_effects(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "adds_then_call.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        func = proj.kb.functions["f"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # Ensure v0 <= 1000 branch is not flipped
+        text = normalize_whitespace(dec.codegen.text)
+        expected = normalize_whitespace(
+            r"""
+            v0 = 10;
+            if (v0 <= 1000)
+            {
+                v0 += 1;
+                v0 += 2;
+                v0 += 3;
+                v0 += 4;
+                v0 += 5;
+                v0 += 6;
+                v0 += 7;
+                v0 += 8;
+                v0 += 9;
+            }
+            g(v0);"""
+        )
+
+        assert expected in text
+
 
 if __name__ == "__main__":
     unittest.main()
