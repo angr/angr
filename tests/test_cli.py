@@ -7,6 +7,7 @@ __package__ = __package__ or "tests"  # pylint:disable=redefined-builtin
 import io
 import os
 import re
+import sys
 import unittest
 from unittest import mock
 
@@ -21,8 +22,8 @@ test_location = os.path.join(bin_location, "tests")
 
 
 def run_cli(*args):
-    with mock.patch("sys.stdout", new=io.StringIO()) as fake_out:
-        main(args)
+    with mock.patch("sys.argv", [sys.executable, *args]), mock.patch("sys.stdout", new=io.StringIO()) as fake_out:
+        main()
         return fake_out.getvalue()
 
 
