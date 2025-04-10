@@ -723,6 +723,23 @@ def structured_node_is_simple_return(
     return False
 
 
+def structured_node_is_simple_return_strict(node: BaseNode | SequenceNode | MultiNode | ailment.Block) -> bool:
+    """
+    Returns True iff the node exclusively contains a return statement.
+    """
+    if isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
+        flat_blocks = _flatten_structured_node(node)
+        if len(flat_blocks) != 1:
+            return False
+        node = flat_blocks[-1]
+
+    return (
+        isinstance(node, ailment.Block)
+        and len(node.statements) == 1
+        and isinstance(node.statements[0], ailment.Stmt.Return)
+    )
+
+
 def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bool:
     if isinstance(stmt, ailment.Stmt.Return):
         return True
