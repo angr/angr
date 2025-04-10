@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import sys
 
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
@@ -17,7 +16,7 @@ class COMMANDS:
     ALL_COMMANDS = [DECOMPILE]
 
 
-def main(args=sys.argv[1:]):
+def main():
     parser = argparse.ArgumentParser(description="The angr CLI allows you to decompile and analyze binaries.")
     parser.add_argument(
         "command",
@@ -69,7 +68,7 @@ def main(args=sys.argv[1:]):
         default="default",
     )
 
-    args = parser.parse_args(args)
+    args = parser.parse_args()
     if args.command == COMMANDS.DECOMPILE:
         decompilation = decompile_functions(
             args.binary,
