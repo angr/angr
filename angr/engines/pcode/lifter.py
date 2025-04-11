@@ -427,6 +427,13 @@ class IRSB:
 
         return exits
 
+    @property
+    def is_noop_block(self) -> bool:
+        """
+        Returns True if this block is a no-op block (i.e. it has no instructions and no jumps).
+        """
+        return len(self._ops) == 0
+
     #
     # private methods
     #
