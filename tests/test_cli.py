@@ -77,6 +77,30 @@ class TestCommandLineInterface(unittest.TestCase):
 
         assert sym_based_dec == base_addr_dec == offset_dec
 
+    def test_disassembly(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        disasm = run_cli(bin_path, "disassemble")
+        funcs = {
+            "_init",
+            "_start",
+            "call_gmon_start",
+            "__do_global_dtors_aux",
+            "frame_dummy",
+            "authenticate",
+            "accepted",
+            "rejected",
+            "main",
+            "__libc_csu_init",
+            "__libc_csu_fini",
+            "__do_global_ctors_aux",
+            "_fini",
+        }
+        substrs = [f"{f}:" for f in funcs]
+        substrs += "40071d  55              push    rbp"
+
+        for s in substrs:
+            assert s in disasm
+
 
 if __name__ == "__main__":
     unittest.main()
