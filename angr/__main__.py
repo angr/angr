@@ -106,7 +106,7 @@ def main():
     )
     subparsers = parser.add_subparsers(metavar="command", required=True)
 
-    decompile_cmd_parser = subparsers.add_parser("decompile", help=decompile.__doc__)
+    decompile_cmd_parser = subparsers.add_parser("decompile", aliases=["dec"], help=decompile.__doc__)
     decompile_cmd_parser.set_defaults(func=decompile)
     decompile_cmd_parser.add_argument(
         "--structurer",
@@ -134,7 +134,7 @@ def main():
         nargs="+",
     )
 
-    disassemble_cmd_parser = subparsers.add_parser("disassemble", help=disassemble.__doc__)
+    disassemble_cmd_parser = subparsers.add_parser("disassemble", aliases=["dis"], help=disassemble.__doc__)
     disassemble_cmd_parser.set_defaults(func=disassemble)
     disassemble_cmd_parser.add_argument(
         "--functions",
