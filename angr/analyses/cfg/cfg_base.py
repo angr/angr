@@ -2595,6 +2595,10 @@ class CFGBase(Analysis):
                 insns = {block.bytes[i : i + 2] for i in range(0, block.size, 2)}
                 if THUMB_NOOPS.issuperset(insns):
                     return True
+        elif arch.name.startswith("RISC"):
+            RISC_NOOP = b"\x13"  # ADDI x0, x0, 0 or NOP
+            # Return systematically since VEX still does not support RISC-V
+            return set(block.bytes) == {RISC_NOOP}
 
         return block.vex_nostmt.is_noop_block
 
