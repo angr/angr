@@ -3650,7 +3650,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if end_addr > addr and end_addr-addr < smallest_gap:
                     smallest_gap = end_addr-addr
 
-            if smallest_gap < 10:
+            if smallest_gap < 25:
                 block_size = smallest_gap
 
         try:
