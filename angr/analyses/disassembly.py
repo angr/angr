@@ -1159,6 +1159,7 @@ class Disassembly(Analysis):
         show_bytes: bool = False,
         ascii_only: bool | None = None,
         color: bool = True,
+        min_edge_depth: int = 0,
     ) -> str:
         """
         Render the disassembly to a string, with optional edges and addresses.
@@ -1288,7 +1289,7 @@ class Disassembly(Analysis):
             for f, t in sorted(edges_by_line, key=lambda e: abs(e[0] - e[1])):
                 add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, edge_col), ascii_only=ascii_only)
                 add_edge_to_buffer(ref_buf, ref_buf, f, t, ascii_only=ascii_only)
-            max_edge_depth = max(map(len, ref_buf))
+            max_edge_depth = max(*map(len, ref_buf), min_edge_depth)
 
             # Justify edge and combine with disassembly
             for i, line in enumerate(buf):
