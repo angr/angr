@@ -432,7 +432,7 @@ class IRSB:
         """
         Returns True if this block is a no-op block (i.e. it has no instructions and no jumps).
         """
-        return len(self._ops) == 0
+        return not any(op.opcode != pypcode.OpCode.IMARK for op in self._ops)
 
     #
     # private methods
