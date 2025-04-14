@@ -10,9 +10,8 @@ from types import TracebackType
 import claripy
 import mulpyplexer
 
-from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer, Suggestions
+from .exploration_techniques import ExplorationTechnique, Veritesting, Explorer, Suggestions
 from .misc.hookset import HookSet
-from .misc.ux import once
 from .misc.picklable_lock import PicklableLock
 from .errors import SimError, SimMergeError
 from .sim_state import SimState
@@ -83,7 +82,6 @@ class SimulationManager:
         completion_mode=any,
         techniques=None,
         suggestions=True,
-        **kwargs,
     ):
         super().__init__()
 
@@ -123,23 +121,6 @@ class SimulationManager:
 
         if suggestions:
             self.use_technique(Suggestions())
-
-        # 8<----------------- Compatibility layer -----------------
-
-        if auto_drop is None and not kwargs.pop("save_unconstrained", True):
-            self._auto_drop |= {"unconstrained"}
-
-        if kwargs.pop("veritesting", False):
-            self.use_technique(Veritesting(**kwargs.get("veritesting_options", {})))
-        kwargs.pop("veritesting_options", {})
-
-        threads = kwargs.pop("threads", None)
-        if threads is not None:
-            self.use_technique(Threading(threads))
-
-        if kwargs:
-            raise TypeError("Unexpected keyword arguments: " + " ".join(kwargs))
-        # ------------------ Compatibility layer ---------------->8
 
         if auto_drop:
             self._auto_drop |= set(auto_drop)
@@ -267,7 +248,7 @@ class SimulationManager:
         def _is_overridden(name):
             return getattr(tech, name).__code__ is not getattr(ExplorationTechnique, name).__code__
 
-        overridden = filter(_is_overridden, ("step", "filter", "selector", "step_state", "successors"))
+        overridden = {m for m in ("step", "filter", "selector", "step_state", "successors") if _is_overridden(m)}
         hooks = {name: getattr(tech, name) for name in overridden}
         HookSet.remove_hooks(self, **hooks)
 
@@ -382,12 +363,10 @@ class SimulationManager:
         self,
         stash="active",
         target_stash=None,
-        n=None,
         selector_func=None,
         step_func=None,
         error_list=None,
         successor_func=None,
-        until=None,
         filter_func=None,
         **run_args,
     ):
@@ -411,9 +390,6 @@ class SimulationManager:
                                 Otherwise, project.factory.successors will be used.
         :param filter_func:     If provided, should be a function that takes a state and return the name
                                 of the stash, to which the state should be moved.
-        :param until:           (DEPRECATED) If provided, should be a function that takes a SimulationManager and
-                                returns True or False. Stepping will terminate when it is True.
-        :param n:               (DEPRECATED) The number of times to step (default: 1 if "until" is not provided)
 
         Additionally, you can pass in any of the following keyword args for project.factory.successors:
 
@@ -433,25 +409,6 @@ class SimulationManager:
         :rtype:             SimulationManager
         """
         l.info("Stepping %s of %s", stash, self)
-        # 8<----------------- Compatibility layer -----------------
-        if n is not None or until is not None:
-            if once("simgr_step_n_until"):
-                print(
-                    "\x1b[31;1mDeprecation warning: the use of `n` and `until` arguments is deprecated. "
-                    "Consider using simgr.run() with the same arguments if you want to specify "
-                    "a number of steps or an additional condition on when to stop the execution.\x1b[0m"
-                )
-            return self.run(
-                stash,
-                n,
-                until,
-                selector_func=selector_func,
-                step_func=step_func,
-                successor_func=successor_func,
-                filter_func=filter_func,
-                **run_args,
-            )
-        # ------------------ Compatibility layer ---------------->8
         bucket = defaultdict(list)
         target_stash = target_stash or stash
         error_list = error_list if error_list is not None else self._errored
@@ -759,8 +716,6 @@ class SimulationManager:
         else:
             keep, split = states[:limit], states[limit:]
 
-        keep, split = map(list, (keep, split))
-
         self._clear_states(from_stash)
         self._store_states(from_stash, keep)
         self._store_states(to_stash, split)
@@ -928,12 +883,6 @@ class SimulationManager:
         self.__dict__.update(s)
         if self._hierarchy is None:
             self._hierarchy = StateHierarchy()
-
-    # 8<----------------- Compatibility layer -----------------
-    def _one_step(self, stash, selector_func=None, successor_func=None, **kwargs):
-        return self.step(stash=stash, selector_func=selector_func, successor_func=successor_func, **kwargs)
-
-    # ------------------- Compatibility layer --------------->8
 
 
 class ErrorRecord:
