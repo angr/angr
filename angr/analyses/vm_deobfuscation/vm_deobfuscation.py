@@ -1302,7 +1302,8 @@ class VMDeobfuscation(Analysis):
                 with open(pickled_file_name,'wb') as final_cfg_pickle:
                     pickle.dump(cfg, final_cfg_pickle)
             except:
-                import ipdb;ipdb.set_trace()
+                print("error while dumping pickle")
+                # import ipdb;ipdb.set_trace()
             return cfg
         elif dump_or_load == "load":
             try:
