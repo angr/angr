@@ -3021,6 +3021,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         self.project.simos.is_syscall_addr(ip_int):
                     successors.append(suc)
                 else:
+                    import ipdb;ipdb.set_trace()
                     l.debug('An obviously incorrect successor %d/%d (%#x) is ditched',
                             i + 1,
                             len(old_successors),
