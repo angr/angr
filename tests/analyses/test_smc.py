@@ -96,7 +96,7 @@ class TestTraceClassifier(unittest.TestCase):
         """
         arch = archinfo.ArchAMD64()
         code_asm = "mov eax, 0xdeadbeef; ret"
-        code_bytes, _ = arch.keystone.asm(code_asm, as_bytes=True)
+        code_bytes, _ = arch.keystone.asm(code_asm)
         code_as_hex = "".join(f"\\x{b:02x}" for b in code_bytes)
         code_len = len(code_bytes)
         c_src = f"""
