@@ -74,7 +74,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 try:
                     eval_result = self.state.partial_symbolic_constraint_solver.eval_one(simp_result)
                     simp_result = claripy.BVV(eval_result, simp_result.size())
-                except (SimValueError):
+                except:
                     pass
             elif self.state.solver.symbolic(simp_result) and isinstance(expr, pyvex.expr.Get):
                 skip = False
@@ -377,8 +377,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
                 if simplified_addr.symbolic and len(simplified_addr.variables) == 1 and list(simplified_addr.variables)[0].startswith('mba_state_split_cond'):
                     print("experimental")
-                    import ipdb;
-                    ipdb.set_trace()
+                    # import ipdb;
+                    # ipdb.set_trace()
                     for ast in list(simplified_addr.leaf_asts()):
                         if ast.symbolic:
                             state_split_cond = ast
@@ -398,6 +398,7 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
 
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
                 addr_mba=claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1])
+                self.project.load_addr_mba_to_jump_addr_mapping[addr_mba] = []
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr, addr_mba)
                 to_return=claripy.If(state_split_cond, loaded_values[0], loaded_values[1])
                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(result, to_return)
@@ -1181,8 +1182,26 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                 symbolic_sim_successors = sim_successors
 
             else:
+                split_same_ip_state = False
+                if len(sim_successors.all_successors) == 1:
+                    # special check for VMProtect when conditional check but both jump targets are same, but we still have two unique VPCs, we now need to split into two states
+                    # and give them unique VPCs immediately
+                    for ast in sim_successors.all_successors[0].regs.ip.leaf_asts():
+                        if isinstance(ast.args[0], str) and ast.args[0].startswith('mba_state_split_cond') and ast.args[
+                            0] not in sim_successors.all_successors[0].globals['existing_mba_split_constraints']:
+                            split_same_ip_state = True
+                            break
 
-                if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0 and len(list(self.graph.successors(node))) !=0:
+                    if split_same_ip_state:
+                        try:
+                            sim_successors.all_successors[0].partial_symbolic_constraint_solver.eval_one(
+                                sim_successors.all_successors[0].regs.ip)
+                            # check if it evaluates to one address only, if it does, we need to split the state
+                        except:
+                            # if evaluates to two address, the states are anyway going to split
+                            split_same_ip_state = False
+
+                if (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.successors) == 0 and len(list(self.graph.successors(node))) !=0) or split_same_ip_state:
 
                     new_states = []
                     uncon_succ = sim_successors.unconstrained_successors[0]
@@ -1207,7 +1226,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                    # poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
 
-                    if not uncon_succ.solver.symbolic(poss_target):
+                    if not uncon_succ.solver.symbolic(poss_target) and not split_same_ip_state:
                         #import ipdb;ipdb.set_trace()
                         new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
                         new_sim_successors.artifacts = sim_successors.artifacts
@@ -1261,6 +1280,20 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                             if len(solns) > 2:
                                 import ipdb;ipdb.set_trace()
 
+                            cur_addr_mba = None
+                            for addr_mba in self.project.load_addr_mba_to_jump_addr_mapping.keys():
+                                if addr_mba.args[0] is state_var_ast:
+                                    cur_addr_mba = addr_mba
+                                    for soln in solns:
+                                        if soln[1] is True:
+                                            ## tuple of (mba_state_var, jumpaddress, loadaddress)
+                                            self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append(
+                                                (True, soln[0], addr_mba.args[1].args[0]))
+                                        elif soln[1] is False:
+                                            ## tuple of (mba_state_var, jumpaddress, loadaddress)
+                                            self.project.load_addr_mba_to_jump_addr_mapping[addr_mba].append(
+                                                (False, soln[0], addr_mba.args[2].args[0]))
+
                             for soln_pair in solns:
                                 new_state = sim_successors.unconstrained_successors[0].copy()
 
@@ -1273,6 +1306,12 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
 
                                 new_state.regs.ip = new_state.partial_symbolic_constraint_solver.eval_one(new_state.regs.ip)
                                 new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
+
+                                if split_same_ip_state:
+                                    if soln_pair[1] is True:
+                                        new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[1].args[0]
+                                    elif soln_pair[1] is False:
+                                        new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[2].args[0]
 
 
                                 # Fill the block id
