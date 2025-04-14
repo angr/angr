@@ -16,7 +16,7 @@ from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 
 l = logging.getLogger(__name__)
 
-VEX_IRSB_MAX_SIZE = 400
+VEX_IRSB_MAX_SIZE = 700
 VEX_IRSB_MAX_INST = 99
 
 
