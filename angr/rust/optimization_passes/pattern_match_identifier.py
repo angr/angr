@@ -1,9 +1,10 @@
-from typing import Optional, Dict, Tuple
+from typing import Optional
 
 from ailment import BinaryOp, Assignment
-from ailment.expression import BasePointerOffset, Const, Load, StackBaseOffset, VirtualVariable
-from ailment.statement import ConditionalJump, Call, Store, Statement
+from ailment.expression import Const, Load, StackBaseOffset, VirtualVariable
+from ailment.statement import ConditionalJump, Call
 
+from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.mixins.srda_mixin import SRDAMixin
 from angr.rust.optimization_passes.base import SSAVariableHelper
@@ -51,7 +52,7 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
         if enum_vvar.was_reg:
             return ()
         moves = []
-        src_offset = enum_vvar.stack_offset + variant.data_offset
+        src_offset = enum_vvar.stack_offset + variant.first_field_offset
         for ty in variant.associated_data.keys():
             ty_size = ty.size // self.project.arch.byte_width
             stmts, dst_offset = self.find_stack_data_flow(block, src_offset, ty_size)
@@ -91,8 +92,7 @@ class PatternMatchIdentifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SS
                     if isinstance(cond_op0, VirtualVariable):
                         vvar = cond_op0
                         cond_op0 = self.get_terminal_vvar_value(cond_op0)
-                    if isinstance(cond_op0, Load) and isinstance(cond_op0.addr, StackBaseOffset):
-                        vvar = self.get_stack_vvar_by_insn(cond_op0.addr.offset, last_stmt.ins_addr, block.idx)
+                    if isinstance(cond_op0, Load) and (vvar := unwrap_stack_vvar_reference(cond_op0.addr)):
                         value = self.get_terminal_vvar_value(vvar) if vvar else None
                     elif isinstance(cond_op0, Call):
                         value = cond_op0

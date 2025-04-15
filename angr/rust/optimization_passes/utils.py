@@ -22,7 +22,7 @@ def extract_str(project, str_ptr, str_len):
     """
     Extract Rust string literal with given ptr and len
     """
-    decoded_str = None
+    decoded_str = ""
     memory = project.loader.memory
     if str_ptr >= 0 and (
         (section := project.loader.find_section_containing(str_ptr)) and section.is_readable and not section.is_writable

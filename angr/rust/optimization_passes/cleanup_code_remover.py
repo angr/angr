@@ -1,4 +1,4 @@
-from ailment.statement import Return
+from ailment.statement import Return, Label
 
 from ..mixins.cfg_transformation_mixin import CFGTransformationMixin
 from ..mixins.cfa_mixin import CFAMixin
@@ -114,11 +114,16 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin):
             if self.match_call(block, CLEANUP_FUNCTIONS):
                 if isinstance(block.statements[-1], Return):
                     block.statements[-1].ret_exprs = []
+                elif not self._is_simple_block(block):
+                    block.statements = block.statements[:-1]
                 else:
                     blocks_to_remove.add(block)
         for block in blocks_to_remove:
-            if block.addr != self._func.addr:
-                self.remove_block(block)
+            self.remove_block(block)
+
+    def _is_simple_block(self, block):
+        stmts = block.statements[:-1]
+        return all(isinstance(stmt, Label) for stmt in stmts)
 
     def _analyze(self, cache=None):
         self._simplify_for_loop_drop()

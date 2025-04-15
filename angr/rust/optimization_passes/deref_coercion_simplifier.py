@@ -5,6 +5,7 @@ from ailment.statement import Call, Statement
 from ..ailment.expression import String, StringLiteral
 from ..ailment.statement import FunctionLikeMacro
 from ..sim_type import RustSimTypeString
+from ..utils.ail_util import unwrap_stack_vvar_reference
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..mixins.cfa_mixin import CFAMixin
 from ..mixins.srda_mixin import SRDAMixin
@@ -30,9 +31,9 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
                     vvar = self.context.get_stack_vvar_by_insn(
                         vvar.stack_offset - self.context.project.arch.bytes, stmt.ins_addr, block.idx
                     )
-                if isinstance(vvar, Load) and isinstance(vvar.addr, StackBaseOffset):
+                if isinstance(vvar, Load) and (vvar := unwrap_stack_vvar_reference(vvar.addr)):
                     vvar = self.context.get_stack_vvar_by_insn(
-                        vvar.addr.offset - self.context.project.arch.bytes, stmt.ins_addr, block.idx
+                        vvar.stack_offset - self.context.project.arch.bytes, stmt.ins_addr, block.idx
                     )
                 if isinstance(vvar, VirtualVariable) and vvar.was_stack:
                     returnty = None

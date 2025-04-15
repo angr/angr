@@ -337,6 +337,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             if key not in visited:
                 visited.add(key)
                 candidates_and_discriminants.append((candidate, discriminant))
+        candidates_and_discriminants = tuple(sorted(candidates_and_discriminants, key=lambda item: item[0].size))
 
         # If there are two different struct types, it could be Option<T> or Result<T, E>
         # If the size of one of the struct types is equal to discriminant size, it is an Option<T>
@@ -347,22 +348,14 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             # There should be only one discriminant size
             if len(discriminant_sizes) == 1:
                 discriminant_size = next(iter(discriminant_sizes))
-                sizes = set(candidate.size for candidate, _ in candidates_and_discriminants)
+                candidate_sizes = sorted(set(candidate.size for candidate, _ in candidates_and_discriminants))
                 overlapping_discriminant = None in discriminants
-                if len(sizes) == 2:
-                    if discriminant_size in sizes:
-                        # This is probably an Option<T> or Result<(), E>
-                        # Let's check if it's std::io::Result<()>
+                if len(candidate_sizes) == 2:
+                    if candidate_sizes[0] == discriminant_size:
+                        # If there is a candidate of discriminant size, it should be an Option<T> or Result<(), E>
                         # Get the discriminant for None and Some variants
                         # Notice that if overlapping_discriminant is True, some_discriminant maybe None
-                        some_type, some_discriminant = None, None
-                        none_discriminant = None
-                        for candidate, discriminant in candidates_and_discriminants:
-                            if candidate.size == discriminant_size:
-                                none_discriminant = discriminant
-                            else:
-                                some_type = candidate
-                                some_discriminant = discriminant
+                        (_, none_discriminant), (some_type, some_discriminant) = candidates_and_discriminants
                         if none_discriminant is not None:
                             none_discriminant = none_discriminant.value
                         elif some_discriminant is not None:
@@ -371,44 +364,50 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                             some_discriminant = some_discriminant.value
                         if not overlapping_discriminant:
                             some_type = self._remove_discriminant_from_struct(some_type)
+                        none_discriminant_size = discriminant_size // 8
+                        some_discriminant_size = discriminant_size // 8 if not overlapping_discriminant else 0
                         return RustSimTypeOption(
-                            some_type,
                             none_discriminant,
+                            none_discriminant_size,
+                            some_type,
                             some_discriminant,
-                            discriminant_size // self.project.arch.byte_width if not overlapping_discriminant else 0,
+                            some_discriminant_size,
                         )
                     elif None not in discriminants:
-                        # If all discriminants are found, it should be a Result<T, E> type
-                        struct_type_and_discriminant = sorted(
-                            candidates_and_discriminants,
-                            key=lambda item: item[1].value,
+                        # If all discriminants are found and no candidate is of discriminant size, it should be a
+                        # Result<T, E> type
+                        struct_type_and_discriminant = tuple(
+                            sorted(
+                                candidates_and_discriminants,
+                                key=lambda item: item[1].value,
+                            )
                         )
-                        ok_type, ok_discriminant = struct_type_and_discriminant[0]
-                        err_type, err_discriminant = struct_type_and_discriminant[1]
+                        (ok_type, ok_discriminant), (err_type, err_discriminant) = struct_type_and_discriminant
                         ok_type = self._remove_discriminant_from_struct(ok_type)
                         err_type = self._remove_discriminant_from_struct(err_type)
+                        discriminant_size = discriminant_size // 8
                         return RustSimTypeResult(
                             ok_type,
-                            err_type,
                             ok_discriminant.value,
+                            discriminant_size,
+                            err_type,
                             err_discriminant.value,
-                            discriminant_size // self.project.arch.byte_width,
+                            discriminant_size,
                         )
-                    else:
-                        ok_type = None
-                        err_type, err_discriminant = None, None
-                        for struct_ty, discriminant in candidates_and_discriminants:
-                            if discriminant is None:
-                                ok_type = struct_ty
-                            else:
-                                err_type = self._remove_discriminant_from_struct(struct_ty)
-                                err_discriminant = discriminant
+                    elif candidates_and_discriminants[1][1] is None:
+                        # Heuristics:
+                        # If one discriminant is missing and no candidate is of discriminant size, it should still be a
+                        # Result<T, E> type
+                        # Assume the size of T is greater than the size of E
+                        # Intuitively, T's discriminant should be omitted to optimize memory space
+                        (err_type, err_discriminant), (ok_type, _) = candidates_and_discriminants
                         return RustSimTypeResult(
                             ok_type,
-                            err_type,
                             None,
+                            0,
+                            err_type,
                             err_discriminant.value,
-                            discriminant_size // self.project.arch.byte_width,
+                            discriminant_size,
                         )
         return None
 

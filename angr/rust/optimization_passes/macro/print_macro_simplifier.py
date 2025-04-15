@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Tuple
 
 from ailment import Block
@@ -32,8 +33,9 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
+        DFAMixin.__init__(self, self._graph)
 
-        self._stmts_to_remove = {}
+        self._stmts_to_remove = defaultdict(list)
         self.analyze()
 
     def _check(self):
@@ -70,11 +72,11 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
             and call.args
             and (arg_vvar := unwrap_stack_vvar_reference(call.args[-1]))
         ):
-            stack_writes, offset_to_stmt = self.collect_stack_writes(block)
-            arg = stack_writes.get(arg_vvar.stack_offset, None)
-            if isinstance(arg, Struct) and arg.name == "Arguments":
-                pieces = arg.get_field("pieces")
-                args = arg.get_field("args")
+            stack_defs = self.collect_callsite_stack_defs(block)
+            arg_def = stack_defs.get(arg_vvar.stack_offset, None)
+            if arg_def and isinstance(arg_def.data, Struct) and arg_def.data.name == "Arguments":
+                pieces = arg_def.data.get_field("pieces")
+                args = arg_def.data.get_field("args")
                 if (
                     isinstance(pieces, Array)
                     and isinstance(args, Array)
@@ -82,23 +84,20 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
                     and all(
                         isinstance(arg, VirtualVariable)
                         and arg.was_stack
-                        and arg.stack_offset in stack_writes
-                        and isinstance(stack_writes[arg.stack_offset], Struct)
-                        and stack_writes[arg.stack_offset].name == "Argument"
+                        and arg.stack_offset in stack_defs
+                        and isinstance(stack_defs[arg.stack_offset].data, Struct)
+                        and stack_defs[arg.stack_offset].data.name == "Argument"
                         for arg in args.elements
                     )
                     and all(isinstance(piece, Const) for piece in pieces.elements)
                 ):
-                    stmts_to_remove = [offset_to_stmt[arg.stack_offset] for arg in args.elements]
-                    stmts_to_remove.append(offset_to_stmt[arg_vvar.stack_offset])
-
                     pieces = [extract_str_from_addr(self.project, piece.value) for piece in pieces.elements]
-                    args = [stack_writes[arg.stack_offset] for arg in args.elements]
+                    macro_args = [stack_defs[arg.stack_offset].data for arg in args.elements]
 
-                    if len(pieces) == len(args):
+                    if len(pieces) == len(macro_args):
                         pieces.append("")
 
-                    placeholders = ["{:?}" if self._is_debug_formatter(arg) else "{}" for arg in args]
+                    placeholders = ["{:?}" if self._is_debug_formatter(macro_arg) else "{}" for macro_arg in macro_args]
                     placeholders.append("")
                     fmt_str = ""
                     for piece, placeholder in zip(pieces, placeholders):
@@ -107,22 +106,26 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
                     if returnty is not None:
                         returnty = returnty.with_arch(self.project.arch)
                     if macro_name and fmt_str:
-                        args = [arg.get_field("value") for arg in args]
-                        args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
+                        macro_args = [macro_arg.get_field("value") for macro_arg in macro_args]
+                        macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
                         macro = FunctionLikeMacro(
-                            None, macro_name, args, bits=call.bits if is_expr else None, returnty=returnty, **call.tags
+                            None,
+                            macro_name,
+                            macro_args,
+                            bits=call.bits if is_expr else None,
+                            returnty=returnty,
+                            **call.tags,
                         )
-                        self._stmts_to_remove[block] = stmts_to_remove
+                        for arg in args.elements:
+                            stack_def = stack_defs[arg.stack_offset]
+                            self._stmts_to_remove[stack_def.block].append(stack_def.stmt)
+                        self._stmts_to_remove[arg_def.block].append(arg_def.stmt)
                         return macro
         return None
 
     def _analyze(self, cache=None):
         for block in self._graph.nodes:
-            replacer = CallReplacer(self.replace_call)
-            replacer.walk(block)
+            CallReplacer(self.replace_call).walk(block)
         for block, stmts in self._stmts_to_remove.items():
             for stmt in stmts:
-                try:
-                    block.statements.remove(stmt)
-                except:
-                    pass
+                block.statements.remove(stmt)

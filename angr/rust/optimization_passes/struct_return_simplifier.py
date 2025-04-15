@@ -55,11 +55,8 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             expr = fields[offset]
             arg_ty = RustSimTypeInt(expr.bits, signed=False)
             ty_fields[f"field_{offset}"] = arg_ty
-        struct_ty = RustSimStruct(
-            ty_fields,
-            name=f"struct{sum(field.size if field.size else 0 for field in ty_fields.values()) // 8}",
-            pack=True,
-        ).with_arch(self.project.arch)
+        struct_ty = RustSimStruct(ty_fields).with_arch(self.project.arch)
+        struct_ty.name = f"struct{struct_ty.size // 8}"
         return struct_ty
 
     def _has_call(self, block_or_stmt):
@@ -128,7 +125,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
     def _remove_discriminant_from_struct(self, struct: Struct, variant: EnumVariant):
         new_fields = {}
         for offset, v in struct.fields.items():
-            new_offset = offset - variant.data_offset
+            new_offset = offset - variant.first_field_offset
             if new_offset >= 0:
                 new_fields[new_offset] = v
         struct_ty = self._build_struct_ty(new_fields)
@@ -147,7 +144,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 variant = prototype.returnty.get_variant(discriminant)
                 if not variant and discriminant is not None:
                     variant = prototype.returnty.get_variant(None)
-            if variant and struct.size == variant.size // 8 + variant.discriminant_size:
+            if variant and struct.size == variant.size:
                 new_struct = self._remove_discriminant_from_struct(struct, variant)
                 return Enum(None, [new_struct], variant, prototype.returnty.with_arch(self.project.arch))
         return struct

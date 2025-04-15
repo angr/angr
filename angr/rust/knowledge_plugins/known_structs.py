@@ -14,7 +14,6 @@ class StructMatcher:
         self._matchers = (self._match_Arguments,)
 
     def _match_Arguments(self, fields):
-        # Match with Arguments
         arguments_ty = self.project.kb.known_structs["Arguments"]
         offsets = arguments_ty.offsets
         pieces_ptr_offset = offsets["pieces"]
@@ -56,19 +55,19 @@ class KnownStructs(KnowledgeBasePlugin):
 
     def __init__(self, kb):
         super().__init__(kb)
-        self.cache = {}
+        self.known_struct_types = {}
 
     def __iter__(self):
-        return iter(self.cache)
+        return iter(self.known_struct_types)
 
     def __setitem__(self, key, value):
-        self.cache[key] = value
+        self.known_struct_types[key] = value
 
     def __getitem__(self, item):
-        return self.cache.get(item, None)
+        return self.known_struct_types.get(item, None)
 
     def __contains__(self, item):
-        return item in self.cache
+        return item in self.known_struct_types
 
     def match_with_known_structs(self, fields) -> Optional[RustSimStruct]:
         return StructMatcher(self._kb._project).match(fields)
