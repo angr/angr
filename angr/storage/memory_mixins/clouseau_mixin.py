@@ -68,6 +68,7 @@ class InspectMixinHigh(MemoryMixin):
         if not inspect or not self.state.supports_inspect:
             return super().load(addr, size=size, condition=condition, endness=endness, inspect=inspect, **kwargs)
 
+        r = None
         if self.category == "reg":
             self.state._inspect(
                 "reg_read",
@@ -76,7 +77,9 @@ class InspectMixinHigh(MemoryMixin):
                 reg_read_length=size,
                 reg_read_condition=condition,
                 reg_read_endness=endness,
+                reg_read_expr=None,
             )
+            r = self.state._inspect_getattr("reg_read_expr", None)
             addr = self.state._inspect_getattr("reg_read_offset", addr)
             size = self.state._inspect_getattr("reg_read_length", size)
             condition = self.state._inspect_getattr("reg_read_condition", condition)
@@ -89,13 +92,16 @@ class InspectMixinHigh(MemoryMixin):
                 mem_read_length=size,
                 mem_read_condition=condition,
                 mem_read_endness=endness,
+                mem_read_expr=None,
             )
+            r = self.state._inspect_getattr("mem_read_expr", None)
             addr = self.state._inspect_getattr("mem_read_address", addr)
             size = self.state._inspect_getattr("mem_read_length", size)
             condition = self.state._inspect_getattr("mem_read_condition", condition)
             endness = self.state._inspect_getattr("mem_read_endness", endness)
 
-        r = super().load(addr, size=size, condition=condition, endness=endness, inspect=inspect, **kwargs)
+        if r is None:
+            r = super().load(addr, size=size, condition=condition, endness=endness, inspect=inspect, **kwargs)
 
         if self.category == "mem":
             self.state._inspect(
