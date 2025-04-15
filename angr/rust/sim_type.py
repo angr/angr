@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Tuple
 from collections import OrderedDict
 
 from ..analyses.typehoon.translator import SimTypeTempRef
@@ -456,92 +456,103 @@ class RustSimTypeBottom(RustSimType, SimTypeBottom):
 
 
 class EnumVariant:
-    def __init__(self, name, discriminant, associated_data, discriminant_size):
+    def __init__(self, name, fields, discriminant, discriminant_size):
         self.name = name
+        self.fields: List[Tuple[SimType, Optional[str]]] = fields
         self.discriminant = discriminant
-        self.associated_data: OrderedDict[SimType, str] = associated_data
         self.discriminant_size = discriminant_size
-        self._type = None
+
+        self._arch = None
 
     @staticmethod
-    def from_no_data(name, discriminant):
-        return EnumVariant(name, discriminant, OrderedDict(), 0)
+    def from_no_data(name, discriminant, discriminant_size):
+        return EnumVariant(name, (), discriminant, discriminant_size)
 
     @staticmethod
-    def from_single_struct(name, discriminant, struct_type, discriminant_size):
-        associated_data = OrderedDict([(struct_type, None)])
-        return EnumVariant(name, discriminant, associated_data, discriminant_size)
+    def from_single_field_ty(name, field_ty, discriminant, discriminant_size):
+        return EnumVariant(name, [(field_ty, None)], discriminant, discriminant_size)
+
+    def has_fields(self):
+        return len(self.fields) > 0
 
     @property
-    def has_associated_data(self):
-        return len(self.associated_data) > 0
-
-    @property
-    def data_offset(self):
-        if self.has_associated_data:
-            first_type = list(self.associated_data.items())[0][0]
+    def first_field_offset(self):
+        if self.has_fields():
+            field_ty = self.fields[0][0]
             if self.discriminant_size:
-                return max(self.discriminant_size, first_type.alignment)
+                return max(self.discriminant_size, field_ty.alignment)
         return 0
 
     @property
+    def field_offsets(self):
+        struct_ty = self.type
+        offsets = {}
+        first_field_offset = self.first_field_offset
+        for field_name, offset in struct_ty.offsets.items():
+            field_ty = struct_ty.fields[field_name]
+            offsets[offset + first_field_offset] = field_ty
+        return offsets
+
+    @property
+    def bits(self):
+        return self.type.size + self.first_field_offset * 8
+
+    @property
     def size(self):
-        return sum(ty.size for ty in self.associated_data.keys()) if len(self.associated_data) else 0
+        return self.bits // 8
 
     @property
     def type(self):
-        if not self._type:
-            offset = 0
-            fields = {}
-            for ty in self.associated_data.keys():
-                fields[f"field_{offset}"] = ty
-                offset += ty.size
-            self._type = RustSimStruct(fields, pack=True)
-        return self._type
+        fields = OrderedDict()
+        for idx, (field_ty, name) in enumerate(self.fields):
+            fields[name or f"field_{idx}"] = field_ty
+        result = RustSimStruct(fields, pack=True)
+        if self._arch:
+            return result.with_arch(self._arch)
+        return result
 
     def with_arch(self, arch):
-        new_associated_data = OrderedDict([(ty.with_arch(arch), name) for ty, name in self.associated_data])
-        return EnumVariant(self.name, self.discriminant, new_associated_data)
+        fields = [(field_ty.with_arch(arch), name) for field_ty, name in self.fields]
+        result = EnumVariant(self.name, fields, self.discriminant, self.discriminant_size)
+        result._arch = arch
+        return result
 
     def __eq__(self, other):
         return (
             type(self) is type(other)
             and self.name == other.name
+            and self.fields == other.fields
             and self.discriminant == other.discriminant
-            and self.associated_data == other.associated_data
+            and self.discriminant_size == other.discriminant_size
         )
 
     def __hash__(self):
-        return hash((self.name, self.discriminant, tuple(self.associated_data)))
+        return hash((self.name, tuple(self.fields), self.discriminant, self.discriminant_size))
 
     def __repr__(self):
         return f"{self.name}(...)"
 
 
 class RustSimEnum(RustSimType, SimType):
-    def __init__(self, variants: List[EnumVariant], discriminant_size=0):
+    def __init__(self, name, variants: List[EnumVariant]):
         super().__init__()
-        assert len(variants) > 0
+        self.name = name
         self.variants = variants
-        self.discriminant_size = discriminant_size
 
     @property
-    def size(self) -> int | None:
-        return max(
-            variant.size + (self.discriminant_size * 8 if variant.discriminant is not None else 0)
-            for variant in self.variants
-        )
+    def size(self) -> int:
+        return max(variant.bits for variant in self.variants)
 
     def copy(self):
-        return RustSimEnum(self.variants, self.discriminant_size).with_arch(self._arch)
+        return RustSimEnum(self.name, self.variants).with_arch(self._arch)
 
     def _with_arch(self, arch):
-        out = RustSimEnum([variant.with_arch(arch) for variant in self.variants], self.discriminant_size)
+        out = RustSimEnum(self.name, [variant.with_arch(arch) for variant in self.variants])
         out._arch = arch
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
-        return "Enum"
+        return f"enum {self.name}"
 
     def get_variant(self, discriminant) -> Optional[EnumVariant]:
         for variant in self.variants:
@@ -554,72 +565,91 @@ class RustSimEnum(RustSimType, SimType):
 
 
 class RustSimTypeOption(RustSimEnum):
-    def __init__(self, data_type, none_discriminant, some_discriminant=None, discriminant_size=0):
-        self.data_type = data_type
+    def __init__(self, none_discriminant, none_discriminant_size, some_type, some_discriminant, some_discriminant_size):
         self.none_discriminant = none_discriminant
+        self.none_discriminant_size = none_discriminant_size
+        self.some_type = some_type
         self.some_discriminant = some_discriminant
+        self.some_discriminant_size = some_discriminant_size
 
+        name = f"Option<{self.some_type}>"
         variants = [
-            EnumVariant.from_no_data("None", none_discriminant),
-            EnumVariant.from_single_struct("Some", some_discriminant, data_type, discriminant_size),
+            EnumVariant.from_no_data("None", none_discriminant, none_discriminant_size),
+            EnumVariant.from_single_field_ty("Some", some_type, some_discriminant, some_discriminant_size),
         ]
-        super().__init__(variants, discriminant_size=discriminant_size)
+        super().__init__(name, variants)
 
     def copy(self):
         return RustSimTypeOption(
-            self.data_type, self.none_discriminant, self.some_discriminant, self.discriminant_size
+            self.none_discriminant,
+            self.none_discriminant_size,
+            self.some_type,
+            self.some_discriminant,
+            self.some_discriminant_size,
         ).with_arch(self._arch)
 
     def _with_arch(self, arch):
         out = RustSimTypeOption(
-            self.data_type.with_arch(arch),
             self.none_discriminant,
+            self.none_discriminant_size,
+            self.some_type.with_arch(arch),
             self.some_discriminant,
-            self.discriminant_size,
+            self.some_discriminant_size,
         )
         out._arch = arch
+        out.variants = [variant.with_arch(arch) for variant in out.variants]
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
-        return f"Option<{self.data_type}>"
+        return self.name
 
     def __repr__(self):
         return self.repr()
 
 
 class RustSimTypeResult(RustSimEnum):
-    def __init__(self, ok_type, err_type, ok_discriminant, err_discriminant, discriminant_size):
+    def __init__(
+        self, ok_type, ok_discriminant, ok_discriminant_size, err_type, err_discriminant, err_discriminant_size
+    ):
         self.ok_type = ok_type
-        self.err_type = err_type
         self.ok_discriminant = ok_discriminant
+        self.ok_discriminant_size = ok_discriminant_size
+        self.err_type = err_type
         self.err_discriminant = err_discriminant
+        self.err_discriminant_size = err_discriminant_size
 
+        name = f"Result<{self.ok_type}, {self.err_type}>"
         variants = [
-            EnumVariant.from_single_struct(
-                "Ok", ok_discriminant, ok_type, discriminant_size if ok_discriminant is not None else 0
-            ),
-            EnumVariant.from_single_struct("Err", err_discriminant, err_type, discriminant_size),
+            EnumVariant.from_single_field_ty("Ok", ok_type, ok_discriminant, ok_discriminant_size),
+            EnumVariant.from_single_field_ty("Err", err_type, err_discriminant, err_discriminant_size),
         ]
-        super().__init__(variants, discriminant_size=discriminant_size)
+        super().__init__(name, variants)
 
     def copy(self):
         return RustSimTypeResult(
-            self.ok_type, self.err_type, self.ok_discriminant, self.err_discriminant, self.discriminant_size
+            self.ok_type,
+            self.ok_discriminant,
+            self.ok_discriminant_size,
+            self.err_type,
+            self.err_discriminant,
+            self.err_discriminant_size,
         ).with_arch(self._arch)
 
     def _with_arch(self, arch):
         out = RustSimTypeResult(
             self.ok_type.with_arch(arch),
-            self.err_type.with_arch(arch),
             self.ok_discriminant,
+            self.ok_discriminant_size,
+            self.err_type.with_arch(arch),
             self.err_discriminant,
-            self.discriminant_size,
+            self.err_discriminant_size,
         )
         out._arch = arch
+        out.variants = [variant.with_arch(arch) for variant in out.variants]
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
-        return f"Result<{self.ok_type}, {self.err_type}>"
+        return self.name
 
     def __repr__(self):
         return self.repr()

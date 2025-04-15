@@ -1,9 +1,7 @@
-import ailment
 from ailment import Const, AILBlockWalker, Block
 from ailment.statement import Call, Statement
 
-from ..utils.library import demangle, normalize
-from ... import SIM_LIBRARIES
+from ..utils.library import normalize
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -26,7 +24,7 @@ class LibFunctionIdentifier(OptimizationPass):
         return None
 
     def _analyze(self, cache=None):
-        librust = SIM_LIBRARIES["librust"][0]
+        librust = self.project.kb.librust
 
         class CallWalker(AILBlockWalker):
             def __init__(self, pass_):

@@ -10,7 +10,6 @@ from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .pre_pattern_match_simplifier import PrePatternMatchSimplifier
 from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
-from .struct_field_access_simplifier import StructFieldAccessSimplifier
 from .struct_return_simplifier import StructReturnSimplifier
 from .unwrap_simplifier import UnwrapSimplifier
 from .lib_function_identifier import LibFunctionIdentifier
@@ -23,7 +22,7 @@ from .ownership_simplifier import OwnershipSimplifier
 def get_rust_optimization_passes():
     return [
         # AFTER_SINGLE_BLOCK_SIMPLIFICATION
-        LibFunctionIdentifier,
+        # LibFunctionIdentifier,
         # AFTER_GLOBAL_SIMPLIFICATION
         CleanupCodeRemover,
         SecurityCheckRemover,
@@ -32,13 +31,12 @@ def get_rust_optimization_passes():
         UnwrapSimplifier,
         StrArgumentSimplifier,
         # RUST_SPECIFIC_SIMPLIFICATION
-        PatternMatchIdentifier,
+        # PatternMatchIdentifier,
         OwnershipSimplifier,
         StructInstantiationSimplifier,
         PrintMacroSimplifier,
         VecMacroSimplifier,
         ShowMacroSimplifier,
-        # StructFieldAccessSimplifier,
         DerefCoercionSimplifier,
         StructReturnSimplifier,
         PrePatternMatchSimplifier,

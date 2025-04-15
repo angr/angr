@@ -84,23 +84,21 @@ class SimpleMessage(RustSimStruct):
 
 Argument = RustSimStruct(
     name="Argument",
-    fields={"value": RustSimTypeReference(RustSimTypeBottom()), "formatter": RustSimTypeReference(RustSimTypeBottom())},
+    fields=OrderedDict(
+        (
+            ("value", RustSimTypeReference(RustSimTypeBottom())),
+            ("formatter", RustSimTypeReference(RustSimTypeBottom())),
+        )
+    ),
 )
 
 Arguments = RustSimStruct(
     name="Arguments",
-    fields={
-        "pieces": ArrayReference(StrSlice()),
-        "args": ArrayReference(Argument),
-        "fmt": RustSimTypeOption(RustSimTypeInt(64), none_discriminant=None),
-    },
+    fields=OrderedDict(
+        (
+            ("pieces", ArrayReference(StrSlice())),
+            ("fmt", RustSimTypeOption(0, 0, ArrayReference(RustSimTypeBottom()), None, 0)),
+            ("args", ArrayReference(Argument)),
+        )
+    ),
 )
-
-# Arguments = RustSimStruct(
-#     name="Arguments",
-#     fields={
-#         "pieces": ArrayReference(StrReference()),
-#         "fmt": RustSimTypeOption(RustSimTypeInt(128), none_discriminant=None),
-#         "args": ArrayReference(Argument),
-#     },
-# )

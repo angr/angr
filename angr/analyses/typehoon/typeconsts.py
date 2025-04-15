@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import functools
 import itertools
+from typing import List, Tuple, Optional
 
 
 def memoize(f):
@@ -355,6 +356,66 @@ class Struct(TypeConstant):
             + ", ".join(f"{k}:{v.__repr__(memo=memo) if v is not None else 'None'}" for k, v in self.fields.items())
             + "}"
         )
+
+    def __eq__(self, other):
+        return type(other) is type(self) and hash(self) == hash(other)
+
+    def __hash__(self):
+        return self._hash(set())
+
+
+class EnumVariant:
+    def __init__(self, name, fields, discriminant, discriminant_size, data_offset, struct_ty):
+        self.name = name
+        self.fields: List[Tuple[TypeConstant, Optional[str]]] = fields
+        self.discriminant = discriminant
+        self.discriminant_size = discriminant_size
+        self.data_offset = data_offset
+        self.struct_ty: TypeConstant = struct_ty
+
+    def __eq__(self, other):
+        return (
+            type(self) is type(other)
+            and self.name == other.name
+            and self.fields == other.fields
+            and self.discriminant == other.discriminant
+            and self.discriminant_size == other.discriminant
+        )
+
+    def __hash__(self):
+        return hash((type(self), self.name, self.fields, self.discriminant, self.discriminant_size))
+
+    @property
+    def size(self):
+        return self.data_offset + self.struct_ty.size
+
+
+class Enum(TypeConstant):
+
+    def __init__(self, name, variants):
+        self.name = name
+        self.variants = variants
+
+    def _hash(self, visited: set[int]):
+        if id(self) in visited:
+            return 0
+        visited.add(id(self))
+        return hash((type(self), self._hash_fields(visited)))
+
+    def _hash_fields(self, visited: set[int]):
+        tpl = tuple(hash(variant) for variant in self.variants)
+        return hash(tpl)
+
+    @property
+    def size(self) -> int:
+        return max(variant.size for variant in self.variants)
+
+    @memoize
+    def __repr__(self, memo=None):
+        prefix = "enum"
+        if self.name:
+            prefix = f"{prefix} {self.name}"
+        return prefix + "{" + ", ".join(variant.name for variant in self.variants) + "}"
 
     def __eq__(self, other):
         return type(other) is type(self) and self.idx == other.idx and hash(self) == hash(other)

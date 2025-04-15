@@ -1,15 +1,19 @@
-from collections import OrderedDict
+import logging
+from collections import OrderedDict, defaultdict
+from typing import Optional
 
 from ailment import Const
 
-from ..definitions.structs import SimpleMessage, StrSlice, ArrayReference
+from ..definitions.prototypes import generate_known_rust_prototypes
+from ..definitions.structs import SimpleMessage, StrSlice, ArrayReference, Arguments
 from ..knowledge_plugins.known_structs import KnownStructs
 from ..optimization_passes.utils import extract_str_from_addr
-from ..utils.library import demangle
 from ..utils.ail_util import unwrap_stack_vvar_reference
 from ...analyses import Analysis, AnalysesHub
 from ..mixins import CFAMixin, DFAMixin
-from ..sim_type import RustSimTypeOption, RustSimStruct, RustSimTypeReference, RustSimTypeBottom
+from ..sim_type import RustSimTypeOption, RustSimStruct, RustSimTypeReference
+
+l = logging.getLogger(name=__name__)
 
 
 class LayoutInference:
@@ -76,92 +80,171 @@ class SimpleMessageLayoutInference(LayoutInference):
         return False
 
 
-class ArgumentsLayoutInference(LayoutInference, CFAMixin, DFAMixin):
+class StructFieldsMatcher:
+
     def __init__(self, project):
-        super().__init__(project)
-        CFAMixin.__init__(self, None, project)
-        DFAMixin.__init__(self)
+        self.project = project
+        self._handlers = {ArrayReference: self._match_ArrayReference, RustSimTypeOption: self._match_Option}
 
-    def _recover_layout_from_panic_fmt_callsite(self, block, call):
-        arg_vvar = unwrap_stack_vvar_reference(call.args[0])
-        stack_writes = {}
-        for stmt in block.statements:
-            dst_vvar, src_data = self.extract_write_to_stack_vvar(stmt)
-            if dst_vvar and src_data:
-                stack_writes[dst_vvar.stack_offset] = src_data
-        fields = OrderedDict()
-        for i in range(3):
-            cur_offset = arg_vvar.stack_offset + 2 * i * self.project.arch.bytes
-            data = stack_writes[cur_offset]
-            if isinstance(data, Const) and data.value == 0:
-                fields["fmt"] = RustSimTypeOption(ArrayReference(RustSimTypeBottom()), none_discriminant=None)
-            elif cur_offset + self.project.arch.bytes in stack_writes:
-                ptr_data = data
-                len_data = stack_writes[cur_offset + self.project.arch.bytes]
-                if isinstance(ptr_data, Const) and isinstance(len_data, Const) and len_data.value == 2:
-                    if extract_str_from_addr(self.project, ptr_data.value) == "failed printing to ":
-                        fields["pieces"] = ArrayReference(StrSlice())
-                elif (
-                    (ptr_vvar := unwrap_stack_vvar_reference(ptr_data))
-                    and isinstance(len_data, Const)
-                    and len_data.value == 2
+    def _get_field_exprs_between(self, field_exprs, start_offset, end_offset):
+        result = {}
+        for offset in field_exprs:
+            if start_offset <= offset < end_offset:
+                result[offset - start_offset] = field_exprs[offset]
+        return result
+
+    def _match_Option(self, single_field_exprs, field_ty):
+        if 0 in single_field_exprs:
+            expr = single_field_exprs[0]
+            if isinstance(expr, Const) and expr.value == 0:
+                return True
+        return False
+
+    def _match_ArrayReference(self, single_field_exprs, field_ty: ArrayReference):
+        if len(single_field_exprs) == 2 and 0 in single_field_exprs and self.project.arch.bytes in single_field_exprs:
+            ptr_expr = single_field_exprs[0]
+            len_expr = single_field_exprs[self.project.arch.bytes]
+            if isinstance(field_ty.ele_ty, StrSlice):
+                if (
+                    isinstance(ptr_expr, Const)
+                    and isinstance(len_expr, Const)
+                    and extract_str_from_addr(self.project, ptr_expr.value) is not None
                 ):
-                    ptr_vvar_offset = ptr_vvar.stack_offset
-                    argument_ty = None
-                    if ptr_vvar_offset in stack_writes and ptr_vvar_offset + self.project.arch.bytes in stack_writes:
-                        if isinstance(stack_writes[ptr_vvar_offset], Const):
-                            argument_ty = RustSimStruct(
-                                name="Argument",
-                                fields={
-                                    "formatter": RustSimTypeReference(RustSimTypeBottom()),
-                                    "value": RustSimTypeReference(RustSimTypeBottom()),
-                                },
-                            )
-                        elif isinstance(stack_writes[ptr_vvar_offset + self.project.arch.bytes], Const):
-                            argument_ty = RustSimStruct(
-                                name="Argument",
-                                fields={
-                                    "value": RustSimTypeReference(RustSimTypeBottom()),
-                                    "formatter": RustSimTypeReference(RustSimTypeBottom()),
-                                },
-                            )
-                    if argument_ty:
-                        self.cache_layout(KnownStructs.ARGUMENT, argument_ty)
-                        fields["args"] = ArrayReference(argument_ty)
-        if len(fields) == 3:
-            arguments_ty = RustSimStruct(name="Arguments", fields=fields)
-            self.cache_layout(KnownStructs.ARGUMENTS, arguments_ty)
+                    return True
+                return False
+            else:
+                return True
+        return False
 
-    def infer_layout(self):
-        print_func = None
-        for addr in self.project.kb.functions:
-            func = self.project.kb.functions[addr]
-            if demangle(func.name) == "std::io::stdio::_print":
-                print_func = func
-                break
-        if print_func:
-            cfg = self.project.kb.cfgs.get_most_accurate()
-            clinic = self.project.analyses.Clinic(print_func, cfg=cfg)
-            for block in clinic.graph.nodes:
-                call = self.terminal_call(block)
-                if self.match_call(call, ["core::panicking::panic_fmt"]) and call.args and len(call.args) > 0:
-                    self._recover_layout_from_panic_fmt_callsite(block, call)
-                    break
+    def _match_field(self, single_field_exprs, field_ty):
+        handler = self._handlers.get(field_ty.__class__, None)
+        if handler:
+            return handler(single_field_exprs, field_ty)
+        return False
+
+    def match_fields(self, field_exprs, struct_ty: RustSimStruct) -> Optional[RustSimStruct]:
+        """
+        Match field expressions with the field types in a struct type
+        Return the new struct type with recovered memory layout
+        """
+        cur_offset = 0
+        pending_fields = list(struct_ty.fields.items())
+        failed_fields = []
+        final_fields = OrderedDict()
+        while pending_fields:
+            field_name, field_ty = pending_fields.pop(0)
+            field_size = field_ty.size // self.project.arch.bytes
+            single_field_exprs = self._get_field_exprs_between(field_exprs, cur_offset, cur_offset + field_size)
+            if self._match_field(single_field_exprs, field_ty):
+                final_fields[field_name] = field_ty
+                pending_fields = failed_fields + pending_fields
+                failed_fields = []
+                cur_offset += field_size
+            else:
+                failed_fields.append((field_name, field_ty))
+        if failed_fields:
+            return None
+        new_struct_ty = struct_ty.copy()
+        new_struct_ty.fields = final_fields
+        return new_struct_ty
 
 
-class StructMemoryLayoutAnalysis(Analysis):
-    def __init__(self, scan_data_section=False):
-        self.scan_data_section = scan_data_section
+# Structs targeted by StructMemoryLayoutAnalysis and the default RustSimStructs
+TARGET_STRUCT_TYPES = {"Arguments": Arguments}
+
+
+class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
+    """
+    Unlike C/C++, the order of Rust struct fields is not guaranteed to be the same as the order in source code.
+    According to our observation, struct field reordering is very common.
+    This analysis aims to recover the memory layouts (field orders) of Rust standard library structs.
+    """
+
+    def __init__(self, max_attempts_per_struct=5):
+        CFAMixin.__init__(self, None, self.project)
+        DFAMixin.__init__(self, None)
+        self.max_attempts_per_struct = max_attempts_per_struct
+        self.cfg = self.kb.cfgs.get_most_accurate()
         self._analyze()
 
+    def _recover_layout_from_callsites(self, caller_func, callee_func, struct_ty, arg_idx):
+        clinic = self.project.analyses.Clinic(caller_func, cfg=self.cfg)
+        struct_ty = struct_ty.with_arch(self.project.arch)
+        self.graph = clinic.graph
+        for block in clinic.graph.nodes:
+            call = self.terminal_call(block)
+            if (
+                call
+                and isinstance(call.target, Const)
+                and call.target.value == callee_func.addr
+                and call.args
+                and len(call.args) > arg_idx
+            ):
+                arg_vvar = unwrap_stack_vvar_reference(call.args[arg_idx])
+                stack_defs = self.collect_callsite_stack_defs(block)
+                field_exprs = {}
+                for offset, stack_def in stack_defs.items():
+                    if offset - arg_vvar.stack_offset < struct_ty.size // 8:
+                        field_exprs[offset - arg_vvar.stack_offset] = stack_def.data
+                result = StructFieldsMatcher(self.project).match_fields(field_exprs, struct_ty)
+                if result:
+                    return result
+        return None
+
+    def _get_callers_and_callees(self, callee_name):
+        result = set()
+        for addr in self.kb.functions:
+            func = self.kb.functions[addr]
+            if func.demangled_name == callee_name:
+                for pred in list(self.cfg.graph.predecessors(self.cfg.get_node(func.addr))):
+                    if pred.function_address in self.kb.functions:
+                        caller = self.kb.functions[pred.function_address]
+                        result.add((caller, func))
+        return result
+
     def _analyze(self):
-        if self.scan_data_section:
-            for section in self.project.loader.main_object.sections:
-                if section.is_readable and not section.is_executable:
-                    for addr in range(section.vaddr, section.vaddr + section.memsize, self.project.arch.bytes):
-                        if self.kb.xrefs.get_xrefs_by_dst(addr):
-                            SimpleMessageLayoutInference(self.project).infer_layout(addr)
-        ArgumentsLayoutInference(self.project).infer_layout()
+        """
+        Methodology:
+        1) Traverse the pre-defined Rust standard library function prototypes;
+        2) If this prototype has a struct argument type that is targeted by this analysis, go to 3);
+        3) Find the caller functions of this function, find the callsites to the target function;
+        4) Analyze how the struct is constructed in callsite and infer the correct order of struct fields
+        """
+        attempts = defaultdict(int)
+        for func_name, prototype in generate_known_rust_prototypes(self.project).items():
+            for arg_idx, arg_ty in enumerate(prototype.args):
+                if isinstance(arg_ty, RustSimTypeReference) and isinstance(arg_ty.pts_to, RustSimStruct):
+                    struct_ty = arg_ty.pts_to
+                    struct_name = struct_ty.name
+                    if (
+                        struct_name in TARGET_STRUCT_TYPES
+                        and attempts[struct_name] < self.max_attempts_per_struct
+                        and struct_name not in self.kb.known_structs
+                    ):
+                        callers_and_callees = self._get_callers_and_callees(func_name)
+                        while (
+                            callers_and_callees
+                            and attempts[struct_name] < self.max_attempts_per_struct
+                            and struct_name not in self.kb.known_structs
+                        ):
+                            caller, callee = callers_and_callees.pop()
+                            recovered_struct_ty = self._recover_layout_from_callsites(
+                                caller, callee, struct_ty, arg_idx
+                            )
+                            if recovered_struct_ty:
+                                self.kb.known_structs[struct_name] = recovered_struct_ty.with_arch(self.project.arch)
+                                l.debug(
+                                    f"Recovered struct memory layout for {struct_name}: {recovered_struct_ty.fields}"
+                                )
+                            attempts[struct_name] += 1
+        for struct_name, default_struct_ty in TARGET_STRUCT_TYPES.items():
+            # Fall back to default memory layout if analysis failed for this struct
+            if struct_name not in self.project.kb.known_structs:
+                self.kb.known_structs[struct_name] = default_struct_ty.with_arch(self.project.arch)
+                l.debug(f"Failed to recover struct memory layout for {struct_name}. Use default layout")
+
+        # Regenerate Rust standard library function prototypes with recovered struct types
+        self.kb.librust.regenerate()
 
 
 AnalysesHub.register_default("StructMemoryLayout", StructMemoryLayoutAnalysis)

@@ -6,7 +6,7 @@ from functools import reduce
 
 import ailment
 from ailment import Block, Expr, Stmt, Tmp
-from ailment.expression import StackBaseOffset, BinaryOp
+from ailment.expression import StackBaseOffset, BinaryOp, VirtualVariable
 
 from ....rust.ailment.statement import FunctionLikeMacro
 from ....rust.definitions.structs import StrSlice
@@ -2691,6 +2691,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ail_graph=None,
         simplify_else_scope=True,
         cstyle_ifs=True,
+        omit_func_header=False,
+        display_block_addrs=False,
+        display_vvar_ids=False,
+        min_data_addr: int = 0x400_000,
     ):
         super().__init__(flavor=flavor)
 

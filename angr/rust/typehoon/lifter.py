@@ -9,6 +9,7 @@ from ..sim_type import (
     RustSimTypeStr,
     RustSimTypeString,
     RustSimTypeSize,
+    RustSimEnum,
 )
 from ...analyses.typehoon.lifter import TypeLifter
 from ...analyses.typehoon.typeconsts import BottomType, Int8, Int16, Int32, Int64, TypeConstant, Struct
@@ -64,6 +65,11 @@ class RustTypeLifter(TypeLifter):
         obj.field_names = field_names
         return obj
 
+    def _lift_SimEnum(self, ty: RustSimEnum):
+        import ipdb
+
+        ipdb.set_trace()
+
 
 _mapping = {
     RustSimTypeInt: RustTypeLifter._lift_SimTypeInt,
@@ -71,4 +77,5 @@ _mapping = {
     RustSimTypeReference: RustTypeLifter._lift_SimTypePointer,
     RustSimStruct: RustTypeLifter._lift_SimStruct,
     RustSimTypeArray: RustTypeLifter._lift_SimTypeArray,
+    RustSimEnum: RustTypeLifter._lift_SimEnum,
 }
