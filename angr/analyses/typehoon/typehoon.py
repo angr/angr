@@ -263,7 +263,10 @@ class Typehoon(Analysis):
                     max_offset = offsets[-1]
                     field0_size = 1
                     if not isinstance(field0, TopType):
-                        field0_size = field0.size
+                        try:
+                            field0_size = field0.size
+                        except NotImplementedError:
+                            field0_size = 1
                     count = (max_offset + field0_size) // alignment
                     return Array(field0, count=count)
 
