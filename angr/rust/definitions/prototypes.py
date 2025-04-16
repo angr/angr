@@ -5,6 +5,8 @@ from ..sim_type import (
     RustSimTypeInt,
     RustSimTypeReference,
     RustSimTypeSize,
+    RustSimTypeBottom,
+    RustSimTypeResult,
 )
 from ..definitions import structs as default_structs
 
@@ -62,4 +64,8 @@ def generate_known_rust_prototypes(project):
         "core::option::unwrap": RustSimTypeFunction(
             args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
         ),
+        # "std::io::Read::read_to_string": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(RustSimTypeString())],
+        #     returnty=RustSimTypeResult(RustSimTypeSize(), None, 0, RustSimTypeReference(RustSimTypeBottom()), None, 0),
+        # ),
     }

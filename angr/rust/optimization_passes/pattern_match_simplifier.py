@@ -4,7 +4,7 @@ from typing import Dict, Tuple, Union
 import ailment
 from ailment import Statement
 from ailment.expression import VirtualVariable, Load
-from ailment.statement import Label, Assignment
+from ailment.statement import Label, Assignment, Call
 
 from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
 from angr.rust.mixins import DFAMixin
@@ -135,26 +135,27 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
 
     def _handle_Condition(self, node, **kwargs):
         scrutinee, discriminant, cmp_op = PrePatternMatchSimplifier.extract_scrutinee_and_discriminant(node.condition)
-        if (
-            node.true_node
-            and node.false_node
-            and scrutinee is not None
-            and discriminant is not None
-            and isinstance((enum_ty := scrutinee.tags.get("type", None)), (RustSimTypeOption, RustSimTypeResult))
-        ):
-            true_node = node.true_node
-            false_node = node.false_node
-            true_variant = enum_ty.get_variant(discriminant)
-            false_variant = PrePatternMatchSimplifier.inverse_variant(enum_ty, discriminant)
-            if cmp_op == "CmpNE":
-                true_variant, false_variant = false_variant, true_variant
-            if true_variant and false_node:
-                pattern_match = self._build_pattern_match(
-                    true_node, false_node, true_variant, false_variant, scrutinee, node.addr
-                )
-                if pattern_match:
-                    new_node = super()._handle_PatternMatch(pattern_match, **kwargs)
-                    return new_node or pattern_match
+        if node.true_node and node.false_node and scrutinee is not None and discriminant is not None:
+            if isinstance(scrutinee, VirtualVariable) and isinstance(
+                (enum_ty := scrutinee.tags.get("type", None)), (RustSimTypeOption, RustSimTypeResult)
+            ):
+                true_node = node.true_node
+                false_node = node.false_node
+                true_variant = enum_ty.get_variant(discriminant)
+                false_variant = PrePatternMatchSimplifier.inverse_variant(enum_ty, discriminant)
+                if cmp_op == "CmpNE":
+                    true_variant, false_variant = false_variant, true_variant
+                if true_variant and false_node:
+                    pattern_match = self._build_pattern_match(
+                        true_node, false_node, true_variant, false_variant, scrutinee, node.addr
+                    )
+                    if pattern_match:
+                        new_node = super()._handle_PatternMatch(pattern_match, **kwargs)
+                        return new_node or pattern_match
+            elif isinstance(scrutinee, Call):
+                import ipdb
+
+                ipdb.set_trace()
         return super()._handle_Condition(node, **kwargs)
 
 

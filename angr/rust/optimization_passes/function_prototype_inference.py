@@ -84,6 +84,9 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
                     call.args = call.args[1:]
                     call.bits = returnty.size
                     call.prototype = prototype
+                    import ipdb
+
+                    ipdb.set_trace()
                     if is_expr:
                         return call
                     dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
