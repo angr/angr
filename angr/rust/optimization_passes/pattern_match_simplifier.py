@@ -153,9 +153,10 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                         new_node = super()._handle_PatternMatch(pattern_match, **kwargs)
                         return new_node or pattern_match
             elif isinstance(scrutinee, Call):
-                import ipdb
-
-                ipdb.set_trace()
+                pass
+                # import ipdb
+                #
+                # ipdb.set_trace()
         return super()._handle_Condition(node, **kwargs)
 
 
