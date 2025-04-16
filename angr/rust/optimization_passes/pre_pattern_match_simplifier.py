@@ -5,7 +5,7 @@ from typing import Any, Optional
 import networkx
 from ailment import BinaryOp, Assignment
 from ailment.expression import Load, Const, VirtualVariable
-from ailment.statement import ConditionalJump, Return, Label
+from ailment.statement import ConditionalJump, Return, Label, Call
 
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
 from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
@@ -102,6 +102,8 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
             cmp_op = condition.op
             if isinstance(op0, Load):
                 scrutinee = unwrap_stack_vvar_reference(op0.addr)
+            if isinstance(op0, Call):
+                scrutinee = op0
             if isinstance(op1, Const):
                 discriminant = op1.value
         if scrutinee is not None and discriminant is not None and cmp_op:
