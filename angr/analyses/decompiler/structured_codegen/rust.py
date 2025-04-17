@@ -2795,8 +2795,12 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # memo
         self.ailexpr2cnode = {}
 
+        prototype = self._func.prototype
+
         if self._func_args:
             arg_list = [self._variable(arg, None) for arg in self._func_args]
+            if isinstance(prototype, RustSimTypeFunction) and prototype.is_arg0_retbuf:
+                arg_list = arg_list[1:]
         else:
             arg_list = []
 
@@ -2807,7 +2811,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.rust_func = RustFunction(
             self._func.addr,
             self._func.name,
-            self._translate_prototype_to_rust(self._func.prototype),
+            prototype.normalize() if isinstance(prototype, RustSimTypeFunction) else prototype,
             arg_list,
             obj,
             self._variables_in_use,
