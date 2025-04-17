@@ -586,8 +586,9 @@ class CallingConventionAnalysis(Analysis):
             # include its successor.
 
             # Re-lift the target block
-            if func.get_block_size(dst.addr) > 0:
-                dst_bb = self.project.factory.block(dst.addr, func.get_block_size(dst.addr), opt_level=1)
+            dst_block_size = func.get_block_size(dst.addr)
+            if dst_block_size is not None and dst_block_size > 0:
+                dst_bb = self.project.factory.block(dst.addr, dst_block_size, opt_level=1)
                 try:
                     vex_block = dst_bb.vex
                 except SimTranslationError:
