@@ -2,11 +2,10 @@ from collections import defaultdict
 from typing import Tuple
 
 from ailment import BinaryOp, AILBlockWalker, Statement, Block
-from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset
+from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, Enum
 from ailment.statement import Return, Store, ConditionalJump, Jump, Label, Call
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.rust.ailment.expression import Struct, Enum
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.rust.mixins.srda_mixin import SRDAMixin
 from angr.rust.sim_type import (
@@ -130,7 +129,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 new_fields[new_offset] = v
         struct_ty = self._build_struct_ty(new_fields)
         struct_ty.name = f"struct{struct_ty.size // 8}"
-        return Struct(None, new_fields, struct_ty)
+        return Struct(None, struct_ty.name, new_fields, struct_ty.offsets, struct_ty.size)
 
     def try_convert_to_enum(self, struct: Struct):
         prototype = self._func.prototype
@@ -145,8 +144,10 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 if not variant and discriminant is not None:
                     variant = prototype.returnty.get_variant(None)
             if variant and struct.size == variant.size:
-                new_struct = self._remove_discriminant_from_struct(struct, variant)
-                return Enum(None, [new_struct], variant, prototype.returnty.with_arch(self.project.arch))
+                new_expr = self._remove_discriminant_from_struct(struct, variant)
+                if len(new_expr.fields) == 1 and 0 in new_expr.fields:
+                    new_expr = new_expr.fields[0]
+                return Enum(None, variant.name, [new_expr], prototype.returnty.with_arch(self.project.arch).size)
         return struct
 
     def collect_ret_expr(self, path):
@@ -164,7 +165,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             return existing_vvar, stmts_to_remove
         if 0 in fields:
             struct_ty = self._build_struct_ty(fields)
-            result = Struct(None, fields, struct_ty)
+            result = Struct(None, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
             return self.try_convert_to_enum(result), stmts_to_remove
         return None, None
 

@@ -839,7 +839,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
         return self._top(expr.bits)
 
     def _handle_expr_Enum(self, expr) -> DataType_co:
-        for child_expr in expr.associated_exprs:
+        for child_expr in expr.fields:
             self._expr(child_expr)
         return self._top(expr.bits)
 

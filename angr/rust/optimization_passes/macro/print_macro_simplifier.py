@@ -2,14 +2,12 @@ from collections import defaultdict
 from typing import Tuple
 
 from ailment import Block
-from ailment.expression import Const, VirtualVariable
-from ailment.statement import Call
+from ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array
+from ailment.statement import Call, FunctionLikeMacro
 
 from angr.rust.optimization_passes.utils import extract_str_from_addr
 from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.ailment.expression import Struct, Array, StringLiteral
-from angr.rust.ailment.statement import FunctionLikeMacro
 from angr.rust.mixins import CFAMixin, DFAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
 from angr.rust.sim_type import RustSimType, RustSimTypeString

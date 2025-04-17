@@ -1,12 +1,10 @@
 import ailment
-from ailment.expression import VirtualVariable
-from ailment.statement import Call, Store, Assignment
+from ailment.expression import VirtualVariable, Struct
+from ailment.statement import Call, Store, Assignment, FunctionLikeMacro
 
-from ..ailment.statement import FunctionLikeMacro
 from ..sim_type import RustSimStruct, RustSimEnum, is_composite_type
 from ...utils.graph import GraphUtils
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ..ailment.expression import Struct
 from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
 from ...knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from ...sim_variable import SimVariable

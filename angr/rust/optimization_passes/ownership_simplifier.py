@@ -1,13 +1,12 @@
 from collections import defaultdict
 
 from ailment.expression import BasePointerOffset, Load, StackBaseOffset
-from ailment.statement import Call, Store, Assignment
+from ailment.statement import Call, Store, Assignment, FunctionLikeMacro
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference, is_composite_type
 from .base import SSAVariableHelper
-from ..ailment.statement import FunctionLikeMacro
 from ..mixins.srda_mixin import SRDAMixin
 from ..mixins.dfa_mixin import DFAMixin
 from ..mixins.cfa_mixin import CFAMixin

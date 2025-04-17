@@ -3,14 +3,13 @@ from typing import Dict, Optional, List
 import archinfo
 from ailment import Const
 from ailment.expression import BinaryOp, VirtualVariable, Load, StackBaseOffset
-from ailment.statement import Store, Assignment, Call
+from ailment.statement import Store, Assignment, Call, FunctionLikeMacro
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 from ..base import SSAVariableHelper
 from ...mixins.cfg_transformation_mixin import CFGTransformationMixin
 from ...mixins.srda_mixin import SRDAMixin
 from ...mixins.cfa_mixin import CFAMixin
-from ...ailment.statement import FunctionLikeMacro
 from ...sim_type import RustSimTypeVec, RustSimTypeInt
 from .... import SIM_LIBRARIES
 from ....analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage

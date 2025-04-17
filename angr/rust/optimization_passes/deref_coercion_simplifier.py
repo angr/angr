@@ -1,9 +1,7 @@
 from ailment import AILBlockWalker, Block, BinaryOp, Const
-from ailment.expression import VirtualVariable, Load, StackBaseOffset
-from ailment.statement import Call, Statement
+from ailment.expression import VirtualVariable, Load, StringLiteral
+from ailment.statement import Call, Statement, FunctionLikeMacro
 
-from ..ailment.expression import String, StringLiteral
-from ..ailment.statement import FunctionLikeMacro
 from ..sim_type import RustSimTypeString
 from ..utils.ail_util import unwrap_stack_vvar_reference
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
