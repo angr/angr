@@ -1,11 +1,8 @@
-from ailment import AILBlockWalker, Statement, Block
-from ailment.expression import StackBaseOffset, VirtualVariable
-from ailment.statement import Call, Assignment
+from ailment.expression import StackBaseOffset, VirtualVariable, StringLiteral
+from ailment.statement import Call, Assignment, FunctionLikeMacro
 
-from angr.rust.ailment.expression import String
 from angr.utils.graph import GraphUtils
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.ailment.statement import FunctionLikeMacro
 from angr.rust.mixins.cfa_mixin import CFAMixin
 
 UIOERROR_NEW_FUNCTION = ("uucore::mods::error::UIoError::new",)
@@ -61,7 +58,7 @@ class ShowMacroSimplifier(OptimizationPass, CFAMixin):
                     if (
                         isinstance(macro, FunctionLikeMacro)
                         and macro.name == "eprintln"
-                        and isinstance(macro.args[0], String)
+                        and isinstance(macro.args[0], StringLiteral)
                         and macro.args[0].decoded_str == "{}: {}"
                         and len(macro.args) == 3
                     ):
@@ -88,7 +85,7 @@ class ShowMacroSimplifier(OptimizationPass, CFAMixin):
                 and isinstance(second_macro, FunctionLikeMacro)
                 and first_macro.name == "eprint"
                 and second_macro.name == "eprintln"
-                and isinstance(first_macro.args[0], String)
+                and isinstance(first_macro.args[0], StringLiteral)
             ):
                 first_fmt_str = first_macro.args[0].decoded_str
                 # second_fmt_str = second_macro.args[0].decoded_str

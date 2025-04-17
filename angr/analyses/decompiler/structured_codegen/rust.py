@@ -1,14 +1,14 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument
 from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import logging
 from functools import reduce
 
 import ailment
 from ailment import Block, Expr, Stmt, Tmp
-from ailment.expression import StackBaseOffset, BinaryOp, VirtualVariable
+from ailment.expression import StackBaseOffset, BinaryOp, VirtualVariable, StringLiteral, Struct, Array, Enum, Let
 
-from ....rust.ailment.statement import FunctionLikeMacro
+from ailment.statement import FunctionLikeMacro
 from ....rust.definitions.structs import StrSlice
 from ....rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 from ....sim_type import (
@@ -63,7 +63,6 @@ from ..structuring.structurer_nodes import (
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 from ....rust.typehoon.translator import RustTypeTranslator
-from ....rust.ailment.expression import String, Struct, Array, Let, StringLiteral, Enum
 
 if TYPE_CHECKING:
     import archinfo
@@ -645,7 +644,7 @@ class RustExpression(RustConstruct):
     @staticmethod
     def _try_c_repr_chunks(expr, indent=0):
         if hasattr(expr, "c_repr_chunks"):
-            yield from expr.c_repr_chunks(indent=indent)
+            yield from expr.c_repr_chunks(indent=indent, asexpr=True)
         else:
             yield str(expr), expr
 
@@ -1576,23 +1575,19 @@ class RustLabel(RustStatement):
 
 class RustStruct(RustExpression):
     __slots__ = (
+        "name",
         "fields",
         "field_names",
-        "struct_type",
         "tags",
     )
 
-    def __init__(self, fields, field_names, struct_type: RustSimStruct, tags=None, **kwargs):
+    def __init__(self, name, fields, field_names, tags=None, **kwargs):
         super().__init__(**kwargs)
 
+        self.name = name
         self.fields = fields
         self.field_names = field_names
-        self.struct_type = struct_type
         self.tags = tags
-
-    @property
-    def type(self):
-        return self.struct_type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         brace = RustClosingObject("{")
@@ -1601,16 +1596,14 @@ class RustStruct(RustExpression):
             return
         indent_str = self.indent_str(indent=indent)
         field_indent_str = self.indent_str(indent=indent + INDENT_DELTA)
-        yield str(self.type.name), self
+        yield str(self.name), self
         yield " {\n", brace
         for offset, name in self.field_names.items():
             yield field_indent_str, None
             yield name, self
             yield ": ", self
             if offset in self.fields:
-                yield from RustExpression._try_c_repr_chunks(
-                    self.codegen._handle(self.fields[offset]), indent=indent + INDENT_DELTA
-                )
+                yield from RustExpression._try_c_repr_chunks(self.fields[offset])
             else:
                 yield "<UNKNOWN>", None
             yield "\n", None
@@ -1621,22 +1614,16 @@ class RustStruct(RustExpression):
 class RustEnum(RustExpression):
     __slots__ = (
         "name",
-        "associated_exprs",
-        "enum_type",
+        "fields",
         "tags",
     )
 
-    def __init__(self, name, associated_exprs, enum_type, tags=None, **kwargs):
+    def __init__(self, name, fields, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.name = name
-        self.associated_exprs = associated_exprs
-        self.enum_type = enum_type
+        self.fields = fields
         self.tags = tags
-
-    @property
-    def type(self):
-        return self.enum_type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         paren = RustClosingObject("{")
@@ -1645,10 +1632,10 @@ class RustEnum(RustExpression):
             return
         yield self.name, self
         yield "(", paren
-        for idx, expr in enumerate(self.associated_exprs):
+        for idx, expr in enumerate(self.fields):
             if idx > 0:
                 yield ", ", None
-            yield from expr.c_repr_chunks(indent=indent)
+            yield from RustExpression._try_c_repr_chunks(expr)
         yield ")", paren
 
 
@@ -1680,27 +1667,21 @@ class RustStructField(RustExpression):
 
 
 class RustArray(RustExpression):
-    __slots__ = ("elements", "length", "element_type", "tags")
+    __slots__ = ("elements", "tags")
 
-    def __init__(self, elements, length, type, tags=None, **kwargs):
+    def __init__(self, elements, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.elements = elements
-        self.length = length
-        self._type = type
         self.tags = tags
-
-    @property
-    def type(self):
-        return self._type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         bracket = RustClosingObject("[")
         yield "[", bracket
         for i, ele in enumerate(self.elements):
-            if i:
+            if i > 0:
                 yield ", ", self
-            yield from RustExpression._try_c_repr_chunks(self.codegen._handle(ele))
+            yield from RustExpression._try_c_repr_chunks(ele)
         yield "]", bracket
 
 
@@ -2422,9 +2403,6 @@ class RustConstant(RustExpression):
                 elif isinstance(v, str):
                     yield RustConstant.str_to_rust_str(v, is_heap_str=False), self
                     return
-                elif isinstance(v, String):
-                    yield RustConstant.str_to_rust_str(v.decoded_str, is_heap_str=v.is_heap_str), self
-                    return
                 elif isinstance(v, Function):
                     yield demangle(v.name), self
                     return
@@ -2736,7 +2714,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
-            String: self._handle_Expr_String,
             StringLiteral: self._handle_Expr_StringLiteral,
             Struct: self._handle_Expr_Struct,
             Enum: self._handle_Expr_Enum,
@@ -3604,7 +3581,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     if target_func.prototype is not None and i < len(target_func.prototype.args):
                         type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
-                if isinstance(arg, Expr.Const) and arg.__class__ not in [String]:
+                if isinstance(arg, Expr.Const):
                     if type_ is None or is_machine_word_size_type(type_, self.project.arch):
                         type_ = guess_value_type(arg.value, self.project) or type_
 
@@ -3841,32 +3818,28 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_String(self, expr: String, **kwargs):
-        return RustStringLiteral(expr.decoded_str, tags=expr.tags, codegen=self)
-        # if expr.is_heap_str:
-        #     type_ = RustSimTypeString().with_arch(self.project.arch)
-        # else:
-        #     type_ = RustSimTypeReference(RustSimTypeStr().with_arch(self.project.arch)).with_arch(self.project.arch)
-        # reference_values = {type_: expr}
-        # return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
-
     def _handle_Expr_StringLiteral(self, expr: StringLiteral, **kwargs):
         return RustStringLiteral(expr.data, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Struct(self, expr: Struct, **kwargs):
-        return RustStruct(expr.fields, expr.field_names, expr.type, tags=expr.tags, codegen=self)
+        return RustStruct(
+            expr.name,
+            OrderedDict([(offset, self._handle(field)) for offset, field in expr.fields.items()]),
+            expr.field_names,
+            tags=expr.tags,
+            codegen=self,
+        )
 
     def _handle_Expr_Enum(self, expr: Enum, **kwargs):
         return RustEnum(
-            expr.variant.name,
-            [self._handle(child_expr) for child_expr in expr.associated_exprs],
-            expr.type,
+            expr.name,
+            [self._handle(field) for field in expr.fields],
             tags=expr.tags,
             codegen=self,
         )
 
     def _handle_Expr_Array(self, expr: Array, **kwargs):
-        return RustArray(expr.elements, expr.length, expr.type, tags=expr.tags, codegen=self)
+        return RustArray([self._handle(ele) for ele in expr.elements], tags=expr.tags, codegen=self)
 
     def _handle_Expr_Let(self, expr: Let, **kwargs):
         return RustLet(expr, tags=expr.tags, codegen=self)

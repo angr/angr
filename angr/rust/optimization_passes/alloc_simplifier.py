@@ -2,16 +2,14 @@ from typing import Dict, Optional
 
 import archinfo
 from ailment import Const, AILBlockWalker, Block
-from ailment.expression import BinaryOp, VirtualVariable, VirtualVariableCategory, StackBaseOffset, UnaryOp
-from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump, Statement
+from ailment.expression import BinaryOp, VirtualVariable, UnaryOp, StringLiteral
+from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump, Statement, FunctionLikeMacro
 
 from .base import TransformationPass, SSAVariableHelper
 from ..mixins.srda_mixin import SRDAMixin
-from ..ailment.statement import FunctionLikeMacro
 from ..sim_type import RustSimTypeVec, RustSimTypeInt
 from ... import SIM_LIBRARIES
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
-from ..ailment.expression import String
 
 
 class VecIndexingWalker(AILBlockWalker):
@@ -80,7 +78,7 @@ class SimplificationState:
                 try:
                     decoded_str = init_bytes.decode()
                     if decoded_str.isprintable():
-                        data = String(None, None, 0, self.context.project.arch.bits, decoded_str)
+                        data = StringLiteral(None, decoded_str, self.context.project.arch.bits)
                         call = Call(
                             idx=None,
                             target="String::from",

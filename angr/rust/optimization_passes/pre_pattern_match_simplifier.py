@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import networkx
 from ailment import BinaryOp, Assignment
-from ailment.expression import Load, Const, VirtualVariable
+from ailment.expression import Load, Const, VirtualVariable, Enum
 from ailment.statement import ConditionalJump, Return, Label, Call
 
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
@@ -12,7 +12,6 @@ from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 from angr.analyses.decompiler.optimization_passes.return_duplicator_base import ReturnDuplicatorBase
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from angr.rust.ailment.expression import Enum
 
 _l = logging.getLogger(name=__name__)
 

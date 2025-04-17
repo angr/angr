@@ -1,13 +1,12 @@
 from collections import defaultdict
 
 import claripy
-from ailment.expression import Const, VirtualVariable
+from ailment.expression import Const, VirtualVariable, Struct, Array
 from ailment.statement import Assignment
 from archinfo import Endness
 
 from .base import SSAVariableHelper
 from ..mixins import CFAMixin, SRDAMixin, DFAMixin
-from ..ailment.expression import Struct, Array
 from ..definitions.structs import ArrayReference
 from ..sim_type import RustSimStruct, RustSimTypeReference
 from ..utils.ail_util import unwrap_stack_vvar_reference
@@ -95,7 +94,7 @@ class StructBuilder:
                     elements.append(ele_expr)
             else:
                 return None
-            return Array(0, elements, struct_ty)
+            return Array(0, elements, struct_ty.size)
         return None
 
     def build(self, field_exprs, struct_ty) -> Struct | Array | None:
@@ -118,7 +117,7 @@ class StructBuilder:
             else:
                 if field_offset in field_exprs:
                     fields[field_offset] = field_exprs[field_offset]
-        return Struct(0, fields, struct_ty)
+        return Struct(0, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
 
 
 class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMixin):

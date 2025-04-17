@@ -1,8 +1,7 @@
 from ailment import Expression, Assignment
 from ailment.expression import VirtualVariable, Phi
-from ailment.statement import Call
+from ailment.statement import Call, FunctionLikeMacro
 
-from angr.rust.ailment.statement import FunctionLikeMacro
 from angr.rust.sim_type import RustSimTypeFunction, RustSimType
 from angr.analyses.s_reaching_definitions import SRDAView
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE

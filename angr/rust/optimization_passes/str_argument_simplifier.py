@@ -1,7 +1,7 @@
 from ailment import AILBlockWalker, Block, Const
 from ailment.statement import Call, Statement
+from ailment.expression import StringLiteral
 
-from ..ailment.expression import String, StringLiteral
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -46,7 +46,6 @@ class StrArgumentSimplifierWalker(AILBlockWalker):
                     and isinstance(arg1, Const)
                     and (decoded_str := self._extract_str(arg0, arg1))
                 ):
-                    new_arg = String(None, None, 0, self.project.arch.bits, decoded_str)
                     new_arg = StringLiteral(None, decoded_str, self.project.arch.bits)
                     new_args.append(new_arg)
                     changed = True

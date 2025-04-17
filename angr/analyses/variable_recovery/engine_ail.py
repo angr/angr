@@ -9,6 +9,7 @@ from angr.errors import SimMemoryMissingError
 from angr.sim_variable import SimVariable, SimStackVariable
 import claripy
 
+from ailment.expression import StringLiteral, Struct, Array, Enum, Let
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.sim_type import SimTypeFunction, SimTypePointer
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
@@ -17,9 +18,8 @@ from angr.analyses.typehoon.translator import TypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
 from ...engines.engine import DataType_co
-from ...rust.ailment.statement import FunctionLikeMacro
+from ailment.statement import FunctionLikeMacro
 from ...rust.sim_type import RustSimTypeStr, RustSimTypeString, RustSimTypeFunction
-from ...rust.ailment.expression import String, Struct, Array, Let, Enum
 from ...rust.sim_type import RustSimTypeFunction, RustSimStruct, RustSimTypeStr, RustSimTypeReference
 from ...rust.typehoon.lifter import RustTypeLifter
 from .engine_base import SimEngineVRBase, RichR
@@ -600,7 +600,7 @@ class SimEngineVRAIL(
             self.state.add_type_constraint(typevars.Subtype(tv, tv_))
         return RichR(self.state.top(expr.bits), typevar=tv)
 
-    def _handle_expr_String(self, expr: String):
+    def _handle_expr_StringLiteral(self, expr: StringLiteral):
         return RichR(self.state.top(expr.bits))
 
     def _handle_expr_Struct(self, expr: Struct):
@@ -609,8 +609,8 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.bits))
 
     def _handle_expr_Enum(self, expr: Enum):
-        for associated_expr in expr.associated_exprs:
-            self._expr(associated_expr)
+        for field in expr.fields:
+            self._expr(field)
         return RichR(self.state.top(expr.bits))
 
     def _handle_expr_Array(self, expr: Array):

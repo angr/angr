@@ -65,8 +65,8 @@ from .utils import first_nonlabel_statement_id
 from ..typehoon import Typehoon
 from .optimization_passes import get_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
 from ..typehoon.typehoon import Typehoon
-from ...rust.ailment.expression import Struct, Array, Let, Enum
-from ...rust.ailment.statement import FunctionLikeMacro
+from ailment.expression import Struct, Array, Enum, Let
+from ailment.statement import FunctionLikeMacro
 from ...rust.typehoon.typehoon import RustTypehoon
 from .semantic_naming import SemanticNamingOrchestrator
 from ...rust.sim_type import RustSimTypeInt
@@ -2496,8 +2496,8 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, field)
 
         elif isinstance(expr, Enum):
-            for associated_expr in expr.associated_exprs:
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, associated_expr)
+            for field in expr.fields:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, field)
 
         elif isinstance(expr, Array):
             for ele in expr.elements:
