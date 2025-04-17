@@ -10,7 +10,6 @@ import unittest
 
 import archinfo
 import angr
-from angr.utils.segment_list import SegmentList
 from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 

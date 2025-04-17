@@ -4,10 +4,12 @@ import unittest
 
 from angr.utils.segment_list import SegmentList
 
+
 class TestSegmentList(unittest.TestCase):
     """
     Test the SegmentList class.
     """
+
     def test_occupy(self):
         seg_list = SegmentList()
         seg_list.occupy(0, 1, "code")
