@@ -2998,6 +2998,12 @@ class Clinic(Analysis):
                             and last_stmt.addr.offset < 0
                             and isinstance(last_stmt.data, ailment.Expr.Const)
                             and last_stmt.data.value == succ.addr
+                        ) or (
+                            isinstance(last_stmt, ailment.Stmt.Assignment)
+                            and last_stmt.dst.was_stack
+                            and last_stmt.dst.stack_offset < 0
+                            and isinstance(last_stmt.src, ailment.Expr.Const)
+                            and last_stmt.src.value == succ.addr
                         ):
                             # remove the statement that pushes the return address
                             node.statements = node.statements[:-1]
@@ -3031,6 +3037,12 @@ class Clinic(Analysis):
                             and last_stmt.addr.offset < 0
                             and isinstance(last_stmt.data, ailment.Expr.Const)
                             and last_stmt.data.value == succ.addr
+                        ) or (
+                            isinstance(last_stmt, ailment.Stmt.Assignment)
+                            and last_stmt.dst.was_stack
+                            and last_stmt.dst.stack_offset < 0
+                            and isinstance(last_stmt.src, ailment.Expr.Const)
+                            and last_stmt.src.value == succ.addr
                         ):
                             # remove the statement that pushes the return address
                             node.statements = node.statements[:-1]
