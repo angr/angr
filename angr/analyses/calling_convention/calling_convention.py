@@ -21,6 +21,7 @@ from angr.calling_conventions import (
     default_cc,
     SimCCMicrosoftThiscall,
 )
+from angr.errors import SimTranslationError
 from angr.sim_type import (
     SimTypeCppFunction,
     SimTypeInt,
@@ -585,16 +586,22 @@ class CallingConventionAnalysis(Analysis):
             # include its successor.
 
             # Re-lift the target block
-            dst_bb = self.project.factory.block(dst.addr, func.get_block_size(dst.addr), opt_level=1)
+            if func.get_block_size(dst.addr) > 0:
+                dst_bb = self.project.factory.block(dst.addr, func.get_block_size(dst.addr), opt_level=1)
+                try:
+                    vex_block = dst_bb.vex
+                except SimTranslationError:
+                    # failed to lift the block
+                    continue
 
-            # If there is only one 'IMark' statement in vex --> the target block contains only direct jump
-            if (
-                len(dst_bb.vex.statements) == 1
-                and dst_bb.vex.statements[0].tag == "Ist_IMark"
-                and func.graph.out_degree(dst) == 1
-            ):
-                for _, jmp_dst, jmp_data in func_graph.out_edges(dst, data=True):
-                    subgraph.add_edge(dst, jmp_dst, **jmp_data)
+                # If there is only one 'IMark' statement in vex --> the target block contains only direct jump
+                if (
+                    len(vex_block.statements) == 1
+                    and vex_block.statements[0].tag == "Ist_IMark"
+                    and func.graph.out_degree(dst) == 1
+                ):
+                    for _, jmp_dst, jmp_data in func_graph.out_edges(dst, data=True):
+                        subgraph.add_edge(dst, jmp_dst, **jmp_data)
 
         return subgraph
 
