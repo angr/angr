@@ -5,6 +5,7 @@ All type constants used in type inference. They can be mapped, translated, or re
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import itertools
 from typing import List, Tuple, Optional
@@ -365,13 +366,12 @@ class Struct(TypeConstant):
 
 
 class EnumVariant:
-    def __init__(self, name, fields, discriminant, discriminant_size, data_offset, struct_ty):
+    def __init__(self, name, fields, discriminant, discriminant_size, size):
         self.name = name
         self.fields: List[Tuple[TypeConstant, Optional[str]]] = fields
         self.discriminant = discriminant
         self.discriminant_size = discriminant_size
-        self.data_offset = data_offset
-        self.struct_ty: TypeConstant = struct_ty
+        self.size = size
 
     def __eq__(self, other):
         return (
@@ -380,14 +380,11 @@ class EnumVariant:
             and self.fields == other.fields
             and self.discriminant == other.discriminant
             and self.discriminant_size == other.discriminant
+            and self.size == other.size
         )
 
     def __hash__(self):
-        return hash((type(self), self.name, self.fields, self.discriminant, self.discriminant_size))
-
-    @property
-    def size(self):
-        return self.data_offset + self.struct_ty.size
+        return hash((type(self), self.name, tuple(self.fields), self.discriminant, self.discriminant_size, self.size))
 
 
 class Enum(TypeConstant):

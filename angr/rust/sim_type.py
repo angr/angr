@@ -1,7 +1,6 @@
 from typing import Optional, Dict, List, Union, Tuple
 from collections import OrderedDict
 
-from ..analyses.typehoon.translator import SimTypeTempRef
 from ..sim_type import (
     SimType,
     SimTypeBottom,
@@ -280,6 +279,8 @@ class RustSimStruct(RustSimType, SimStruct):
         if not self.fields:
             return 0
         size = super().size
+        if size == 0:
+            return 0
         if size % self.alignment != 0:
             size += self.alignment - (size % self.alignment)
         return size
@@ -327,12 +328,43 @@ class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
         super(SimTypeNumOffset, self).c_repr(name, full, memo, indent)
 
 
-class RustSimTypeTempRef(RustSimType, SimTypeTempRef):
-    def __init__(self, typevar):
-        super().__init__(typevar)
+class RustSimTypeSlice(RustSimStruct, SimType):
+    def __init__(self, element_ty, label=None, arch=None):
+        self.element_ty = element_ty
+        RustSimStruct.__init__(
+            self,
+            {
+                "ptr": RustSimTypeReference(pts_to=element_ty).with_arch(arch),
+                "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
+            },
+            name=f"&[{element_ty}]",
+        )
+        SimType.__init__(self, label)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = RustSimTypeSlice(self.element_ty, label=self.label, arch=arch)
+        out._arch = arch
+        self._arch_memo[arch.name] = out
+
+        return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
-        return "<RustSimTypeTempRef>"
+        if name is None or len(name) == 0:
+            return self.__repr__()
+        return f"{name}: {self.__repr__()}"
+
+    def copy(self):
+        return RustSimTypeSlice(self.element_ty, self.label).with_arch(self._arch)
+
+    @property
+    def size(self):
+        return self._arch.bits * 2
+
+    def __repr__(self):
+        return self.name
 
 
 class RustSimTypeStr(RustSimStruct, SimType):
@@ -511,6 +543,17 @@ class EnumVariant:
             return result.with_arch(self._arch)
         return result
 
+    def as_struct_ty(self):
+        fields = OrderedDict()
+        if self.discriminant_size != 0:
+            fields["discriminant"] = RustSimTypeInt(self.discriminant_size * 8, signed=False)
+        for idx, (field_ty, name) in enumerate(self.fields):
+            fields[name or f"field_{idx}"] = field_ty
+        result = RustSimStruct(fields)
+        if self._arch:
+            return result.with_arch(self._arch)
+        return result
+
     def with_arch(self, arch):
         fields = [(field_ty.with_arch(arch), name) for field_ty, name in self.fields]
         result = EnumVariant(self.name, fields, self.discriminant, self.discriminant_size)
@@ -562,6 +605,12 @@ class RustSimEnum(RustSimType, SimType):
 
     def num_variants(self):
         return len(self.variants)
+
+    def as_struct_ty(self):
+        largest = sorted(self.variants, key=lambda variant: variant.bits)[-1]
+        struct_ty = largest.as_struct_ty()
+        struct_ty.name = self.name
+        return struct_ty
 
 
 class RustSimTypeOption(RustSimEnum):

@@ -70,7 +70,7 @@ class ErrorPropagationWalker(SequenceWalker):
                     and isinstance(move_stmts[0].dst, VirtualVariable)
                 ):
                     new_dst_vvar = move_stmts[0].dst
-        if err_node and ok_node and new_dst_vvar and self._is_early_return(err_node):
+        if err_node and ok_node and self._is_early_return(err_node):
             call = self.context.get_terminal_vvar_value(node.scrutinee)
             if isinstance(call, Call):
                 call.tags["unwrapped_vvar"] = new_dst_vvar

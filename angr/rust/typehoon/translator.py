@@ -2,7 +2,7 @@ from typing import Dict, Union
 from itertools import count
 
 from ..definitions.structs import PreDefinedStructs
-from ...analyses.typehoon.translator import TypeTranslator
+from ...analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
 from ...analyses.typehoon import typeconsts
 from ...analyses.typehoon.typeconsts import TypeConstant
 from ... import sim_type
@@ -13,10 +13,17 @@ from ..sim_type import (
     RustSimType,
     RustSimTypeArray,
     RustSimStruct,
-    RustSimTypeTempRef,
     RustSimTypeString,
     RustSimTypeStr,
 )
+
+
+class RustSimTypeTempRef(RustSimType, SimTypeTempRef):
+    def __init__(self, typevar):
+        super().__init__(typevar)
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        return "<RustSimTypeTempRef>"
 
 
 class RustTypeTranslator(TypeTranslator):

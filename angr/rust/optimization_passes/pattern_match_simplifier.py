@@ -19,8 +19,9 @@ from angr.rust.structuring.structurer_nodes import PatternMatchNode
 
 
 class PatternMatchWalker(SequenceWalker, DFAMixin):
-    def __init__(self):
+    def __init__(self, var_manager):
         super().__init__()
+        self.var_manager = var_manager
 
     @staticmethod
     def _find_first_block(node):
@@ -53,32 +54,9 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
             return stmt
         return None
 
-    def _build_pattern_match(self, true_node, false_node, condition, addr):
-        scrutinee = condition.tags.get("scrutinee", None)
-        match_arms: Dict[int, Tuple[EnumVariant, Tuple[Statement]]] = condition.tags.get("match_arms", None)
-        true_variant_and_moves, false_variant_and_moves = None, None
-        if match_arms:
-            if true_node.addr in match_arms and false_node.addr in match_arms:
-                true_variant_and_moves = match_arms[true_node.addr]
-                false_variant_and_moves = match_arms[false_node.addr]
-            elif true_node.addr in match_arms and false_node.addr not in match_arms:
-                true_variant_and_moves = match_arms[true_node.addr]
-                false_variant_and_moves = next(iter(v for k, v in match_arms.items() if k != true_node.addr))
-            elif false_node.addr in match_arms and true_node.addr not in match_arms:
-                false_variant_and_moves = match_arms[false_node.addr]
-                true_variant_and_moves = next(iter(v for k, v in match_arms.items() if k != false_node.addr))
-
-        if scrutinee and match_arms and true_variant_and_moves is not None and false_variant_and_moves is not None:
-            arms = OrderedDict([(true_variant_and_moves, true_node), (false_variant_and_moves, false_node)])
-            scrutinee.tags["call"] = condition.tags.get("call", None)
-            result = PatternMatchNode(scrutinee, arms, None, addr)
-            for stmt in true_variant_and_moves[1] + false_variant_and_moves[1]:
-                if stmt:
-                    stmt.tags["hidden"] = True
-            return result
-        return None
-
     def _collect_move_stmts(self, scrutinee: VirtualVariable, variant: EnumVariant, node):
+        if scrutinee.was_reg:
+            return (None,) * len(variant.fields)
         block = self._find_first_block(node)
         if block:
             src_offset_to_stmt = {}
@@ -137,7 +115,8 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         scrutinee, discriminant, cmp_op = PrePatternMatchSimplifier.extract_scrutinee_and_discriminant(node.condition)
         if node.true_node and node.false_node and scrutinee is not None and discriminant is not None:
             if isinstance(scrutinee, VirtualVariable) and isinstance(
-                (enum_ty := scrutinee.tags.get("type", None)), (RustSimTypeOption, RustSimTypeResult)
+                (enum_ty := scrutinee.tags.get("type", None) or self.var_manager.get_variable_type(scrutinee.variable)),
+                (RustSimTypeOption, RustSimTypeResult),
             ):
                 true_node = node.true_node
                 false_node = node.false_node
@@ -145,7 +124,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                 false_variant = PrePatternMatchSimplifier.inverse_variant(enum_ty, discriminant)
                 if cmp_op == "CmpNE":
                     true_variant, false_variant = false_variant, true_variant
-                if true_variant and false_node:
+                if true_variant and false_variant:
                     pattern_match = self._build_pattern_match(
                         true_node, false_node, true_variant, false_variant, scrutinee, node.addr
                     )
@@ -154,9 +133,6 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                         return new_node or pattern_match
             elif isinstance(scrutinee, Call):
                 pass
-                # import ipdb
-                #
-                # ipdb.set_trace()
         return super()._handle_Condition(node, **kwargs)
 
 
@@ -169,12 +145,13 @@ class PatternMatchSimplifier(SequenceOptimizationPass):
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
         self._graph = kwargs.get("graph")
+        self._variable_kb = kwargs.get("variable_kb")
         self.analyze()
 
     def _check(self):
         return bool(self.seq.nodes), None
 
     def _analyze(self, cache=None):
-        walker = PatternMatchWalker()
+        walker = PatternMatchWalker(self._variable_kb.variables.get_function_manager(self._func.addr))
         walker.walk(self.seq)
         self.out_seq = self.seq

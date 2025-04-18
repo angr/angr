@@ -52,7 +52,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
         for block in self._graph.nodes:
             walker.walk(block)
 
-    def _analyze_and_replace_call(self, call, block, is_expr):
+    def _analyze_and_replace_call(self, call, block, stmt, is_expr):
         # For debug purpose
         if self.match_call(call, CLEANUP_FUNCTIONS):
             return
@@ -74,23 +74,33 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
                 call.prototype = rcc.model.inferred_prototype
                 func.prototype = call.prototype
 
-        if call and isinstance(call.prototype, RustSimTypeFunction) and call.prototype.is_arg0_retbuf:
+        if call and isinstance(call.prototype, RustSimTypeFunction):
+            is_arg0_retbuf = call.prototype.is_arg0_retbuf
             prototype = call.prototype.normalize()
             returnty = prototype.returnty
-            if is_composite_type(returnty) and call.args:
-                arg0 = call.args[0]
-                if isinstance(arg0, UnaryOp) and arg0.op == "Reference" and isinstance(arg0.operand, VirtualVariable):
-                    call = call.copy()
-                    call.args = call.args[1:]
-                    call.bits = returnty.size
-                    call.prototype = prototype
+            if is_composite_type(returnty):
+                if is_arg0_retbuf:
+                    arg0 = call.args[0] if call.args else None
+                    if (
+                        isinstance(arg0, UnaryOp)
+                        and arg0.op == "Reference"
+                        and isinstance(arg0.operand, VirtualVariable)
+                    ):
+                        call = call.copy()
+                        call.args = call.args[1:]
+                        call.bits = returnty.size
+                        call.prototype = prototype
+                        if is_expr:
+                            return call
+                        dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
+                        dst_vvar.tags["type"] = returnty
+                        self._new_stack_vvars.add(dst_vvar.varid)
+                        assignment = Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
+                        return assignment
+                else:
                     if is_expr:
-                        return call
-                    dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
-                    dst_vvar.tags["type"] = returnty
-                    self._new_stack_vvars.add(dst_vvar.varid)
-                    assignment = Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
-                    return assignment
+                        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
+                            stmt.dst.tags["type"] = returnty
         return None
 
     def _analyze(self, cache=None):

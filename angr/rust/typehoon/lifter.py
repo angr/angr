@@ -1,5 +1,6 @@
 from typing import Union
 
+import angr.rust.sim_type
 from ..sim_type import (
     RustSimType,
     RustSimTypeInt,
@@ -10,9 +11,21 @@ from ..sim_type import (
     RustSimTypeString,
     RustSimTypeSize,
     RustSimEnum,
+    RustSimTypeOption,
+    RustSimTypeResult,
 )
 from ...analyses.typehoon.lifter import TypeLifter
-from ...analyses.typehoon.typeconsts import BottomType, Int8, Int16, Int32, Int64, TypeConstant, Struct
+from ...analyses.typehoon.typeconsts import (
+    BottomType,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    TypeConstant,
+    Struct,
+    Enum,
+    EnumVariant,
+)
 
 
 class RustTypeLifter(TypeLifter):
@@ -65,10 +78,19 @@ class RustTypeLifter(TypeLifter):
         obj.field_names = field_names
         return obj
 
-    def _lift_SimEnum(self, ty: RustSimEnum):
-        import ipdb
+    def _lift_EnumVariant(self, variant: angr.rust.sim_type.EnumVariant):
+        return EnumVariant(
+            variant.name,
+            [(self.lift(field_ty), field_name) for field_ty, field_name in variant.fields],
+            variant.discriminant_size,
+            variant.discriminant,
+            variant.size,
+        )
 
-        ipdb.set_trace()
+    def _lift_SimEnum(self, ty: RustSimEnum):
+        obj = Enum(ty.name, [self._lift_EnumVariant(variant) for variant in ty.variants])
+        self.memo[ty] = obj
+        return obj
 
 
 _mapping = {
@@ -78,4 +100,6 @@ _mapping = {
     RustSimStruct: RustTypeLifter._lift_SimStruct,
     RustSimTypeArray: RustTypeLifter._lift_SimTypeArray,
     RustSimEnum: RustTypeLifter._lift_SimEnum,
+    RustSimTypeResult: RustTypeLifter._lift_SimEnum,
+    RustSimTypeOption: RustTypeLifter._lift_SimEnum,
 }

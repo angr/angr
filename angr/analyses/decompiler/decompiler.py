@@ -439,7 +439,11 @@ class Decompiler(Analysis):
             )
             seq_node = s.result
             seq_node = self._run_post_structuring_simplification_passes(
-                seq_node, binop_operators=cache.binop_operators, goto_manager=s.goto_manager, graph=clinic.graph
+                seq_node,
+                binop_operators=cache.binop_operators,
+                goto_manager=s.goto_manager,
+                graph=clinic.graph,
+                variable_kb=self._variable_kb,
             )
 
             # rewrite the sequence node to remove phi expressions

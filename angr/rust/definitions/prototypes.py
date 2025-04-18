@@ -1,3 +1,4 @@
+from .structs import ZeroSizeStruct
 from ..sim_type import (
     RustSimTypeFunction,
     RustSimTypeStr,
@@ -7,6 +8,7 @@ from ..sim_type import (
     RustSimTypeSize,
     RustSimTypeBottom,
     RustSimTypeResult,
+    RustSimTypeSlice,
 )
 from ..definitions import structs as default_structs
 
@@ -63,6 +65,12 @@ def generate_known_rust_prototypes(project):
         ),
         "core::option::unwrap": RustSimTypeFunction(
             args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
+        ),
+        "std::io::Write::write_all": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeSlice(RustSimTypeInt(8))],
+            returnty=RustSimTypeResult(
+                ZeroSizeStruct, 0, project.arch.bytes, RustSimTypeReference(RustSimTypeBottom()), None, 0
+            ),
         ),
         # "std::io::Read::read_to_string": RustSimTypeFunction(
         #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(RustSimTypeString())],
