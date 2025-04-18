@@ -64,7 +64,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
             return True
         return False
 
-    def replace_call(self, call: Call, block: Block, is_expr):
+    def replace_call(self, call: Call, block: Block, stmt, is_expr):
         if (
             (name := self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False))
             and call.args

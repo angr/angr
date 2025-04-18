@@ -101,7 +101,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
             cmp_op = condition.op
             if isinstance(op0, Load):
                 scrutinee = unwrap_stack_vvar_reference(op0.addr)
-            if isinstance(op0, Call):
+            if isinstance(op0, (VirtualVariable, Call)):
                 scrutinee = op0
             if isinstance(op1, Const):
                 discriminant = op1.value
@@ -181,4 +181,4 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
         copy_graph = networkx.DiGraph(self._graph)
         if self._analyze_core(copy_graph):
             self.out_graph = self._simplify_graph(copy_graph)
-        self._group_move_stmts()
+        # self._group_move_stmts()

@@ -57,10 +57,10 @@ class CallReplacer(AILBlockWalker):
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         if block is None:
             return None
-        new_stmt = self.callback(stmt, block, is_expr=False)
+        new_stmt = self.callback(stmt, block, stmt, is_expr=False)
         if new_stmt:
             block.statements[stmt_idx] = new_stmt
         return new_stmt
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        return self.callback(expr, block, is_expr=True)
+        return self.callback(expr, block, stmt, is_expr=True)

@@ -102,3 +102,17 @@ Arguments = RustSimStruct(
         )
     ),
 )
+
+Error = RustSimStruct(
+    name="Error",
+    fields={
+        "kind": RustSimTypeSize(),
+        "message": StrSlice(),
+    },
+)
+
+ZeroSizeStruct = RustSimStruct(
+    name="()",
+    fields=OrderedDict(()),
+    align=0,
+)
