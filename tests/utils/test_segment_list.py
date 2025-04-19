@@ -9,6 +9,7 @@ class TestSegmentList(unittest.TestCase):
     """
     Test the SegmentList class.
     """
+    # pylint: disable=no-self-use
 
     def test_occupy(self):
         seg_list = SegmentList()
