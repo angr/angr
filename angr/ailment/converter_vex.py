@@ -7,7 +7,7 @@ from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.errors import UnsupportedIROpError
 
 from .block import Block
-from .statement import Assignment, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
+from .statement import Assignment, CAS, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
 from .expression import (
     Const,
     Register,
@@ -597,109 +597,21 @@ class VEXStmtConverter(Converter):
 
     @staticmethod
     def CAS(idx, stmt: pyvex.IRStmt.CAS, manager):
-        # compare-and-swap is translated into multiple statements. the atomic property is lost.
-
-        stmts = []
-
-        double = stmt.dataHi is not None
-        ty = stmt.expdLo.result_type(manager.tyenv)
-        if double:
-            ty, narrow_to_bits, widen_from_bits, widen_to_bits = {
-                "Ity_I8": ("Ity_I16", 8, 8, 16),
-                "Ity_I16": ("Ity_I32", 16, 16, 32),
-                "Ity_I32": ("Ity_I64", 32, 32, 64),
-                "Ity_I64": ("Ity_V128", 64, 64, 128),
-            }[ty]
-            dataHi = VEXExprConverter.convert(stmt.dataHi, manager)
-            dataLo = VEXExprConverter.convert(stmt.dataLo, manager)
-            data = BinaryOp(manager.next_atom(), "Concat", (dataHi, dataLo), False)
-
-            expdHi = Convert(
-                manager.next_atom(),
-                widen_from_bits,
-                widen_to_bits,
-                False,
-                VEXExprConverter.convert(stmt.dataHi, manager),
-            )
-            expdLo = Convert(
-                manager.next_atom(),
-                widen_from_bits,
-                widen_to_bits,
-                False,
-                VEXExprConverter.convert(stmt.dataLo, manager),
-            )
-            expd = BinaryOp(manager.next_atom(), "Concat", (expdHi, expdLo), False)
-        else:
-            narrow_to_bits = widen_to_bits = None
-            data = VEXExprConverter.convert(stmt.dataLo, manager)
-            expd = VEXExprConverter.convert(stmt.expdLo, manager)
-
-        size = {
-            "Ity_I8": 1,
-            "Ity_I16": 2,
-            "Ity_I32": 4,
-            "Ity_I64": 8,
-            "Ity_V128": 16,
-        }[ty]
-
-        # load value from memory
+        # addr
         addr = VEXExprConverter.convert(stmt.addr, manager)
-        val = Load(
-            idx,
-            addr,
-            size,
-            stmt.endness,
+        data_lo = VEXExprConverter.convert(stmt.dataLo, manager)
+        data_hi = VEXExprConverter.convert(stmt.dataHi, manager) if stmt.dataHi is not None else None
+        expd_lo = VEXExprConverter.convert(stmt.expdLo, manager)
+        expd_hi = VEXExprConverter.convert(stmt.expdHi, manager) if stmt.expdHi is not None else None
+        old_lo = VEXExprConverter.tmp(stmt.oldLo, manager.tyenv.sizeof(stmt.oldLo), manager)
+        old_hi = (
+            VEXExprConverter.tmp(stmt.oldHi, stmt.oldHi.result_size(manager.tyenv), manager)
+            if stmt.oldHi != 0xFFFFFFFF
+            else None
         )
-        cmp = BinaryOp(manager.next_atom(), "CmpEQ", (val, expd), False)
-        store = Store(
-            manager.next_atom(),
-            addr.copy(),
-            data,
-            size,
-            stmt.endness,
-            guard=cmp,
-            ins_addr=manager.ins_addr,
-            vex_block_addr=manager.block_addr,
-            vex_stmt_idx=manager.vex_stmt_idx,
+        return CAS(
+            idx, addr, data_lo, data_hi, expd_lo, expd_hi, old_lo, old_hi, stmt.endness, ins_addr=manager.ins_addr
         )
-        stmts.append(store)
-
-        if double:
-            narrow_to_bits_con = Const(manager.next_atom(), None, narrow_to_bits, 8)
-            val_shifted = BinaryOp(manager.next_atom(), "Shr", [val, narrow_to_bits_con], False)
-            valHi = Convert(manager.next_atom(), widen_to_bits, narrow_to_bits, False, val_shifted)
-            valLo = Convert(manager.next_atom(), widen_to_bits, narrow_to_bits, False, val)
-
-            wrtmp_0 = Assignment(
-                manager.next_atom(),
-                Tmp(manager.next_atom(), None, stmt.oldLo, narrow_to_bits),
-                valLo,
-                ins_addr=manager.ins_addr,
-                vex_block_addr=manager.block_addr,
-                vex_stmt_idx=manager.vex_stmt_idx,
-            )
-            wrtmp_1 = Assignment(
-                idx,
-                Tmp(manager.next_atom(), None, stmt.oldHi, narrow_to_bits),
-                valHi,
-                ins_addr=manager.ins_addr,
-                vex_block_addr=manager.block_addr,
-                vex_stmt_idx=manager.vex_stmt_idx,
-            )
-            stmts.append(wrtmp_0)
-            stmts.append(wrtmp_1)
-        else:
-            wrtmp = Assignment(
-                idx,
-                Tmp(manager.next_atom(), None, stmt.oldLo, size),
-                val,
-                ins_addr=manager.ins_addr,
-                vex_block_addr=manager.block_addr,
-                vex_stmt_idx=manager.vex_stmt_idx,
-            )
-            stmts.append(wrtmp)
-
-        return stmts
 
     @staticmethod
     def Dirty(idx, stmt: pyvex.IRStmt.Dirty, manager):

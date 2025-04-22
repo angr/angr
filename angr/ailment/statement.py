@@ -1,4 +1,4 @@
-# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed
+# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions
 from __future__ import annotations
 from typing import TYPE_CHECKING
 from collections.abc import Sequence
@@ -588,7 +588,7 @@ class Call(Expression, Statement):
             and is_none_or_matchable(self.fp_ret_expr, other.fp_ret_expr)
         )
 
-    __hash__ = TaggedObject.__hash__
+    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((Call, self.idx, self.target))
@@ -772,6 +772,151 @@ class Return(Statement):
             self.ret_exprs[::],
             **self.tags,
         )
+
+
+class CAS(Statement):
+    """
+    Atomic compare-and-swap.
+
+    *_lo and *_hi are used to represent the low and high parts of a 128-bit CAS operation; *_hi is None if the CAS
+    operation works on values that are less than or equal to 64 bits.
+
+    addr: The address to be compared and swapped.
+    data: The value to be written if the comparison is successful.
+    expd: The expected value to be compared against.
+    old: The value that is currently stored at addr before compare-and-swap; it will be returned after compare-and-swap.
+    """
+
+    __slots__ = ("addr", "data_lo", "data_hi", "expd_lo", "expd_hi", "old_lo", "old_hi", "endness")
+
+    def __init__(
+        self,
+        idx: int | None,
+        addr: Expression,
+        data_lo: Expression,
+        data_hi: Expression | None,
+        expd_lo: Expression,
+        expd_hi: Expression | None,
+        old_lo: Atom,
+        old_hi: Atom | None,
+        endness: str,
+        **kwargs,
+    ):
+        super().__init__(idx, **kwargs)
+        self.addr = addr
+        self.data_lo = data_lo
+        self.data_hi = data_hi
+        self.expd_lo = expd_lo
+        self.expd_hi = expd_hi
+        self.old_lo = old_lo
+        self.old_hi = old_hi
+        self.endness = endness
+
+    def _hash_core(self):
+        return stable_hash(
+            (
+                CAS,
+                self.idx,
+                self.addr,
+                self.data_lo,
+                self.data_hi,
+                self.expd_lo,
+                self.expd_hi,
+                self.old_lo,
+                self.old_hi,
+                self.endness,
+            )
+        )
+
+    __hash__ = TaggedObject.__hash__
+
+    def __repr__(self):
+        if self.old_hi is None:
+            return f"CAS({self.addr}, {self.data_lo}, {self.expd_lo}, {self.old_lo})"
+        return (
+            f"CAS({self.addr}, {self.data_hi} .. {self.data_lo}, {self.expd_hi} .. {self.expd_lo}, "
+            f"{self.old_hi} .. {self.old_lo})"
+        )
+
+    def __str__(self):
+        if self.old_hi is None:
+            return f"{self.old_lo} = CAS({self.addr}, {self.data_lo}, {self.expd_lo})"
+        return (
+            f"{self.old_hi} .. {self.old_lo} = CAS({self.addr}, {self.data_hi} .. {self.data_lo}, "
+            f"{self.expd_hi} .. {self.expd_lo})"
+        )
+
+    def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, CAS]:
+        r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
+        r_data_lo, replaced_data_lo = self.data_lo.replace(old_expr, new_expr)
+        r_data_hi, replaced_data_hi = self.data_hi.replace(old_expr, new_expr) if self.data_hi else (False, None)
+        r_expd_lo, replaced_expd_lo = self.expd_lo.replace(old_expr, new_expr)
+        r_expd_hi, replaced_expd_hi = self.expd_hi.replace(old_expr, new_expr) if self.expd_hi else (False, None)
+        r_old_lo, replaced_old_lo = self.old_lo.replace(old_expr, new_expr)
+        r_old_hi, replaced_old_hi = self.old_hi.replace(old_expr, new_expr) if self.old_hi else (False, None)
+
+        if r_addr or r_data_lo or r_data_hi or r_expd_lo or r_expd_hi or r_old_lo or r_old_hi:
+            return True, CAS(
+                self.idx,
+                replaced_addr,
+                replaced_data_lo,
+                replaced_data_hi,
+                replaced_expd_lo,
+                replaced_expd_hi,
+                replaced_old_lo,
+                replaced_old_hi,
+                endness=self.endness,
+                **self.tags,
+            )
+        return False, self
+
+    def copy(self) -> CAS:
+        return CAS(
+            self.idx,
+            self.addr,
+            self.data_lo,
+            self.data_hi,
+            self.expd_lo,
+            self.expd_hi,
+            self.old_lo,
+            self.old_hi,
+            endness=self.endness,
+            **self.tags,
+        )
+
+    def likes(self, other) -> bool:
+        return (
+            type(other) is CAS
+            and self.addr.likes(other.addr)
+            and self.data_lo.likes(other.data_lo)
+            and (self.data_hi is None or self.data_hi.likes(other.data_hi))
+            and self.expd_lo.likes(other.expd_lo)
+            and (self.expd_hi is None or self.expd_hi.likes(other.expd_hi))
+            and self.old_lo.likes(other.old_lo)
+            and (self.old_hi is None or self.old_hi.likes(other.old_hi))
+        )
+
+    def matches(self, other) -> bool:
+        return (
+            type(other) is CAS
+            and self.addr.matches(other.addr)
+            and self.data_lo.matches(other.data_lo)
+            and (self.data_hi is None or self.data_hi.matches(other.data_hi))
+            and self.expd_lo.matches(other.expd_lo)
+            and (self.expd_hi is None or self.expd_hi.matches(other.expd_hi))
+            and self.old_lo.matches(other.old_lo)
+            and (self.old_hi is None or self.old_hi.matches(other.old_hi))
+        )
+
+    @property
+    def bits(self) -> int:
+        if self.old_hi is None:
+            return self.old_lo.bits
+        return self.old_lo.bits + self.old_hi.bits
+
+    @property
+    def size(self) -> int:
+        return self.bits // 8
 
 
 class DirtyStatement(Statement):

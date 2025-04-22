@@ -4,7 +4,18 @@ from typing import Any
 from collections.abc import Callable
 
 from . import Block
-from .statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump, DirtyStatement, WeakAssignment
+from .statement import (
+    Call,
+    CAS,
+    Statement,
+    ConditionalJump,
+    Assignment,
+    Store,
+    Return,
+    Jump,
+    DirtyStatement,
+    WeakAssignment,
+)
 from .expression import (
     Load,
     Expression,
@@ -33,6 +44,7 @@ class AILBlockWalkerBase:
         _default_stmt_handlers = {
             Assignment: self._handle_Assignment,
             WeakAssignment: self._handle_WeakAssignment,
+            CAS: self._handle_CAS,
             Call: self._handle_Call,
             Store: self._handle_Store,
             ConditionalJump: self._handle_ConditionalJump,
@@ -114,6 +126,18 @@ class AILBlockWalkerBase:
     def _handle_WeakAssignment(self, stmt_idx: int, stmt: WeakAssignment, block: Block | None):
         self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
         self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+
+    def _handle_CAS(self, stmt_idx: int, stmt: CAS, block: Block | None):
+        self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
+        self._handle_expr(1, stmt.data_lo, stmt_idx, stmt, block)
+        if stmt.data_hi is not None:
+            self._handle_expr(2, stmt.data_hi, stmt_idx, stmt, block)
+        self._handle_expr(3, stmt.expd_lo, stmt_idx, stmt, block)
+        if stmt.expd_hi is not None:
+            self._handle_expr(4, stmt.expd_hi, stmt_idx, stmt, block)
+        self._handle_expr(5, stmt.old_lo, stmt_idx, stmt, block)
+        if stmt.old_hi is not None:
+            self._handle_expr(6, stmt.old_hi, stmt_idx, stmt, block)
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         if not isinstance(stmt.target, str):
@@ -337,6 +361,76 @@ class AILBlockWalker(AILBlockWalkerBase):
         if changed:
             # update the statement directly in the block
             new_stmt = WeakAssignment(stmt.idx, dst, src, **stmt.tags)
+            if self._update_block and block is not None:
+                block.statements[stmt_idx] = new_stmt
+            return new_stmt
+        return None
+
+    def _handle_CAS(self, stmt_idx: int, stmt: CAS, block: Block | None) -> CAS | None:
+        changed = False
+
+        addr = self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
+        if addr is not None and addr is not stmt.addr:
+            changed = True
+        else:
+            addr = stmt.addr
+
+        data_lo = self._handle_expr(1, stmt.data_lo, stmt_idx, stmt, block)
+        if data_lo is not None and data_lo is not stmt.data_lo:
+            changed = True
+        else:
+            data_lo = stmt.data_lo
+
+        data_hi = None
+        if stmt.data_hi is not None:
+            data_hi = self._handle_expr(2, stmt.data_hi, stmt_idx, stmt, block)
+            if data_hi is not None and data_hi is not stmt.data_hi:
+                changed = True
+            else:
+                data_hi = stmt.data_hi
+
+        expd_lo = self._handle_expr(3, stmt.expd_lo, stmt_idx, stmt, block)
+        if expd_lo is not None and expd_lo is not stmt.expd_lo:
+            changed = True
+        else:
+            expd_lo = stmt.expd_lo
+
+        expd_hi = None
+        if stmt.expd_hi is not None:
+            expd_hi = self._handle_expr(4, stmt.expd_hi, stmt_idx, stmt, block)
+            if expd_hi is not None and expd_hi is not stmt.expd_hi:
+                changed = True
+            else:
+                expd_hi = stmt.expd_hi
+
+        old_lo = self._handle_expr(5, stmt.old_lo, stmt_idx, stmt, block)
+        if old_lo is not None and old_lo is not stmt.old_lo:
+            changed = True
+        else:
+            old_lo = stmt.old_lo
+
+        old_hi = None
+        if stmt.old_hi is not None:
+            old_hi = self._handle_expr(6, stmt.old_hi, stmt_idx, stmt, block)
+            if old_hi is not None and old_hi is not stmt.old_hi:
+                changed = True
+            else:
+                old_hi = stmt.old_hi
+
+        if changed:
+            # update the statement directly in the block
+            new_stmt = CAS(
+                stmt.idx,
+                addr,
+                data_lo,
+                data_hi,
+                expd_lo,
+                expd_hi,
+                old_lo,
+                old_hi,
+                stmt.endness,
+                **stmt.tags,
+            )
             if self._update_block and block is not None:
                 block.statements[stmt_idx] = new_stmt
             return new_stmt
