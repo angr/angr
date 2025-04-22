@@ -8,7 +8,7 @@ import networkx
 import archinfo
 from ailment import Expression, Block
 from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset, DirtyExpression, ITE
-from ailment.statement import Statement, Assignment, Call, Store
+from ailment.statement import Statement, Assignment, Call, Store, CAS
 from ailment.block_walker import AILBlockWalkerBase
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -126,6 +126,11 @@ def get_tmp_deflocs(blocks) -> dict[CodeLocation, dict[atoms.Tmp, int]]:
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp):
                 tmp_to_loc[codeloc][atoms.Tmp(stmt.dst.tmp_idx, stmt.dst.bits)] = stmt_idx
+            if isinstance(stmt, CAS):
+                if isinstance(stmt.old_lo, Tmp):
+                    tmp_to_loc[codeloc][atoms.Tmp(stmt.old_lo.tmp_idx, stmt.old_lo.bits)] = stmt_idx
+                if stmt.old_hi is not None and isinstance(stmt.old_hi, Tmp):
+                    tmp_to_loc[codeloc][atoms.Tmp(stmt.old_hi.tmp_idx, stmt.old_hi.bits)] = stmt_idx
 
     return tmp_to_loc
 

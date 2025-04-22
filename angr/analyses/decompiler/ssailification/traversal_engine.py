@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import OrderedDict
 
-from ailment.statement import Call, Store, ConditionalJump
+from ailment.statement import Call, Store, ConditionalJump, CAS
 from ailment.expression import Register, BinaryOp, StackBaseOffset, ITE, VEXCCallExpression, Tmp, DirtyExpression, Load
 
 from angr.engines.light import SimEngineLightAIL
@@ -63,6 +63,15 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     def _handle_stmt_WeakAssignment(self, stmt):
         self._expr(stmt.src)
         self._expr(stmt.dst)
+
+    def _handle_stmt_CAS(self, stmt: CAS):
+        self._expr(stmt.addr)
+        self._expr(stmt.data_lo)
+        if stmt.data_hi is not None:
+            self._expr(stmt.data_hi)
+        self._expr(stmt.expd_lo)
+        if stmt.expd_hi is not None:
+            self._expr(stmt.expd_hi)
 
     def _handle_stmt_Store(self, stmt: Store):
         self._expr(stmt.addr)

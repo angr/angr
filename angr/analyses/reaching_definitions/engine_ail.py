@@ -143,6 +143,26 @@ class SimEngineRDAIL(
         else:
             l.warning("Unsupported type of Assignment dst %s.", type(dst).__name__)
 
+    def _handle_stmt_CAS(self, stmt: ailment.statement.CAS):
+        addr = self._expr(stmt.addr)
+        old_lo = stmt.old_lo
+        old_hi = stmt.old_hi
+
+        self._expr(stmt.data_lo)
+        if stmt.data_hi is not None:
+            self._expr(stmt.data_hi)
+        self._expr(stmt.expd_lo)
+        if stmt.expd_hi is not None:
+            self._expr(stmt.expd_hi)
+
+        if isinstance(old_lo, ailment.Tmp):
+            self.state.kill_and_add_definition(Tmp(old_lo.tmp_idx, old_lo.size), addr)
+            self.tmps[old_lo.tmp_idx] = self._top(old_lo.size)
+
+        if isinstance(old_hi, ailment.Tmp):
+            self.state.kill_and_add_definition(Tmp(old_hi.tmp_idx, old_hi.size), addr)
+            self.tmps[old_hi.tmp_idx] = self._top(old_hi.size)
+
     def _handle_stmt_Store(self, stmt: ailment.Stmt.Store) -> None:
         data = self._expr(stmt.data)
         addr = self._expr_bv(stmt.addr)

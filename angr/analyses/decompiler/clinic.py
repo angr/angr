@@ -1892,6 +1892,19 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.src)
 
+            elif stmt_type is ailment.Stmt.CAS:
+                for expr in [
+                    stmt.addr,
+                    stmt.data_lo,
+                    stmt.data_hi,
+                    stmt.expd_lo,
+                    stmt.expd_hi,
+                    stmt.old_lo,
+                    stmt.old_hi,
+                ]:
+                    if expr is not None:
+                        self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr)
+
             elif stmt_type is ailment.Stmt.ConditionalJump:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.condition)
 
@@ -2130,11 +2143,16 @@ class Clinic(Analysis):
                 continue
 
             ite_ins_addrs = []
+            cas_ins_addrs = set()
             for stmt in block.statements:
-                if (
+                if isinstance(stmt, ailment.Stmt.CAS):
+                    # we do not rewrite ITE statements that are caused by CAS statements
+                    cas_ins_addrs.add(stmt.ins_addr)
+                elif (
                     isinstance(stmt, ailment.Stmt.Assignment)
                     and isinstance(stmt.src, ailment.Expr.ITE)
                     and stmt.ins_addr not in ite_ins_addrs
+                    and stmt.ins_addr not in cas_ins_addrs
                 ):
                     ite_ins_addrs.append(stmt.ins_addr)
 
