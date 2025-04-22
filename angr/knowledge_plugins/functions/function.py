@@ -127,7 +127,7 @@ class Function(Serializable):
         self._retout_sites: set[BlockNode] = set()
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
-        self._endpoints = defaultdict(set)
+        self._endpoints: defaultdict[str, set[BlockNode]] = defaultdict(set)
 
         self._call_sites = {}
         self.addr = addr
@@ -1358,7 +1358,7 @@ class Function(Serializable):
             return
 
         graph = self.transition_graph
-        end_addresses = defaultdict(list)
+        end_addresses: defaultdict[int, list[BlockNode]] = defaultdict(list)
 
         for block in self.nodes:
             if isinstance(block, BlockNode):
@@ -1456,7 +1456,13 @@ class Function(Serializable):
                     )
                 else:
                     # We gotta create a new one
-                    l.error("normalize(): Please report it to Fish/maybe john.")
+                    l.error("normalize(): Please report it to Fish.")
+
+                # update endpoints
+                for sortset in self._endpoints.values():
+                    if n in sortset:
+                        sortset.remove(n)
+                        sortset.add(smallest_node)
 
             end_addresses[end_addr] = [smallest_node]
 
@@ -1680,7 +1686,7 @@ class Function(Serializable):
         n = separator
         if must_disambiguate_by_addr:
             n += hex(self.addr) + separator
-        elif self.binary is not self.project.loader.main_object:
+        elif self.binary is not self.project.loader.main_object and self.binary_name is not None:
             n += self.binary_name + separator
         return n + (display_name or self.name)
 

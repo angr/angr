@@ -1515,7 +1515,7 @@ class CFGBase(Analysis):
         Revisit the entire control flow graph, create Function instances accordingly, and correctly put blocks into
         each function.
 
-        Although Function objects are crated during the CFG recovery, they are neither sound nor accurate. With a
+        Although Function objects are created during the CFG recovery, they are neither sound nor accurate. With a
         pre-constructed CFG, this method rebuilds all functions bearing the following rules:
 
             - A block may only belong to one function.
