@@ -86,6 +86,11 @@ class SimplifierAILEngine(
 
         return stmt
 
+    def _handle_stmt_CAS(self, stmt: ailment.statement.CAS) -> ailment.statement.CAS:
+        # we assume that we never have to deal with CAS statements at this point; they should have been rewritten to
+        # intrinsics
+        return stmt
+
     def _handle_stmt_Store(self, stmt):
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
