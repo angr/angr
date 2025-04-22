@@ -511,5 +511,33 @@ class SPropagatorAnalysis(Analysis):
         }
         return (block_1.addr, block_1.idx) in stmt_0_targets
 
+    @staticmethod
+    def vvar_dep_graph(blocks, vvar_def_locs, vvar_use_locs) -> networkx.DiGraph:
+        g = networkx.DiGraph()
+
+        for var_id in vvar_def_locs:
+            # where is it used?
+            for _, use_loc in vvar_use_locs[var_id]:
+                if isinstance(use_loc, ExternalCodeLocation):
+                    g.add_edge(var_id, "ExternalCodeLocation")
+                    continue
+                assert use_loc.block_addr is not None
+                assert use_loc.stmt_idx is not None
+                block = blocks[(use_loc.block_addr, use_loc.block_idx)]
+                stmt = block.statements[use_loc.stmt_idx]
+                if isinstance(stmt, Assignment):
+                    if isinstance(stmt.dst, VirtualVariable):
+                        g.add_edge(var_id, stmt.dst.varid)
+                    else:
+                        g.add_edge(var_id, f"Assignment@{stmt.ins_addr:#x}")
+                elif isinstance(stmt, Store):
+                    # store to memory
+                    g.add_edge(var_id, f"Store@{stmt.ins_addr:#x}")
+                else:
+                    # other statements
+                    g.add_edge(var_id, f"{stmt.__class__.__name__}@{stmt.ins_addr:#x}")
+
+        return g
+
 
 register_analysis(SPropagatorAnalysis, "SPropagator")

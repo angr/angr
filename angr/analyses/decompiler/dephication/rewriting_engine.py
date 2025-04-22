@@ -1,4 +1,4 @@
-# pylint:disable=unused-argument,no-self-use
+# pylint:disable=unused-argument,no-self-use,too-many-boolean-expressions
 from __future__ import annotations
 import logging
 
@@ -8,12 +8,14 @@ from ailment.statement import (
     Assignment,
     Store,
     Call,
+    CAS,
     Return,
     ConditionalJump,
     DirtyStatement,
     WeakAssignment,
 )
 from ailment.expression import (
+    Atom,
     Expression,
     VirtualVariable,
     Load,
@@ -121,6 +123,40 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
             )
         return None
 
+    def _handle_stmt_CAS(self, stmt: CAS) -> CAS | None:
+        new_addr = self._expr(stmt.addr)
+        new_data_lo = self._expr(stmt.data_lo)
+        new_data_hi = self._expr(stmt.data_hi) if stmt.data_hi is not None else None
+        new_expd_lo = self._expr(stmt.expd_lo)
+        new_expd_hi = self._expr(stmt.expd_hi) if stmt.expd_hi is not None else None
+        new_old_lo = self._expr(stmt.old_lo)
+        new_old_hi = self._expr(stmt.old_hi) if stmt.old_hi is not None else None
+        assert new_old_lo is None or isinstance(new_old_lo, Atom)
+        assert new_old_hi is None or isinstance(new_old_hi, Atom)
+
+        if (
+            new_addr is not None
+            or new_old_lo is not None
+            or new_old_hi is not None
+            or new_data_lo is not None
+            or new_data_hi is not None
+            or new_expd_lo is not None
+            or new_expd_hi is not None
+        ):
+            return CAS(
+                stmt.idx,
+                stmt.addr if new_addr is None else new_addr,
+                stmt.data_lo if new_data_lo is None else new_data_lo,
+                stmt.data_hi if new_data_hi is None else new_data_hi,
+                stmt.expd_lo if new_expd_lo is None else new_expd_lo,
+                stmt.expd_hi if new_expd_hi is None else new_expd_hi,
+                stmt.old_lo if new_old_lo is None else new_old_lo,
+                stmt.old_hi if new_old_hi is None else new_old_hi,
+                stmt.endness,
+                **stmt.tags,
+            )
+        return None
+
     def _handle_stmt_Store(self, stmt):
         new_addr = self._expr(stmt.addr)
         new_data = self._expr(stmt.data)
@@ -179,6 +215,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         dirty = self._expr(stmt.dirty)
         if dirty is None or dirty is stmt.dirty:
             return None
+        assert isinstance(dirty, DirtyExpression)
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
 
     def _handle_expr_Load(self, expr):

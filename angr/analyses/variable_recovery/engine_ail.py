@@ -115,6 +115,15 @@ class SimEngineVRAIL(
             tc = typevars.Subtype(src.typevar, dst.typevar)
             self.state.add_type_constraint(tc)
 
+    def _handle_stmt_CAS(self, stmt) -> None:
+        self._expr(stmt.addr)
+        self._expr(stmt.data_lo)
+        if stmt.data_hi is not None:
+            self._expr(stmt.data_hi)
+        self._expr(stmt.expd_lo)
+        if stmt.expd_hi is not None:
+            self._expr(stmt.expd_hi)
+
     def _handle_stmt_Store(self, stmt: ailment.Stmt.Store):
         addr_r = self._expr_bv(stmt.addr)
         data = self._expr(stmt.data)

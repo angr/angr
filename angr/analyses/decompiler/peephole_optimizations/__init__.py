@@ -8,6 +8,7 @@ from .a_sub_a_div_const_mul_const import ASubADivConstMulConst
 from .a_sub_a_shr_const_shr_const import ASubAShrConstShrConst
 from .arm_cmpf import ARMCmpF
 from .bswap import Bswap
+from .cas_intrinsics import CASIntrinsics
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .constant_derefs import ConstantDereferences
 from .const_mull_a_shift import ConstMullAShift
@@ -64,6 +65,7 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     ASubAShrConstShrConst,
     ARMCmpF,
     Bswap,
+    CASIntrinsics,
     CoalesceSameCascadingIfs,
     ConstantDereferences,
     ConstMullAShift,
