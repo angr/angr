@@ -14,6 +14,7 @@ class Block:
         "original_size",
         "statements",
         "idx",
+        "_hash",
     )
 
     def __init__(self, addr: int, original_size, statements=None, idx=None):
@@ -21,6 +22,7 @@ class Block:
         self.original_size = original_size
         self.statements: list["Statement"] = [] if statements is None else statements
         self.idx = idx
+        self._hash = None  # cached hash value
 
     def copy(self, statements=None):
         return Block(
@@ -69,6 +71,11 @@ class Block:
             and all(s1.likes(s2) for s1, s2 in zip(self.statements, other.statements))
         )
 
+    def clear_hash(self):
+        self._hash = None
+
     def __hash__(self):
         # Changing statements does not change the hash of a block, which allows in-place statement editing
-        return hash((Block, self.addr, self.idx))
+        if self._hash is None:
+            self._hash = hash((Block, self.addr, self.idx))
+        return self._hash
