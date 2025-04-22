@@ -412,6 +412,45 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     )
                     return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
+                elif (
+                    cond_v == AMD64_CondTypes["CondNS"]
+                    and op_v
+                    in {
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        AMD64_OpTypes["G_CC_OP_LOGICQ"],
+                    }
+                    and isinstance(dep_2, Expr.Const)
+                    and dep_2.value == 0
+                ):
+                    # dep_1 >= 0
+                    dep_1 = self._fix_size(
+                        dep_1,
+                        op_v,
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        ccall.tags,
+                    )
+                    dep_2 = self._fix_size(
+                        dep_2,
+                        op_v,
+                        AMD64_OpTypes["G_CC_OP_LOGICB"],
+                        AMD64_OpTypes["G_CC_OP_LOGICW"],
+                        AMD64_OpTypes["G_CC_OP_LOGICL"],
+                        ccall.tags,
+                    )
+
+                    r = Expr.BinaryOp(
+                        ccall.idx,
+                        "CmpGE",
+                        (dep_1, dep_2),
+                        True,
+                        **ccall.tags,
+                    )
+                    return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+
         elif ccall.callee == "amd64g_calculate_rflags_c":
             # calculate the carry flag
             op = ccall.operands[0]
