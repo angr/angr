@@ -1,4 +1,4 @@
-# pylint:disable=arguments-differ
+# pylint:disable=arguments-differ,too-many-boolean-expressions
 from __future__ import annotations
 
 from ailment.expression import BinaryOp, Load
@@ -106,7 +106,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
         if mnemonic in _INTRINSICS_NAMES:
             os = (
                 self.project.simos.name
-                if self.project.simos is not None and self.project.simos.name is not None
+                if self.project is not None and self.project.simos is not None and self.project.simos.name is not None
                 else "Linux"
             )
             if os not in _INTRINSICS_NAMES[mnemonic]:

@@ -1,4 +1,4 @@
-# pylint:disable=no-self-use,unused-argument
+# pylint:disable=no-self-use,unused-argument,too-many-boolean-expressions
 from __future__ import annotations
 from typing import Literal
 import logging
@@ -19,6 +19,7 @@ from ailment.statement import (
     WeakAssignment,
 )
 from ailment.expression import (
+    Atom,
     Expression,
     Register,
     VirtualVariable,
@@ -213,6 +214,8 @@ class SimEngineSSARewriting(
         new_expd_hi = self._expr(stmt.expd_hi) if stmt.expd_hi is not None else None
         new_old_lo = self._expr(stmt.old_lo)
         new_old_hi = self._expr(stmt.old_hi) if stmt.old_hi is not None else None
+        assert new_old_lo is None or isinstance(new_old_lo, Atom)
+        assert new_old_hi is None or isinstance(new_old_hi, Atom)
 
         if (
             new_addr is not None
