@@ -107,6 +107,12 @@ class ConditionConstantPropagation(OptimizationPass):
                 cconds_by_src[src] = []
             cconds_by_src[src].append(ccond)
 
+        # eliminate sources with more than one in-edges; this is because the condition may not hold on all in-edges!
+        for src in list(cconds_by_src):
+            block = self._get_block(src[0], idx=src[1])
+            if block is not None and block in self._graph and self._graph.in_degree[block] > 1:
+                del cconds_by_src[src]
+
         # eliminate conflicting conditions
         for src in list(cconds_by_src):
             cconds = cconds_by_src[src]
