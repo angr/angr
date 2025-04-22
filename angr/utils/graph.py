@@ -734,13 +734,14 @@ class GraphUtils:
 
         # find all strongly connected components in the graph
         sccs = [scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1]
+        comp_indices = {id(node): i for i, scc in enumerate(sccs) for node in scc}
 
         # collapse all strongly connected components
         for src, dst in sorted(graph.edges(), key=GraphUtils._sort_edge):
-            scc_index = GraphUtils._components_index_node(sccs, src)
+            scc_index = comp_indices.get(id(src), None)
             if scc_index is not None:
                 src = SCCPlaceholder(scc_index)
-            scc_index = GraphUtils._components_index_node(sccs, dst)
+            scc_index = comp_indices.get(id(dst), None)
             if scc_index is not None:
                 dst = SCCPlaceholder(scc_index)
 
@@ -780,13 +781,6 @@ class GraphUtils:
         if nodes is None:
             return ordered_nodes
         return [n for n in ordered_nodes if n in set(nodes)]
-
-    @staticmethod
-    def _components_index_node(components, node):
-        for i, comp in enumerate(components):
-            if node in comp:
-                return i
-        return None
 
     @staticmethod
     def _append_scc(
