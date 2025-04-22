@@ -483,6 +483,9 @@ class Clinic(Analysis):
         arg_vvars = self._create_function_argument_vvars(arg_list)
         func_args = {arg_vvar for arg_vvar, _ in arg_vvars.values()}
 
+        # duplicate orphaned conditional jump blocks
+        ail_graph = self._duplicate_orphaned_cond_jumps(ail_graph)
+
         # Transform the graph into partial SSA form
         self._update_progress(35.0, text="Transforming to partial-SSA form")
         ail_graph = self._transform_to_ssa_level0(ail_graph, func_args)
@@ -2122,6 +2125,44 @@ class Clinic(Analysis):
                 graph.add_edge(src, dst, **data)
 
         return graph
+
+    def _duplicate_orphaned_cond_jumps(self, ail_graph) -> networkx.DiGraph:
+        """
+        Find conditional jumps that are orphaned (e.g., being the only instruction of the block). If these blocks have
+        multiple predecessors, duplicate them to all predecessors. This is a workaround for cases where these
+        conditional jumps rely on comparisons in more than one predecessor and we cannot resolve ccalls into
+        comparisons.
+
+        This pass runs before any SSA transformations.
+
+        # 140017162     jz      short 1400171e1
+        """
+
+        for block in list(ail_graph):
+            if len(block.statements) > 1 and block.statements[0].ins_addr == block.statements[-1].ins_addr:
+                preds = list(ail_graph.predecessors(block))
+                if len(preds) > 1 and block not in preds:
+                    has_ccall = any(
+                        isinstance(stmt, ailment.Stmt.Assignment)
+                        and isinstance(stmt.src, ailment.Expr.VEXCCallExpression)
+                        for stmt in block.statements
+                    )
+                    if has_ccall:
+                        # duplicate this block to its predecessors!
+                        preds = sorted(preds, key=lambda x: x.addr)
+                        succs = sorted(ail_graph.successors(block), key=lambda x: x.addr)
+                        # FIXME: We should track block IDs globally and ensure block IDs do not collide
+                        block_idx_start = block.idx + 1 if block.idx is not None else 1
+                        for pred in preds[1:]:
+                            ail_graph.remove_edge(pred, block)
+                            new_block = block.copy()
+                            new_block.idx = block_idx_start
+                            block_idx_start += 1
+                            ail_graph.add_edge(pred, new_block)
+                            for succ in succs:
+                                ail_graph.add_edge(new_block, succ if succ is not block else new_block)
+
+        return ail_graph
 
     def _rewrite_ite_expressions(self, ail_graph):
         cfg = self._cfg
