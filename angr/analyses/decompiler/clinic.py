@@ -2126,7 +2126,8 @@ class Clinic(Analysis):
 
         return graph
 
-    def _duplicate_orphaned_cond_jumps(self, ail_graph) -> networkx.DiGraph:
+    @staticmethod
+    def _duplicate_orphaned_cond_jumps(ail_graph) -> networkx.DiGraph:
         """
         Find conditional jumps that are orphaned (e.g., being the only instruction of the block). If these blocks have
         multiple predecessors, duplicate them to all predecessors. This is a workaround for cases where these
