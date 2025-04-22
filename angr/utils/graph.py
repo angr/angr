@@ -734,14 +734,18 @@ class GraphUtils:
 
         # find all strongly connected components in the graph
         sccs = [scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1]
-        comp_indices = {id(node): i for i, scc in enumerate(sccs) for node in scc}
+        comp_indices = {}
+        for i, scc in enumerate(sccs):
+            for node in scc:
+                if node not in comp_indices:
+                    comp_indices[node] = i
 
         # collapse all strongly connected components
         for src, dst in sorted(graph.edges(), key=GraphUtils._sort_edge):
-            scc_index = comp_indices.get(id(src), None)
+            scc_index = comp_indices.get(src)
             if scc_index is not None:
                 src = SCCPlaceholder(scc_index)
-            scc_index = comp_indices.get(id(dst), None)
+            scc_index = comp_indices.get(dst)
             if scc_index is not None:
                 dst = SCCPlaceholder(scc_index)
 
@@ -804,9 +808,9 @@ class GraphUtils:
 
         if loop_head_candidates is not None:
             # find the first node that appears in loop_heads
-            loop_head_candidates = set(loop_head_candidates)
+            loop_head_candidates_set = set(loop_head_candidates)
             for n in scc:
-                if n in loop_head_candidates:
+                if n in loop_head_candidates_set:
                     loop_head = n
                     break
 
@@ -838,7 +842,7 @@ class GraphUtils:
             # pick the first one
             loop_head = sorted(scc, key=GraphUtils._sort_node)[0]
 
-        subgraph: networkx.DiGraph = graph.subgraph(scc).copy()
+        subgraph: networkx.DiGraph = graph.subgraph(scc).copy()  # type: ignore
         for src, _ in list(subgraph.in_edges(loop_head)):
             subgraph.remove_edge(src, loop_head)
 
