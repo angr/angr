@@ -236,8 +236,8 @@ def compare_statement_dict(statement_1, statement_2):
     # Yan's weird types
     differences = []
     for attr in statement_1.__slots__:
-        # don't check arch, property, or methods
-        if attr == "arch":
+        # don't check arch, _op, property, or methods
+        if attr in ("arch", "_op"):
             continue
         if hasattr(statement_1.__class__, attr) and isinstance(getattr(statement_1.__class__, attr), property):
             continue

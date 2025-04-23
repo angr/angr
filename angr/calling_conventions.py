@@ -2053,6 +2053,7 @@ class SimCCRISCV64(SimCC):
     RETURN_ADDR = SimRegArg("x1", 8)
     ARCH = archinfo.ArchRISCV64
 
+
 class SimCCRISCV64LinuxSyscall(SimCCSyscall):
     # reference: https://elixir.bootlin.com/linux/v6.13/source/arch/riscv/kernel/traps.c#L318
     ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5"]
