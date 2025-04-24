@@ -932,7 +932,7 @@ class Clinic(Analysis):
                     self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype, manual=False)
                     if func_graph is not None and cc.prototype.returnty is not None:
                         # patch the AIL call statement if we can find one
-                        callsite_ail_block: ailment.Block = next(
+                        callsite_ail_block: ailment.Block | None = next(
                             iter(bb for bb in func_graph if bb.addr == callsite.addr), None
                         )
                         if callsite_ail_block is not None and callsite_ail_block.statements:
@@ -1007,6 +1007,7 @@ class Clinic(Analysis):
         :return:    None
         """
         assert self._func_graph is not None
+        assert self._blocks_by_addr_and_size is not None
 
         for block_node in self._func_graph.nodes():
             ail_block = self._convert(block_node)
@@ -2187,10 +2188,13 @@ class Clinic(Analysis):
 
         if self.project.arch.name != "AMD64":
             return ail_graph
+        if self._cfg is None:
+            return ail_graph
 
         for block in ail_graph:
             if not block.statements:
                 continue
+            assert block.addr is not None
             last_stmt = block.statements[-1]
             if isinstance(last_stmt, ailment.Stmt.Call):
                 # we can't examine the call target at this point because constant propagation hasn't run yet; we consult
