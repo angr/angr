@@ -4,7 +4,7 @@ from pprint import pformat
 from ...knowledge_plugins.plugin import KnowledgeBasePlugin
 
 
-class RustCallingConventionModel:
+class TaintAnalysisModel:
     def __init__(self):
         self.memory_writes = defaultdict(dict)
         self.callsite_memory_writes = defaultdict(dict)
@@ -18,10 +18,10 @@ class RustCallingConventionModel:
         return pformat({"Inferred prototype: ": self.inferred_prototype}, indent=2)
 
 
-class RustCallingConventions(KnowledgeBasePlugin):
+class TaintAnalysisModels(KnowledgeBasePlugin):
     def __init__(self, kb):
         super().__init__(kb)
         self.cache = {}
 
 
-KnowledgeBasePlugin.register_default("rust_calling_conventions", RustCallingConventions)
+KnowledgeBasePlugin.register_default("taint_analysis_models", TaintAnalysisModels)

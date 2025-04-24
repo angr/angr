@@ -22,6 +22,11 @@ def generate_known_rust_prototypes(project):
             returnty=None,
             is_arg0_retbuf=True,
         ),
+        "String::new": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeString())],
+            returnty=None,
+            is_arg0_retbuf=True,
+        ),
         "Vec::with_capacity": RustSimTypeFunction(
             args=[RustSimTypeSize()],
             returnty=RustSimTypeString(),
@@ -72,8 +77,8 @@ def generate_known_rust_prototypes(project):
                 ZeroSizeStruct, 0, project.arch.bytes, RustSimTypeReference(RustSimTypeBottom()), None, 0
             ),
         ),
-        # "std::io::Read::read_to_string": RustSimTypeFunction(
-        #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(RustSimTypeString())],
-        #     returnty=RustSimTypeResult(RustSimTypeSize(), None, 0, RustSimTypeReference(RustSimTypeBottom()), None, 0),
-        # ),
+        "std::io::Read::read_to_string": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(RustSimTypeString())],
+            returnty=RustSimTypeReference(RustSimTypeBottom()),
+        ),
     }
