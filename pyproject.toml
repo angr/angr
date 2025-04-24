@@ -76,6 +76,17 @@ unicorn = [
 [project.scripts]
 angr = "angr.__main__:main"
 
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "pytest>=8.3.5",
+    "pytest-durations>=1.4.0",
+    "pytest-profiling>=1.8.1",
+    "pytest-timeout>=2.3.1",
+    "pytest-xdist>=3.6.1",
+    "ruff>=0.11.7",
+]
+
 [tool.setuptools]
 include-package-data = true
 license-files = ["LICENSE"]
@@ -92,6 +103,9 @@ angr = [
 
 [tool.setuptools.dynamic]
 version = {attr = "angr.__version__"}
+
+[tool.uv]
+default-groups = ["angrdb", "pcode", "unicorn"]
 
 [tool.uv.sources]
 archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
