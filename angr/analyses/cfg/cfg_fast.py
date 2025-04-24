@@ -1554,6 +1554,45 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 }:
                     func.info["is_alloca_probe"] = True
 
+            # determine if the function is _guard_xfg_dispatch_icall_nop or _guard_xfg_dispatch_icall_fptr
+            if func is not None and not func.is_simprocedure and len(func.block_addrs_set) in {1, 2}:
+                # _guard_xfg_dispatch_icall_nop jumps to _guard_xfg_dispatch_icall_fptr, but we may or may not identify
+                # _guard_xfg_dispatch_icall_fptr as a separate function.
+                # so, two possibilities:
+                # - _guard_xfg_dispatch_icall_nop is a function with one block and jumps to
+                #   _guard_xfg_dispatch_icall_fptr.
+                # - _guard_xfg_dispatch_icall_nop is a function with 2 blocks, and the second block is the body of
+                #   _guard_xfg_dispatch_icall_fptr.
+                try:
+                    block = func.get_block(func.addr)
+                except SimTranslationError:
+                    block = None
+                if block is not None and block.instructions == 1:
+                    insn = block.capstone.insns[0]
+                    if block.bytes == b"\xff\xe0":
+                        func.info["jmp_rax"] = True
+                    elif (
+                        insn.mnemonic == "jmp"
+                        and insn.operands[0].type == capstone.x86.X86_OP_MEM
+                        and insn.operands[0].mem.base == capstone.x86.X86_REG_RIP
+                        and insn.operands[0].mem.disp > 0
+                        and insn.operands[0].mem.index == 0
+                    ):
+                        # where is it jumping to?
+                        jumpout_targets = list(self.graph.successors(self.model.get_any_node(func.addr)))
+                        if len(jumpout_targets) == 1:
+                            jumpout_target = jumpout_targets[0].addr
+                            if len(func.block_addrs_set) == 1 and len(func.jumpout_sites) == 1:
+                                if (
+                                    self.kb.functions.contains_addr(jumpout_target)
+                                    and self.kb.functions.get_by_addr(jumpout_target).get_block(jumpout_target).bytes
+                                    == b"\xff\xe0"
+                                ):
+                                    func.info["jmp_rax"] = True
+                            elif len(func.block_addrs_set) == 2 and func.get_block(jumpout_target).bytes == b"\xff\xe0":
+                                # check the second block and ensure it's jmp rax
+                                func.info["jmp_rax"] = True
+
         elif self.project.arch.name == "X86":
             # determine if the function is __alloca_probe
             func = self.kb.functions.get_by_addr(func_addr) if self.kb.functions.contains_addr(func_addr) else None
