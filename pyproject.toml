@@ -76,6 +76,17 @@ unicorn = [
 [project.scripts]
 angr = "angr.__main__:main"
 
+[dependency-groups]
+dev = [
+    "keystone-engine>=0.9.2",
+    "pytest>=8.3.5",
+    "pytest-durations>=1.4.0",
+    "pytest-profiling>=1.8.1",
+    "pytest-timeout>=2.3.1",
+    "pytest-xdist>=3.6.1",
+    "sqlalchemy>=2.0.40",
+]
+
 [tool.setuptools]
 include-package-data = true
 license-files = ["LICENSE"]
