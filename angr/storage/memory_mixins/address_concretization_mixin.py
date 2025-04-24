@@ -270,13 +270,13 @@ class AddressConcretizationMixin(MemoryMixin):
             )
 
         if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_READS in self.state.options:
-            return self._default_value(None, size, name=f"symbolic_read_unconstrained_({addr})", **kwargs)
+            return self._default_value(None, size, name=f"symbolic_read_unconstrained_{addr}", **kwargs)
 
         try:
             concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
-                return self._default_value(None, size, name=f"symbolic_read_unconstrained_({addr})", **kwargs)
+                return self._default_value(None, size, name=f"symbolic_read_unconstrained_{addr}", **kwargs)
             raise
 
         # quick optimization so as to not involve the solver if not necessary
