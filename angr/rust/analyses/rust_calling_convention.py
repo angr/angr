@@ -40,9 +40,9 @@ class FunctionBodyFactCollector(AILBlockWalker):
     def __init__(self, context: "RustCallingConventionAnalysis"):
         super().__init__()
         self.context = context
-        self.project = context.model.clinic.project
+        self.project = context.clinic.project
         self.model = context.model
-        self.graph = context.model.clinic.graph
+        self.graph = context.clinic.graph
         self.has_write_to_arg0 = False
         self.const_ret_values = set()
 
@@ -144,7 +144,7 @@ class FunctionBodyFactCollector(AILBlockWalker):
         """
         paths = set()
         callsites = set()
-        for block in self.model.clinic.graph.nodes:
+        for block in self.context.clinic.graph.nodes:
             if self._is_ret_block(block):
                 paths |= set(self.calculate_paths(block, max_paths=4))
             if self._has_call(block):
@@ -155,7 +155,7 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 self.walk(block)
 
         if len(paths) == 0:
-            for block in self.model.clinic.graph.nodes:
+            for block in self.context.clinic.graph.nodes:
                 if self._is_ret_block(block):
                     stmt = block.statements[-1]
                     ret_expr = stmt.ret_exprs[0] if stmt.ret_exprs else None
@@ -173,12 +173,12 @@ class FunctionBodyFactCollector(AILBlockWalker):
     def add_memory_write(self, arg_idx, block_or_path, offset, expr):
         if block_or_path not in self.model.memory_writes[arg_idx]:
             self.model.memory_writes[arg_idx][block_or_path] = {}
-        self.model.memory_writes[arg_idx][block_or_path][offset] = (expr, self.model.clinic.function.addr)
+        self.model.memory_writes[arg_idx][block_or_path][offset] = (expr, self.context.clinic.function.addr)
 
     def add_memory_read(self, arg_idx, block, offset, expr):
         if block not in self.model.memory_reads[arg_idx]:
             self.model.memory_reads[arg_idx][block] = {}
-        self.model.memory_reads[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
+        self.model.memory_reads[arg_idx][block][offset] = (expr, self.context.clinic.function.addr)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         addr = stmt.addr
@@ -208,10 +208,14 @@ class FunctionBodyFactCollector(AILBlockWalker):
             func = self.project.kb.functions[call.target.value]
             if func.normalized and func.size:
                 result = self.project.analyses.RustCallingConvention(
-                    func, callsite_block=block, depth=self.context.depth + 1, max_depth=self.context.max_depth
+                    func,
+                    parent_graph=self.context.clinic.graph,
+                    callsite_block=block,
+                    depth=self.context.depth + 1,
+                    max_depth=self.context.max_depth,
                 )
                 self.model.memory_writes[0] |= result.model.memory_writes[0]
-                if result.fact_collector.has_write_to_arg0:
+                if result.model.has_write_to_arg0:
                     self.has_write_to_arg0 = True
             elif func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
                 tmp = Tmp(None, None, 0, call.args[2].value * self.context.project.arch.byte_width)
@@ -240,40 +244,42 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     2. Uses of return value after callee is called
     """
 
-    def __init__(self, func, callsite_block=None, post_callsite_block=None, depth=0, max_depth=2):
+    def __init__(self, func, parent_graph=None, callsite_block=None, post_callsite_block=None, depth=0, max_depth=2):
         self.func: Function = func
+
+        self.parent_graph = parent_graph
+        self.callsite_block = callsite_block
+        self.post_callsite_block = post_callsite_block
+        self.depth = depth
+        self.max_depth = max_depth
+        self._fact_collector = None
 
         if self.func.addr in self.kb.rust_calling_conventions.cache:
             self.model = self.kb.rust_calling_conventions.cache[self.func.addr]
         else:
             self.model = RustCallingConventionModel()
-            self.model.callsite_block = callsite_block
-            self.model.post_callsite_block = post_callsite_block
             if self.func.normalized and self.func.size:
                 try:
                     cfg = self.kb.cfgs.get_most_accurate()
-                    self.model.clinic = self.project.analyses.Clinic(
+                    self.clinic = self.project.analyses.Clinic(
                         self.func, cfg=cfg, optimization_passes=[UnreachableBranchFixer, CleanupCodeRemover]
                     )
                 except Exception as e:
                     l.debug(f"Failed to recover AIL graph for {normalize(self.func.name)}")
                     l.debug("".join(traceback.format_exception(e)))
 
-        self.fact_collector = FunctionBodyFactCollector(self)
+            if self.clinic:
+                CFAMixin.__init__(self, self.clinic, self.project)
+                SRDAMixin.__init__(self, self.func, self.clinic.graph, self.project)
+                DFAMixin.__init__(self)
+                self._fact_collector = FunctionBodyFactCollector(self)
 
-        if self.model.clinic:
-            CFAMixin.__init__(self, self.model.clinic, self.project)
-            SRDAMixin.__init__(self, self.func, self.model.clinic.graph, self.project)
-            DFAMixin.__init__(self)
-            self.depth = depth
-            self.max_depth = max_depth
-
-            if self.depth <= self.max_depth:
-                try:
-                    self._analyze()
-                except Exception as e:
-                    l.debug(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
-                    l.debug("".join(traceback.format_exception(e)))
+                if self.depth <= self.max_depth:
+                    try:
+                        self._analyze()
+                    except Exception as e:
+                        l.debug(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
+                        l.debug("".join(traceback.format_exception(e)))
 
     def _srda_on_path(self, path: Tuple[Block]):
         graph = DiGraph()
@@ -413,10 +419,10 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
     def _infer_return_type(self):
         # The first argument is not used as return buffer
-        if len(self.model.callsite_memory_writes[0]) != 0 or not self.fact_collector.has_write_to_arg0:
+        if len(self.model.callsite_memory_writes[0]) != 0 or not self._fact_collector.has_write_to_arg0:
             # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
-            if len(self.fact_collector.const_ret_values) == 2 and 0 in self.fact_collector.const_ret_values:
-                addr = max(self.fact_collector.const_ret_values)
+            if len(self._fact_collector.const_ret_values) == 2 and 0 in self._fact_collector.const_ret_values:
+                addr = max(self._fact_collector.const_ret_values)
                 if SimpleMessageLayoutInference(self.project).is_const_simple_message(addr):
                     ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
                     err_type = self.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
@@ -474,9 +480,9 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
     def infer_prototype(self):
         returnty = self._infer_return_type()
-        is_arg0_ret_buf = self.fact_collector.has_write_to_arg0 and returnty is not None
+        is_arg0_ret_buf = self._fact_collector.has_write_to_arg0 and returnty is not None
         args = []
-        for arg_idx, old_arg_type in zip(range(len(self.model.clinic.arg_list)), self.func.prototype.args):
+        for arg_idx, old_arg_type in zip(range(len(self.clinic.arg_list)), self.func.prototype.args):
             if is_arg0_ret_buf and arg_idx == 0:
                 args.append(RustSimTypeReference(returnty).with_arch(self.project.arch))
                 continue
@@ -495,19 +501,19 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         )
 
     def collect_function_body_facts(self):
-        self.fact_collector.collect()
+        self._fact_collector.collect()
 
     def add_callsite_memory_write(self, arg_idx, block, offset, expr):
         if block not in self.model.callsite_memory_writes[arg_idx]:
             self.model.callsite_memory_writes[arg_idx][block] = {}
-        self.model.callsite_memory_writes[arg_idx][block][offset] = (expr, self.model.clinic.function.addr)
+        self.model.callsite_memory_writes[arg_idx][block][offset] = (expr, self.clinic.function.addr)
 
     def collect_callsite_facts(self):
         """
         Collect memory writes to stack regions that are probably used by callee function
         """
-        callsite_block = self.model.callsite_block
-        if callsite_block is None:
+        callsite_block = self.callsite_block
+        if callsite_block is None or self.parent_graph is None:
             return
         call = self.terminal_call(callsite_block)
         if call and call.args:
@@ -525,28 +531,30 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                 next_offsets[stack_offsets[i]] = stack_offsets[i + 1]
             next_offsets[stack_offsets[-1]] = None
             # Collect memory writes to stack variables in callsite block
-            stack_writes = {}
-            for stmt in callsite_block.statements:
-                dst_vvar, src_data = self.extract_write_to_stack_vvar(stmt)
-                if dst_vvar and src_data:
-                    stack_writes[dst_vvar.stack_offset] = src_data
+            stack_defs = DFAMixin(self.parent_graph).collect_callsite_stack_defs(callsite_block)
             for idx, arg in enumerate(call.args):
                 if vvar := unwrap_stack_vvar_reference(arg):
                     cur_offset = vvar.stack_offset
                     next_offset = next_offsets[cur_offset]
                     while next_offset is None or cur_offset < next_offset:
-                        data = stack_writes.get(cur_offset, None)
-                        if data is None:
+                        stack_def = stack_defs.get(cur_offset, None)
+                        if stack_def is None:
                             break
-                        self.add_callsite_memory_write(idx, callsite_block, cur_offset - vvar.stack_offset, data)
-                        cur_offset += data.size
+                        self.add_callsite_memory_write(
+                            idx, stack_def.block, cur_offset - vvar.stack_offset, stack_def.data
+                        )
+                        cur_offset += stack_def.data.size
+        if callsite_block.addr == 0x416C6D:
+            import ipdb
+
+            ipdb.set_trace()
 
     def collect_post_callsite_facts(self):
-        callsite_block = self.model.callsite_block
+        callsite_block = self.callsite_block
         if not callsite_block:
             return
         call = self.terminal_call(callsite_block)
-        post_callsite_block = self.model.post_callsite_block
+        post_callsite_block = self.post_callsite_block
         if post_callsite_block and call.args and len(call.args):
             arg0 = call.args[0]
             if isinstance(arg0, BasePointerOffset) and isinstance(
@@ -566,7 +574,9 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def _analyze(self):
         self.collect_function_body_facts()
         self.collect_callsite_facts()
-        self.collect_post_callsite_facts()
+        # self.collect_post_callsite_facts()
+        self.model.has_write_to_arg0 = self.model.has_write_to_arg0 or self._fact_collector.has_write_to_arg0
+        self.model.const_ret_values.update(self._fact_collector.const_ret_values)
 
         prototype = self.infer_prototype()
 

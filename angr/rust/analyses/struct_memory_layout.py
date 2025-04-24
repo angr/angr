@@ -2,16 +2,22 @@ import logging
 from collections import OrderedDict, defaultdict
 from typing import Optional
 
-from ailment import Const
+from ailment import Const, AILBlockWalkerBase, Block, Statement
+from ailment.expression import Load, VirtualVariable
+from ailment.statement import Store, ConditionalJump, Call
 
 from ..definitions.prototypes import generate_known_rust_prototypes
 from ..definitions.structs import SimpleMessage, StrSlice, ArrayReference, Arguments
 from ..knowledge_plugins.known_structs import KnownStructs
 from ..optimization_passes.utils import extract_str_from_addr
-from ..utils.ail_util import unwrap_stack_vvar_reference
+from ..utils.ail_util import (
+    unwrap_stack_vvar_reference,
+    extract_vvar_and_offset,
+)
 from ...analyses import Analysis, AnalysesHub
 from ..mixins import CFAMixin, DFAMixin
-from ..sim_type import RustSimTypeOption, RustSimStruct, RustSimTypeReference
+from ..sim_type import RustSimTypeOption, RustSimStruct, RustSimTypeReference, RustSimTypeString
+from ..utils.library import normalize
 
 l = logging.getLogger(name=__name__)
 
@@ -78,6 +84,76 @@ class SimpleMessageLayoutInference(LayoutInference):
             if kind is not None and 0 <= kind < 42 and message in SimpleMessageLayoutInference.ERROR_MESSAGES:
                 return True
         return False
+
+
+class ReferenceCounter(AILBlockWalkerBase):
+
+    def __init__(self, arg_idx, project, depth=0):
+        super().__init__()
+        self.arg_idx = arg_idx
+        self.project = project
+        self.depth = depth
+        self.read_counter = defaultdict(int)
+        self.write_counter = defaultdict(int)
+        self.condition_counter = defaultdict(int)
+
+    def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
+        vvar, offset = extract_vvar_and_offset(stmt.addr)
+        if vvar and vvar.was_parameter and vvar.varid == self.arg_idx:
+            self.write_counter[offset] += 1
+        super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
+        vvar, offset = extract_vvar_and_offset(expr.addr)
+        if vvar and vvar.was_parameter and vvar.varid == self.arg_idx:
+            self.read_counter[offset] += 1
+            if isinstance(stmt, ConditionalJump):
+                self.condition_counter[offset] += 1
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_call(self, call):
+        if self.depth >= 5:
+            return
+        if isinstance(call.target, Const) and call.target.value in self.project.kb.functions:
+            func = self.project.kb.functions[call.target.value]
+            for arg_idx, arg in enumerate(call.args or []):
+                if isinstance(arg, VirtualVariable) and arg.was_parameter and arg.varid == self.arg_idx:
+                    clinic = self.project.analyses.Clinic(
+                        func, cfg=self.project.kb.cfgs.get_most_accurate(), optimization_passes=[]
+                    )
+                    walker = ReferenceCounter(arg_idx, self.project, self.depth + 1)
+                    for block in clinic.graph.nodes:
+                        walker.walk(block)
+                    for offset, value in walker.read_counter.items():
+                        self.read_counter[offset] += value
+                    for offset, value in walker.write_counter.items():
+                        self.write_counter[offset] += value
+                    for offset, value in walker.condition_counter.items():
+                        self.condition_counter[offset] += value
+
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+        self._handle_call(stmt)
+        super()._handle_Call(stmt_idx, stmt, block)
+
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+        self._handle_call(expr)
+        super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
+
+    @property
+    def scores(self):
+        scores = defaultdict(int)
+        for offset, value in self.read_counter.items():
+            scores[offset] += value
+        for offset, value in self.write_counter.items():
+            scores[offset] += value
+        for offset, value in self.condition_counter.items():
+            scores[offset] += value * 2
+        return scores
+
+    @property
+    def rankings(self):
+        scores = self.scores
+        return sorted(scores.keys(), key=lambda ele: scores[ele], reverse=True)
 
 
 class StructFieldsMatcher:
@@ -245,6 +321,37 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
 
         # Regenerate Rust standard library function prototypes with recovered struct types
         self.kb.librust.regenerate()
+        #
+        # functions = defaultdict(list)
+        # for addr in self.kb.functions:
+        #     func = self.kb.functions[addr]
+        #     functions[normalize(func.demangled_name, monopolize=True, use_trait_name=True)].append(func)
+        # targets = []
+        # for name, prototype in generate_known_rust_prototypes(self.project).items():
+        #     for func in functions[name]:
+        #         for arg_idx, arg_ty in enumerate(prototype.args):
+        #             # if (
+        #             #     isinstance(arg_ty, RustSimTypeReference)
+        #             #     and isinstance(arg_ty.pts_to, RustSimStruct)
+        #             #     and arg_ty.pts_to.name == "Arguments"
+        #             # ):
+        #             if isinstance(arg_ty, RustSimTypeReference) and isinstance(arg_ty.pts_to, RustSimTypeString):
+        #                 targets.append((func, arg_idx))
+        #
+        # # addr_list = [(0x451AF0, 0), (0x451CC0, 0), (0x451D20, 0), (0x451A30, 0), (0x431ED0, 1)]
+        # walker = ReferenceCounter(0, self.project)
+        # for func, arg_idx in targets:
+        #     # func = self.kb.functions[addr]
+        #     clinic = self.project.analyses.Clinic(func, cfg=self.cfg, optimization_passes=[])
+        #     walker.arg_idx = arg_idx
+        #     # sta = self.project.analyses.SimpleTaintAnalysis(
+        #     #     clinic.graph, SimpleTaintAnalysis.get_clinic_arg_vvars(clinic), ["free"]
+        #     # )
+        #     for block in clinic.graph.nodes:
+        #         walker.walk(block)
+        # import ipdb
+        #
+        # ipdb.set_trace()
 
 
 AnalysesHub.register_default("StructMemoryLayout", StructMemoryLayoutAnalysis)

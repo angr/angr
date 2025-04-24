@@ -69,7 +69,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
             else:
                 post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
                 rcc = self.project.analyses.RustCallingConvention(
-                    func, callsite_block=block, post_callsite_block=post_callsite_block
+                    func, parent_graph=self._graph, callsite_block=block, post_callsite_block=post_callsite_block
                 )
                 call.prototype = rcc.model.inferred_prototype
                 func.prototype = call.prototype

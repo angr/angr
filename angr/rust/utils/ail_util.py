@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Any, Tuple
 
-from ailment import Block, AILBlockWalker, Expression, UnaryOp
+from ailment import Block, AILBlockWalker, Expression, UnaryOp, BinaryOp, Const
 from ailment.expression import VirtualVariable
 from ailment.statement import Call, Statement
 
@@ -41,3 +41,30 @@ def unwrap_stack_vvar_reference(expr) -> VirtualVariable | None:
     ):
         return expr.operand
     return None
+
+
+def extract_vvar_and_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, None]:
+    if isinstance(expr, VirtualVariable):
+        return expr, 0
+    if (
+        isinstance(expr, BinaryOp)
+        and isinstance(expr.operands[0], VirtualVariable)
+        and isinstance(expr.operands[1], Const)
+    ):
+        return expr.operands[0], expr.operands[1].value
+    return None, None
+
+
+def unwrap_stack_vvar_reference_with_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, None]:
+    if isinstance(expr, UnaryOp) and expr.op == "Reference":
+        if isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack:
+            return expr.operand, 0
+        elif (
+            isinstance(expr.operand, BinaryOp)
+            and expr.op == "Add"
+            and isinstance(expr.operand.operands[0], VirtualVariable)
+            and expr.operand.operands[0].was_stack
+            and isinstance(expr.operand.operands[1], Const)
+        ):
+            return expr.operand.operands[0], expr.operand.operands[1].value
+    return None, None
