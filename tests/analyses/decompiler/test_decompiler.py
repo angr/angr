@@ -5084,6 +5084,20 @@ class TestDecompiler(unittest.TestCase):
 
         assert expected in text
 
+    def test_decompiling_control_flow_guard_protected_binaries(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "windows", "control_flow_guard_test.exe")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        func = proj.kb.functions[0x140001000]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        assert proj.kb.functions[0x1400021E0].info.get("jmp_rax", False) is True  # guard_dispatch_icall_fptr
+        assert "1400021e0" not in dec.codegen.text.lower()
+        assert "140005670(" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

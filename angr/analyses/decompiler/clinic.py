@@ -485,6 +485,8 @@ class Clinic(Analysis):
 
         # duplicate orphaned conditional jump blocks
         ail_graph = self._duplicate_orphaned_cond_jumps(ail_graph)
+        # rewrite jmp_rax function calls
+        ail_graph = self._rewrite_jump_rax_calls(ail_graph)
 
         # Transform the graph into partial SSA form
         self._update_progress(35.0, text="Transforming to partial-SSA form")
@@ -930,7 +932,7 @@ class Clinic(Analysis):
                     self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype, manual=False)
                     if func_graph is not None and cc.prototype.returnty is not None:
                         # patch the AIL call statement if we can find one
-                        callsite_ail_block: ailment.Block = next(
+                        callsite_ail_block: ailment.Block | None = next(
                             iter(bb for bb in func_graph if bb.addr == callsite.addr), None
                         )
                         if callsite_ail_block is not None and callsite_ail_block.statements:
@@ -1005,6 +1007,7 @@ class Clinic(Analysis):
         :return:    None
         """
         assert self._func_graph is not None
+        assert self._blocks_by_addr_and_size is not None
 
         for block_node in self._func_graph.nodes():
             ail_block = self._convert(block_node)
@@ -2175,6 +2178,47 @@ class Clinic(Analysis):
                             ail_graph.add_edge(pred, new_block)
                             for succ in succs:
                                 ail_graph.add_edge(new_block, succ if succ is not block else new_block)
+
+        return ail_graph
+
+    def _rewrite_jump_rax_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        """
+        Rewrite calls to special functions (e.g., guard_dispatch_icall_nop) into `call rax`.
+        """
+
+        if self.project.arch.name != "AMD64":
+            return ail_graph
+        if self._cfg is None:
+            return ail_graph
+
+        for block in ail_graph:
+            if not block.statements:
+                continue
+            assert block.addr is not None
+            last_stmt = block.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.Call):
+                # we can't examine the call target at this point because constant propagation hasn't run yet; we consult
+                # the CFG instead
+                callsite_node = self._cfg.get_any_node(block.addr, anyaddr=True)
+                if callsite_node is None:
+                    break
+                callees = self._cfg.get_successors(callsite_node, jumpkind="Ijk_Call")
+                if len(callees) != 1:
+                    break
+                callee = callees[0].addr
+                if self.kb.functions.contains_addr(callee):
+                    callee_func = self.kb.functions.get_by_addr(callee)
+                    if callee_func.info.get("jmp_rax", False) is True:
+                        # rewrite this statement into Call(rax)
+                        call_stmt = last_stmt.copy()
+                        call_stmt.target = ailment.Expr.Register(
+                            self._ail_manager.next_atom(),
+                            None,
+                            self.project.arch.registers["rax"][0],
+                            64,
+                            ins_addr=call_stmt.ins_addr,
+                        )
+                        block.statements[-1] = call_stmt
 
         return ail_graph
 
