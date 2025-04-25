@@ -1,0 +1,28 @@
+[workspace]
+resolver = "3"
+rust-version = "1.86.0"
+members = ["crates/angr"]
+
+[workspace.package]
+license = "BSD-2-Clause"
+readme = "README.md"
+keywords = [
+    "analysis",
+    "angr",
+    "binary",
+    "decompiler",
+    "emulator",
+    "engineering",
+    "execution",
+    "research",
+    "reverse",
+    "security",
+    "symbolic",
+    "vulnerability",
+]
+categories = ["science", "security"]
+repository = "https://github.com/angr/angr.git"
+
+[workspace.lints.clippy]
+all = "warn"
+cargo = "warn"
