@@ -1,3 +1,5 @@
+"""icicle.py: An angr engine that uses Icicle to execute code."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,6 +8,7 @@ import logging
 import claripy
 from icicle import ExceptionCode, Icicle, MemoryProtection, RunStatus
 
+from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.successors import SuccessorsEngine
 from angr.engines.syscall import SimEngineSyscall
@@ -16,14 +19,38 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class IcicleStateTranslationData:
+    """
+    Represents the saved information needed to convert an Icicle state back
+    to an angr state.
+    """
+
     base_state: SimState
     registers: set[str]
     pages: set[int]
 
 
 class IcicleEngine(SuccessorsEngine):
+    """
+    An angr engine that uses Icicle to execute concrete states. The purpose of
+    this implementation is to provide a high-performance concrete execution
+    engine in angr. While historically, angr has focused on symbolic execution,
+    better support for concrete execution enables new use cases such as fuzzing
+    in angr. This is ideal for testing bespoke binary targets, such as
+    microcontroller firmware, which may be difficult to correctly harness for
+    use with traditional fuzzing engines.
+
+    This class is the base class for the Icicle engine. It implements execution
+    by creating an Icicle instance, copying the state from angr to Icicle, and then
+    running the Icicle instance. The results are then copied back to the angr
+    state. It is likely the case that this can be improved by re-using the Icicle
+    instance across multiple runs and only copying the state when necessary.
+
+    For a more complete implementation, use the UberIcicleEngine class, which
+    intends to provide a more complete set of features, such as hooks and syscalls.
+    """
+
     @staticmethod
-    def _perms_to_icicle(read: bool, write: bool, execute: bool) -> MemoryProtection:
+    def __perms_to_icicle(read: bool, write: bool, execute: bool) -> MemoryProtection:
         """
         Convert the permissions of a page to icicle's memory protection enum.
 
@@ -41,7 +68,8 @@ class IcicleEngine(SuccessorsEngine):
             case _, True, True:
                 return MemoryProtection.ExecuteReadWrite
 
-    def _convert_angr_state_to_icicle(self, state: SimState) -> tuple[Icicle, IcicleStateTranslationData]:
+    @staticmethod
+    def __convert_angr_state_to_icicle(state: SimState) -> tuple[Icicle, IcicleStateTranslationData]:
         if state.arch.linux_name is None:
             raise ValueError("Unsupported architecture")
         proj = state.project
@@ -84,11 +112,11 @@ class IcicleEngine(SuccessorsEngine):
             mapped_pages.update(range(first_page_num, last_page_num + 1))
 
         # First get any data from cle
-        for object in proj.loader.all_objects:
-            for segment in object.segments:
+        for obj in proj.loader.all_objects:
+            for segment in obj.segments:
                 addr = segment.vaddr
                 size = segment.memsize
-                perms = self._perms_to_icicle(segment.is_readable, segment.is_writable, segment.is_executable)
+                perms = IcicleEngine.__perms_to_icicle(segment.is_readable, segment.is_writable, segment.is_executable)
                 map_addr(addr, size, perms)
                 memory = state.memory.concrete_load(addr, size)
                 emu.mem_write(addr, memory)
@@ -98,7 +126,7 @@ class IcicleEngine(SuccessorsEngine):
             addr = page_num * state.memory.page_size
             size = state.memory.page_size
             perm_bits = state.solver.eval_one(state.memory.permissions(addr))
-            perms = self._perms_to_icicle(bool(perm_bits & 4), bool(perm_bits & 2), bool(perm_bits & 1))
+            perms = IcicleEngine.__perms_to_icicle(bool(perm_bits & 4), bool(perm_bits & 2), bool(perm_bits & 1))
             map_addr(addr, size, perms)
             emu.mem_write(addr, state.memory.concrete_load(addr, state.memory.page_size))
 
@@ -134,9 +162,9 @@ class IcicleEngine(SuccessorsEngine):
 
     def process_successors(self, successors, *, num_inst=0, **kwargs):
         if len(kwargs) > 0:
-            log.warning("IcicleEngine.process_successors received unknown kwargs:", kwargs)
+            log.warning("IcicleEngine.process_successors received unknown kwargs: %s", kwargs)
 
-        emu, translation_data = self._convert_angr_state_to_icicle(self.state)
+        emu, translation_data = self.__convert_angr_state_to_icicle(self.state)
 
         if num_inst > 0:
             emu.icount_limit = num_inst
@@ -170,7 +198,9 @@ class IcicleEngine(SuccessorsEngine):
         successors.processed = True
 
 
-class UberIcicleEngine(SimEngineSyscall, HooksMixin, IcicleEngine):
+class UberIcicleEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, IcicleEngine):
     """
-    An IcicleEngine that also supports hooks.
+    An extension of the IcicleEngine that uses mixins to add support for
+    syscalls and hooks. Most users will prefer to use this engine instead of the
+    IcicleEngine directly.
     """
