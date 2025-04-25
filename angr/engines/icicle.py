@@ -146,7 +146,8 @@ class IcicleEngine(SuccessorsEngine):
 
         return (emu, translation_data)
 
-    def _convert_icicle_state_to_angr(self, emu: Icicle, translation_data: IcicleStateTranslationData) -> SimState:
+    @staticmethod
+    def __convert_icicle_state_to_angr(emu: Icicle, translation_data: IcicleStateTranslationData) -> SimState:
         state = translation_data.base_state.copy()
 
         # 1. Copy the register values
@@ -169,7 +170,7 @@ class IcicleEngine(SuccessorsEngine):
         if num_inst > 0:
             emu.icount_limit = num_inst
 
-        status = emu.run()
+        status = emu.run()  # pylint: ignore=assignment-from-no-return (pylint bug)
         exc = emu.exception_code
 
         if status == RunStatus.UnhandledException:
@@ -192,7 +193,7 @@ class IcicleEngine(SuccessorsEngine):
         else:
             jumpkind = "Ijk_Boring"
 
-        successor_state = self._convert_icicle_state_to_angr(emu, translation_data)
+        successor_state = IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data)
         successors.add_successor(successor_state, successor_state.ip, claripy.true(), jumpkind, add_guard=False)
 
         successors.processed = True
