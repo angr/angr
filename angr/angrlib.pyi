@@ -2,6 +2,7 @@ class Segment:
     """
     A memory block
     """
+
     start: int
     end: int
     sort: str | None
@@ -37,6 +38,7 @@ class SegmentList:
     SegmentList describes a series of segmented memory blocks. You may query whether an address belongs to any of the
     blocks or not, and obtain the exact block(segment) that the address belongs to.
     """
+
     def __init__(self) -> None:
         """
         Initialize an empty SegmentList.
@@ -99,7 +101,9 @@ class SegmentList:
         :raises ValueError: If no free space is found after the address.
         """
 
-    def next_pos_with_sort_not_in(self, address: int, sorts: set[str | None], max_distance: int | None = None) -> int | None:
+    def next_pos_with_sort_not_in(
+        self, address: int, sorts: set[str | None], max_distance: int | None = None
+    ) -> int | None:
         """
         Returns the address of the next occupied block whose sort is not one of the specified ones.
 
@@ -164,6 +168,7 @@ class SegmentSetIter:
     """
     Iterator for SegmentSet.
     """
+
     def __iter__(self) -> SegmentSetIter:
         """
         Return self as iterator.
@@ -183,6 +188,7 @@ class SegmentSet:
     """
     A set of address ranges.
     """
+
     def __init__(self) -> None:
         """
         Initialize an empty SegmentSet.
