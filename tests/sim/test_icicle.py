@@ -5,6 +5,7 @@ These tests are broken into two classes: TestIcicle and TestFauxware. TestIcicle
 contains unit tests for basic functionality of the engine. TestFauxware contains
 integration tests for running the fauxware binary using the engine.
 """
+
 # pylint: disable=no-self-use
 
 from __future__ import annotations
