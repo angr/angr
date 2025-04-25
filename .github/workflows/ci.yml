@@ -10,6 +10,7 @@ on:
 jobs:
   ci:
     uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
+
   smoketest:
     name: Test installation
     strategy:
@@ -30,3 +31,22 @@ jobs:
 
       - name: Collect tests
         run: uv run pytest --collect-only tests
+
+  rust_check:
+    name: Rust Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo fmt --all -- --check
+
+  rust_test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo test --release
