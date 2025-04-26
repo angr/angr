@@ -79,6 +79,13 @@ def generate_known_rust_prototypes(project):
         ),
         "std::io::Read::read_to_string": RustSimTypeFunction(
             args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(RustSimTypeString())],
-            returnty=RustSimTypeReference(RustSimTypeBottom()),
+            returnty=RustSimTypeResult(
+                RustSimTypeSize().with_arch(project.arch),
+                0,
+                project.arch.bytes,
+                RustSimTypeReference(RustSimTypeBottom()),
+                None,
+                0,
+            ),
         ),
     }
