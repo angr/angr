@@ -9,6 +9,7 @@ from .pattern_match_identifier import PatternMatchIdentifier
 from .pattern_match_simplifier import PatternMatchSimplifier
 from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .pre_pattern_match_simplifier import PrePatternMatchSimplifier
+from .ret_expr_rewriter import RetExprRewriter
 from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
 from .struct_return_simplifier import StructReturnSimplifier
@@ -22,6 +23,7 @@ from .ownership_simplifier import OwnershipSimplifier
 
 def get_rust_optimization_passes():
     return [
+        RetExprRewriter,
         # AFTER_SINGLE_BLOCK_SIMPLIFICATION
         # LibFunctionIdentifier,
         # AFTER_GLOBAL_SIMPLIFICATION

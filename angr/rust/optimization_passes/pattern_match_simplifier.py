@@ -55,7 +55,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         return None
 
     def _collect_move_stmts(self, scrutinee: VirtualVariable, variant: EnumVariant, node):
-        if scrutinee.was_reg:
+        if not scrutinee.was_stack:
             return (None,) * len(variant.fields)
         block = self._find_first_block(node)
         if block:

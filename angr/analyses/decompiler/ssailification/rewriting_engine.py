@@ -40,6 +40,7 @@ from angr.ailment.expression import (
     Tmp,
     DirtyExpression,
     Reinterpret,
+    ComboRegister,
 )
 
 from angr.ailment.tagged_object import TaggedObject
@@ -89,6 +90,7 @@ class SimEngineSSARewriting(
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
+        self._varid_to_combo_reg = {}
 
     @property
     def current_vvar_id(self) -> int:
@@ -594,6 +596,8 @@ class SimEngineSSARewriting(
             return self._replace_def_reg(thing, value, orig_tags)
         if isinstance(thing, Tmp) and self.rewrite_tmps:
             return self._replace_def_tmp(thing, value, orig_tags)
+        if isinstance(thing, ComboRegister):
+            return self._replace_def_combo_reg(thing, value, orig_tags)
         if isinstance(thing, VirtualVariable):
             # update liveness info
             if thing.category == VirtualVariableCategory.REGISTER:
@@ -604,6 +608,23 @@ class SimEngineSSARewriting(
                 for suboff in range(thing.stack_offset, thing.stack_offset + thing.size):
                     self.state.stackvars[suboff] = thing
         return None
+
+    def _replace_def_combo_reg(
+        self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject
+    ) -> VirtualVariable:
+        vvid = self.next_vvar_id()
+        result = VirtualVariable(
+            expr.idx,
+            vvid,
+            expr.bits,
+            VirtualVariableCategory.COMBO_REGISTER,
+            oident=tuple(reg.reg_offset for reg in expr.registers),
+            reg_vvars=[self._replace_def_reg(reg, value, orig_tags) for reg in expr.registers],
+            **expr.tags,
+        )
+        for reg_vvar in result.reg_vvars:
+            self._varid_to_combo_reg[reg_vvar.varid] = result
+        return result
 
     def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
         """

@@ -11,7 +11,7 @@ from angr.engines.light.engine import BlockProtocol
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.engines.light import SimEngineLight, ArithmeticExpression
 from angr.errors import SimMemoryMissingError
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable, SimConstantVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable, SimConstantVariable, SimComboRegisterVariable
 from angr.code_location import CodeLocation
 from angr.analyses.typehoon import typevars, typeconsts
 from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
@@ -442,6 +442,13 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
                 assert vvar.tmp_idx is not None
                 variable = SimRegisterVariable(
                     4096 + vvar.tmp_idx,
+                    vvar.size,
+                    ident=self.state.variable_manager[self.func_addr].next_variable_ident("register"),
+                    region=self.func_addr,
+                )
+            elif vvar.was_combo_reg:
+                variable = SimComboRegisterVariable(
+                    vvar.reg_offsets,
                     vvar.size,
                     ident=self.state.variable_manager[self.func_addr].next_variable_ident("register"),
                     region=self.func_addr,

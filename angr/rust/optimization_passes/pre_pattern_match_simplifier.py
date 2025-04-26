@@ -3,12 +3,12 @@ import logging
 from typing import Any, Optional
 
 import networkx
-from ailment import BinaryOp, Assignment
+from ailment import BinaryOp, Assignment, UnaryOp
 from ailment.expression import Load, Const, VirtualVariable, Enum
 from ailment.statement import ConditionalJump, Return, Label, Call
 
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
-from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
+from angr.rust.utils.ail_util import unwrap_stack_vvar_reference, unwrap_combo_reg_vvar_reference
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 from angr.analyses.decompiler.optimization_passes.return_duplicator_base import ReturnDuplicatorBase
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -100,7 +100,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
             op0, op1 = condition.operands
             cmp_op = condition.op
             if isinstance(op0, Load):
-                scrutinee = unwrap_stack_vvar_reference(op0.addr)
+                scrutinee = unwrap_stack_vvar_reference(op0.addr) or unwrap_combo_reg_vvar_reference(op0.addr)
             if isinstance(op0, (VirtualVariable, Call)):
                 scrutinee = op0
             if isinstance(op1, Const):

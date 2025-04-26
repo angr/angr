@@ -43,6 +43,17 @@ def unwrap_stack_vvar_reference(expr) -> VirtualVariable | None:
     return None
 
 
+def unwrap_combo_reg_vvar_reference(expr) -> VirtualVariable | None:
+    if (
+        isinstance(expr, UnaryOp)
+        and expr.op == "Reference"
+        and isinstance(expr.operand, VirtualVariable)
+        and expr.operand.was_combo_reg
+    ):
+        return expr.operand
+    return None
+
+
 def extract_vvar_and_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, None]:
     if isinstance(expr, VirtualVariable):
         return expr, 0

@@ -15,6 +15,8 @@ from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.code_location import ExternalCodeLocation
+from angr.ailment import Statement, Block, AILBlockWalker
+from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
@@ -66,7 +68,7 @@ from .utils import first_nonlabel_statement_id
 from ..typehoon import Typehoon
 from .optimization_passes import get_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
 from ..typehoon.typehoon import Typehoon
-from ailment.expression import Struct, Array, Enum, Let
+from ailment.expression import Struct, Array, Enum, Let, ComboRegister, VirtualVariable
 from ailment.statement import FunctionLikeMacro
 from ...rust.typehoon.typehoon import RustTypehoon
 from .semantic_naming import SemanticNamingOrchestrator
@@ -602,6 +604,44 @@ class Clinic(Analysis):
 
         return depth
 
+    def _fix_combo_reg_references(self, ail_graph):
+        class ComboRegReferenceWalker(AILBlockWalker):
+
+            def __init__(self, project):
+                super().__init__()
+                self.project = project
+                self.varid_to_combo_reg = {}
+
+            def _handle_VirtualVariable(
+                self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+            ):
+                if expr.was_combo_reg:
+                    for reg_vvar in expr.reg_vvars:
+                        self.varid_to_combo_reg[reg_vvar.varid] = expr
+                elif expr.was_reg:
+                    if expr.varid in self.varid_to_combo_reg:
+                        combo_reg = self.varid_to_combo_reg[expr.varid]
+                        offset = 0
+                        for reg_vvar in combo_reg.reg_vvars:
+                            if reg_vvar.reg_offset == expr.reg_offset:
+                                break
+                            offset += reg_vvar.size
+                        addr = ailment.Expr.UnaryOp(None, "Reference", combo_reg)
+                        if offset != 0:
+                            addr += ailment.Expr.Const(None, None, offset, self.project.arch.bits)
+                        return ailment.Expr.Load(
+                            None,
+                            addr,
+                            expr.size,
+                            self.project.arch.memory_endness,
+                        )
+                return None
+
+        walker = ComboRegReferenceWalker(self.project)
+        for block in GraphUtils.quasi_topological_sort_nodes(ail_graph):
+            walker.walk(block)
+        return ail_graph
+
     def _decompilation_simplifications(self, ail_graph):
         self.arg_vvars = self._init_arg_vvars if self._init_arg_vvars is not None else {}
         self.func_args = {arg_vvar for arg_vvar, _ in self.arg_vvars.values()}
@@ -871,6 +911,8 @@ class Clinic(Analysis):
             avoid_vvar_ids=self.copied_var_ids,
             variable_kb=variable_kb
         )
+
+        ail_graph = self._fix_combo_reg_references(ail_graph)
 
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")
