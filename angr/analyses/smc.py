@@ -105,7 +105,7 @@ class SelfModifyingCodeAnalysis(Analysis):
         """
         :param subject: Subject of analysis
         :param max_bytes: Maximum number of bytes from subject address. 0 for no limit (default).
-        :param state: State to begin executing from from.
+        :param state: State to begin executing from.
         """
         assert self.project.selfmodifying_code
 
