@@ -4,10 +4,10 @@ Configures pytest to include binary paths for use with pytest-insta.
 
 # pylint: disable=import-error,missing-function-docstring
 from __future__ import annotations
-import pytest_insta.utils
 import os
 import glob
 import re
+import pytest_insta.utils
 
 regex = re.compile("corpus__decompilation__(.*)__[0-9a-f]*.txt")
 

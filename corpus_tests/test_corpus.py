@@ -11,7 +11,7 @@ import traceback
 import angr
 from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
 
-bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "dec-test-corpus")
+bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
 
 # Invoke this test script with the `pytest --insta` switch to enable the snapshot mechanism
 
