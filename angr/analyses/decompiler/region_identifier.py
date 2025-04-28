@@ -71,6 +71,9 @@ class RegionIdentifier(Analysis):
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
         self._complete_successors = complete_successors
+        # we keep a dictionary of node and their traversal order in a quasi-topological traversal and update this
+        # dictionary as we update the graph
+        self._node_order: dict[Any, tuple[int, int]] = {}
 
         self._analyze()
 
@@ -103,9 +106,6 @@ class RegionIdentifier(Analysis):
 
         self._start_node = self._get_start_node(graph)
 
-        # we keep a dictionary of node and their traversal order in a quasi-topological traversal and update this
-        # dictionary as we update the graph
-        self._node_order: dict[Any, int] = {}
         self._node_order = self._compute_node_order(graph)
 
         self.region = self._make_regions(graph)
@@ -114,11 +114,11 @@ class RegionIdentifier(Analysis):
         self.regions_by_block_addrs = self._make_regions_by_block_addrs()
 
     @staticmethod
-    def _compute_node_order(graph: networkx.DiGraph) -> dict[Any, int]:
+    def _compute_node_order(graph: networkx.DiGraph) -> dict[Any, tuple[int, int]]:
         sorted_nodes = GraphUtils.quasi_topological_sort_nodes(graph)
         node_order = {}
         for i, n in enumerate(sorted_nodes):
-            node_order[n] = i
+            node_order[n] = i, 0
         return node_order
 
     def _sort_nodes(self, nodes: list | set) -> list:
@@ -636,9 +636,9 @@ class RegionIdentifier(Analysis):
             graph.remove_edge(region, succ)
             graph.add_edge(cond, succ, **edge_data)
 
-        # unfortunately new nodes are created, so our node order dictionary is invalidated. just gotta generate it
-        # again...
-        self._node_order = self._compute_node_order(graph)
+        # compute the node order of newly created nodes
+        self._node_order[region] = region_node_order = min(self._node_order[node_] for node_ in region.graph)
+        self._node_order[cond] = region_node_order[0], region_node_order[1] + 1
 
     #
     # Acyclic regions
@@ -896,7 +896,12 @@ class RegionIdentifier(Analysis):
 
     @staticmethod
     def _abstract_acyclic_region(
-        graph: networkx.DiGraph, region, frontier, node_order, dummy_endnode=None, secondary_graph=None
+        graph: networkx.DiGraph,
+        region,
+        frontier,
+        node_order: dict[Any, tuple[int, int]],
+        dummy_endnode=None,
+        secondary_graph=None,
     ):
         in_edges = RegionIdentifier._region_in_edges(graph, region, data=True)
         out_edges = RegionIdentifier._region_out_edges(graph, region, data=True)
@@ -935,7 +940,7 @@ class RegionIdentifier(Analysis):
         abnormal_entries,
         normal_exit_node,
         abnormal_exit_nodes,
-        node_order,
+        node_order: dict[Any, tuple[int, int]],
     ):
         region = GraphRegion(head, None, None, None, True, None)
 
