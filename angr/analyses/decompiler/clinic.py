@@ -2410,6 +2410,11 @@ class Clinic(Analysis):
                 expr.variable = var
                 expr.variable_offset = offset
 
+
+            if expr.was_combo_reg:
+                for reg_vvar in expr.reg_vvars:
+                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, reg_vvar)
+
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) == 0:

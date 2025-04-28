@@ -1448,7 +1448,7 @@ class RustFunctionCall(RustStatement, RustExpression):
 
         yield ")", paren
 
-        if "unwrapped_vvar" in self.tags:
+        if "propagates_error" in self.tags:
             yield "?", None
 
         if not self.is_expr and not asexpr:
@@ -3557,7 +3557,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return RustAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Assignment(self, stmt, **kwargs):
-        cdst = self._handle(stmt.src.tags.get("unwrapped_vvar", None) or stmt.dst, lvalue=True)
+        cdst = self._handle(stmt.dst, lvalue=True)
         csrc = self._handle(stmt.src, lvalue=False)
 
         return RustAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
