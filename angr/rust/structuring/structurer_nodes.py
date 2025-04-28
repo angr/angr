@@ -1,9 +1,9 @@
 from collections import OrderedDict
-from typing import Tuple, List, Any
+from typing import Tuple
 
 from ailment.statement import Statement
 
-from angr.analyses.decompiler.structuring.structurer_nodes import BaseNode, SequenceNode
+from angr.analyses.decompiler.structuring.structurer_nodes import BaseNode, SequenceNode, INDENT_DELTA
 from angr.rust.sim_type import EnumVariant
 
 
@@ -26,6 +26,13 @@ class PatternMatchNode(BaseNode):
         self.arms = arms
         self.default_node = default_node
         self.addr = addr
+
+    def dbg_repr(self, indent=0):
+        indent_str = indent * " "
+        s = indent_str + f"match {self.scrutinee} {{\n"
+        for (variant, _), node in self.arms.items():
+            s += indent_str + f"{variant} => {{\n" + node.dbg_repr(indent + INDENT_DELTA) + "\n},\n"
+        return s
 
 
 class IfLetNode(BaseNode):
