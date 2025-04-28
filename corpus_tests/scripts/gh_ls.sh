@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-set -eo pipefail
+set -euo pipefail
+[[ -n "${DEBUG:-}" ]] && set -x
 
 help() {
   SCRIPT_NAME="$(basename "$0")"
@@ -36,6 +37,10 @@ Options:
       The optional SHA of the tree to fetch files from.
       Repeat to enumerate multiple trees.
 
+  -v, --verbose
+
+      Emit verbose logging output.
+
   --with-sha
 
       Return the list of remote files with their git SHA values.
@@ -53,50 +58,61 @@ GitHub Options:
   -t <token>, --token <token>
 
       A GitHub token with access permissions. This can also be specified via the
-      GITHUB_TOKEN environment variable.
+      GH_TOKEN environment variable.
 ANGR
   exit 1
 }
 
+BRANCH=""
 declare -a FILEPATH
+FILEPATH=()
+GH_TOKEN="${GH_TOKEN:-}"
+REPO=""
 declare -a STARTPATTERN
+STARTPATTERN=()
 declare -a SHA
+SHA=()
+VERBOSE=""
 WITH_SHA=""
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case $1 in
-      -b|--branch)
-        BRANCH="$2"
-        shift 2
-        ;;
-      -h|--help)
-        help
-        ;;
-      -p|--path)
-        STARTPATTERN+=("$2")
-        shift 2
-        ;;
-      -R|--repo)
-        REPO="$2"
-        shift 2
-        ;;
-      -s|--sha)
-        SHA+=("$2")
-        shift 2
-        ;;
-      -t|--token)
-        GITHUB_TOKEN="$2"
-        shift 2
-        ;;
-      --with-sha)
-        WITH_SHA="1"
-        shift
-        ;;
-      *)
-        echo "Unknown option: $1"
-        help
-        ;;
+    -b | --branch)
+      BRANCH="$2"
+      shift 2
+      ;;
+    -h | --help)
+      help
+      ;;
+    -p | --path)
+      STARTPATTERN+=("$2")
+      shift 2
+      ;;
+    -R | --repo)
+      REPO="$2"
+      shift 2
+      ;;
+    -s | --sha)
+      SHA+=("$2")
+      shift 2
+      ;;
+    -t | --token)
+      GH_TOKEN="$2"
+      shift 2
+      ;;
+    -v | --verbose)
+      VERBOSE="1"
+      shift
+      ;;
+    --with-sha)
+      WITH_SHA="1"
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      help
+      ;;
     esac
   done
 }
@@ -112,26 +128,29 @@ fi
 fetch_tree() {
   local path="${1}"
   local response
+
+  [[ -n "${VERBOSE}" ]] && echo "fetching tree ${path}" >&2
+
   response="$(curl \
     --show-error \
     --silent \
     -H "Accept: application/vnd.github+json" \
-    -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Authorization: token $GH_TOKEN" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "https://api.github.com/repos/${REPO}/contents/${path}?ref=${BRANCH:-HEAD}")"
   if ! [[ "$(echo "${response}" | jq -r 'if type == "array" then 0 else .status end')" -eq 0 ]]; then
-    echo "${response}" | jq
+    echo "${response}" | jq >&2
     exit 1
   fi
 
   while read -r item; do
     case "$(echo "$item" | jq -r '.type')" in
-      dir)
-        SHA+=("$(echo "$item" | jq -r '.sha + " " + .name')")
-        ;;
-      file)
-        FILEPATH+=("$(echo "$item" | jq -r '.name')")
-        ;;
+    dir)
+      SHA+=("$(echo "$item" | jq -r '.sha + " " + .name')")
+      ;;
+    file)
+      FILEPATH+=("$(echo "$item" | jq -r '.name')")
+      ;;
     esac
   done < <(echo "${response}" | jq -c '.[] | {name, sha, type}')
 }
@@ -140,15 +159,18 @@ fetch_tree_by_sha() {
   local sha="${1}"
   local prefix="${2}"
   local response
+
+  [[ -n "${VERBOSE}" ]] && echo "fetching tree by sha ${prefix} ${sha}" >&2
+
   response="$(curl \
     --show-error \
     --silent \
     -H "Accept: application/vnd.github+json" \
-    -H "Authorization: token $GITHUB_TOKEN" \
+    -H "Authorization: token $GH_TOKEN" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "https://api.github.com/repos/${REPO}/git/trees/${sha}?recursive=1")"
-  if ! [[ "$(echo "${response}" | jq -r 'if type == "array" then 0 else .status end')" -eq 0 ]]; then
-    echo "${response}" | jq
+  if ! [[ "$(echo "${response}" | jq -r 'if has("tree") then 0 else 1 end')" -eq 0 ]]; then
+    echo "${response}" | jq >&2
     exit 1
   fi
 
