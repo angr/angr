@@ -160,7 +160,7 @@ class SketchNode(SketchNodeBase):
 
         if isinstance(self.typevar, DerivedTypeVariable):
             last_label = self.typevar.labels[-1]
-            if isinstance(last_label, HasField):
+            if isinstance(last_label, HasField) and last_label.bits != MAX_POINTSTO_BITS:
                 return last_label.bits
         if isinstance(self.lower_bound, TypeConstant) and not isinstance(self.lower_bound, (TopType, BottomType)):
             with suppress(NotImplementedError):
