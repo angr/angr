@@ -2,6 +2,7 @@
 from __future__ import annotations
 import enum
 from collections import defaultdict
+from contextlib import suppress
 import logging
 
 import networkx
@@ -150,6 +151,24 @@ class SketchNode(SketchNodeBase):
 
     def __hash__(self):
         return hash((SketchNode, self.typevar))
+
+    @property
+    def size(self) -> int | None:
+        """
+        Best-effort estimation of the size of the typevar (in bits). Returns None if we cannot determine.
+        """
+
+        if isinstance(self.typevar, DerivedTypeVariable):
+            last_label = self.typevar.labels[-1]
+            if isinstance(last_label, HasField):
+                return last_label.bits
+        if isinstance(self.lower_bound, TypeConstant) and not isinstance(self.lower_bound, (TopType, BottomType)):
+            with suppress(NotImplementedError):
+                return self.lower_bound.size * 8
+        if isinstance(self.upper_bound, TypeConstant) and not isinstance(self.upper_bound, (TopType, BottomType)):
+            with suppress(NotImplementedError):
+                return self.upper_bound.size * 8
+        return None
 
 
 class RecursiveRefNode(SketchNodeBase):
@@ -1349,12 +1368,20 @@ class SimpleSolver:
             lower_bound = Bottom_
             upper_bound = Top_
 
+            node_sizes = set()
             for node in nodes:
-                lower_bound = self.join(lower_bound, node.lower_bound)
-                upper_bound = self.meet(upper_bound, node.upper_bound)
-                # TODO: Support variables that are accessed via differently sized pointers
+                node_size = node.size
+                if node_size is not None:
+                    node_sizes.add(node_size)
+            if len(node_sizes) > 1:
+                # multi-sized reads - cannot converge to a reasonable type
+                result = Bottom_
+            else:
+                for node in nodes:
+                    lower_bound = self.join(lower_bound, node.lower_bound)
+                    upper_bound = self.meet(upper_bound, node.upper_bound)
+                result = lower_bound if not isinstance(lower_bound, BottomType) else upper_bound
 
-            result = lower_bound if not isinstance(lower_bound, BottomType) else upper_bound
             for node in nodes:
                 solution[node.typevar] = result
                 self._solution_cache[node.typevar] = result
