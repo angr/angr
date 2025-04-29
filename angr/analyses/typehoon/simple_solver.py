@@ -2,6 +2,7 @@
 from __future__ import annotations
 import enum
 from collections import defaultdict
+from contextlib import suppress
 import logging
 
 import networkx
@@ -51,23 +52,6 @@ from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
 _l = logging.getLogger(__name__)
 
 
-PRIMITIVE_TYPES = {
-    TopType(),
-    Int(),
-    Int8(),
-    Int16(),
-    Int32(),
-    Int64(),
-    Pointer32(),
-    Pointer64(),
-    BottomType(),
-    Struct(),
-    Array(),
-    Float(),
-    Float32(),
-    Float64(),
-}
-
 Top_ = TopType()
 Int_ = Int()
 Int64_ = Int64()
@@ -82,6 +66,25 @@ Array_ = Array()
 Float_ = Float()
 Float32_ = Float32()
 Float64_ = Float64()
+
+
+PRIMITIVE_TYPES = {
+    Top_,
+    Int_,
+    Int8_,
+    Int16_,
+    Int32_,
+    Int64_,
+    Pointer32_,
+    Pointer64_,
+    Bottom_,
+    Struct_,
+    Array_,
+    Float_,
+    Float32_,
+    Float64_,
+}
+
 
 # lattice for 64-bit binaries
 BASE_LATTICE_64 = networkx.DiGraph()
@@ -148,6 +151,24 @@ class SketchNode(SketchNodeBase):
 
     def __hash__(self):
         return hash((SketchNode, self.typevar))
+
+    @property
+    def size(self) -> int | None:
+        """
+        Best-effort estimation of the size of the typevar (in bits). Returns None if we cannot determine.
+        """
+
+        if isinstance(self.typevar, DerivedTypeVariable):
+            last_label = self.typevar.labels[-1]
+            if isinstance(last_label, HasField) and last_label.bits != MAX_POINTSTO_BITS:
+                return last_label.bits
+        if isinstance(self.lower_bound, TypeConstant) and not isinstance(self.lower_bound, (TopType, BottomType)):
+            with suppress(NotImplementedError):
+                return self.lower_bound.size * 8
+        if isinstance(self.upper_bound, TypeConstant) and not isinstance(self.upper_bound, (TopType, BottomType)):
+            with suppress(NotImplementedError):
+                return self.upper_bound.size * 8
+        return None
 
 
 class RecursiveRefNode(SketchNodeBase):
@@ -433,9 +454,8 @@ class SimpleSolver:
             if isinstance(tv, TypeVariable) and isinstance(sol, TypeConstant):
                 self.solution[tv] = sol
 
-        equ_classes, sketches, _ = self.solve()
         self._solution_cache = {}
-        self.determine(equ_classes, sketches, self.solution)
+        self.solve()
         for typevar in list(self._constraints):
             self._convert_arrays(self._constraints[typevar])
 
@@ -448,6 +468,11 @@ class SimpleSolver:
         - Build the constraint graph
         - Collect all constraints
         - Apply constraints to derive the lower and upper bounds
+        - Determine a solution for type variables with constraints
+        - Rewrite the constraint graph by replacing determined type variables with their solutions
+        - Solve repeatedly until all interesting type variables have solutions
+
+        By repeatedly solving until exhausting interesting type variables, we ensure the S-Trans rule is applied.
         """
 
         prem_typevars = set(self._constraints) | self._typevars
@@ -476,11 +501,7 @@ class SimpleSolver:
                     elif isinstance(t, TypeVariable) and t in typevars:
                         constrained_typevars.add(t)
 
-        equivalence_classes, sketches = self.infer_shapes(typevars, constraints)
-        # TODO: Handle global variables
-
-        type_schemes = constraints
-
+        _, sketches = self.infer_shapes(typevars, constraints)
         constraintset2tvs = defaultdict(set)
         for idx, tv in enumerate(constrained_typevars):
             _l.debug("Collecting constraints for type variable %r (%d/%d)", tv, idx + 1, len(constrained_typevars))
@@ -490,20 +511,43 @@ class SimpleSolver:
 
         for idx, (constraint_subset, tvs) in enumerate(constraintset2tvs.items()):
             _l.debug(
-                "Solving %d constraints for type variables %r (%d/%d)",
+                "Solving %d constraints for %d type variables %r (%d/%d)",
                 len(constraint_subset),
+                len(tvs),
                 tvs,
                 idx + 1,
                 len(constraintset2tvs),
             )
-            base_constraint_graph = self._generate_constraint_graph(constraint_subset, tvs | PRIMITIVE_TYPES)
-            for idx_0, tv in enumerate(tvs):
-                _l.debug("Solving for type variable %r (%d/%d)", tv, idx_0 + 1, len(tvs))
-                primitive_constraints = self._generate_primitive_constraints({tv}, base_constraint_graph)
-                for primitive_constraint in primitive_constraints:
-                    sketches[tv].add_constraint(primitive_constraint)
 
-        return equivalence_classes, sketches, type_schemes
+            while True:
+                base_constraint_graph = self._generate_constraint_graph(constraint_subset, tvs | PRIMITIVE_TYPES)
+                primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
+                tvs_with_primitive_constraints = set()
+                for primitive_constraint in primitive_constraints:
+                    tv = self._typevar_from_primitive_constraint(primitive_constraint)
+                    tvs_with_primitive_constraints.add(tv)
+                    assert tv is not None, f"Cannot find type variable in primitive constraint {primitive_constraint}"
+                    sketches[tv].add_constraint(primitive_constraint)
+                solutions = {}
+                self.determine(sketches, tvs_with_primitive_constraints, solutions)
+                _l.debug("Determined solutions for %d type variable(s).", len(tvs_with_primitive_constraints))
+                if not solutions:
+                    break
+
+                self.solution |= solutions
+
+                tvs = {tv for tv in tvs if tv not in tvs_with_primitive_constraints}
+                if not tvs:
+                    break
+                # rewrite existing constraints
+                new_constraint_subset = set()
+                for constraint in constraint_subset:
+                    rewritten = self._rewrite_constraint(constraint, solutions)
+                    new_constraint_subset.add(rewritten)
+                constraint_subset = new_constraint_subset
+
+        # set the solution for missing type vars to TOP
+        self.determine(sketches, set(sketches).difference(set(self.solution)), self.solution)
 
     def infer_shapes(
         self, typevars: set[TypeVariable], constraints: set[TypeConstraint]
@@ -593,7 +637,6 @@ class SimpleSolver:
         non_primitive_endpoints: set[TypeVariable | DerivedTypeVariable],
         constraint_graph,
     ) -> set[TypeConstraint]:
-        # FIXME: Extract interesting variables
         constraints_0 = self._solve_constraints_between(constraint_graph, non_primitive_endpoints, PRIMITIVE_TYPES)
         constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, non_primitive_endpoints)
         return constraints_0 | constraints_1
@@ -611,6 +654,25 @@ class SimpleSolver:
                 typevars.add(constraint.super_type)
             # TODO: Other types of constraints?
         return typevars
+
+    @staticmethod
+    def _typevar_from_primitive_constraint(constraint: TypeConstraint) -> TypeVariable | None:
+        if isinstance(constraint, Subtype):
+            if (
+                isinstance(constraint.sub_type, DerivedTypeVariable)
+                and type(constraint.sub_type.type_var) is TypeVariable
+            ):
+                return constraint.sub_type.type_var
+            if type(constraint.sub_type) is TypeVariable:
+                return constraint.sub_type
+            if (
+                isinstance(constraint.super_type, DerivedTypeVariable)
+                and type(constraint.super_type.type_var) is TypeVariable
+            ):
+                return constraint.super_type.type_var
+            if type(constraint.super_type) is TypeVariable:
+                return constraint.super_type
+        return None
 
     @staticmethod
     def _get_all_paths(
@@ -825,7 +887,6 @@ class SimpleSolver:
         """
 
         graph = networkx.DiGraph()
-        constraints = self._get_transitive_subtype_constraints(constraints)
         for constraint in constraints:
             if isinstance(constraint, Subtype):
                 self._constraint_graph_add_edges(
@@ -835,33 +896,6 @@ class SimpleSolver:
         self._constraint_graph_remove_self_loops(graph)
         self._constraint_graph_recall_forget_split(graph)
         return graph
-
-    @staticmethod
-    def _get_transitive_subtype_constraints(constraints: set[TypeConstraint]) -> set[TypeConstraint]:
-        """
-        Apply the S-Trans rule: a <: b, b <: c => a <: c
-        """
-        tv2supertypes = defaultdict(set)
-        for constraint in constraints:
-            if isinstance(constraint, Subtype):
-                tv2supertypes[constraint.sub_type].add(constraint.super_type)
-
-        new_constraints = set()
-        while True:
-            changed = False
-            for subtype, supertypes in tv2supertypes.items():
-                supertypes_copy = set(supertypes)
-                for supertype in supertypes_copy:
-                    if supertype in tv2supertypes:
-                        for supertype_ in tv2supertypes[supertype]:
-                            if supertype_ not in supertypes_copy:
-                                changed = True
-                                supertypes.add(supertype_)
-                                new_constraints.add(Subtype(subtype, supertype_))
-            if not changed:
-                break
-
-        return constraints | new_constraints
 
     @staticmethod
     def _constraint_graph_add_recall_edges(graph: networkx.DiGraph, node: ConstraintGraphNode) -> None:
@@ -1004,12 +1038,7 @@ class SimpleSolver:
         if typevar in typevar_set:
             return True
         if isinstance(typevar, Struct) and Struct_ in typevar_set:
-            if not typevar.fields:
-                return True
-            return all(
-                SimpleSolver._typevar_inside_set(field_typevar, typevar_set)
-                for field_typevar in typevar.fields.values()
-            )
+            return True
         if isinstance(typevar, Array) and Array_ in typevar_set:
             return SimpleSolver._typevar_inside_set(typevar.element, typevar_set)
         if isinstance(typevar, Pointer) and (Pointer32_ in typevar_set or Pointer64_ in typevar_set):
@@ -1110,31 +1139,47 @@ class SimpleSolver:
             return Pointer64()
         return t
 
+    @staticmethod
+    def _rewrite_constraint(constraint: TypeConstraint, solutions: dict) -> TypeConstraint:
+        if isinstance(constraint, Subtype):
+            replaced = False
+            if isinstance(constraint.sub_type, TypeVariable) and constraint.sub_type in solutions:
+                sub_type = solutions[constraint.sub_type]
+                replaced = True
+            else:
+                sub_type = constraint.sub_type
+            if isinstance(constraint.super_type, TypeVariable) and constraint.super_type in solutions:
+                super_type = solutions[constraint.super_type]
+                replaced = True
+            else:
+                super_type = constraint.super_type
+            return Subtype(sub_type, super_type) if replaced else constraint
+        return constraint
+
     def determine(
         self,
-        equivalent_classes: dict[TypeVariable, TypeVariable],
         sketches,
+        tvs,
         solution: dict,
         nodes: set[SketchNode] | None = None,
     ) -> None:
         """
         Determine C-like types from sketches.
 
-        :param equivalent_classes:  A dictionary mapping each type variable from its representative in the equivalence
-                                    class over ~.
         :param sketches:            A dictionary storing sketches for each type variable.
         :param solution:            The dictionary storing C-like types for each type variable. Output.
         :param nodes:               Optional. Nodes that should be considered in the sketch.
         :return:                    None
         """
-        for typevar, sketch in sketches.items():
-            self._determine(equivalent_classes, typevar, sketch, solution, nodes=nodes)
 
-        for v, e in self._equivalence.items():
-            if v not in solution and e in solution:
-                solution[v] = solution[e]
+        for typevar in tvs:
+            self._determine(typevar, sketches[typevar], solution, nodes=nodes)
 
-    def _determine(self, equivalent_classes, the_typevar, sketch, solution: dict, nodes: set[SketchNode] | None = None):
+        for v, eq in self._equivalence.items():
+            if v not in solution and eq in solution:
+                solution[v] = solution[eq]
+
+    def _determine(self, the_typevar, sketch, solution: dict, nodes: set[SketchNode] | None = None):
         """
         Return the solution from sketches
         """
@@ -1194,7 +1239,7 @@ class SimpleSolver:
             for vals, out in [(func_inputs, input_args), (func_outputs, output_values)]:
                 for idx in range(max(vals) + 1):
                     if idx in vals:
-                        sol = self._determine(equivalent_classes, the_typevar, sketch, solution, nodes=vals[idx])
+                        sol = self._determine(the_typevar, sketch, solution, nodes=vals[idx])
                         out.append(sol)
                     else:
                         out.append(None)
@@ -1290,7 +1335,7 @@ class SimpleSolver:
                 offset = sorted_offsets[i]
 
                 child_nodes = node_by_offset[offset]
-                sol = self._determine(equivalent_classes, the_typevar, sketch, solution, nodes=child_nodes)
+                sol = self._determine(the_typevar, sketch, solution, nodes=child_nodes)
                 if isinstance(sol, TopType):
                     # make it an array if possible
                     elem_size = min(offset_to_sizes[offset])
@@ -1323,12 +1368,20 @@ class SimpleSolver:
             lower_bound = Bottom_
             upper_bound = Top_
 
+            node_sizes = set()
             for node in nodes:
-                lower_bound = self.join(lower_bound, node.lower_bound)
-                upper_bound = self.meet(upper_bound, node.upper_bound)
-                # TODO: Support variables that are accessed via differently sized pointers
+                node_size = node.size
+                if node_size is not None:
+                    node_sizes.add(node_size)
+            if len(node_sizes) > 1:
+                # multi-sized reads - cannot converge to a reasonable type
+                result = Bottom_
+            else:
+                for node in nodes:
+                    lower_bound = self.join(lower_bound, node.lower_bound)
+                    upper_bound = self.meet(upper_bound, node.upper_bound)
+                result = lower_bound if not isinstance(lower_bound, BottomType) else upper_bound
 
-            result = lower_bound if not isinstance(lower_bound, BottomType) else upper_bound
             for node in nodes:
                 solution[node.typevar] = result
                 self._solution_cache[node.typevar] = result
@@ -1386,3 +1439,12 @@ class SimpleSolver:
         if self.bits == 64:
             return Pointer64
         raise NotImplementedError(f"Unsupported bits {self.bits}")
+
+    @staticmethod
+    def dump_constraint_graph(graph: networkx.DiGraph, filename: str) -> None:
+        """
+        Dump the constraint graph to a file.
+        """
+        from networkx.drawing.nx_agraph import write_dot  # pylint:disable=import-outside-toplevel
+
+        write_dot(graph, filename)

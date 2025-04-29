@@ -100,7 +100,8 @@ class Typehoon(Analysis):
                     and not isinstance(type_.pts_to, SimTypeArray)
                 ):
                     type_ = type_.pts_to
-                type_candidates.append(type_)
+                if type_ is not None:
+                    type_candidates.append(type_)
 
             # determine the best type - this logic can be made better!
             if not type_candidates:
