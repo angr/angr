@@ -501,7 +501,7 @@ class SimpleSolver:
                     elif isinstance(t, TypeVariable) and t in typevars:
                         constrained_typevars.add(t)
 
-        equivalence_classes, sketches = self.infer_shapes(typevars, constraints)
+        _, sketches = self.infer_shapes(typevars, constraints)
         constraintset2tvs = defaultdict(set)
         for idx, tv in enumerate(constrained_typevars):
             _l.debug("Collecting constraints for type variable %r (%d/%d)", tv, idx + 1, len(constrained_typevars))
