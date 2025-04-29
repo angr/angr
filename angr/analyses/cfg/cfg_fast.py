@@ -1567,7 +1567,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     block = func.get_block(func.addr)
                 except SimTranslationError:
                     block = None
-                if block is not None and block.instructions == 1:
+                if block is not None and block.instructions == 1 and len(block.capstone.insns) == 1:
                     insn = block.capstone.insns[0]
                     if block.bytes == b"\xff\xe0":
                         func.info["jmp_rax"] = True
