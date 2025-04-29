@@ -9,4 +9,4 @@ on:
 
 jobs:
   ci:
-    uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
+    uses: angr/ci-settings/.github/workflows/angr-ci.yml
