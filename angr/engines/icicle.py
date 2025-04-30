@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 
+from archinfo import Arch, Endness
 import claripy
 from icicle import ExceptionCode, Icicle, MemoryProtection, RunStatus
 
@@ -50,6 +51,20 @@ class IcicleEngine(SuccessorsEngine):
     """
 
     @staticmethod
+    def __make_icicle_arch(arch: Arch, addr: int) -> str | None:
+        """
+        Convert an angr architecture to an Icicle architecture. Not particularly
+        accurate, just a set of heuristics to get the right architecture. When
+        adding a new architecture, this function may need to be updated.
+        """
+        if arch.linux_name == "arm":
+            thumb = addr & 1 == 1
+            if arch.memory_endness == Endness.BE:
+                return "thumbeb" if thumb else "armeb"
+            return "thumbv7a" if thumb else "arm"
+        return arch.linux_name
+
+    @staticmethod
     def __make_icicle_perms(read: bool, write: bool, execute: bool) -> MemoryProtection:
         """
         Convert the permissions of a page to icicle's memory protection enum.
@@ -70,13 +85,15 @@ class IcicleEngine(SuccessorsEngine):
 
     @staticmethod
     def __convert_angr_state_to_icicle(state: SimState) -> tuple[Icicle, IcicleStateTranslationData]:
-        if state.arch.linux_name is None:
+        icicle_arch = IcicleEngine.__make_icicle_arch(state.arch, state.addr)
+        if icicle_arch is None:
             raise ValueError("Unsupported architecture")
+
         proj = state.project
         if proj is None:
             raise ValueError("IcicleEngine requires a project to be set")
 
-        emu = Icicle(architecture=state.arch.linux_name)
+        emu = Icicle(icicle_arch)
 
         copied_registers = set()
 
