@@ -15,7 +15,7 @@ from tests.common import bin_location, slow_test
 class TestMemcmpDefiniteSize(unittest.TestCase):
     @slow_test
     def test_memcmp_strlen_simprocedure_interaction(self):
-        bin_path = os.path.join(bin_location, "i386", "cpp_regression_test_ch25")
+        bin_path = os.path.join(bin_location, "tests", "i386", "cpp_regression_test_ch25")
 
         p = angr.Project(bin_path, auto_load_libs=True)  # this binary requires the loading of libstdc++.so.6
         argv1 = claripy.Concat(*[claripy.BVS(f"argv{i}", 8) for i in range(48)])
