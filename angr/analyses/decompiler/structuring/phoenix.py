@@ -1281,7 +1281,7 @@ class PhoenixStructurer(StructurerBase):
             # recreate the switch with it.
             newsc = SwitchCaseNode(better_node_a.switch_expr, better_node_a.cases, node_default, addr=node.addr)
 
-            if node_default is not None and set(graph.successors[node_a]) != set(graph.successors[node_default]):
+            if node_default is not None and set(graph.succ[node_a]) != set(graph.succ[node_default]):
                 # if node_a and default_node have different successors we need to bail
                 return False
 

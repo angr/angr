@@ -5,7 +5,7 @@ import sys
 import contextlib
 from collections import defaultdict
 from inspect import Signature
-from typing import TYPE_CHECKING, TypeVar, Generic, cast
+from typing import TYPE_CHECKING, TypeVar, Generic, cast, Any
 from collections.abc import Callable
 from types import NoneType
 from itertools import chain
@@ -111,7 +111,7 @@ class AnalysisLogEntry:
 A = TypeVar("A", bound="Analysis")
 
 
-class AnalysesHub(PluginVendor[A]):
+class AnalysesHub(PluginVendor[Any]):
     """
     This class contains functions for all the registered and runnable analyses,
     """
@@ -123,7 +123,7 @@ class AnalysesHub(PluginVendor[A]):
     def _init_plugin(self, plugin_cls: type[A]) -> AnalysisFactory[A]:
         return AnalysisFactory(self.project, plugin_cls)
 
-    def __getstate__(self):
+    def __getstate__(self):  # type: ignore[reportIncompatibleMethodOverride]
         s = super().__getstate__()
         return (s, self.project)
 
