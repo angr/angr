@@ -1921,7 +1921,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     if cfg_node is None:
                         continue
                     func_addr = cfg_node.function_address
-                    if func_addr not in tested_func_addrs:
+                    if func_addr not in tested_func_addrs and self.kb.functions.contains_addr(func_addr):
                         func = self.kb.functions.get_by_addr(func_addr)
                         if not security_check_cookie_found and is_function_security_check_cookie(
                             func, self.project, security_cookie_addr
