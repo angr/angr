@@ -50,21 +50,21 @@ class IcicleEngine(SuccessorsEngine):
     """
 
     @staticmethod
-    def __perms_to_icicle(read: bool, write: bool, execute: bool) -> MemoryProtection:
+    def __make_icicle_perms(read: bool, write: bool, execute: bool) -> MemoryProtection:
         """
         Convert the permissions of a page to icicle's memory protection enum.
-
-        Not strictly correct, Read is added to all permissions except NoAccess.
         """
         match read, write, execute:
             case False, False, False:
                 return MemoryProtection.NoAccess
-            case _, False, False:
+            case True, False, False:
                 return MemoryProtection.ReadOnly
-            case _, True, False:
-                return MemoryProtection.ReadWrite
-            case _, False, True:
+            case False, False, True:
+                return MemoryProtection.ExecuteOnly
+            case True, False, True:
                 return MemoryProtection.ExecuteRead
+            case _, True, False:  # Icicle lacks a WriteOnly permission
+                return MemoryProtection.ReadWrite
             case _, True, True:
                 return MemoryProtection.ExecuteReadWrite
 
@@ -116,7 +116,7 @@ class IcicleEngine(SuccessorsEngine):
             for segment in obj.segments:
                 addr = segment.vaddr
                 size = segment.memsize
-                perms = IcicleEngine.__perms_to_icicle(segment.is_readable, segment.is_writable, segment.is_executable)
+                perms = IcicleEngine.__make_icicle_perms(segment.is_readable, segment.is_writable, segment.is_executable)
                 map_addr(addr, size, perms)
                 memory = state.memory.concrete_load(addr, size)
                 emu.mem_write(addr, memory)
@@ -126,7 +126,7 @@ class IcicleEngine(SuccessorsEngine):
             addr = page_num * state.memory.page_size
             size = state.memory.page_size
             perm_bits = state.solver.eval_one(state.memory.permissions(addr))
-            perms = IcicleEngine.__perms_to_icicle(bool(perm_bits & 4), bool(perm_bits & 2), bool(perm_bits & 1))
+            perms = IcicleEngine.__make_icicle_perms(bool(perm_bits & 4), bool(perm_bits & 2), bool(perm_bits & 1))
             map_addr(addr, size, perms)
             emu.mem_write(addr, state.memory.concrete_load(addr, state.memory.page_size))
 
