@@ -368,6 +368,17 @@ class SwitchCaseNode(BaseNode):
         self.default_node = default_node
         self.addr = addr
 
+    def dbg_repr(self, indent=0) -> str:
+        return (
+            f"SwitchCaseNode(switch_expr={self.switch_expr}, cases=["
+            + ", ".join(
+                hex(case) if isinstance(case, int) else f"({', '.join(hex(ccase) for ccase in case)})"
+                for case in self.cases
+            )
+            + "\n"
+            + f"], default_node={self.default_node})"
+        )
+
 
 class IncompleteSwitchCaseNode(BaseNode):
     """

@@ -1261,6 +1261,10 @@ class PhoenixStructurer(StructurerBase):
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
 
+        better_node_a = node_a
+        if isinstance(node_a, SequenceNode) and is_empty_or_label_only_node(node_a.nodes[0]) and len(node_a.nodes) == 2:
+            better_node_a = node_a.nodes[1]
+
         case_and_entry_addrs = self._find_case_and_entry_addrs(node_a, graph, cmp_lb, jump_table)
 
         cases, node_default, to_remove = self._switch_build_cases(
@@ -1271,6 +1275,30 @@ class PhoenixStructurer(StructurerBase):
             graph,
             full_graph,
         )
+
+        if isinstance(better_node_a, SwitchCaseNode) and better_node_a.default_node is None:
+            # we found a different head for an otherwise complete edge case.
+            # recreate the switch with it.
+            newsc = SwitchCaseNode(better_node_a.switch_expr, better_node_a.cases, node_default, addr=node.addr)
+
+            if node_default is not None and set(graph.succ[node_a]) != set(graph.succ[node_default]):
+                # if node_a and default_node have different successors we need to bail
+                return False
+
+            for pgraph in (graph, full_graph):
+                all_preds = set(pgraph.pred[node])
+                all_succs = set(pgraph.succ[node_a])
+                if node_default is not None:
+                    pgraph.remove_node(node_default)
+                pgraph.remove_node(node)
+                pgraph.remove_node(node_a)
+                pgraph.add_node(newsc)
+                for pred in all_preds:
+                    pgraph.add_edge(pred, newsc)
+                for succ in all_succs:
+                    pgraph.add_edge(newsc, succ)
+
+            return True
 
         if node_default is None:
             switch_end_addr = node_b_addr

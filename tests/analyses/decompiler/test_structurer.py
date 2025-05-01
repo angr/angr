@@ -13,6 +13,7 @@ import angr
 import angr.analyses.decompiler
 from angr.analyses import Decompiler
 from angr.analyses.decompiler.structuring import DreamStructurer
+from angr.analyses.decompiler.decompilation_options import get_structurer_option
 
 from tests.common import bin_location
 
@@ -307,6 +308,19 @@ class TestStructurer(unittest.TestCase):
         assert "if" in if_code_corrected
         assert if_code_corrected in full_text
         assert if_code_corrected != full_text
+
+    def test_infallable_switch_with_condition(self):
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "cgc-linux64", "Simple_Stack_Machine"), auto_load_libs=False
+        )
+        p.analyses.CFGFast(normalize=True)
+        dec = p.analyses[Decompiler]("main", options=[(get_structurer_option(), "Phoenix")])
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print(dec.codegen.text)
+        assert "switch (" in dec.codegen.text
+        # while codegen generates this <= 7 check, it can be optimized away in the C code
+        # WE SHOULD BE ABLE TO UNCOMMENT THIS
+        # assert '<= 7' not in dec.codegen.text
 
 
 if __name__ == "__main__":
