@@ -68,7 +68,7 @@ class UnwrapSimplifierState:
 class UnwrapSimplifier(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransformationMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Simplify unwrap-like operations"
 
     def __init__(self, func, **kwargs):

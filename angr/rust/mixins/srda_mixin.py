@@ -42,45 +42,30 @@ class SRDAMixin:
         return {}
 
     def get_terminal_vvar_value(self, vvar, visited=None):
-        visited = visited if visited else set()
-        value = vvar
-        visited.add(value)
-        while (value := self.get_vvar_value(value)) and value not in visited:
-            visited.add(value)
-            if isinstance(value, VirtualVariable):
-                continue
-            elif isinstance(value, Phi):
-                result = set()
-                for _, phi_vvar in value.src_and_vvars:
-                    result.add(self.get_terminal_vvar_value(phi_vvar, visited))
-                if len(result) == 1:
-                    return next(iter(result))
-                else:
-                    return value
-            else:
-                return value
-        return None
+        return self.get_vvar_value(self.get_terminal_vvar(vvar))
 
     def get_terminal_vvar(self, vvar):
         visited = set()
-        value = vvar
-        visited.add(value)
-        while (value := self.get_vvar_value(value)) and value not in visited:
-            visited.add(value)
+        cur_vvar = vvar
+        while cur_vvar not in visited:
+            visited.add(cur_vvar)
+            value = self.get_vvar_value(cur_vvar)
             if isinstance(value, VirtualVariable):
-                vvar = value
+                cur_vvar = value
                 continue
             elif isinstance(value, Phi):
                 result = set()
                 for _, phi_vvar in value.src_and_vvars:
-                    result.add(self.get_terminal_vvar(phi_vvar))
+                    terminal_phi_vvar = self.get_terminal_vvar(phi_vvar)
+                    if terminal_phi_vvar:
+                        result.add(terminal_phi_vvar)
                 if len(result) == 1:
-                    return next(iter(result))
+                    cur_vvar = next(iter(result))
                 else:
-                    return vvar
+                    return cur_vvar
             else:
-                return vvar
-        return vvar
+                return cur_vvar
+        return cur_vvar
 
     def get_stack_vvar_by_insn(
         self, stack_offset: int, addr: int, block_idx: int | None = None, size=None, op_type=OP_BEFORE

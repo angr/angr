@@ -18,7 +18,7 @@ SHOW_ERROR_OR_WARNING_MACROS = {
 class ShowMacroSimplifier(OptimizationPass, CFAMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Recover show-family macros in coreutils"
 
     def __init__(self, func, **kwargs):

@@ -49,7 +49,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
 
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Duplicate return blocks to prepare for pattern match simplification"
     DESCRIPTION = __doc__
     STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]

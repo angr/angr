@@ -100,7 +100,7 @@ class StrCmpSimplifierWalker(AILBlockWalker):
 class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Simplify explict deref coercion operations"
 
     def __init__(self, func, **kwargs):
