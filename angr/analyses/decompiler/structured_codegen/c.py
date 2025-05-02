@@ -12,7 +12,6 @@ from ailment.constant import UNDETERMINED_SIZE
 from ailment.expression import StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
-from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 from angr.sim_type import (
     SimTypeLongLong,
     SimTypeInt,
@@ -32,7 +31,6 @@ from angr.sim_type import (
     SimTypeFixedSizeArray,
     SimTypeLength,
     SimTypeReg,
-    dereference_simtype,
     SimTypeInt128,
     SimTypeInt256,
     SimTypeInt512,
@@ -43,7 +41,7 @@ from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariabl
 from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
-from angr.utils.types import unpack_typeref, unpack_pointer_and_array
+from angr.utils.types import unpack_typeref, unpack_pointer_and_array, dereference_simtype_by_lib
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
@@ -1301,12 +1299,7 @@ class CFunctionCall(CStatement, CExpression):
             proto = self.callee_func.prototype
             if self.callee_func.prototype_libname is not None:
                 # we need to deref the prototype in case it uses SimTypeRef internally
-                type_collections = []
-                for prototype_lib in SIM_LIBRARIES[self.callee_func.prototype_libname]:
-                    if prototype_lib.type_collection_names:
-                        for typelib_name in prototype_lib.type_collection_names:
-                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-                proto = dereference_simtype(proto, type_collections)
+                proto = dereference_simtype_by_lib(proto, self.callee_func.prototype_libname)
             return proto
         returnty = SimTypeInt(signed=False)
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)

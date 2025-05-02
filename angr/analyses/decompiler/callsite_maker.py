@@ -14,7 +14,6 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeInt,
     SimTypeFloat,
-    dereference_simtype,
     SimTypeFunction,
     SimTypeLongLong,
 )
@@ -22,7 +21,7 @@ from angr.calling_conventions import SimReferenceArgument, SimRegArg, SimStackAr
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.s_reaching_definitions import SRDAView
-from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
+from angr.utils.types import dereference_simtype_by_lib
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -109,16 +108,8 @@ class CallSiteMaker(Analysis):
             # make sure the function prototype is resolved.
             # TODO: Cache resolved function prototypes globally
             prototype_libname = func.prototype_libname
-            type_collections = []
             if prototype_libname is not None:
-                for prototype_lib in SIM_LIBRARIES[prototype_libname]:
-                    if prototype_lib.type_collection_names:
-                        for typelib_name in prototype_lib.type_collection_names:
-                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-            if type_collections:
-                prototype = dereference_simtype(prototype, type_collections).with_arch(  # type: ignore
-                    self.project.arch
-                )
+                prototype = dereference_simtype_by_lib(prototype, prototype_libname)
 
         args = []
         arg_vvars = []
@@ -151,6 +142,10 @@ class CallSiteMaker(Analysis):
                     # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
                     # have no way to know that until later down the pipeline.
                     expanded_arg_locs += arg_loc.locations
+                elif isinstance(arg_loc, SimStructArg):
+                    expanded_arg_locs += [
+                        arg_loc.locs[field_name] for field_name in arg_loc.struct.fields if field_name in arg_loc.locs
+                    ]
                 elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
                     expanded_arg_locs.append(arg_loc)
                 else:

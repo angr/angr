@@ -17,6 +17,7 @@ from angr.knowledge_plugins import Function
 from angr.block import BlockNode
 from angr.errors import SimTranslationError
 from angr.calling_conventions import SimStackArg
+from angr.utils.types import dereference_simtype_by_lib
 
 from .analysis import Analysis
 
@@ -812,10 +813,15 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                         if v is BOTTOM:
                             incremented = BOTTOM
                         elif callee.prototype is not None:
+                            proto = (
+                                dereference_simtype_by_lib(callee.prototype, callee.prototype_libname)
+                                if callee.prototype_libname
+                                else callee.prototype
+                            )
                             num_stack_args = len(
                                 [
                                     arg_loc
-                                    for arg_loc in callee.calling_convention.arg_locs(callee.prototype)
+                                    for arg_loc in callee.calling_convention.arg_locs(proto)
                                     if isinstance(arg_loc, SimStackArg)
                                 ]
                             )

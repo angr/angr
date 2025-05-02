@@ -6,7 +6,6 @@ from collections import defaultdict
 import pyvex
 import claripy
 
-from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 from angr.utils.bits import s2u, u2s
 from angr.block import Block
 from angr.analyses.analysis import Analysis
@@ -15,7 +14,8 @@ from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
-from angr.sim_type import SimTypeBottom, dereference_simtype, SimTypeFunction
+from angr.sim_type import SimTypeBottom, SimTypeFunction
+from angr.utils.types import dereference_simtype_by_lib
 from .utils import is_sane_register_variable
 
 if TYPE_CHECKING:
@@ -444,13 +444,7 @@ class FactCollector(Analysis):
                             proto = func_succ.prototype
                             if func_succ.prototype_libname is not None:
                                 # we need to deref the prototype in case it uses SimTypeRef internally
-                                type_collections = []
-                                for prototype_lib in SIM_LIBRARIES[func_succ.prototype_libname]:
-                                    if prototype_lib.type_collection_names:
-                                        for typelib_name in prototype_lib.type_collection_names:
-                                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-                                if type_collections:
-                                    proto = dereference_simtype(proto, type_collections)
+                                proto = dereference_simtype_by_lib(proto, func_succ.prototype_libname)
 
                             assert isinstance(proto, SimTypeFunction) and proto.returnty is not None
                             returnty_size = proto.returnty.with_arch(self.project.arch).size

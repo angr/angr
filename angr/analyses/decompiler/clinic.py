@@ -12,7 +12,6 @@ import networkx
 import capstone
 
 import ailment
-from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -22,9 +21,9 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.codenode import BlockNode
 from angr.utils import timethis
 from angr.utils.graph import GraphUtils
+from angr.utils.types import dereference_simtype_by_lib
 from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from angr.sim_type import (
-    dereference_simtype,
     SimTypeChar,
     SimTypeInt,
     SimTypeLongLong,
@@ -1240,16 +1239,8 @@ class Clinic(Analysis):
                 # make sure the function prototype is resolved.
                 # TODO: Cache resolved function prototypes globally
                 prototype_libname = func.prototype_libname
-                type_collections = []
                 if prototype_libname is not None:
-                    for prototype_lib in SIM_LIBRARIES[prototype_libname]:
-                        if prototype_lib.type_collection_names:
-                            for typelib_name in prototype_lib.type_collection_names:
-                                type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-                if type_collections:
-                    prototype = dereference_simtype(prototype, type_collections).with_arch(  # type: ignore
-                        self.project.arch
-                    )
+                    prototype = dereference_simtype_by_lib(prototype, prototype_libname)
 
             if cc is None:
                 l.warning("Call site %#x (callee %s) has an unknown calling convention.", block.addr, repr(func))
