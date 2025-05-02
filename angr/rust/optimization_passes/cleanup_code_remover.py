@@ -10,7 +10,7 @@ CLEANUP_FUNCTIONS = ("__rust_dealloc", "close", "core::ptr::drop_in_place", "cor
 class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Remove cleanup code"
 
     def __init__(self, func, **kwargs):

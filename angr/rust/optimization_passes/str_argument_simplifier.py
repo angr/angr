@@ -77,7 +77,7 @@ class StrArgumentSimplifierWalker(AILBlockWalker):
 class StrArgumentSimplifier(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Simplify string literals used as function call arguments"
 
     def __init__(self, func, **kwargs):

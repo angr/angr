@@ -16,7 +16,7 @@ SECURITY_CHECK_FUNCTIONS = (
 class SecurityCheckRemover(OptimizationPass, CFAMixin, CFGTransformationMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Remove security check"
 
     def __init__(self, func, **kwargs):

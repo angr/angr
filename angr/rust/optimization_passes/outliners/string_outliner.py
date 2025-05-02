@@ -9,7 +9,7 @@ from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 class StringOutliner(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Outline String::new()"
 
     def __init__(self, func, **kwargs):

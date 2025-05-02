@@ -13,7 +13,7 @@ from angr.rust.sim_type import RustSimTypeFunction, is_composite_type
 class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Infer potential struct/enum argument types and return types"
 
     def __init__(self, func, **kwargs):

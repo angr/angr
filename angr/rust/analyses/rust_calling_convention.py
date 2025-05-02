@@ -20,6 +20,8 @@ from ..utils.ail_util import unwrap_stack_vvar_reference
 from ..utils.library import normalize
 from ..knowledge_plugins.known_structs import KnownStructs
 from ..analyses.struct_memory_layout import SimpleMessageLayoutInference
+from ..utils.ail_util import extract_vvar_and_offset
+from ...utils.graph import GraphUtils
 from ...analyses import Analysis, AnalysesHub
 from ...knowledge_plugins import Function
 
@@ -48,22 +50,8 @@ class FunctionBodyFactCollector(AILBlockWalker):
 
         self._path = None
 
-    def _get_dst_vvar_and_offset(self, stmt: Store) -> Tuple[VirtualVariable | None, int | None]:
-        expr = stmt.addr
-        offset = 0
-        if (
-            isinstance(expr, BinaryOp)
-            and expr.op == "Add"
-            and isinstance(expr.operands[0], VirtualVariable)
-            and isinstance(expr.operands[1], Const)
-        ):
-            offset = expr.operands[1].value
-            expr = expr.operands[0]
-        if isinstance(expr, VirtualVariable):
-            return self.context.get_terminal_vvar(expr), offset
-        return None, None
-
-    def _has_call(self, block_or_stmt):
+    @staticmethod
+    def _has_call(block_or_stmt):
         class CallWalker(AILBlockWalker):
             def __init__(self):
                 super().__init__()
@@ -84,71 +72,97 @@ class FunctionBodyFactCollector(AILBlockWalker):
             walker.walk_statement(block_or_stmt)
         return walker.has_call
 
-    def _has_write(self, block):
+    @staticmethod
+    def _is_ret2arg0_block(block):
         for stmt in reversed(block.statements):
             if isinstance(stmt, Store):
-                vvar, _ = self._get_dst_vvar_and_offset(stmt)
+                vvar, _ = extract_vvar_and_offset(stmt.addr)
                 if isinstance(vvar, VirtualVariable) and vvar.was_parameter and vvar.varid == 0:
                     return True
         return False
 
-    def _is_return_path_block(self, block):
-        if self._has_call(block):
-            return False
+    @staticmethod
+    def _is_safe_block(block):
+        return all(
+            isinstance(stmt, (Return, Jump, ConditionalJump, Label, Assignment)) for stmt in block.statements
+        ) and not FunctionBodyFactCollector._has_call(block)
 
-        return (
-            all(
-                isinstance(stmt, (Return, Jump, ConditionalJump, Label, Store, Assignment)) for stmt in block.statements
-            )
-            and self._has_write(block)
-        ) or all(isinstance(stmt, (Return, Jump, ConditionalJump, Label)) for stmt in block.statements)
-
-    def calculate_paths(self, block, max_paths):
-        paths = [[block]]
+    @staticmethod
+    def _calculate_ret2arg0_path(graph, head_block, visited):
+        visited.add(head_block)
+        paths = [[head_block]]
         changed = True
-        while len(paths) <= max_paths and changed:
+        while changed:
             changed = False
             new_paths = []
             for path in paths:
                 last_block = path[-1]
                 path_changed = False
-                for pred in self.graph.predecessors(last_block):
-                    if self._is_return_path_block(pred):
-                        new_path = list(path) + [pred]
+                for succ in graph.successors(last_block):
+                    if succ not in path and (
+                        FunctionBodyFactCollector._is_ret2arg0_block(succ)
+                        or FunctionBodyFactCollector._is_safe_block(succ)
+                    ):
+                        new_path = list(path) + [succ]
                         new_paths.append(new_path)
                         changed = True
                         path_changed = True
+                    visited.add(succ)
                 if not path_changed:
                     new_paths.append(path)
             paths = new_paths
-        deduplicated_paths = set()
-        for path in paths:
-            path = list(path)
-            while path and (
-                all(isinstance(stmt, Label) for stmt in path[-1].statements)
-                or isinstance(path[-1].statements[-1], ConditionalJump)
-                or not self._has_write(path[-1])
-            ):
-                path.pop()
-            if path:
-                deduplicated_paths.add(tuple(path))
-        return list(deduplicated_paths)
+        paths = set(tuple(path) for path in paths if isinstance(path[-1].statements[-1], Return))
+        return paths
 
-    def _is_ret_block(self, block):
-        return block.statements and isinstance(block.statements[-1], Return)
+    @staticmethod
+    def _remove_phi(path):
+        new_path = [block.copy() for block in path]
+
+        class PhiWalker(AILBlockWalker):
+
+            def __init__(self):
+                super().__init__()
+                self.pred_block = None
+
+            def _handle_Phi(
+                self, expr_id: int, expr: Phi, stmt_idx: int, stmt: Statement, block: Block | None
+            ) -> Phi | None:
+                if self.pred_block:
+                    pred = (self.pred_block.addr, self.pred_block.idx)
+                    for src, vvar in expr.src_and_vvars:
+                        if src == pred:
+                            return vvar
+                return None
+
+        walker = PhiWalker()
+        for block in new_path:
+            walker.walk(block)
+            walker.pred_block = block
+        return tuple(new_path)
+
+    @staticmethod
+    def calculate_ret2arg0_paths(graph, remove_phi=False):
+        visited = set()
+        paths = set()
+        for block in GraphUtils.quasi_topological_sort_nodes(graph):
+            if FunctionBodyFactCollector._is_ret2arg0_block(block) and block not in visited:
+                paths = paths.union(FunctionBodyFactCollector._calculate_ret2arg0_path(graph, block, visited))
+            else:
+                visited.add(block)
+        paths = set(FunctionBodyFactCollector._remove_phi(path) if remove_phi else path for path in paths)
+        return paths
 
     def collect(self):
         """
         Calculate paths that write return values to the first argument
         Collect facts from every path and every callsite in this function
         """
-        paths = set()
+        paths = self.calculate_ret2arg0_paths(self.graph, remove_phi=True)
         callsites = set()
         for block in self.context.clinic.graph.nodes:
-            if self._is_ret_block(block):
-                paths |= set(self.calculate_paths(block, max_paths=4))
             if self._has_call(block):
                 callsites.add((block,))
+
         for path in paths | callsites:
             self._path = path
             for block in path:
@@ -156,7 +170,7 @@ class FunctionBodyFactCollector(AILBlockWalker):
 
         if len(paths) == 0:
             for block in self.context.clinic.graph.nodes:
-                if self._is_ret_block(block):
+                if isinstance(block.statements[-1], Return):
                     stmt = block.statements[-1]
                     ret_expr = stmt.ret_exprs[0] if stmt.ret_exprs else None
                     if isinstance(ret_expr, VirtualVariable):
@@ -284,33 +298,22 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def _srda_on_path(self, path: Tuple[Block]):
         graph = DiGraph()
         for i in range(len(path) - 1):
-            u = path[i + 1]
-            v = path[i]
+            u = path[i]
+            v = path[i + 1]
             graph.add_edge(u, v)
         return SRDAMixin(self.func, graph, self.project)
 
     def _calculate_discriminant(self, path: Tuple[Block]) -> Optional[Const]:
         srda = self._srda_on_path(path)
-        discriminant = None
-        for i in range(len(path)):
-            block = path[i]
-            next_block = path[i + 1] if i + 1 < len(path) else None
+        for block in path:
             for stmt in reversed(block.statements):
-                if discriminant is None:
-                    if isinstance(stmt, Store) and isinstance(stmt.addr, VirtualVariable):
-                        real_var = srda.get_terminal_vvar(stmt.addr)
-                        if real_var.varid == 0 and real_var.was_parameter:
-                            discriminant = stmt.data
-                else:
-                    if isinstance(stmt, Assignment) and stmt.dst.likes(discriminant):
-                        discriminant = stmt.src
-                if isinstance(discriminant, Phi) and next_block:
-                    for src, vvar in discriminant.src_and_vvars:
-                        if src == (next_block.addr, next_block.idx):
-                            discriminant = vvar
-                            break
-                if discriminant and not isinstance(discriminant, VirtualVariable):
-                    return discriminant if isinstance(discriminant, Const) else None
+                if isinstance(stmt, Store) and isinstance(stmt.addr, VirtualVariable):
+                    dst_var = srda.get_terminal_vvar(stmt.addr)
+                    if dst_var.varid == 0 and dst_var.was_parameter:
+                        discriminant = stmt.data
+                        if isinstance(discriminant, VirtualVariable):
+                            discriminant = srda.get_terminal_vvar_value(discriminant)
+                        return discriminant if isinstance(discriminant, Const) else None
         return None
 
     def _remove_discriminant_from_struct(self, struct_type: RustSimStruct):
