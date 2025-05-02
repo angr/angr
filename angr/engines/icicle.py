@@ -27,7 +27,7 @@ class IcicleStateTranslationData:
 
     base_state: SimState
     registers: set[str]
-    pages: set[int]
+    writable_pages: set[int]
 
 
 class IcicleEngine(SuccessorsEngine):
@@ -84,6 +84,30 @@ class IcicleEngine(SuccessorsEngine):
                 return MemoryProtection.ExecuteReadWrite
 
     @staticmethod
+    def __get_pages(state: SimState) -> set[int]:
+        """
+        Unfortunately, the memory model doesn't have a way to get all pages.
+        Instead, we can get all of the segments loaded by the loader and then
+        all of the pages from the PagedMemoryMixin and then do some math.
+        """
+        pages = set()
+        page_size = state.memory.page_size
+
+        # pages from loader segments
+        proj = state.project
+        if proj is not None:
+            for obj in proj.loader.all_objects:
+                for segment in obj.segments:
+                    start = segment.vaddr // page_size
+                    end = (segment.vaddr + segment.memsize - 1) // page_size
+                    pages.update(range(start, end + 1))
+
+        # pages from the memory model
+        pages.update(state.memory._pages)
+
+        return pages
+
+    @staticmethod
     def __convert_angr_state_to_icicle(state: SimState) -> tuple[Icicle, IcicleStateTranslationData]:
         icicle_arch = IcicleEngine.__make_icicle_arch(state.arch, state.addr)
         if icicle_arch is None:
@@ -109,43 +133,19 @@ class IcicleEngine(SuccessorsEngine):
 
         # 2. Copy the memory contents
 
-        mapped_pages = set()
-        page_perms = {}
-
-        def map_addr(addr: int, size: int, perms: MemoryProtection):
-            first_page_num = addr // state.memory.page_size
-            last_page_num = (addr + size) // state.memory.page_size
-            for page_num in range(first_page_num, last_page_num + 1):
-                if page_num in mapped_pages:
-                    if page_perms[page_num] != perms:
-                        log.warning(
-                            "Overwriting existing memory at address %s with different permissions",
-                            hex(page_num * state.memory.page_size),
-                        )
-                        emu.mem_protect(page_num * state.memory.page_size, state.memory.page_size, perms)
-                else:
-                    emu.mem_map(page_num * state.memory.page_size, state.memory.page_size, perms)
-                    page_perms[page_num] = perms
-            mapped_pages.update(range(first_page_num, last_page_num + 1))
-
-        # First get any data from cle
-        for obj in proj.loader.all_objects:
-            for segment in obj.segments:
-                addr = segment.vaddr
-                size = segment.memsize
-                perms = IcicleEngine.__make_icicle_perms(segment.is_readable, segment.is_writable, segment.is_executable)
-                map_addr(addr, size, perms)
-                memory = state.memory.concrete_load(addr, size)
-                emu.mem_write(addr, memory)
-
-        # Then copy over the pages
-        for page_num in state.memory._pages:
+        mapped_pages = IcicleEngine.__get_pages(state)
+        writable_pages = set()
+        for page_num in mapped_pages:
             addr = page_num * state.memory.page_size
             size = state.memory.page_size
             perm_bits = state.solver.eval_one(state.memory.permissions(addr))
-            perms = IcicleEngine.__make_icicle_perms(bool(perm_bits & 4), bool(perm_bits & 2), bool(perm_bits & 1))
-            map_addr(addr, size, perms)
-            emu.mem_write(addr, state.memory.concrete_load(addr, state.memory.page_size))
+            perms = IcicleEngine.__make_icicle_perms(bool(perm_bits & 1), bool(perm_bits & 2), bool(perm_bits & 4))
+            emu.mem_map(addr, size, perms)
+            memory = state.memory.concrete_load(addr, size)
+            emu.mem_write(addr, memory)
+
+            if perm_bits & 2:
+                writable_pages.add(page_num)
 
         # Add breakpoints for simprocedures
         for addr in proj._sim_procedures:
@@ -154,11 +154,7 @@ class IcicleEngine(SuccessorsEngine):
         translation_data = IcicleStateTranslationData(
             base_state=state,
             registers=copied_registers,
-            pages={
-                page
-                for page in mapped_pages
-                if page_perms[page] in (MemoryProtection.ReadWrite, MemoryProtection.ExecuteReadWrite)
-            },
+            writable_pages=writable_pages,
         )
 
         return (emu, translation_data)
@@ -172,7 +168,7 @@ class IcicleEngine(SuccessorsEngine):
             state.registers.store(register, emu.reg_read(register))
 
         # 2. Copy the memory contents
-        for page_num in translation_data.pages:
+        for page_num in translation_data.writable_pages:
             addr = page_num * state.memory.page_size
             state.memory.store(addr, emu.mem_read(addr, state.memory.page_size))
 

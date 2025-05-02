@@ -53,7 +53,7 @@ class TestIcicle(TestCase):
         )
 
         # Map the region 0x0 to 0x1000 with no permissions
-        init_state.memory.map_region(0x0, 0x1000, 0o000)
+        init_state.memory.map_region(0x0, 0x1000, 0b000)
 
         # Now run the shellcode, it should segfault on the 3rd instruction
         successors = engine.process(init_state)
@@ -134,6 +134,7 @@ class TestIcicle(TestCase):
             remove_options={*o.symbolic},
             add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
         )
+        init_state.memory.map_region(0x1000, 0x1000, 0b111)
 
         # Execute up to the hook
         successors_1 = engine.process(init_state)
