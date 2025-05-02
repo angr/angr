@@ -24,10 +24,10 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeTop,
     SimTypeString,
-    dereference_simtype,
     SimTypeCppFunction,
 )
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
+from angr.utils.types import dereference_simtype
 
 
 class TestTypes(unittest.TestCase):
