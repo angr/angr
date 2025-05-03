@@ -65,6 +65,13 @@ class IcicleEngine(SuccessorsEngine):
         return arch.linux_name
 
     @staticmethod
+    def __is_thumb(icicle_arch: str) -> bool:
+        """
+        Check if the architecture is thumb based on the address.
+        """
+        return icicle_arch in ("thumbv7a", "thumbeb")
+
+    @staticmethod
     def __make_icicle_perms(read: bool, write: bool, execute: bool) -> MemoryProtection:
         """
         Convert the permissions of a page to icicle's memory protection enum.
@@ -131,6 +138,12 @@ class IcicleEngine(SuccessorsEngine):
             except KeyError:
                 log.debug("Register %s not found in icicle", register)
 
+        # Unset the thumb bit if necessary
+        if IcicleEngine.__is_thumb(icicle_arch):
+            emu.pc = state.addr & ~1
+        elif "arm" in icicle_arch: # Hack to work around us calling it r15t
+            emu.pc = state.addr
+
         # 2. Copy the memory contents
 
         mapped_pages = IcicleEngine.__get_pages(state)
@@ -166,6 +179,11 @@ class IcicleEngine(SuccessorsEngine):
         # 1. Copy the register values
         for register in translation_data.registers:
             state.registers.store(register, emu.reg_read(register))
+
+        if IcicleEngine.__is_thumb(emu.architecture):
+            state.registers.store("pc", emu.pc | 1)
+        elif "arm" in emu.architecture: # Hack to work around us calling it r15t
+            state.registers.store("pc", emu.pc)
 
         # 2. Copy the memory contents
         for page_num in translation_data.writable_pages:

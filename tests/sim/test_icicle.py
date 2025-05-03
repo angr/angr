@@ -11,7 +11,11 @@ integration tests for running the fauxware binary using the engine.
 from __future__ import annotations
 
 import os
+from io import BytesIO
 from unittest import TestCase
+
+import archinfo
+import cle
 
 import angr
 from angr import sim_options as o
@@ -174,6 +178,61 @@ class TestIcicle(TestCase):
         assert successors.successors[0].ip.concrete_value == 0x0
         # Check that the syscall was invoked
         assert successors.successors[0].history.jumpkind == "Ijk_Syscall"
+
+
+class TestArchitectureQuirks(TestCase):
+    def test_thumb(self):
+        """Test that the Icicle engine can handle Thumb instructions."""
+
+        # Shellcode to add 1 and 2 in Thumb mode
+        shellcode = "mov r0, 0x1; mov r1, 0x2; add r2, r0, r1;"
+        project = angr.load_shellcode(shellcode, "armel", thumb=True)
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.entry_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        assert init_state.addr == 0x1
+
+        successors = engine.process(init_state, num_inst=3)
+        assert len(successors.successors) == 1
+        assert successors[0].regs.pc.concrete_value == 0xD
+        assert successors[0].regs.r2.concrete_value == 0x3
+
+    def test_thumb_switching(self):
+        """Test that the Icicle engine can handle switching between ARM and Thumb instructions."""
+
+        arch = archinfo.ArchARM()
+
+        # Set r0 and r1 to 1 and 2, then switch to thumb mode and add them
+        arm_shellcode: bytes = arch.asm("mov r0, 0x1; mov r1, 0x2; mov r3, 0x1001; bx r3;")
+        thumb_shellcode: bytes = arch.asm("add r2, r0, r1;", thumb=True)
+
+        blob = cle.Blob(
+            None,
+            BytesIO(arm_shellcode + thumb_shellcode),
+            arch=arch,
+            segments=[
+                (0x0, 0x0, len(arm_shellcode)),
+                (len(arm_shellcode), 0x1000, len(thumb_shellcode)),
+            ],
+            base_addr=0x0,
+            entry_point=0x0,
+        )
+        project = angr.Project(blob)
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.entry_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        assert init_state.addr == 0x0
+
+        successors = engine.process(init_state, num_inst=5)
+        assert len(successors.successors) == 1
+        assert successors[0].regs.pc.concrete_value == 0x1004
+        assert successors[0].regs.r2.concrete_value == 0x3
 
 
 class TestFauxware(TestCase):
