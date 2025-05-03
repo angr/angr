@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
+from typing import cast, Any, TYPE_CHECKING
 from collections.abc import Callable
 from collections import defaultdict, Counter
 import logging
@@ -12,7 +12,6 @@ from ailment.constant import UNDETERMINED_SIZE
 from ailment.expression import StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
-from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 from angr.sim_type import (
     SimTypeLongLong,
     SimTypeInt,
@@ -32,7 +31,6 @@ from angr.sim_type import (
     SimTypeFixedSizeArray,
     SimTypeLength,
     SimTypeReg,
-    dereference_simtype,
     SimTypeInt128,
     SimTypeInt256,
     SimTypeInt512,
@@ -43,7 +41,7 @@ from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariabl
 from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
-from angr.utils.types import unpack_typeref, unpack_pointer_and_array
+from angr.utils.types import unpack_typeref, unpack_pointer_and_array, dereference_simtype_by_lib
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
@@ -1301,12 +1299,7 @@ class CFunctionCall(CStatement, CExpression):
             proto = self.callee_func.prototype
             if self.callee_func.prototype_libname is not None:
                 # we need to deref the prototype in case it uses SimTypeRef internally
-                type_collections = []
-                for prototype_lib in SIM_LIBRARIES[self.callee_func.prototype_libname]:
-                    if prototype_lib.type_collection_names:
-                        for typelib_name in prototype_lib.type_collection_names:
-                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-                proto = dereference_simtype(proto, type_collections)
+                proto = cast(SimTypeFunction, dereference_simtype_by_lib(proto, self.callee_func.prototype_libname))
             return proto
         returnty = SimTypeInt(signed=False)
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
@@ -1314,7 +1307,9 @@ class CFunctionCall(CStatement, CExpression):
     @property
     def type(self):
         if self.is_expr:
-            return self.prototype.returnty or SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
+            return (self.prototype.returnty if self.prototype is not None else None) or SimTypeInt(
+                signed=False
+            ).with_arch(self.codegen.project.arch)
         raise AngrRuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
     def _is_target_ambiguous(self, func_name: str) -> bool:
@@ -1322,6 +1317,8 @@ class CFunctionCall(CStatement, CExpression):
         Check for call target name ambiguity.
         """
         caller, callee = self.codegen._func, self.callee_func
+
+        assert self.codegen._variables_in_use is not None
 
         for var in self.codegen._variables_in_use.values():
             if func_name == var.name:
@@ -1461,7 +1458,7 @@ class CGoto(CStatement):
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
         lbl = None
-        if self.codegen is not None:
+        if self.codegen is not None and isinstance(self.target, int):
             lbl = self.codegen.map_addr_to_label.get((self.target, self.target_idx))
 
         yield indent_str, None
@@ -1609,7 +1606,9 @@ class CVariable(CExpression):
 
         self.variable: SimVariable = variable
         self.unified_variable: SimVariable | None = unified_variable
-        self.variable_type: SimType = variable_type.with_arch(self.codegen.project.arch)
+        self.variable_type: SimType | None = (
+            variable_type.with_arch(self.codegen.project.arch) if variable_type is not None else None
+        )
         self.vvar_id = vvar_id
 
     @property
@@ -3970,7 +3969,8 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         return super().handle_CAssignment(obj)
 
     def handle_CFunctionCall(self, obj: CFunctionCall):
-        for i, (c_arg, arg_ty) in enumerate(zip(obj.args, obj.prototype.args)):
+        prototype_args = [] if obj.prototype is None else obj.prototype.args
+        for i, (c_arg, arg_ty) in enumerate(zip(obj.args, prototype_args)):
             obj.args[i] = self.collapse(arg_ty, c_arg)
         return super().handle_CFunctionCall(obj)
 
@@ -4033,7 +4033,7 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
     a_ptr = a_ptr + 1.
     """
 
-    def handle_CBinaryOp(self, obj):
+    def handle_CBinaryOp(self, obj: CBinaryOp):  # type: ignore
         obj: CBinaryOp = super().handle_CBinaryOp(obj)
         if (
             obj.op in ("Add", "Sub")

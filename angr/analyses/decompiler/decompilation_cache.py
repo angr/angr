@@ -31,7 +31,7 @@ class DecompilationCache:
         self.parameters: dict[str, Any] = {}
         self.addr = addr
         self.type_constraints: dict[TypeVariable, set[TypeConstraint]] | None = None
-        self.func_typevar = None
+        self.func_typevar: TypeVariable | None = None
         self.var_to_typevar: dict | None = None
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.clinic: Clinic | None = None

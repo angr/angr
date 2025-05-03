@@ -6,7 +6,6 @@ from collections import defaultdict
 import pyvex
 import claripy
 
-from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
 from angr.utils.bits import s2u, u2s
 from angr.block import Block
 from angr.analyses.analysis import Analysis
@@ -15,7 +14,8 @@ from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
-from angr.sim_type import SimTypeBottom, dereference_simtype, SimTypeFunction
+from angr.sim_type import SimTypeBottom, SimTypeFunction
+from angr.utils.types import dereference_simtype_by_lib
 from .utils import is_sane_register_variable
 
 if TYPE_CHECKING:
@@ -121,7 +121,7 @@ class SimEngineFactCollectorVEX(
         if self.block.vex.jumpkind == "Ijk_Call" and self.arch.ret_offset is not None:
             self.state.register_written(self.arch.ret_offset, self.arch.bytes)
 
-    def _top(self, bits: int):
+    def _top(self, bits: int):  # type: ignore
         return None
 
     def _is_top(self, expr: Any) -> bool:
@@ -190,13 +190,13 @@ class SimEngineFactCollectorVEX(
         self.state.register_read(expr.offset, bits // self.arch.byte_width)
         return RegisterOffset(bits, expr.offset, 0)
 
-    def _handle_expr_GetI(self, expr):
+    def _handle_expr_GetI(self, expr):  # type: ignore
         return None
 
-    def _handle_expr_ITE(self, expr):
+    def _handle_expr_ITE(self, expr):  # type: ignore
         return None
 
-    def _handle_expr_Load(self, expr):
+    def _handle_expr_Load(self, expr):  # type: ignore
         addr = self._expr(expr.addr)
         if isinstance(addr, SpOffset):
             self.state.stack_read(addr.offset, expr.result_size(self.tyenv) // self.arch.byte_width)
@@ -206,7 +206,7 @@ class SimEngineFactCollectorVEX(
     def _handle_expr_RdTmp(self, expr):
         return self.state.tmps.get(expr.tmp, None)
 
-    def _handle_expr_VECRET(self, expr):
+    def _handle_expr_VECRET(self, expr):  # type: ignore
         return None
 
     @binop_handler
@@ -444,13 +444,7 @@ class FactCollector(Analysis):
                             proto = func_succ.prototype
                             if func_succ.prototype_libname is not None:
                                 # we need to deref the prototype in case it uses SimTypeRef internally
-                                type_collections = []
-                                for prototype_lib in SIM_LIBRARIES[func_succ.prototype_libname]:
-                                    if prototype_lib.type_collection_names:
-                                        for typelib_name in prototype_lib.type_collection_names:
-                                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-                                if type_collections:
-                                    proto = dereference_simtype(proto, type_collections)
+                                proto = dereference_simtype_by_lib(proto, func_succ.prototype_libname)
 
                             assert isinstance(proto, SimTypeFunction) and proto.returnty is not None
                             returnty_size = proto.returnty.with_arch(self.project.arch).size

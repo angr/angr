@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, TYPE_CHECKING
+from typing import cast, Any, TYPE_CHECKING
 import copy
 import logging
 
@@ -14,7 +14,6 @@ from angr.sim_type import (
     SimTypeChar,
     SimTypeInt,
     SimTypeFloat,
-    dereference_simtype,
     SimTypeFunction,
     SimTypeLongLong,
 )
@@ -22,7 +21,7 @@ from angr.calling_conventions import SimReferenceArgument, SimRegArg, SimStackAr
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.s_reaching_definitions import SRDAView
-from angr import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
+from angr.utils.types import dereference_simtype_by_lib
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -37,12 +36,14 @@ class CallSiteMaker(Analysis):
     Add calling convention, declaration, and args to a call site.
     """
 
-    def __init__(self, block, reaching_definitions=None, stack_pointer_tracker=None, ail_manager: Manager = None):
+    def __init__(
+        self, block, reaching_definitions=None, stack_pointer_tracker=None, ail_manager: Manager | None = None
+    ):
         self.block = block
 
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
-        self._ail_manager = ail_manager
+        self._ail_manager: Manager | None = ail_manager
 
         self.result_block = None
         self.stack_arg_offsets: set[tuple[int, int]] | None = None  # call ins addr, stack_offset
@@ -109,16 +110,8 @@ class CallSiteMaker(Analysis):
             # make sure the function prototype is resolved.
             # TODO: Cache resolved function prototypes globally
             prototype_libname = func.prototype_libname
-            type_collections = []
             if prototype_libname is not None:
-                for prototype_lib in SIM_LIBRARIES[prototype_libname]:
-                    if prototype_lib.type_collection_names:
-                        for typelib_name in prototype_lib.type_collection_names:
-                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-            if type_collections:
-                prototype = dereference_simtype(prototype, type_collections).with_arch(  # type: ignore
-                    self.project.arch
-                )
+                prototype = cast(SimTypeFunction, dereference_simtype_by_lib(prototype, prototype_libname))
 
         args = []
         arg_vvars = []
@@ -151,6 +144,10 @@ class CallSiteMaker(Analysis):
                     # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
                     # have no way to know that until later down the pipeline.
                     expanded_arg_locs += arg_loc.locations
+                elif isinstance(arg_loc, SimStructArg):
+                    expanded_arg_locs += [  # type: ignore
+                        arg_loc.locs[field_name] for field_name in arg_loc.struct.fields if field_name in arg_loc.locs
+                    ]
                 elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
                     expanded_arg_locs.append(arg_loc)
                 else:
@@ -195,12 +192,15 @@ class CallSiteMaker(Analysis):
                         if vvar_def_reg_offset is not None and offset > vvar_def_reg_offset:
                             # we need to shift the value
                             vvar_use = Expr.BinaryOp(
-                                self._ail_manager.next_atom(),
+                                self._ail_manager.next_atom() if self._ail_manager is not None else None,
                                 "Shr",
                                 [
                                     vvar_use,
                                     Expr.Const(
-                                        self._ail_manager.next_atom(), None, (offset - vvar_def_reg_offset) * 8, 8
+                                        self._ail_manager.next_atom() if self._ail_manager is not None else None,
+                                        None,
+                                        (offset - vvar_def_reg_offset) * 8,
+                                        8,
                                     ),
                                 ],
                                 **vvar_use.tags,
@@ -208,7 +208,7 @@ class CallSiteMaker(Analysis):
                         if vvar_def.size > arg_loc.size:
                             # we need to narrow the value
                             vvar_use = Expr.Convert(
-                                self._ail_manager.next_atom(),
+                                self._ail_manager.next_atom() if self._ail_manager is not None else None,
                                 vvar_use.bits,
                                 arg_loc.size * self.project.arch.byte_width,
                                 False,

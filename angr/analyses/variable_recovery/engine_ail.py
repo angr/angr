@@ -9,10 +9,10 @@ import claripy
 from unique_log_filter import UniqueLogFilter
 
 from angr.engines.light.engine import SimEngineNostmtAIL
-from angr.procedures import SIM_LIBRARIES, SIM_TYPE_COLLECTIONS
-from angr.sim_type import SimTypeFunction, dereference_simtype
+from angr.sim_type import SimTypeFunction
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.lifter import TypeLifter
+from angr.utils.types import dereference_simtype_by_lib
 from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:
@@ -190,17 +190,11 @@ class SimEngineVRAIL(
 
         if prototype is not None and args:
             # add type constraints
-
-            type_collections = []
-            if prototype_libname is not None:
-                for prototype_lib in SIM_LIBRARIES[prototype_libname]:
-                    if prototype_lib.type_collection_names:
-                        for typelib_name in prototype_lib.type_collection_names:
-                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-
             for arg, arg_type in zip(args, prototype.args):
                 if arg.typevar is not None:
-                    arg_type = dereference_simtype(arg_type, type_collections).with_arch(arg_type._arch)
+                    arg_type = (
+                        dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
+                    )
                     arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
                     type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                     self.state.add_type_constraint(type_constraint)
@@ -209,7 +203,7 @@ class SimEngineVRAIL(
 
     def _handle_stmt_Call(self, stmt):
         target = stmt.target
-        args = []
+        args: list[RichR] = []
         if stmt.args:
             for arg in stmt.args:
                 self._reference_spoffset = True
@@ -283,22 +277,17 @@ class SimEngineVRAIL(
 
         if prototype is not None and args:
             # add type constraints
-
-            type_collections = []
-            if prototype_libname is not None:
-                for prototype_lib in SIM_LIBRARIES[prototype_libname]:
-                    if prototype_lib.type_collection_names:
-                        for typelib_name in prototype_lib.type_collection_names:
-                            type_collections.append(SIM_TYPE_COLLECTIONS[typelib_name])
-
             for arg, arg_type in zip(args, prototype.args):
                 if arg.typevar is not None:
-                    arg_type = dereference_simtype(arg_type, type_collections).with_arch(arg_type._arch)
+                    arg_type = (
+                        dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
+                    )
                     arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
-                    if isinstance(arg_ty, typevars.TypeConstraint) and isinstance(arg.typevar, typevars.TypeConstraint):
-                        continue
-                    type_constraint = typevars.Subtype(arg.typevar, arg_ty)
-                    self.state.add_type_constraint(type_constraint)
+                    if arg.typevar is not None and isinstance(
+                        arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
+                    ):
+                        type_constraint = typevars.Subtype(arg.typevar, arg_ty)
+                        self.state.add_type_constraint(type_constraint)
 
     def _handle_stmt_Return(self, stmt):
         if stmt.ret_exprs:

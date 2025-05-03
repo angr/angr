@@ -7,7 +7,7 @@ import re
 import logging
 from collections import OrderedDict, defaultdict, ChainMap
 from collections.abc import Iterable
-from typing import Literal, Any, TYPE_CHECKING, cast, overload
+from typing import Literal, Any, cast, overload
 
 from archinfo import Endness, Arch
 import claripy
@@ -17,11 +17,8 @@ import cxxheaderparser.types
 import pycparser
 from pycparser import c_ast
 
-from angr.errors import AngrMissingTypeError, AngrTypeError
+from angr.errors import AngrTypeError
 from angr.sim_state import SimState
-
-if TYPE_CHECKING:
-    from angr.procedures.definitions import SimTypeCollection
 
 StoreType = int | claripy.ast.BV
 
@@ -324,7 +321,7 @@ class SimTypeReg(SimType):
         with contextlib.suppress(AttributeError):
             value = value.ast  # type: ignore
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
-            if value.size() != self.size:
+            if value.size() != self.size:  # type: ignore
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int):
             value = claripy.BVV(value, self.size)
@@ -383,7 +380,7 @@ class SimTypeNum(SimType):
         store_endness = state.arch.memory_endness
 
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
-            if value.size() != self.size:
+            if value.size() != self.size:  # type: ignore
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int) and self.size is not None:
             value = claripy.BVV(value, self.size)
@@ -505,7 +502,12 @@ class SimTypeFixedSizeInt(SimTypeInt):
     _fixed_size: int = 32
 
     def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True  # pylint:disable=unused-argument
+        self,
+        name=None,
+        full=0,
+        memo=None,
+        indent: int | None = 0,
+        name_parens: bool = True,  # pylint:disable=unused-argument
     ):
         out = self._base_name
         if not self.signed:
@@ -1653,7 +1655,7 @@ class SimUnion(NamedTypeMixin, SimType):
     def size(self):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
-        member_sizes = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
+        member_sizes: list[int] = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
         # fall back to word size in case all members are SimTypeBottom
         return max(member_sizes) if member_sizes else self._arch.bytes
 
@@ -3650,67 +3652,6 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):
             func_decls[func_name] = proto
 
     return func_decls, {}
-
-
-def dereference_simtype(
-    t: SimType, type_collections: list[SimTypeCollection], memo: dict[str, SimType] | None = None
-) -> SimType:
-    if memo is None:
-        memo = {}
-
-    if isinstance(t, SimTypeRef):
-        real_type = None
-
-        if t.name in memo:
-            return memo[t.name]
-
-        if type_collections and t.name is not None:
-            for tc in type_collections:
-                try:
-                    real_type = tc.get(t.name)
-                    break
-                except AngrMissingTypeError:
-                    continue
-        if real_type is None:
-            raise AngrMissingTypeError(f"Missing type {t.name}")
-        return dereference_simtype(real_type, type_collections, memo=memo)
-
-    # the following code prepares a real_type SimType object that will be returned at the end of this method
-    if isinstance(t, SimStruct):
-        if t.name in memo:
-            return memo[t.name]
-
-        real_type = t.copy()
-        if not t.anonymous:
-            memo[t.name] = real_type
-        fields = OrderedDict((k, dereference_simtype(v, type_collections, memo=memo)) for k, v in t.fields.items())
-        real_type.fields = fields
-    elif isinstance(t, SimTypePointer):
-        real_pts_to = dereference_simtype(t.pts_to, type_collections, memo=memo)
-        real_type = t.copy()
-        real_type.pts_to = real_pts_to
-    elif isinstance(t, SimTypeArray):
-        real_elem_type = dereference_simtype(t.elem_type, type_collections, memo=memo)
-        real_type = t.copy()
-        real_type.elem_type = real_elem_type
-    elif isinstance(t, SimUnion):
-        real_members = {k: dereference_simtype(v, type_collections, memo=memo) for k, v in t.members.items()}
-        real_type = t.copy()
-        real_type.members = real_members
-    elif isinstance(t, SimTypeFunction):
-        real_args = [dereference_simtype(arg, type_collections, memo=memo) for arg in t.args]
-        real_return_type = (
-            dereference_simtype(t.returnty, type_collections, memo=memo) if t.returnty is not None else None
-        )
-        real_type = t.copy()
-        real_type.args = tuple(real_args)
-        real_type.returnty = real_return_type
-    else:
-        return t
-
-    if t._arch is not None:
-        real_type = real_type.with_arch(t._arch)
-    return real_type
 
 
 if pycparser is not None:
