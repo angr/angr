@@ -203,7 +203,7 @@ class SimEngineVRAIL(
 
     def _handle_stmt_Call(self, stmt):
         target = stmt.target
-        args = []
+        args: list[RichR] = []
         if stmt.args:
             for arg in stmt.args:
                 self._reference_spoffset = True
@@ -283,10 +283,11 @@ class SimEngineVRAIL(
                         dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
                     )
                     arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
-                    if isinstance(arg_ty, typevars.TypeConstraint) and isinstance(arg.typevar, typevars.TypeConstraint):
-                        continue
-                    type_constraint = typevars.Subtype(arg.typevar, arg_ty)
-                    self.state.add_type_constraint(type_constraint)
+                    if arg.typevar is not None and isinstance(
+                        arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
+                    ):
+                        type_constraint = typevars.Subtype(arg.typevar, arg_ty)
+                        self.state.add_type_constraint(type_constraint)
 
     def _handle_stmt_Return(self, stmt):
         if stmt.ret_exprs:

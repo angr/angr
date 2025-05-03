@@ -47,7 +47,7 @@ class RichR(Generic[RichRT_co]):
     ):
         self.data = data
         self.variable = variable
-        self.typevar = typevar
+        self.typevar: typeconsts.TypeConstant | typevars.TypeVariable | None = typevar
         self.type_constraints = type_constraints
 
     @property

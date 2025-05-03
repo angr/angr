@@ -321,7 +321,7 @@ class SimTypeReg(SimType):
         with contextlib.suppress(AttributeError):
             value = value.ast  # type: ignore
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
-            if value.size() != self.size:
+            if value.size() != self.size:  # type: ignore
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int):
             value = claripy.BVV(value, self.size)
@@ -380,7 +380,7 @@ class SimTypeNum(SimType):
         store_endness = state.arch.memory_endness
 
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
-            if value.size() != self.size:
+            if value.size() != self.size:  # type: ignore
                 raise ValueError("size of expression is wrong size for type")
         elif isinstance(value, int) and self.size is not None:
             value = claripy.BVV(value, self.size)
@@ -502,7 +502,12 @@ class SimTypeFixedSizeInt(SimTypeInt):
     _fixed_size: int = 32
 
     def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True  # pylint:disable=unused-argument
+        self,
+        name=None,
+        full=0,
+        memo=None,
+        indent: int | None = 0,
+        name_parens: bool = True,  # pylint:disable=unused-argument
     ):
         out = self._base_name
         if not self.signed:
@@ -1650,7 +1655,7 @@ class SimUnion(NamedTypeMixin, SimType):
     def size(self):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
-        member_sizes = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
+        member_sizes: list[int] = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
         # fall back to word size in case all members are SimTypeBottom
         return max(member_sizes) if member_sizes else self._arch.bytes
 

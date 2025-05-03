@@ -1532,6 +1532,7 @@ class Clinic(Analysis):
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
+        assert ssailification.out_graph is not None
         return ssailification.out_graph
 
     @timethis
@@ -1912,6 +1913,7 @@ class Clinic(Analysis):
                 self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False)
 
             elif stmt_type is ailment.Stmt.Return:
+                assert isinstance(stmt, ailment.Stmt.Return)
                 self._link_variables_on_return(variable_manager, global_variables, block, stmt_idx, stmt)
 
     def _link_variables_on_return(
@@ -2243,6 +2245,7 @@ class Clinic(Analysis):
     def _create_triangle_for_ite_expression(self, ail_graph, block_addr: int, ite_ins_addr: int):
         ite_insn_only_block = self.project.factory.block(ite_ins_addr, num_inst=1)
         ite_insn_size = ite_insn_only_block.size
+        assert ite_insn_size is not None
         if ite_insn_size <= 2:  # we need an address for true_block and another address for false_block
             return None
         if ite_insn_only_block.vex.exit_statements:
@@ -3196,7 +3199,7 @@ class Clinic(Analysis):
                         )
                         break
 
-        if alloca_node is not None:
+        if alloca_node is not None and sp_equal_to is not None:
             stmt0 = alloca_node.statements[1]
             statements = [ailment.Stmt.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags)]
             new_node = ailment.Block(alloca_node.addr, alloca_node.original_size, statements=statements)

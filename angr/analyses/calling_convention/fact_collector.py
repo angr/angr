@@ -121,7 +121,7 @@ class SimEngineFactCollectorVEX(
         if self.block.vex.jumpkind == "Ijk_Call" and self.arch.ret_offset is not None:
             self.state.register_written(self.arch.ret_offset, self.arch.bytes)
 
-    def _top(self, bits: int):
+    def _top(self, bits: int):  # type: ignore
         return None
 
     def _is_top(self, expr: Any) -> bool:
@@ -190,13 +190,13 @@ class SimEngineFactCollectorVEX(
         self.state.register_read(expr.offset, bits // self.arch.byte_width)
         return RegisterOffset(bits, expr.offset, 0)
 
-    def _handle_expr_GetI(self, expr):
+    def _handle_expr_GetI(self, expr):  # type: ignore
         return None
 
-    def _handle_expr_ITE(self, expr):
+    def _handle_expr_ITE(self, expr):  # type: ignore
         return None
 
-    def _handle_expr_Load(self, expr):
+    def _handle_expr_Load(self, expr):  # type: ignore
         addr = self._expr(expr.addr)
         if isinstance(addr, SpOffset):
             self.state.stack_read(addr.offset, expr.result_size(self.tyenv) // self.arch.byte_width)
@@ -206,7 +206,7 @@ class SimEngineFactCollectorVEX(
     def _handle_expr_RdTmp(self, expr):
         return self.state.tmps.get(expr.tmp, None)
 
-    def _handle_expr_VECRET(self, expr):
+    def _handle_expr_VECRET(self, expr):  # type: ignore
         return None
 
     @binop_handler

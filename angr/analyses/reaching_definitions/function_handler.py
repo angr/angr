@@ -221,16 +221,16 @@ class FunctionCallDataUnwrapped(FunctionCallData):
     Typechecks be gone!
     """
 
-    address_multi: MultiValues
-    address: int
+    address_multi: MultiValues  # type: ignore[reportIncompatibleVariableOverride]
+    address: int  # type: ignore[reportIncompatibleVariableOverride]
     symbol: Symbol
-    function: Function
-    name: str
-    cc: SimCC
-    prototype: SimTypeFunction
-    args_atoms: list[set[Atom]]
-    args_values: list[MultiValues]
-    ret_atoms: set[Atom]
+    function: Function  # type: ignore[reportIncompatibleVariableOverride]
+    name: str  # type: ignore[reportIncompatibleVariableOverride]
+    cc: SimCC  # type: ignore[reportIncompatibleVariableOverride]
+    prototype: SimTypeFunction  # type: ignore[reportIncompatibleVariableOverride]
+    args_atoms: list[set[Atom]]  # type: ignore[reportIncompatibleVariableOverride]
+    args_values: list[MultiValues]  # type: ignore[reportIncompatibleVariableOverride]
+    ret_atoms: set[Atom]  # type: ignore[reportIncompatibleVariableOverride]
 
     def __init__(self, inner: FunctionCallData):
         d = dict(inner.__dict__)
