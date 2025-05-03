@@ -125,5 +125,9 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
         for block in self._graph.nodes:
             CallReplacer(self.replace_call).walk(block)
         for block, stmts in self._stmts_to_remove.items():
+            old_block = block.copy()
             for stmt in stmts:
-                block.statements.remove(stmt)
+                try:
+                    block.statements.remove(stmt)
+                except:
+                    pass

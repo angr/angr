@@ -1,9 +1,8 @@
-from ailment import BinaryOp, AILBlockWalker, Block
-from ailment.expression import VirtualVariable, Const, Struct
-from ailment.statement import ConditionalJump, Assignment, Call
+from ailment import AILBlockWalker, Block
+from ailment.expression import Const, Struct
+from ailment.statement import Assignment, Call
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 
 
 class StringOutliner(OptimizationPass):

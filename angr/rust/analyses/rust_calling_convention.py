@@ -13,7 +13,7 @@ from ..mixins.dfa_mixin import DFAMixin
 from ..mixins.srda_mixin import SRDAMixin
 from ..optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
-from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult
+from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
 from ..utils.ail_util import unwrap_stack_vvar_reference
@@ -258,12 +258,22 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     2. Uses of return value after callee is called
     """
 
-    def __init__(self, func, parent_graph=None, callsite_block=None, post_callsite_block=None, depth=0, max_depth=2):
+    def __init__(
+        self,
+        func,
+        parent_graph=None,
+        callsite_block=None,
+        post_callsite_block=None,
+        is_call_expr=None,
+        depth=0,
+        max_depth=2,
+    ):
         self.func: Function = func
 
         self.parent_graph = parent_graph
         self.callsite_block = callsite_block
         self.post_callsite_block = post_callsite_block
+        self.is_call_expr = is_call_expr
         self.depth = depth
         self.max_depth = max_depth
         self._fact_collector = None
@@ -272,6 +282,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             self.model = self.kb.rust_calling_conventions.cache[self.func.addr]
         else:
             self.model = RustCallingConventionModel()
+            self.clinic = None
             if self.func.normalized and self.func.size:
                 try:
                     cfg = self.kb.cfgs.get_most_accurate()
@@ -420,17 +431,21 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                         )
         return None
 
-    def _infer_return_type(self):
+    def _infer_return_type(self) -> Tuple[RustSimType | None, bool]:
         # The first argument is not used as return buffer
-        if len(self.model.callsite_memory_writes[0]) != 0 or not self._fact_collector.has_write_to_arg0:
+        if (
+            len(self.model.callsite_memory_writes[0]) != 0
+            or not self._fact_collector.has_write_to_arg0
+            or self.is_call_expr is True
+        ):
             # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
             if len(self._fact_collector.const_ret_values) == 2 and 0 in self._fact_collector.const_ret_values:
                 addr = max(self._fact_collector.const_ret_values)
                 if SimpleMessageLayoutInference(self.project).is_const_simple_message(addr):
                     ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
                     err_type = self.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
-                    return RustSimTypeResult(ok_type, err_type, 0, None, 0)
-            return None
+                    return RustSimTypeResult(ok_type, err_type, 0, None, 0), False
+            return None, False
 
         memory_writes = self.model.memory_writes[0]
         candidates_and_paths = []
@@ -453,7 +468,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         returnty = self._infer_potential_enum_type(candidates_and_paths)
         if not returnty and candidates_and_paths:
             returnty = next(iter(sorted(candidates_and_paths, key=lambda item: item[0].size, reverse=True)))[0]
-        return returnty
+        return returnty, True
 
     def _infer_arg_type(self, arg_idx):
         memory_writes = self.model.memory_writes[arg_idx] | self.model.callsite_memory_writes[arg_idx]
@@ -482,8 +497,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         return final_ty
 
     def infer_prototype(self):
-        returnty = self._infer_return_type()
-        is_arg0_ret_buf = self._fact_collector.has_write_to_arg0 and returnty is not None
+        returnty, is_arg0_ret_buf = self._infer_return_type()
         args = []
         for arg_idx, old_arg_type in zip(range(len(self.clinic.arg_list)), self.func.prototype.args):
             if is_arg0_ret_buf and arg_idx == 0:
@@ -496,7 +510,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         prototype = self.func.prototype
         return RustSimTypeFunction(
             args=args,
-            returnty=prototype.returnty if is_arg0_ret_buf or returnty is None else returnty,
+            returnty=returnty if is_arg0_ret_buf and returnty else prototype.returnty,
             label=prototype.label,
             arg_names=prototype.arg_names,
             variadic=prototype.variadic,
@@ -547,10 +561,6 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                             idx, stack_def.block, cur_offset - vvar.stack_offset, stack_def.data
                         )
                         cur_offset += stack_def.data.size
-        if callsite_block.addr == 0x416C6D:
-            import ipdb
-
-            ipdb.set_trace()
 
     def collect_post_callsite_facts(self):
         callsite_block = self.callsite_block

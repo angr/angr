@@ -85,7 +85,9 @@ class StructBuilder:
                     elements.append(ele_expr)
             elif vvar := unwrap_stack_vvar_reference(ptr_expr):
                 for i in range(len_expr.value):
-                    ele_expr = SSAVariableHelper(self.context).new_stack_vvar(vvar.stack_offset, ele_ty.size, vvar.tags)
+                    ele_expr = SSAVariableHelper(self.context).new_stack_vvar(
+                        vvar.stack_offset + i * (ele_ty.size // 8), ele_ty.size, vvar.tags
+                    )
                     # Looking for nested structs or struct references
                     if isinstance(ele_ty, RustSimTypeReference) and isinstance(ele_ty.pts_to, RustSimStruct):
                         self.pending_potential_structs.append((ele_expr, ele_ty.pts_to))
