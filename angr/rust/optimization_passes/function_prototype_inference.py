@@ -1,5 +1,5 @@
 from ailment import Const, UnaryOp, AILBlockWalker, Statement, Block
-from ailment.expression import VirtualVariable
+from ailment.expression import VirtualVariable, Load
 from ailment.statement import Assignment
 
 from angr.rust.mixins import CFAMixin, SRDAMixin
@@ -45,6 +45,13 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
                 if expr.was_stack:
                     vvar = self.srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.ins_addr, block.idx)
                     if vvar and vvar.varid in self.context._new_stack_vvars:
+                        if expr.size < vvar.size:
+                            return Load(
+                                None,
+                                UnaryOp(None, "Reference", vvar),
+                                expr.size,
+                                self.context.project.arch.memory_endness,
+                            )
                         return vvar
                 return None
 
@@ -69,7 +76,11 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
             else:
                 post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
                 rcc = self.project.analyses.RustCallingConvention(
-                    func, parent_graph=self._graph, callsite_block=block, post_callsite_block=post_callsite_block
+                    func,
+                    parent_graph=self._graph,
+                    callsite_block=block,
+                    post_callsite_block=post_callsite_block,
+                    is_call_expr=is_expr,
                 )
                 call.prototype = rcc.model.inferred_prototype
                 func.prototype = call.prototype

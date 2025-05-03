@@ -77,7 +77,7 @@ class DFAMixin:
                     cur_block = pred
                     continue
             break
-        return reversed(stmts)
+        return stmts
 
     def collect_callsite_stack_defs(self, callsite_block, max_blocks=1):
         """

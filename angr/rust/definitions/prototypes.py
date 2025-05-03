@@ -88,4 +88,12 @@ def generate_known_rust_prototypes(project):
                 0,
             ),
         ),
+        "<alloc::string::String as core::cmp::PartialEq>::eq": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(RustSimTypeString())],
+            returnty=RustSimTypeInt(8, signed=False),
+        ),
+        "<alloc::string::String as core::cmp::PartialEq>::ne": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(RustSimTypeString())],
+            returnty=RustSimTypeInt(8, signed=False),
+        ),
     }

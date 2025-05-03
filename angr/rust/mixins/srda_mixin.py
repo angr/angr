@@ -39,7 +39,7 @@ class SRDAMixin:
                 return result
             else:
                 return {value}
-        return {}
+        return set()
 
     def get_terminal_vvar_value(self, vvar, visited=None):
         return self.get_vvar_value(self.get_terminal_vvar(vvar))
