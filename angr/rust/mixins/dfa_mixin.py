@@ -2,7 +2,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from ailment import Assignment, Expression, Statement, Block
+from ailment import Assignment, Expression, Statement, Block, UnaryOp
 from ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBaseOffset, BinaryOp, Const
 from ailment.statement import Store, Call, ConditionalJump
 
@@ -99,6 +99,12 @@ class DFAMixin:
         if isinstance(stmt, Assignment):
             if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
                 return stmt.dst, stmt.src
+            # Workaround for this weird case:
+            # Load(addr=(Reference vvar_1485{stack -4456}), size=8, endness=Iend_LE) = (Reference vvar_142{reg 72})
+            if isinstance(stmt.dst, Load) and isinstance(stmt.dst.addr, UnaryOp) and stmt.dst.addr.op == "Reference":
+                real_dst = stmt.dst.addr.operand
+                if isinstance(real_dst, VirtualVariable) and real_dst.was_stack:
+                    return real_dst, stmt.src
         elif isinstance(stmt, Store):
             if dst := unwrap_stack_vvar_reference(stmt.addr):
                 return dst, stmt.data
