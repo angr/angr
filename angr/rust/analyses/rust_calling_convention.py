@@ -491,6 +491,11 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             candidates.append(struct_ty)
 
         final_ty = sorted(candidates, key=lambda candidate: candidate.size, reverse=True)[0] if candidates else None
+
+        # Filter out register-size structs
+        if final_ty and final_ty.size <= self.project.arch.bits:
+            return None
+
         if final_ty:
             final_ty = RustSimTypeReference(final_ty).with_arch(self.project.arch)
 

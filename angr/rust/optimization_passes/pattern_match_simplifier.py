@@ -19,9 +19,10 @@ from angr.rust.structuring.structurer_nodes import PatternMatchNode
 
 
 class PatternMatchWalker(SequenceWalker, DFAMixin):
-    def __init__(self, var_manager):
+    def __init__(self, var_manager, graph):
         super().__init__()
         self.var_manager = var_manager
+        self.graph = graph
 
     @staticmethod
     def _find_first_block(node):
@@ -55,7 +56,8 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         return None
 
     def _collect_move_stmts(self, scrutinee: VirtualVariable, variant: EnumVariant, node):
-        if not scrutinee.was_stack:
+        # TODO: Support the case when scrutinee.was_combo_reg
+        if not scrutinee.was_stack and not scrutinee.was_reg:
             return (None,) * len(variant.fields)
         block = self._find_first_block(node)
         if block:
@@ -64,7 +66,7 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
-                    and stmt.dst.was_stack
+                    and (stmt.dst.was_stack or stmt.dst.was_reg)
                     and isinstance(stmt.src, Load)
                     and (
                         (src_vvar := unwrap_stack_vvar_reference(stmt.src.addr))
@@ -152,6 +154,6 @@ class PatternMatchSimplifier(SequenceOptimizationPass):
         return bool(self.seq.nodes), None
 
     def _analyze(self, cache=None):
-        walker = PatternMatchWalker(self._variable_kb.variables.get_function_manager(self._func.addr))
+        walker = PatternMatchWalker(self._variable_kb.variables.get_function_manager(self._func.addr), self._graph)
         walker.walk(self.seq)
         self.out_seq = self.seq
