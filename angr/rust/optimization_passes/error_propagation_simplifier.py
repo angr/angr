@@ -147,6 +147,7 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
             if (
                 isinstance(stmt.dst, VirtualVariable)
                 and isinstance(stmt.src, Call)
+                and stmt.src.prototype
                 and isinstance(stmt.src.prototype.returnty, RustSimTypeResult)
             ):
                 varid_to_assignment[stmt.dst.varid] = stmt

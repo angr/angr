@@ -435,6 +435,7 @@ class Decompiler(Analysis):
                 kb=self.kb,
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,
+                simplify_ifelse=not self.project.is_rust_binary,
                 **self.options_to_params(self.options_by_class["region_simplifier"]),
             )
             seq_node = s.result

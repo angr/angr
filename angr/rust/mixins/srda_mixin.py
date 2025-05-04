@@ -44,8 +44,8 @@ class SRDAMixin:
     def get_terminal_vvar_value(self, vvar, visited=None):
         return self.get_vvar_value(self.get_terminal_vvar(vvar))
 
-    def get_terminal_vvar(self, vvar):
-        visited = set()
+    def get_terminal_vvar(self, vvar, visited=None):
+        visited = visited or set()
         cur_vvar = vvar
         while cur_vvar not in visited:
             visited.add(cur_vvar)
@@ -56,7 +56,7 @@ class SRDAMixin:
             elif isinstance(value, Phi):
                 result = set()
                 for _, phi_vvar in value.src_and_vvars:
-                    terminal_phi_vvar = self.get_terminal_vvar(phi_vvar)
+                    terminal_phi_vvar = self.get_terminal_vvar(phi_vvar, visited)
                     if terminal_phi_vvar:
                         result.add(terminal_phi_vvar)
                 if len(result) == 1:
