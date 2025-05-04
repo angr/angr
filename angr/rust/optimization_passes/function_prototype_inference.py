@@ -35,7 +35,23 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
             def __init__(self, context: FunctionPrototypeInference):
                 self.context = context
                 self.srda = SRDAMixin(context._func, context._graph, context.project)
+                self.parent_expr = None
                 super().__init__()
+
+            def _handle_UnaryOp(
+                self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+            ):
+                if expr.op == "Reference":
+                    new_expr = expr.copy()
+                    expr = expr.operand
+                    if not isinstance(expr, VirtualVariable) or expr.varid in self.context._new_stack_vvars:
+                        return None
+                    if expr.was_stack:
+                        vvar = self.srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.ins_addr, block.idx)
+                        if vvar and vvar.varid in self.context._new_stack_vvars:
+                            new_expr.operand = vvar
+                            return new_expr
+                return None
 
             def _handle_VirtualVariable(
                 self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None

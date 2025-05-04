@@ -58,6 +58,8 @@ class CFAMixin:
 
     def match_call(self, block_or_stmt, expected, monopolize=True, use_trait_name=True):
         stmt = self.terminal_call(block_or_stmt) if isinstance(block_or_stmt, Block) else block_or_stmt
+        if isinstance(expected, str):
+            expected = [expected]
         if isinstance(stmt, Call):
             name = None
             if isinstance(stmt.target, str):
