@@ -25,8 +25,8 @@ def get_rust_optimization_passes():
         # BEFORE_SSA_LEVEL0_TRANSFORMATION
         RetExprRewriter,
         # BEFORE_VARIABLE_RECOVERY
-        # CleanupCodeRemover,
-        # SecurityCheckRemover,
+        CleanupCodeRemover,
+        SecurityCheckRemover,
         FunctionPrototypeInference,
         UnwrapSimplifier,
         StrArgumentSimplifier,
