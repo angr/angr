@@ -81,7 +81,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
         return bool(self._func.endpoints) and self.project.is_rust_binary, None
 
     def _should_duplicate_dst(self, src, dst, graph, dst_is_const_ret=False):
-        dst_is_const_ret = dst_is_const_ret or (
+        return (
             dst.statements
             and isinstance(dst.statements[-1], Return)
             and dst.statements[-1].ret_exprs
@@ -91,7 +91,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
         # if pred and pred.statements and isinstance(pred.statements[-1], ConditionalJump):
         #     jump = pred.statements[-1]
         #     return "scrutinee" in jump.condition.tags or dst_is_const_ret
-        return dst_is_const_ret
+        # return dst_is_const_ret
 
     @staticmethod
     def extract_scrutinee_and_discriminant(condition):
