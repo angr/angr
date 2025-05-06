@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import defaultdict
+from enum import Enum
 import logging
 
 import networkx
@@ -76,6 +77,17 @@ class AILBlockTempCollector(AILBlockWalker):
     def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> None:
         if isinstance(expr, Tmp):
             self.temps.add(expr)
+
+
+class DefEqRelation(Enum):
+    """
+    Describes the location relationship between a virtual variable definition and the equivalence statement.
+    """
+
+    UNKNOWN = 0
+    DEF_IS_FUNCARG = 1
+    DEF_EQ_SAME_BLOCK = 2
+    DEF_IN_EQ_PRED_BLOCK = 3
 
 
 class AILSimplifier(Analysis):
@@ -739,14 +751,21 @@ class AILSimplifier(Analysis):
                     continue
 
             elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
-                if isinstance(eq.atom1, VirtualVariable) and (eq.atom1.was_reg or eq.atom1.was_parameter):
-                    # register == register
-                    if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
+                if isinstance(eq.atom1, VirtualVariable):
+                    if eq.atom1.was_reg or eq.atom1.was_parameter:
+                        # register == register
+                        if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
+                            to_replace = eq.atom0
+                            to_replace_is_def = True
+                        else:
+                            to_replace = eq.atom1
+                            to_replace_is_def = False
+                    elif eq.atom1.was_stack:
+                        # register == stack (but we try to replace the register vvar with the stack vvar)
                         to_replace = eq.atom0
                         to_replace_is_def = True
                     else:
-                        to_replace = eq.atom1
-                        to_replace_is_def = False
+                        continue
                 else:
                     continue
 
@@ -788,6 +807,7 @@ class AILSimplifier(Analysis):
                 # the definition is in a callee function
                 continue
 
+            def_eq_rel: DefEqRelation = DefEqRelation.UNKNOWN
             if isinstance(the_def.codeloc, ExternalCodeLocation) or (
                 isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter
             ):
@@ -800,6 +820,7 @@ class AILSimplifier(Analysis):
                 all_uses_with_def = None
                 replace_with = None
                 remove_initial_assignment = None
+                def_eq_rel = DefEqRelation.DEF_IS_FUNCARG
 
                 if defs and len(defs) == 1:
                     arg_copy_def = defs[0]
@@ -861,6 +882,7 @@ class AILSimplifier(Analysis):
                     # the eq location.
                     if eq.codeloc.stmt_idx < the_def.codeloc.stmt_idx:
                         continue
+                    def_eq_rel = DefEqRelation.DEF_EQ_SAME_BLOCK
                 else:
                     # the definition is in the predecessor block of the eq
                     eq_block = next(
@@ -876,6 +898,7 @@ class AILSimplifier(Analysis):
                         for pred in eq_block_preds
                     ):
                         continue
+                    def_eq_rel = DefEqRelation.DEF_IN_EQ_PRED_BLOCK
 
                 if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack:
                     # create the replacement expression
@@ -912,11 +935,16 @@ class AILSimplifier(Analysis):
                         **eq.atom1.tags,
                     )
                 elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
-                    if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
-                        if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
+                    if isinstance(eq.atom1, VirtualVariable):
+                        if eq.atom1.was_reg:
+                            if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
+                                replace_with = eq.atom1
+                            else:
+                                replace_with = eq.atom0
+                        elif eq.atom1.was_stack:
                             replace_with = eq.atom1
                         else:
-                            replace_with = eq.atom0
+                            raise AngrRuntimeError(f"Unsupported atom1 vvar type {eq.atom1.category}.")
                     else:
                         raise AngrRuntimeError(f"Unsupported atom1 type {type(eq.atom1)}.")
                 else:
@@ -1004,6 +1032,11 @@ class AILSimplifier(Analysis):
                     and u.stmt_idx < eq.codeloc.stmt_idx
                 ):
                     # this use happens before the assignment - ignore it
+                    continue
+                if def_eq_rel == DefEqRelation.DEF_IN_EQ_PRED_BLOCK and u.block_addr == def_.codeloc.block_addr:
+                    # the definition is in a predecessor block of the eq location, so all uses must be in the same
+                    # block as the eq location. (technically it can also be in a successor block to the eq location, but
+                    # we don't support it yet).
                     continue
                 filtered_all_uses_with_def.append((def_, expr_and_use))
             all_uses_with_def = filtered_all_uses_with_def
