@@ -33,7 +33,7 @@ class FlipBooleanWalker(SequenceWalker):
         # if (cond) { ... }  else  { return; }   -->   if (!cond) { return; } else { ... }
         #
         # Type 2:
-        # if (cond) { ... } return;    -->    if (!cond) return; ...
+        # if (cond) { ... } return;    -->    if (!cond) return; ...; return;
         type1_condition_nodes = [node for node in seq_node.nodes if isinstance(node, ConditionNode) and node.false_node]
         type2_condition_nodes: list[tuple[int, ConditionNode, Any]] = []
 
@@ -80,6 +80,7 @@ class FlipBooleanWalker(SequenceWalker):
                 cond_node.condition = ailment.expression.negate(cond_node.condition)
                 seq_node.nodes[idx + 1] = cond_node.true_node
                 cond_node.true_node = successor
+                seq_node.nodes.insert(idx + 2, successor)
 
         return super()._handle_Sequence(seq_node, **kwargs)
 
