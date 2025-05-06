@@ -2,11 +2,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import networkx
-
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import OptimizationPass, OptimizationPassStage
+from ..utils import copy_graph
 
 _l = logging.getLogger(name=__name__)
 
@@ -55,8 +54,8 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
         return dst_is_const_ret
 
     def _analyze(self, cache=None):
+        graph_copy = copy_graph(self._graph)
         # since we run before the RegionIdentification pass in the decompiler, we need to collect it early here
-        self._ri = self._recover_regions(self._graph)
-        copy_graph = networkx.DiGraph(self._graph)
-        if self._analyze_core(copy_graph):
-            self.out_graph = self._simplify_graph(copy_graph)
+        self._ri = self._recover_regions(graph_copy)
+        if self._analyze_core(graph_copy):
+            self.out_graph = self._simplify_graph(graph_copy)
