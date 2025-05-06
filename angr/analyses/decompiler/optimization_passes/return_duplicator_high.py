@@ -3,9 +3,9 @@ import logging
 from typing import Any
 
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
+from angr.analyses.decompiler.utils import copy_graph
 from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-from ..utils import copy_graph
 
 _l = logging.getLogger(name=__name__)
 
