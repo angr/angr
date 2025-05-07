@@ -103,6 +103,7 @@ pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
 cle = { git = "https://github.com/angr/cle.git", branch = "master" }
 claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
 ailment = { git = "https://github.com/angr/ailment.git", branch = "master" }
+icicle-emu = { git = "https://github.com/twizmwazin/icicle-python.git", branch = "feat/isa-mode-access" }
 
 [tool.black]
 line-length = 120

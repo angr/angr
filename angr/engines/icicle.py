@@ -51,25 +51,29 @@ class IcicleEngine(SuccessorsEngine):
     """
 
     @staticmethod
-    def __make_icicle_arch(arch: Arch, addr: int) -> str | None:
+    def __make_icicle_arch(arch: Arch) -> str | None:
         """
         Convert an angr architecture to an Icicle architecture. Not particularly
         accurate, just a set of heuristics to get the right architecture. When
         adding a new architecture, this function may need to be updated.
         """
         if arch.linux_name == "arm":
-            thumb = addr & 1 == 1
-            if arch.memory_endness == Endness.BE:
-                return "thumbeb" if thumb else "armeb"
-            return "thumbv7a" if thumb else "arm"
+            return "armv7a" if arch.memory_endness == Endness.LE else "armeb"
         return arch.linux_name
 
     @staticmethod
-    def __is_thumb(icicle_arch: str) -> bool:
+    def __is_arm(icicle_arch: str) -> bool:
+        """
+        Check if the architecture is arm based on the address.
+        """
+        return icicle_arch.startswith(("arm", "thumb"))
+
+    @staticmethod
+    def __is_thumb(icicle_arch: str, addr: int) -> bool:
         """
         Check if the architecture is thumb based on the address.
         """
-        return icicle_arch in ("thumbv7a", "thumbeb")
+        return IcicleEngine.__is_arm(icicle_arch) and addr & 1 == 1
 
     @staticmethod
     def __make_icicle_perms(read: bool, write: bool, execute: bool) -> MemoryProtection:
@@ -115,7 +119,7 @@ class IcicleEngine(SuccessorsEngine):
 
     @staticmethod
     def __convert_angr_state_to_icicle(state: SimState) -> tuple[Icicle, IcicleStateTranslationData]:
-        icicle_arch = IcicleEngine.__make_icicle_arch(state.arch, state.addr)
+        icicle_arch = IcicleEngine.__make_icicle_arch(state.arch)
         if icicle_arch is None:
             raise ValueError("Unsupported architecture")
 
@@ -138,9 +142,10 @@ class IcicleEngine(SuccessorsEngine):
                 log.debug("Register %s not found in icicle", register)
 
         # Unset the thumb bit if necessary
-        if IcicleEngine.__is_thumb(icicle_arch):
+        if IcicleEngine.__is_thumb(icicle_arch, state.addr):
             emu.pc = state.addr & ~1
-        elif "arm" in icicle_arch: # Hack to work around us calling it r15t
+            emu.isa_mode = 1
+        elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
             emu.pc = state.addr
 
         # Special case for x86 gs register
@@ -183,10 +188,8 @@ class IcicleEngine(SuccessorsEngine):
         for register in translation_data.registers:
             state.registers.store(register, emu.reg_read(register))
 
-        if IcicleEngine.__is_thumb(emu.architecture):
-            state.registers.store("pc", emu.pc | 1)
-        elif "arm" in emu.architecture: # Hack to work around us calling it r15t
-            state.registers.store("pc", emu.pc)
+        if IcicleEngine.__is_arm(emu.architecture):  # Hack to work around us calling it r15t
+            state.registers.store("pc", (emu.pc | 1) if emu.isa_mode == 1 else emu.pc)
 
         # 2. Copy the memory contents
         for page_num in translation_data.writable_pages:

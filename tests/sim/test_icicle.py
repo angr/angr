@@ -180,7 +180,7 @@ class TestIcicle(TestCase):
         assert successors.successors[0].history.jumpkind == "Ijk_Syscall"
 
 
-class TestArchitectureQuirks(TestCase):
+class TestThumb(TestCase):
     def test_thumb(self):
         """Test that the Icicle engine can handle Thumb instructions."""
 
@@ -231,6 +231,41 @@ class TestArchitectureQuirks(TestCase):
 
         successors = engine.process(init_state, num_inst=5)
         assert len(successors.successors) == 1
+        assert successors[0].regs.pc.concrete_value == 0x1005
+        assert successors[0].regs.r2.concrete_value == 0x3
+
+    def test_thumb_switching_back(self):
+        """Test that the Icicle engine can handle switching back from Thumb to ARM instructions."""
+
+        arch = archinfo.ArchARM()
+
+        # Set r0 and r1 to 1 and 2, then switch to thumb mode and add them
+        thumb_shellcode: bytes = arch.asm("mov r0, 0x1; mov r1, 0x2; mov r3, 0x1000; bx r3;", thumb=True)
+        arm_shellcode: bytes = arch.asm("add r2, r0, r1;", thumb=False)
+
+        blob = cle.Blob(
+            None,
+            BytesIO(thumb_shellcode + arm_shellcode),
+            arch=arch,
+            segments=[
+                (0x0, 0x0, len(thumb_shellcode)),
+                (len(thumb_shellcode), 0x1000, len(arm_shellcode)),
+            ],
+            base_addr=0x0,
+            entry_point=0x1,
+        )
+        project = angr.Project(blob)
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.entry_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        assert init_state.addr == 0x1
+
+        successors = engine.process(init_state, num_inst=5)
+        assert len(successors.successors) == 1
+        assert successors[0].history.jumpkind != "Ijk_SigSEGV"
         assert successors[0].regs.pc.concrete_value == 0x1004
         assert successors[0].regs.r2.concrete_value == 0x3
 
