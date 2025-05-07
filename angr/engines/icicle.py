@@ -143,6 +143,10 @@ class IcicleEngine(SuccessorsEngine):
         elif "arm" in icicle_arch: # Hack to work around us calling it r15t
             emu.pc = state.addr
 
+        # Special case for x86 gs register
+        if state.arch.name == "X86":
+            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
+
         # 2. Copy the memory contents
 
         mapped_pages = IcicleEngine.__get_pages(state)
