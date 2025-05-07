@@ -94,8 +94,8 @@ class IcicleEngine(SuccessorsEngine):
     def __get_pages(state: SimState) -> set[int]:
         """
         Unfortunately, the memory model doesn't have a way to get all pages.
-        Instead, we can get all of the segments loaded by the loader and then
-        all of the pages from the PagedMemoryMixin and then do some math.
+        Instead, we can get all of the backers from the loader, then all of the
+        pages from the PagedMemoryMixin and then do some math.
         """
         pages = set()
         page_size = state.memory.page_size
@@ -103,11 +103,10 @@ class IcicleEngine(SuccessorsEngine):
         # pages from loader segments
         proj = state.project
         if proj is not None:
-            for obj in proj.loader.all_objects:
-                for segment in obj.segments:
-                    start = segment.vaddr // page_size
-                    end = (segment.vaddr + segment.memsize - 1) // page_size
-                    pages.update(range(start, end + 1))
+            for addr, backer in proj.loader.memory.backers():
+                start = addr // page_size
+                end = (addr + len(backer) - 1) // page_size
+                pages.update(range(start, end + 1))
 
         # pages from the memory model
         pages.update(state.memory._pages)
