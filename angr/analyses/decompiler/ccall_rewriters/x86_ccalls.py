@@ -67,7 +67,7 @@ class X86CCallRewriter(CCallRewriterBase):
                             ccall.tags,
                         )
 
-                        r = Expr.BinaryOp(ccall.idx, "CmpLE", (dep_1, dep_2), True, **ccall.tags)
+                        r = Expr.BinaryOp(ccall.idx, "CmpLE", (dep_1, dep_2), signed=True, bits=1, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == X86_CondTypes["CondO"]:
                     op_v = op.value
@@ -92,8 +92,29 @@ class X86CCallRewriter(CCallRewriterBase):
                             bits=dep_1.bits * 2,
                             **ccall.tags,
                         )
-                        ret_cond = Expr.BinaryOp(None, "CmpGE", (ret, max_signed), signed=False, **ccall.tags)
-                    if op_v in {
+                        ret_cond = Expr.BinaryOp(None, "CmpGE", (ret, max_signed), signed=False, bits=1, **ccall.tags)
+                    elif op_v in {
+                        X86_OpTypes["G_CC_OP_ADDB"],
+                        X86_OpTypes["G_CC_OP_ADDW"],
+                        X86_OpTypes["G_CC_OP_ADDL"],
+                    }:
+                        # dep_1 + dep_2 >= max_signed_byte/word/dword
+                        ret = Expr.BinaryOp(
+                            None,
+                            "Add",
+                            (dep_1, dep_2),
+                            bits=dep_1.bits,
+                            **ccall.tags,
+                        )
+                        max_signed = Expr.Const(
+                            None,
+                            None,
+                            (1 << (dep_1.bits - 1)),
+                            bits=dep_1.bits,
+                            **ccall.tags,
+                        )
+                        ret_cond = Expr.BinaryOp(None, "CmpGE", (ret, max_signed), signed=False, bits=1, **ccall.tags)
+                    elif op_v in {
                         X86_OpTypes["G_CC_OP_INCB"],
                         X86_OpTypes["G_CC_OP_INCW"],
                         X86_OpTypes["G_CC_OP_INCL"],
@@ -106,7 +127,7 @@ class X86CCallRewriter(CCallRewriterBase):
                             dep_1.bits,
                             **ccall.tags,
                         )
-                        ret_cond = Expr.BinaryOp(None, "CmpEQ", (dep_1, overflowed), **ccall.tags)
+                        ret_cond = Expr.BinaryOp(None, "CmpEQ", (dep_1, overflowed), signed=False, bits=1, **ccall.tags)
 
                     if ret_cond is not None:
                         return Expr.ITE(
@@ -138,39 +159,45 @@ class X86CCallRewriter(CCallRewriterBase):
                             dep_1.bits,
                             **ccall.tags,
                         )
-                        return Expr.BinaryOp(
+                        cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpEQ",
                             (ret, zero),
                             True,
+                            bits=1,
                             **ccall.tags,
                         )
+                        return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
                     if op_v in {
                         X86_OpTypes["G_CC_OP_SUBB"],
                         X86_OpTypes["G_CC_OP_SUBW"],
                         X86_OpTypes["G_CC_OP_SUBL"],
                     }:
                         # dep_1 - dep_2 == 0
-                        return Expr.BinaryOp(
+                        cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpEQ",
                             (dep_1, dep_2),
                             True,
+                            bits=1,
                             **ccall.tags,
                         )
+                        return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
                     if op_v in {
                         X86_OpTypes["G_CC_OP_LOGICB"],
                         X86_OpTypes["G_CC_OP_LOGICW"],
                         X86_OpTypes["G_CC_OP_LOGICL"],
                     }:
                         # dep_1 == 0
-                        return Expr.BinaryOp(
+                        cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpEQ",
                             (dep_1, Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)),
                             True,
+                            bits=1,
                             **ccall.tags,
                         )
+                        return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
                 elif cond_v == X86_CondTypes["CondL"]:
                     op_v = op.value
                     if op_v in {
@@ -179,26 +206,29 @@ class X86CCallRewriter(CCallRewriterBase):
                         X86_OpTypes["G_CC_OP_SUBL"],
                     }:
                         # dep_1 - dep_2 < 0
-                        return Expr.BinaryOp(
+                        cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpLT",
                             (dep_1, dep_2),
                             True,
+                            bits=1,
                             **ccall.tags,
                         )
+                        return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
                     if op_v in {
                         X86_OpTypes["G_CC_OP_LOGICB"],
                         X86_OpTypes["G_CC_OP_LOGICW"],
                         X86_OpTypes["G_CC_OP_LOGICL"],
                     }:
                         # dep_1 < 0
-                        return Expr.BinaryOp(
+                        cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpLT",
                             (dep_1, Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)),
                             True,
                             **ccall.tags,
                         )
+                        return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
                 elif cond_v in {
                     X86_CondTypes["CondBE"],
                     X86_CondTypes["CondB"],
@@ -226,13 +256,15 @@ class X86CCallRewriter(CCallRewriterBase):
                             dep_1.bits,
                             **ccall.tags,
                         )
-                        return Expr.BinaryOp(
+                        cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpLE" if cond_v == X86_CondTypes["CondBE"] else "CmpLT",
                             (ret, zero),
                             False,
+                            bits=1,
                             **ccall.tags,
                         )
+                        return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
                     if op_v in {
                         X86_OpTypes["G_CC_OP_SUBB"],
                         X86_OpTypes["G_CC_OP_SUBW"],
@@ -245,6 +277,7 @@ class X86CCallRewriter(CCallRewriterBase):
                             "CmpLE" if cond_v == X86_CondTypes["CondBE"] else "CmpLT",
                             (dep_1, dep_2),
                             False,
+                            bits=1,
                             **ccall.tags,
                         )
                     if op_v in {
@@ -254,13 +287,15 @@ class X86CCallRewriter(CCallRewriterBase):
                     }:
                         # dep_1 <= 0  if CondBE
                         # dep_1 < 0   if CondB
-                        return Expr.BinaryOp(
+                        cmp = Expr.BinaryOp(
                             ccall.idx,
                             "CmpLE" if cond_v == X86_CondTypes["CondBE"] else "CmpLT",
                             (dep_1, Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)),
                             False,
+                            bits=1,
                             **ccall.tags,
                         )
+                        return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
         return None
 
     @staticmethod
