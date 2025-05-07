@@ -16,11 +16,11 @@ from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixe
 from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType
 from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
-from ..utils.ail_util import unwrap_stack_vvar_reference
+from ..utils.ail import unwrap_stack_vvar_reference
 from ..utils.library import normalize
 from ..knowledge_plugins.known_structs import KnownStructs
 from ..analyses.struct_memory_layout import SimpleMessageLayoutInference
-from ..utils.ail_util import extract_vvar_and_offset
+from ..utils.ail import extract_vvar_and_offset
 from ...utils.graph import GraphUtils
 from ...analyses import Analysis, AnalysesHub
 from ...knowledge_plugins import Function

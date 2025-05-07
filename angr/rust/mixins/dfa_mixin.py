@@ -6,7 +6,7 @@ from ailment import Assignment, Expression, Statement, Block, UnaryOp
 from ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBaseOffset, BinaryOp, Const
 from ailment.statement import Store, Call, ConditionalJump
 
-from angr.rust.utils.ail_util import unwrap_stack_vvar_reference, CallFinder
+from angr.rust.utils.ail import unwrap_stack_vvar_reference, CallFinder
 
 
 @dataclass

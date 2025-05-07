@@ -9,6 +9,7 @@ from .outliners.string_outliner import StringOutliner
 from .pattern_match_simplifier import PatternMatchSimplifier
 from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .pre_pattern_match_simplifier import PrePatternMatchSimplifier
+from .redundant_block_remover import RedundantBlockRemover
 from .ret_expr_rewriter import RetExprRewriter
 from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
@@ -41,6 +42,8 @@ def get_rust_optimization_passes():
         PrePatternMatchSimplifier,
         # AFTER_VARIABLE_RECOVERY
         TypeCorrector,
+        # BEFORE_REGION_IDENTIFICATION
+        RedundantBlockRemover,
         # AFTER_STRUCTURING
         PatternMatchSimplifier,
         ErrorPropagationSimplifier,

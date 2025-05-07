@@ -575,8 +575,9 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
             yield from type_to_rust_repr_chunks(arg_type, name=variable.name, name_type=cvariable, full=False)
 
         yield ")", paren
-        yield " -> ", None
-        yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
+        if self.functy.returnty:
+            yield " -> ", None
+            yield self.functy.returnty.c_repr(name="").strip(" "), self.functy.returnty
         # function body
         if self.codegen.braces_on_own_lines:
             yield "\n", None

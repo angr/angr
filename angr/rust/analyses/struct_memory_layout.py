@@ -10,7 +10,7 @@ from ..definitions.prototypes import generate_known_rust_prototypes
 from ..definitions.structs import SimpleMessage, StrSlice, ArrayReference, Arguments
 from ..knowledge_plugins.known_structs import KnownStructs
 from ..optimization_passes.utils import extract_str_from_addr
-from ..utils.ail_util import (
+from ..utils.ail import (
     unwrap_stack_vvar_reference,
     extract_vvar_and_offset,
 )

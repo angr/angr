@@ -4,7 +4,7 @@ from typing import Tuple
 from ailment import BinaryOp, AILBlockWalker, Statement, Block
 from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, Enum
 from ailment.statement import Return, Store, ConditionalJump, Jump, Label, Call
-from angr.rust.utils.ail_util import extract_vvar_and_offset
+from angr.rust.utils.ail import extract_vvar_and_offset
 from angr.rust.analyses.rust_calling_convention import FunctionBodyFactCollector
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage

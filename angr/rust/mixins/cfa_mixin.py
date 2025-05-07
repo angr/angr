@@ -3,7 +3,7 @@ from typing import Optional
 from ailment import Block, Assignment, Const
 from ailment.expression import Convert
 from ailment.statement import Statement, Label, Call, Return, ConditionalJump, Jump
-from angr.rust.utils.ail_util import CallFinder
+from angr.rust.utils.ail import CallFinder
 
 from angr.rust.utils.library import normalize
 
