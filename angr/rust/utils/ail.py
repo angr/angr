@@ -1,4 +1,4 @@
-from typing import Any, Tuple
+from typing import Any, Tuple, Union
 
 from ailment import Block, AILBlockWalker, Expression, UnaryOp, BinaryOp, Const
 from ailment.expression import VirtualVariable
@@ -11,14 +11,27 @@ class CallFinder(AILBlockWalker):
         self.call = None
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        super()._handle_Call(stmt_idx, stmt, block)
         if not self.call:
             self.call = stmt
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
         if not self.call:
             self.call = expr
+
+
+def find_call(obj: Union[Block, Statement, Expression]):
+    walker = CallFinder()
+    if isinstance(obj, Block):
+        walker.walk(obj)
+    elif isinstance(obj, Statement):
+        walker.walk_statement(obj)
+    elif isinstance(obj, Expression):
+        walker.walk_expression(obj)
+    return walker.call
+
+
+def has_call(obj: Union[Block, Statement, Expression]):
+    return find_call(obj) is not None
 
 
 def get_terminal_call(block: Block):

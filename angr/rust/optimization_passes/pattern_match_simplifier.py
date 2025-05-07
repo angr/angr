@@ -6,7 +6,7 @@ from ailment import Statement
 from ailment.expression import VirtualVariable, Load
 from ailment.statement import Label, Assignment, Call
 
-from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
+from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.rust.mixins import DFAMixin
 from angr.rust.optimization_passes.pre_pattern_match_simplifier import PrePatternMatchSimplifier
 from angr.analyses.decompiler.optimization_passes.optimization_pass import (

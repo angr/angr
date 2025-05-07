@@ -9,7 +9,7 @@ from .base import SSAVariableHelper
 from ..mixins import CFAMixin, SRDAMixin, DFAMixin
 from ..definitions.structs import ArrayReference
 from ..sim_type import RustSimStruct, RustSimTypeReference
-from ..utils.ail_util import unwrap_stack_vvar_reference
+from ..utils.ail import unwrap_stack_vvar_reference
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 

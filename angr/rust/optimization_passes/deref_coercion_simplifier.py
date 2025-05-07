@@ -3,7 +3,7 @@ from ailment.expression import VirtualVariable, Load, StringLiteral
 from ailment.statement import Call, Statement, FunctionLikeMacro
 
 from ..sim_type import RustSimTypeString
-from ..utils.ail_util import unwrap_stack_vvar_reference
+from ..utils.ail import unwrap_stack_vvar_reference
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..mixins.cfa_mixin import CFAMixin
 from ..mixins.srda_mixin import SRDAMixin

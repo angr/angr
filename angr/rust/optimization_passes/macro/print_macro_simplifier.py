@@ -6,7 +6,7 @@ from ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Ar
 from ailment.statement import Call, FunctionLikeMacro
 
 from angr.rust.optimization_passes.utils import extract_str_from_addr
-from angr.rust.utils.ail_util import unwrap_stack_vvar_reference
+from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.mixins import CFAMixin, DFAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
