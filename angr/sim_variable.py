@@ -75,6 +75,10 @@ class SimVariable(Serializable):
     def is_function_argument(self):
         return self.ident and self.ident.startswith("arg_")
 
+    @property
+    def bits(self) -> int:
+        return self.size * 8
+
     #
     # Operations
     #
@@ -182,10 +186,6 @@ class SimRegisterVariable(SimVariable):
         self.reg = reg_offset
         self._hash: int | None = None
 
-    @property
-    def bits(self):
-        return self.size * 8
-
     def __repr__(self):
         ident_str = f"[{self.ident}]" if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
@@ -277,10 +277,6 @@ class SimMemoryVariable(SimVariable):
             return self.ident == other.ident and self.addr == other.addr and self.size == other.size
 
         return False
-
-    @property
-    def bits(self):
-        return self.size * 8
 
     def copy(self) -> SimMemoryVariable:
         r = SimMemoryVariable(

@@ -414,15 +414,26 @@ class VariableRecoveryStateBase:
         return mos_self == mos_other
 
     def _make_phi_variable(self, values: set[claripy.ast.BV | claripy.ast.FP]) -> claripy.ast.Base | None:
-        # we only create a new phi variable if the there is at least one variable involved
+        # we create a new phi variable if:
+        # - there are at least two variables
+        # - all variables are of the same size
+        # - all variables and all values are of the same size
         variables = set()
         bits: int | None = None
         for v in values:
-            bits = v.size()
+            if bits is None:
+                bits = v.size()
+            elif bits != v.size():
+                # multiple variable sizes are found; give up
+                return None
             for _, var in self.extract_variables(v):
+                if var.bits != bits:
+                    # variable size does not match the value size; give up
+                    return None
                 variables.add(var)
 
         if len(variables) <= 1:
+            # only one variable is found; we do not need to create a phi variable
             return None
 
         assert self.successor_block_addr is not None

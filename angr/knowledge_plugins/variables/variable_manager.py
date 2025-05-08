@@ -1049,7 +1049,7 @@ class VariableManagerInternal(Serializable):
             elif isinstance(v, SimRegisterVariable):
                 reg_vars.add(v)
 
-        # unify register variables based on phi nodes
+        # unify variables based on phi nodes
         graph = networkx.DiGraph()  # an edge v1 -> v2 means v2 is the phi variable for v1
         for v, subvs in self._phi_variables.items():
             if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
