@@ -197,7 +197,7 @@ class CFGTransformationMixin:
             self.remove_jump_target(block, block.addr, block.idx)
             num_successors = len(list(graph.successors(block)))
             if num_successors != 1:
-                l.warning("Failed to remove block with more twp successor")
+                # l.warning("Failed to remove block with more two successor")
                 return False
 
         if num_successors == 1:

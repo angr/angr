@@ -3,6 +3,7 @@ from ailment.expression import VirtualVariable, Load
 from ailment.statement import Assignment
 
 from angr.rust.mixins import CFAMixin, SRDAMixin
+from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.optimization_passes.base import SSAVariableHelper
 from angr.rust.optimization_passes.cleanup_code_remover import CLEANUP_FUNCTIONS
@@ -93,9 +94,10 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
                 post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
                 rcc = self.project.analyses.RustCallingConvention(
                     func,
-                    parent_graph=self._graph,
-                    callsite_block=block,
-                    post_callsite_block=post_callsite_block,
+                    callsite_path=Pathfinder(self._graph).find_backward_path(block),
+                    post_callsite_path=(
+                        Pathfinder(self._graph).find_forward_path(post_callsite_block) if post_callsite_block else None
+                    ),
                     is_call_expr=is_expr,
                 )
                 call.prototype = rcc.model.inferred_prototype

@@ -1745,7 +1745,7 @@ class RustStringLiteral(RustExpression):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield '"', None
-        yield self.data, None
+        yield repr(self.data)[1:-1], None
         yield '"', None
 
 
