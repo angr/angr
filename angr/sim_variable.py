@@ -1,5 +1,4 @@
 from __future__ import annotations
-import collections.abc
 from typing import TYPE_CHECKING
 import logging
 
@@ -16,6 +15,10 @@ _l = logging.getLogger(__name__)
 
 
 class SimVariable(Serializable):
+    """
+    The base class for all other classes of variables.
+    """
+
     __slots__ = [
         "candidate_names",
         "category",
@@ -95,6 +98,10 @@ class SimVariable(Serializable):
 
 
 class SimConstantVariable(SimVariable):
+    """
+    Describes a constant variable.
+    """
+
     __slots__ = ["_hash", "value"]
 
     def __init__(self, size: int, ident=None, value=None, region=None):
@@ -130,6 +137,10 @@ class SimConstantVariable(SimVariable):
 
 
 class SimTemporaryVariable(SimVariable):
+    """
+    Describes a temporary variable.
+    """
+
     __slots__ = ["_hash", "tmp_id"]
 
     def __init__(self, tmp_id: int, size: int):
@@ -162,7 +173,7 @@ class SimTemporaryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.TemporaryVariable()
+        return pb2.TemporaryVariable()  # type:ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -178,6 +189,10 @@ class SimTemporaryVariable(SimVariable):
 
 
 class SimRegisterVariable(SimVariable):
+    """
+    Describes a register variable.
+    """
+
     __slots__ = ["_hash", "reg"]
 
     def __init__(self, reg_offset: int, size: int, ident=None, name=None, region=None, category=None):
@@ -220,7 +235,7 @@ class SimRegisterVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.RegisterVariable()
+        return pb2.RegisterVariable()  # type:ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -240,6 +255,10 @@ class SimRegisterVariable(SimVariable):
 
 
 class SimMemoryVariable(SimVariable):
+    """
+    Describes a memory variable; the base class for other types of memory variables.
+    """
+
     __slots__ = ["_hash", "addr"]
 
     def __init__(self, addr, size: int, ident=None, name=None, region=None, category=None):
@@ -287,7 +306,7 @@ class SimMemoryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.MemoryVariable()
+        return pb2.MemoryVariable()  # type:ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -307,6 +326,10 @@ class SimMemoryVariable(SimVariable):
 
 
 class SimStackVariable(SimMemoryVariable):
+    """
+    Describes a stack variable.
+    """
+
     __slots__ = (
         "base",
         "base_addr",
@@ -382,7 +405,7 @@ class SimStackVariable(SimMemoryVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.StackVariable()
+        return pb2.StackVariable()  # type:ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -409,129 +432,3 @@ class SimStackVariable(SimMemoryVariable):
         )
         obj._from_base(cmsg)
         return obj
-
-
-class SimVariableSet(collections.abc.MutableSet):
-    """
-    A collection of SimVariables.
-    """
-
-    def __init__(self):
-        self.register_variables = set()
-        # For the sake of performance optimization, all elements in register_variables must be concrete integers which
-        # representing register offsets..
-        # There shouldn't be any problem apart from GetI/PutI instructions. We simply ignore them for now.
-        # TODO: Take care of register offsets that are not aligned to (arch.bytes)
-        # TODO: arch.bits/what? That number has no power here anymore.
-        self.register_variable_offsets = set()
-
-        # memory_variables holds SimMemoryVariable objects
-        self.memory_variables = set()
-        # For the sake of performance, we have another set that stores memory addresses of memory_variables
-        self.memory_variable_addresses = set()
-
-    def add(self, value):
-        if type(value) is SimRegisterVariable:
-            if not self.contains_register_variable(value):
-                self.add_register_variable(value)
-        elif type(value) is SimMemoryVariable:
-            if not self.contains_memory_variable(value):
-                self.add_memory_variable(value)
-        else:
-            assert False, "Unknown type"
-
-    def add_register_variable(self, reg_var):
-        self.register_variables.add(reg_var)
-        self.register_variable_offsets.add(reg_var.reg)
-
-    def add_memory_variable(self, mem_var):
-        self.memory_variables.add(mem_var)
-        base_address = mem_var.addr.address  # Dealing with AddressWrapper
-        for i in range(mem_var.size):
-            self.memory_variable_addresses.add(base_address + i)
-
-    def discard(self, value):
-        if type(value) is SimRegisterVariable:
-            if self.contains_register_variable(value):
-                self.discard_register_variable(value)
-        elif isinstance(value, SimMemoryVariable):
-            if self.contains_memory_variable(value):
-                self.discard_memory_variable(value)
-        else:
-            assert False, "Unknown type"
-
-    def discard_register_variable(self, reg_var):
-        self.register_variables.remove(reg_var)
-        self.register_variable_offsets.remove(reg_var.reg)
-
-    def discard_memory_variable(self, mem_var):
-        self.memory_variables.remove(mem_var)
-        for i in range(mem_var.size):
-            self.memory_variable_addresses.remove(mem_var.addr.address + i)
-
-    def __len__(self):
-        return len(self.register_variables) + len(self.memory_variables)
-
-    def __iter__(self):
-        yield from self.register_variables
-        yield from self.memory_variables
-
-    def add_memory_variables(self, addrs, size):
-        for a in addrs:
-            var = SimMemoryVariable(a, size)
-            self.add_memory_variable(var)
-
-    def copy(self):
-        s = SimVariableSet()
-        s.register_variables |= self.register_variables
-        s.register_variable_offsets |= self.register_variable_offsets
-        s.memory_variables |= self.memory_variables
-        s.memory_variable_addresses |= self.memory_variable_addresses
-
-        return s
-
-    def complement(self, other):
-        """
-        Calculate the complement of `self` and `other`.
-
-        :param other:   Another SimVariableSet instance.
-        :return:        The complement result.
-        """
-
-        s = SimVariableSet()
-        s.register_variables = self.register_variables - other.register_variables
-        s.register_variable_offsets = self.register_variable_offsets - other.register_variable_offsets
-        s.memory_variables = self.memory_variables - other.memory_variables
-        s.memory_variable_addresses = self.memory_variable_addresses - other.memory_variable_addresses
-
-        return s
-
-    def contains_register_variable(self, reg_var):
-        reg_offset = reg_var.reg
-        # TODO: Make sure reg_offset is aligned to machine-word length
-
-        return reg_offset in self.register_variable_offsets
-
-    def contains_memory_variable(self, mem_var):
-        a = mem_var.addr
-        if type(a) in (tuple, list):
-            a = a[-1]
-
-        return a in self.memory_variable_addresses
-
-    def __ior__(self, other):
-        # other must be a SimVariableSet
-        self.register_variables |= other.register_variables
-        self.register_variable_offsets |= other.register_variable_offsets
-        self.memory_variables |= other.memory_variables
-        self.memory_variable_addresses |= other.memory_variable_addresses
-
-    def __contains__(self, item):
-        if type(item) is SimRegisterVariable:
-            return self.contains_register_variable(item)
-
-        if type(item) is SimMemoryVariable:
-            # TODO: Make it better!
-            return self.contains_memory_variable(item)
-
-        assert False, "WTF is this variable?"
