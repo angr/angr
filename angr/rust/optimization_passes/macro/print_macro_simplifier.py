@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from typing import Tuple
 
@@ -17,9 +18,12 @@ PRINT_FUNCTIONS = (
     "std::io::stdio::_print",
     "std::io::stdio::_eprint",
     "alloc::fmt::format::format_inner",
+    "alloc::fmt::format",
     "core::option::Option<T>::map_or_else",
     "core::panicking::panic_fmt",
 )
+
+l = logging.getLogger(__name__)
 
 
 class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
@@ -41,18 +45,20 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
 
     @staticmethod
     def _select_macro(func_name, fmt_str) -> Tuple[str, str, RustSimType | None] | Tuple[None, None, None]:
-        if func_name.endswith("::_print"):
-            if fmt_str.endswith("\n"):
-                return "println", fmt_str[:-1], None
-            return "print", fmt_str, None
-        elif func_name.endswith("::_eprint"):
-            if fmt_str.endswith("\n"):
-                return "eprintln", fmt_str[:-1], None
-            return "eprint", fmt_str, None
-        elif func_name.endswith("::format_inner") or func_name.endswith("::map_or_else"):
-            return "format", fmt_str, RustSimTypeString()
-        elif func_name.endswith("::panic_fmt"):
-            return "panic", fmt_str, None
+        match func_name.split("::")[-1]:
+            case "_print":
+                if fmt_str.endswith("\n"):
+                    return "println", fmt_str[:-1], None
+                return "print", fmt_str, None
+            case "_eprint":
+                if fmt_str.endswith("\n"):
+                    return "eprintln", fmt_str[:-1], None
+                return "eprint", fmt_str, None
+            case "format_inner" | "format" | "map_or_else":
+                return "format", fmt_str, RustSimTypeString()
+            case "panic_fmt":
+                return "panic", fmt_str, None
+        l.error(f"Can't find a macro for {func_name}")
         return None, None, None
 
     def _is_debug_formatter(self, arg: Struct):
@@ -125,9 +131,6 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
         for block in self._graph.nodes:
             CallReplacer(self.replace_call).walk(block)
         for block, stmts in self._stmts_to_remove.items():
-            old_block = block.copy()
             for stmt in stmts:
-                try:
+                if stmt in block.statements:
                     block.statements.remove(stmt)
-                except:
-                    pass

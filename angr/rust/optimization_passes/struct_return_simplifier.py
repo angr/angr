@@ -1,11 +1,9 @@
 from collections import defaultdict
-from typing import Tuple
 
-from ailment import BinaryOp, AILBlockWalker, Statement, Block
 from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, Enum
-from ailment.statement import Return, Store, ConditionalJump, Jump, Label, Call
+from ailment.statement import Return, Store
 from angr.rust.utils.ail import extract_vvar_and_offset
-from angr.rust.analyses.rust_calling_convention import FunctionBodyFactCollector
+from angr.rust.analyses.rust_calling_convention import Pathfinder
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
@@ -132,7 +130,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 ret_blocks.add(block)
 
         blocks_to_remove = set()
-        paths = FunctionBodyFactCollector.calculate_ret2arg0_paths(self._graph)
+        paths = Pathfinder(self._graph, self).find_ret2arg0_paths()
         for path in paths:
             ret_expr, stmts_to_remove = self.collect_ret_expr(path)
             if ret_expr:

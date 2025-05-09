@@ -1,12 +1,13 @@
 from ailment import Block, Assignment, Const, AILBlockWalkerBase
-from ailment.expression import VirtualVariable
+from ailment.expression import VirtualVariable, Enum
 from ailment.statement import Label, Return, Jump, Call
+from angr.analyses.decompiler.utils import _flatten_structured_node
 
 from angr.rust.sim_type import RustSimTypeResult
 from angr.analyses.decompiler.optimization_passes import OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes.optimization_pass import SequenceOptimizationPass
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode
+from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, MultiNode
 from angr.rust.structuring.structurer_nodes import PatternMatchNode
 from angr.utils.ssa import VVarUsesCollector
 
@@ -59,6 +60,23 @@ class ErrorPropagationWalker(SequenceWalker):
         return False
 
     @staticmethod
+    def _structured_node_is_simple_return_err_enum_strict(node) -> bool:
+        """
+        Returns True iff the node exclusively contains a return statement.
+        """
+        if isinstance(node, (SequenceNode, MultiNode)) and node.nodes:
+            flat_blocks = _flatten_structured_node(node)
+            if len(flat_blocks) != 1:
+                return False
+            node = flat_blocks[-1]
+
+        if isinstance(node, Block) and len(node.statements) == 1 and isinstance(node.statements[0], Return):
+            ret_exprs = node.statements[0].ret_exprs
+            ret_expr = ret_exprs[0] if ret_exprs else None
+            return isinstance(ret_expr, Enum) and ret_expr.name == "Err"
+        return False
+
+    @staticmethod
     def _contains_addr(node, block_addr, block_idx):
         class Temp:
             found = False
@@ -102,7 +120,7 @@ class ErrorPropagationWalker(SequenceWalker):
             elif node.scrutinee.was_reg:
                 new_dst_vvar = node.scrutinee
 
-        if err_node and ok_node and self._is_early_return(err_node):
+        if err_node and ok_node and self._structured_node_is_simple_return_err_enum_strict(err_node):
             if isinstance(node.scrutinee, VirtualVariable) and node.scrutinee.varid in self.context.varid_to_assignment:
                 assignment = self.context.varid_to_assignment[node.scrutinee.varid]
                 assignment.src.tags["propagates_error"] = True

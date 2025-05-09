@@ -8,22 +8,19 @@ from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Ph
 from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment, Jump, Label
 from networkx import DiGraph
 
-from ..mixins.cfa_mixin import CFAMixin
-from ..mixins.dfa_mixin import DFAMixin
-from ..mixins.srda_mixin import SRDAMixin
-from ..optimization_passes.cleanup_code_remover import CleanupCodeRemover
-from ..optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
-from ..sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType
-from ..knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
-from ..sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
-from ..utils.ail import unwrap_stack_vvar_reference
-from ..utils.library import normalize
-from ..knowledge_plugins.known_structs import KnownStructs
-from ..analyses.struct_memory_layout import SimpleMessageLayoutInference
-from ..utils.ail import extract_vvar_and_offset
-from ...utils.graph import GraphUtils
-from ...analyses import Analysis, AnalysesHub
-from ...knowledge_plugins import Function
+from angr.rust.mixins import SRDAMixin, DFAMixin, CFAMixin
+from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
+from angr.rust.optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
+from angr.rust.sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType
+from angr.rust.knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
+from angr.rust.sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
+from angr.rust.utils.ail import unwrap_stack_vvar_reference, has_call, extract_vvar_and_offset
+from angr.rust.utils.library import normalize
+from angr.rust.knowledge_plugins.known_structs import KnownStructs
+from angr.rust.analyses.struct_memory_layout import SimpleMessageLayoutInference
+from angr.utils.graph import GraphUtils
+from angr.analyses import Analysis, AnalysesHub
+from angr.knowledge_plugins import Function
 
 l = logging.getLogger(name=__name__)
 
@@ -38,81 +35,17 @@ CONST_STR_ERRORS = {
 }
 
 
-class FunctionBodyFactCollector(AILBlockWalker):
-    def __init__(self, context: "RustCallingConventionAnalysis"):
-        super().__init__()
-        self.context = context
-        self.project = context.clinic.project
-        self.model = context.model
-        self.graph = context.clinic.graph
-        self.has_write_to_arg0 = False
-        self.const_ret_values = set()
+class Pathfinder:
 
-        self._path = None
-
-    @staticmethod
-    def _has_call(block_or_stmt):
-        class CallWalker(AILBlockWalker):
-            def __init__(self):
-                super().__init__()
-                self.has_call = False
-
-            def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-                self.has_call = True
-                return None
-
-            def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-                self.has_call = True
-                return None
-
-        walker = CallWalker()
-        if isinstance(block_or_stmt, Block):
-            walker.walk(block_or_stmt)
-        elif isinstance(block_or_stmt, Statement):
-            walker.walk_statement(block_or_stmt)
-        return walker.has_call
-
-    @staticmethod
-    def _is_ret2arg0_block(block):
-        for stmt in reversed(block.statements):
-            if isinstance(stmt, Store):
-                vvar, _ = extract_vvar_and_offset(stmt.addr)
-                if isinstance(vvar, VirtualVariable) and vvar.was_parameter and vvar.varid == 0:
-                    return True
-        return False
+    def __init__(self, graph, srda_mixin: SRDAMixin = None):
+        self.graph = graph
+        self._srda_mixin = srda_mixin
 
     @staticmethod
     def _is_safe_block(block):
         return all(
             isinstance(stmt, (Return, Jump, ConditionalJump, Label, Assignment)) for stmt in block.statements
-        ) and not FunctionBodyFactCollector._has_call(block)
-
-    @staticmethod
-    def _calculate_ret2arg0_path(graph, head_block, visited):
-        visited.add(head_block)
-        paths = [[head_block]]
-        changed = True
-        while changed:
-            changed = False
-            new_paths = []
-            for path in paths:
-                last_block = path[-1]
-                path_changed = False
-                for succ in graph.successors(last_block):
-                    if succ not in path and (
-                        FunctionBodyFactCollector._is_ret2arg0_block(succ)
-                        or FunctionBodyFactCollector._is_safe_block(succ)
-                    ):
-                        new_path = list(path) + [succ]
-                        new_paths.append(new_path)
-                        changed = True
-                        path_changed = True
-                    visited.add(succ)
-                if not path_changed:
-                    new_paths.append(path)
-            paths = new_paths
-        paths = set(tuple(path) for path in paths if isinstance(path[-1].statements[-1], Return))
-        return paths
+        ) and not has_call(block)
 
     @staticmethod
     def _remove_phi(path):
@@ -140,27 +73,106 @@ class FunctionBodyFactCollector(AILBlockWalker):
             walker.pred_block = block
         return tuple(new_path)
 
-    @staticmethod
-    def calculate_ret2arg0_paths(graph, remove_phi=False):
+    def _is_ret2arg0_block(self, block):
+        for stmt in reversed(block.statements):
+            if isinstance(stmt, Store):
+                vvar, _ = extract_vvar_and_offset(stmt.addr)
+                if isinstance(vvar, VirtualVariable) and self._srda_mixin:
+                    vvar = self._srda_mixin.get_terminal_vvar(vvar)
+                if isinstance(vvar, VirtualVariable) and vvar.was_parameter and vvar.varid == 0:
+                    return True
+        return False
+
+    def _find_ret2arg0_path(self, head_block, visited):
+        visited.add(head_block)
+        paths = [[head_block]]
+        changed = True
+        while changed:
+            changed = False
+            new_paths = []
+            for path in paths:
+                last_block = path[-1]
+                path_changed = False
+                for succ in self.graph.successors(last_block):
+                    if succ not in path and (self._is_ret2arg0_block(succ) or self._is_safe_block(succ)):
+                        new_path = list(path) + [succ]
+                        new_paths.append(new_path)
+                        changed = True
+                        path_changed = True
+                    visited.add(succ)
+                if not path_changed:
+                    new_paths.append(path)
+            paths = new_paths
+        paths = set(tuple(path) for path in paths if isinstance(path[-1].statements[-1], Return))
+        return paths
+
+    def find_ret2arg0_paths(self, remove_phi=False):
         visited = set()
         paths = set()
-        for block in GraphUtils.quasi_topological_sort_nodes(graph):
-            if FunctionBodyFactCollector._is_ret2arg0_block(block) and block not in visited:
-                paths = paths.union(FunctionBodyFactCollector._calculate_ret2arg0_path(graph, block, visited))
+        for block in GraphUtils.quasi_topological_sort_nodes(self.graph):
+            if self._is_ret2arg0_block(block) and block not in visited:
+                paths = paths.union(self._find_ret2arg0_path(block, visited))
             else:
                 visited.add(block)
-        paths = set(FunctionBodyFactCollector._remove_phi(path) if remove_phi else path for path in paths)
+        paths = set(self._remove_phi(path) if remove_phi else path for path in paths)
         return paths
+
+    @staticmethod
+    def path_to_graph(path):
+        graph = DiGraph()
+        graph.add_node(path[0])
+        for i in range(len(path) - 1):
+            u = path[i]
+            v = path[i + 1]
+            graph.add_edge(u, v)
+        return graph
+
+    def find_backward_path(self, block, max_length=None):
+        visited = {block}
+        path = [block]
+        while len(preds := list(self.graph.predecessors(block))) == 1 and (
+            max_length is None or len(path) < max_length
+        ):
+            block = preds[0]
+            if block in visited:
+                break
+            visited.add(block)
+            path.insert(0, block)
+        return path
+
+    def find_forward_path(self, block, max_length=None):
+        visited = {block}
+        path = [block]
+        while len(succs := list(self.graph.successors(block))) == 1 and (max_length is None or len(path) < max_length):
+            block = succs[0]
+            if block in visited:
+                break
+            visited.add(block)
+            path.append(block)
+        return path
+
+
+class FunctionBodyFactCollector(AILBlockWalker):
+    def __init__(self, context: "RustCallingConventionAnalysis"):
+        super().__init__()
+        self.context = context
+        self.project = context.project
+        self.model = context.model
+        self.graph = context.graph
+        self.has_write_to_arg0 = False
+        self.const_ret_values = set()
+
+        self._path = None
 
     def collect(self):
         """
         Calculate paths that write return values to the first argument
         Collect facts from every path and every callsite in this function
         """
-        paths = self.calculate_ret2arg0_paths(self.graph, remove_phi=True)
+        paths = Pathfinder(self.graph, self.context).find_ret2arg0_paths(remove_phi=True)
         callsites = set()
-        for block in self.context.clinic.graph.nodes:
-            if self._has_call(block):
+        for block in self.context.graph.nodes:
+            if has_call(block):
                 callsites.add((block,))
 
         for path in paths | callsites:
@@ -169,7 +181,7 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 self.walk(block)
 
         if len(paths) == 0:
-            for block in self.context.clinic.graph.nodes:
+            for block in self.context.graph.nodes:
                 if isinstance(block.statements[-1], Return):
                     stmt = block.statements[-1]
                     ret_expr = stmt.ret_exprs[0] if stmt.ret_exprs else None
@@ -187,12 +199,12 @@ class FunctionBodyFactCollector(AILBlockWalker):
     def add_memory_write(self, arg_idx, block_or_path, offset, expr):
         if block_or_path not in self.model.memory_writes[arg_idx]:
             self.model.memory_writes[arg_idx][block_or_path] = {}
-        self.model.memory_writes[arg_idx][block_or_path][offset] = (expr, self.context.clinic.function.addr)
+        self.model.memory_writes[arg_idx][block_or_path][offset] = (expr, self.context.func.addr)
 
     def add_memory_read(self, arg_idx, block, offset, expr):
         if block not in self.model.memory_reads[arg_idx]:
             self.model.memory_reads[arg_idx][block] = {}
-        self.model.memory_reads[arg_idx][block][offset] = (expr, self.context.clinic.function.addr)
+        self.model.memory_reads[arg_idx][block][offset] = (expr, self.context.func.addr)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         addr = stmt.addr
@@ -216,15 +228,13 @@ class FunctionBodyFactCollector(AILBlockWalker):
             and call.target.value in self.project.kb.functions
             and call.args
             and isinstance(call.args[0], VirtualVariable)
-            and call.args[0].was_parameter
-            and call.args[0].varid == 0
+            and ((arg0 := self.context.get_terminal_vvar(call.args[0])) and arg0.was_parameter and arg0.varid == 0)
         ):
             func = self.project.kb.functions[call.target.value]
-            if func.normalized and func.size:
+            if func.normalized and func.size and self.context.depth < self.context.max_depth:
                 result = self.project.analyses.RustCallingConvention(
                     func,
-                    parent_graph=self.context.clinic.graph,
-                    callsite_block=block,
+                    callsite_path=Pathfinder(self.graph).find_backward_path(block),
                     depth=self.context.depth + 1,
                     max_depth=self.context.max_depth,
                 )
@@ -261,58 +271,57 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def __init__(
         self,
         func,
-        parent_graph=None,
-        callsite_block=None,
-        post_callsite_block=None,
+        graph=None,
+        callsite_path=None,
+        post_callsite_path=None,
         is_call_expr=None,
         depth=0,
         max_depth=2,
+        rewrite=False,
     ):
         self.func: Function = func
-
-        self.parent_graph = parent_graph
-        self.callsite_block = callsite_block
-        self.post_callsite_block = post_callsite_block
+        self.graph = graph
+        self.callsite_path = callsite_path
+        self.post_callsite_path = post_callsite_path
         self.is_call_expr = is_call_expr
         self.depth = depth
         self.max_depth = max_depth
+        self.rewrite = rewrite
+
         self._fact_collector = None
 
         if self.func.addr in self.kb.rust_calling_conventions.cache:
             self.model = self.kb.rust_calling_conventions.cache[self.func.addr]
         else:
             self.model = RustCallingConventionModel()
-            self.clinic = None
-            if self.func.normalized and self.func.size:
+
+            if self.depth > self.max_depth:
+                return
+
+            if self.graph is None and self.func.normalized and self.func.size:
                 try:
                     cfg = self.kb.cfgs.get_most_accurate()
-                    self.clinic = self.project.analyses.Clinic(
+                    self.graph = self.project.analyses.Clinic(
                         self.func, cfg=cfg, optimization_passes=[UnreachableBranchFixer, CleanupCodeRemover]
-                    )
+                    ).graph
                 except Exception as e:
-                    l.debug(f"Failed to recover AIL graph for {normalize(self.func.name)}")
-                    l.debug("".join(traceback.format_exception(e)))
+                    l.error(f"Failed to recover AIL graph for {normalize(self.func.name)}")
+                    l.error("".join(traceback.format_exception(e)))
 
-            if self.clinic:
-                CFAMixin.__init__(self, self.clinic, self.project)
-                SRDAMixin.__init__(self, self.func, self.clinic.graph, self.project)
-                DFAMixin.__init__(self)
+            if self.graph:
+                CFAMixin.__init__(self, self.graph, self.project)
+                SRDAMixin.__init__(self, self.func, self.graph, self.project)
+                DFAMixin.__init__(self, self.graph)
                 self._fact_collector = FunctionBodyFactCollector(self)
 
-                if self.depth <= self.max_depth:
-                    try:
-                        self._analyze()
-                    except Exception as e:
-                        l.debug(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
-                        l.debug("".join(traceback.format_exception(e)))
+                try:
+                    self._analyze()
+                except Exception as e:
+                    l.error(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
+                    l.error("".join(traceback.format_exception(e)))
 
     def _srda_on_path(self, path: Tuple[Block]):
-        graph = DiGraph()
-        for i in range(len(path) - 1):
-            u = path[i]
-            v = path[i + 1]
-            graph.add_edge(u, v)
-        return SRDAMixin(self.func, graph, self.project)
+        return SRDAMixin(self.func, Pathfinder.path_to_graph(path), self.project)
 
     def _calculate_discriminant(self, path: Tuple[Block]) -> Optional[Const]:
         srda = self._srda_on_path(path)
@@ -504,7 +513,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def infer_prototype(self):
         returnty, is_arg0_ret_buf = self._infer_return_type()
         args = []
-        for arg_idx, old_arg_type in zip(range(len(self.clinic.arg_list)), self.func.prototype.args):
+        for arg_idx, old_arg_type in enumerate(self.func.prototype.args):
             if is_arg0_ret_buf and arg_idx == 0:
                 args.append(RustSimTypeReference(returnty).with_arch(self.project.arch))
                 continue
@@ -528,16 +537,15 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def add_callsite_memory_write(self, arg_idx, block, offset, expr):
         if block not in self.model.callsite_memory_writes[arg_idx]:
             self.model.callsite_memory_writes[arg_idx][block] = {}
-        self.model.callsite_memory_writes[arg_idx][block][offset] = (expr, self.clinic.function.addr)
+        self.model.callsite_memory_writes[arg_idx][block][offset] = (expr, self.func.addr)
 
     def collect_callsite_facts(self):
         """
         Collect memory writes to stack regions that are probably used by callee function
         """
-        callsite_block = self.callsite_block
-        if callsite_block is None or self.parent_graph is None:
+        if not self.callsite_path:
             return
-        call = self.terminal_call(callsite_block)
+        call = self.terminal_call(self.callsite_path[-1])
         if call and call.args:
             # Calculate arguments' stack offsets
             stack_offsets = set()
@@ -553,7 +561,9 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                 next_offsets[stack_offsets[i]] = stack_offsets[i + 1]
             next_offsets[stack_offsets[-1]] = None
             # Collect memory writes to stack variables in callsite block
-            stack_defs = DFAMixin(self.parent_graph).collect_callsite_stack_defs(callsite_block)
+            stack_defs = DFAMixin(Pathfinder.path_to_graph(self.callsite_path)).collect_callsite_stack_defs(
+                self.callsite_path[-1]
+            )
             for idx, arg in enumerate(call.args):
                 if vvar := unwrap_stack_vvar_reference(arg):
                     cur_offset = vvar.stack_offset
@@ -589,6 +599,15 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                 ):
                     self.model.none_discriminant = cond.operands[1].value
 
+    def _rewrite_return_sites(self):
+        ret_blocks = set()
+        for block in self._graph.nodes:
+            if block.statements and isinstance(block.statements[-1], Return):
+                ret_blocks.add(block)
+        paths = Pathfinder(self._graph, self).find_ret2arg0_paths()
+
+        blocks_to_remove = set()
+
     def _analyze(self):
         self.collect_function_body_facts()
         self.collect_callsite_facts()
@@ -597,6 +616,9 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         self.model.const_ret_values.update(self._fact_collector.const_ret_values)
 
         prototype = self.infer_prototype()
+
+        # if self.rewrite and prototype.is_arg0_retbuf:
+        #     self._rewrite_return_sites()
 
         self.model.inferred_prototype = prototype
         self.kb.rust_calling_conventions.cache[self.func.addr] = self.model
