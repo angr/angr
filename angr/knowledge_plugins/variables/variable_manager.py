@@ -1090,14 +1090,8 @@ class VariableManagerInternal(Serializable):
         for v in sorted(reg_vars, key=lambda v: v.ident):
             self.set_unified_variable(v, v)
 
-        stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
-        for v in stack_vars:
-            stack_vars_by_offset[v.offset].append(v)
-        for vs in stack_vars_by_offset.values():
-            vs = sorted(vs, key=lambda v: v.ident)
-            unified = vs[0].copy()
-            for v in vs:
-                self.set_unified_variable(v, unified)
+        for v in sorted(stack_vars, key=lambda v: v.ident):
+            self.set_unified_variable(v, v)
 
     def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
         """

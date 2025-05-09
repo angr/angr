@@ -174,13 +174,13 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             # update phi_congruence_class
             (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
             phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
+            # phi_stmt is the newly created phi statement with variables replaced
             phi_stmt = phi_block.statements[phidef_stmt_idx]
-
+            phi_src_vvar_ids = {src_vvar.varid for _, src_vvar in phi_stmt.src.src_and_vvars if src_vvar is not None}
             new_class = phi_congruence_class[phi_stmt.dst.varid]
-            for _, vvar in phi_stmt.src.src_and_vvars:
-                if vvar is not None:
-                    new_class |= phi_congruence_class[vvar.varid]
-                    phi_congruence_class[vvar.varid] = new_class
+            for src_vvar_id in phi_src_vvar_ids:
+                new_class |= phi_congruence_class[src_vvar_id]
+                phi_congruence_class[src_vvar_id] = new_class
 
         # append statements that were recorded for prepending
         for block, stmts in self._stmts_to_prepend.items():

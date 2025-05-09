@@ -1280,11 +1280,21 @@ class TestDecompiler(unittest.TestCase):
         assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
         stmts = dw.body.statements
         assert len(stmts) == 5
-        assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
-        assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
-        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.operand.variable == stmts[2].lhs.variable
+        # Current decompilation output:
+        #   do
+        #   {
+        #       v1 = v0 + 1;
+        #       v3 = v2 + 1;
+        #       *(v2) = *(v0);
+        #       v0 = v1;
+        #       v2 = v3;
+        #   } while (*(v2))
+        # We can improve it by re-arranging the first three statements; we leave it as future work
+        assert stmts[0].lhs.unified_variable == stmts[3].rhs.unified_variable
+        assert stmts[1].lhs.unified_variable == stmts[4].rhs.unified_variable
+        assert stmts[2].lhs.operand.variable == stmts[4].lhs.variable
+        assert stmts[2].rhs.operand.variable == stmts[3].lhs.variable
+        assert dw.condition.lhs.operand.variable == stmts[2].lhs.operand.variable
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
