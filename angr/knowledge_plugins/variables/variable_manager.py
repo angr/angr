@@ -155,16 +155,16 @@ class VariableManagerInternal(Serializable):
         ]
         d = {k: getattr(self, k) for k in attributes}
         d["manager"] = None
-        d["types"].kb = None
+        d["types"]._kb = None
         return d
 
     def set_manager(self, manager: VariableManager):
         self.manager = manager
-        self.types.kb = manager._kb
+        self.types._kb = manager._kb
 
     @classmethod
     def _get_cmsg(cls):
-        return variables_pb2.VariableManagerInternal()
+        return variables_pb2.VariableManagerInternal()  # type: ignore[reportAttributeAccessIssue]
 
     def serialize_to_cmessage(self):
         # pylint:disable=no-member,unused-variable
@@ -215,6 +215,7 @@ class VariableManagerInternal(Serializable):
 
         unified_variable_idents: set[str] = set()
         for variable in self._unified_variables:
+            assert isinstance(variable.ident, str)
             unified_variable_idents.add(variable.ident)
             if isinstance(variable, SimRegisterVariable):
                 unified_register_variables.append(variable.serialize_to_cmessage())
@@ -239,7 +240,7 @@ class VariableManagerInternal(Serializable):
                     self.func_addr,
                 )
                 continue
-            relation = variables_pb2.Var2Unified()
+            relation = variables_pb2.Var2Unified()  # type: ignore[reportAttributeAccessIssue]
             relation.var_ident = variable.ident
             relation.unified_var_ident = unified.ident
             relations.append(relation)
@@ -252,7 +253,7 @@ class VariableManagerInternal(Serializable):
                 if var not in self._variables and var not in self._phi_variables:
                     l.error("Ignore variable %s because it is not in the registered list.", var.ident)
                     continue
-                relation = variables_pb2.Phi2Var()
+                relation = variables_pb2.Phi2Var()  # type: ignore[reportAttributeAccessIssue]
                 relation.phi_ident = phi.ident
                 relation.var_ident = var.ident
                 phi_relations.append(relation)
@@ -274,11 +275,26 @@ class VariableManagerInternal(Serializable):
         all_vars = []
 
         for regvar_pb2 in cmsg.regvars:
-            all_vars.append((regvar_pb2.base.is_phi, SimRegisterVariable.parse_from_cmessage(regvar_pb2)))
+            all_vars.append(
+                (
+                    regvar_pb2.base.is_phi,  # type: ignore[reportAttributeAccessIssue]
+                    SimRegisterVariable.parse_from_cmessage(regvar_pb2),
+                )
+            )
         for stackvar_pb2 in cmsg.stackvars:
-            all_vars.append((stackvar_pb2.base.is_phi, SimStackVariable.parse_from_cmessage(stackvar_pb2)))
+            all_vars.append(
+                (
+                    stackvar_pb2.base.is_phi,  # type: ignore[reportAttributeAccessIssue]
+                    SimStackVariable.parse_from_cmessage(stackvar_pb2),
+                )
+            )
         for memvar_pb2 in cmsg.memvars:
-            all_vars.append((memvar_pb2.base.is_phi, SimMemoryVariable.parse_from_cmessage(memvar_pb2)))
+            all_vars.append(
+                (
+                    memvar_pb2.base.is_phi,  # type: ignore[reportAttributeAccessIssue]
+                    SimMemoryVariable.parse_from_cmessage(memvar_pb2),
+                )
+            )
         for is_phi, var in all_vars:
             variable_by_ident[var.ident] = var
             if is_phi:
@@ -292,12 +308,14 @@ class VariableManagerInternal(Serializable):
             variable_access = VariableAccess.parse_from_cmessage(varaccess_pb2, variable_by_ident=variable_by_ident)
             variable = variable_access.variable
             offset = variable_access.offset
-            assert variable is not None
+            assert variable is not None and offset is not None
             tpl = (variable, offset)
 
             model._variable_accesses[variable_access.variable].add(variable_access)
             assert variable_access.location.ins_addr is not None
             model._insn_to_variable[variable_access.location.ins_addr].add(tpl)
+            assert variable_access.location.block_addr is not None
+            assert variable_access.location.stmt_idx is not None
             loc = (
                 (variable_access.location.block_addr, variable_access.location.stmt_idx)
                 if variable_access.location.block_idx is None
@@ -403,13 +421,15 @@ class VariableManagerInternal(Serializable):
         else:
             raise ValueError(f"Unsupported sort {sort} in add_variable().")
 
-        # find if there is already an existing variable with the same identifier
-        if variable.ident in self._ident_to_variable:
-            existing_var = self._ident_to_variable[variable.ident]
-            if existing_var.name is not None and not variable.renamed:
-                variable.name = existing_var.name
-                variable.renamed = existing_var.renamed
-        self._ident_to_variable[variable.ident] = variable
+        if variable.ident is not None:
+            # find if there is already an existing variable with the same identifier
+            if variable.ident in self._ident_to_variable:
+                existing_var = self._ident_to_variable[variable.ident]
+                if existing_var.name is not None and not variable.renamed:
+                    variable.name = existing_var.name
+                    variable.renamed = existing_var.renamed
+            self._ident_to_variable[variable.ident] = variable
+
         region.add_variable(start, variable)
         self._variables.add(variable)
         self._variables_without_writes.add(variable)
@@ -472,25 +492,29 @@ class VariableManagerInternal(Serializable):
             self._variables.add(variable)
         var_and_offset = variable, offset
         atom_hash = (hash(atom) & 0xFFFF_FFFF) if atom is not None else None
+        assert location.block_addr is not None and location.stmt_idx is not None
         key = (
             (location.block_addr, location.stmt_idx)
             if location.block_idx is None
             else (location.block_addr, location.block_idx, location.stmt_idx)
         )
         if overwrite:
-            self._insn_to_variable[location.ins_addr] = {var_and_offset}
+            if location.ins_addr is not None:
+                self._insn_to_variable[location.ins_addr] = {var_and_offset}
             self._stmt_to_variable[key] = {var_and_offset}
             self._variable_to_stmt[variable].add(key)
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash] = {var_and_offset}
         else:
-            self._insn_to_variable[location.ins_addr].add(var_and_offset)
+            if location.ins_addr is not None:
+                self._insn_to_variable[location.ins_addr].add(var_and_offset)
             self._stmt_to_variable[key].add(var_and_offset)
             self._variable_to_stmt[variable].add(key)
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash].add(var_and_offset)
 
     def remove_variable_by_atom(self, location: CodeLocation, variable: SimVariable, atom):
+        assert location.block_addr is not None and location.stmt_idx is not None
         key = (
             (location.block_addr, location.stmt_idx)
             if location.block_idx is None
