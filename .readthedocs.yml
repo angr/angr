@@ -11,10 +11,5 @@ build:
     python: "3.10"
   jobs:
     post_create_environment:
-      - pip install -U pip "setuptools>=59" wheel "unicorn==2.0.1.post1"
-      - pip install git+https://github.com/angr/archinfo.git
-      - pip install git+https://github.com/angr/pyvex.git
-      - pip install git+https://github.com/angr/cle.git
-      - pip install git+https://github.com/angr/claripy.git
-      - pip install git+https://github.com/angr/ailment.git
-      - pip install --no-build-isolation .[angrdb,docs,pcode]
+      - pip install uv
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --all-extras --group docs
