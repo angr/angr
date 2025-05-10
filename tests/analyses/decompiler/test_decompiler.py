@@ -1280,11 +1280,24 @@ class TestDecompiler(unittest.TestCase):
         assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
         stmts = dw.body.statements
         assert len(stmts) == 5
-        assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
-        assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-        assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
-        assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
-        assert dw.condition.lhs.operand.variable == stmts[2].lhs.variable
+        # Current decompilation output:
+        #   do
+        #   {
+        #       v1 = v0 + 1;
+        #       v3 = v2 + 1;
+        #       *(v2) = *(v0);
+        #       v0 = v1;
+        #       v2 = v3;
+        #   } while (*(v2))
+        # We can improve it by re-arranging the first three statements; we leave it as future work
+        assert stmts[0].lhs.unified_variable == stmts[3].rhs.unified_variable
+        assert stmts[1].lhs.unified_variable == stmts[4].rhs.unified_variable
+        assert stmts[2].lhs.operand.variable == stmts[4].lhs.variable
+        assert stmts[2].rhs.operand.variable == stmts[3].lhs.variable
+        # v0 = v0; is incorrect
+        assert stmts[3].lhs.unified_variable != stmts[3].rhs.unified_variable, "Variable unification went wrong."
+        assert stmts[4].lhs.unified_variable != stmts[4].rhs.unified_variable, "Variable unification went wrong."
+        assert dw.condition.lhs.operand.variable == stmts[2].lhs.operand.variable
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
@@ -5097,6 +5110,49 @@ class TestDecompiler(unittest.TestCase):
         assert proj.kb.functions[0x1400021E0].info.get("jmp_rax", False) is True  # guard_dispatch_icall_fptr
         assert "1400021e0" not in dec.codegen.text.lower()
         assert "140005670(" in dec.codegen.text
+
+    def test_decompiling_rust_fmt_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        func = proj.kb.functions[0x469200]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # expect the following snippet to exist
+        #   v24.from_matches(&v3);
+        #   if (v24 != 9223372036854775809)
+        #   {
+        #       ...
+        #       v11 = v24;
+        #       ...
+        #       v24.with_capacity(0x2000, std::io::stdio::stdout());
+        #       ...
+        #   }
+        lines = [line.strip(" ") for line in dec.codegen.text.split("\n")]
+        from_matches_line_no = next(iter(i for i, line in enumerate(lines) if ".from_matches(" in line), None)
+        assert from_matches_line_no is not None
+        from_matches_line = lines[from_matches_line_no]
+        v = from_matches_line[: from_matches_line.index(".from_matches(")]
+        assert lines[from_matches_line_no + 1] == f"if ({v} != 9223372036854775809)"
+        assert lines[from_matches_line_no + 2] == "{"
+        v11_eq_v24_line_no = None
+        v24_with_capacity_line_no = None
+        for i in range(from_matches_line_no + 3, len(lines)):
+            if lines[i] == "}":
+                break
+            line = lines[i]
+            if re.match(r"v\d+ = " + v + ";", line):
+                assert v11_eq_v24_line_no is None
+                v11_eq_v24_line_no = i
+            elif re.match(v + r"\.with_capacity\(", line):
+                assert v24_with_capacity_line_no is None
+                v24_with_capacity_line_no = i
+
+        assert v11_eq_v24_line_no is not None
+        assert v24_with_capacity_line_no is not None
+        assert v11_eq_v24_line_no < v24_with_capacity_line_no
 
 
 if __name__ == "__main__":
