@@ -92,7 +92,7 @@ class ConvenientMappingsMixin(MemoryMixin):
 
     def _default_value(self, addr, size, **kwargs):
         d = super()._default_value(addr, size, **kwargs)
-        if addr is not None:
+        if type(addr) is int:
             self._update_mappings(addr, None, d)
         return d
 
