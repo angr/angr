@@ -109,6 +109,18 @@ impl SegmentList {
             .into()
     }
 
+    /// Checks which segment that the address `addr` should belong to,
+    /// and returns the offset of that segment.
+    /// Note that the address may not actually belong to the block.		             .map(|gap| gap.start)
+    pub fn search(&self, addr: u64) -> Option<usize> {
+        self.0
+            .iter()
+            .enumerate()
+            .skip_while(|(_, (range, _))| range.end < addr)
+            .next()
+            .map(|(index, _)| index)
+    }
+
     pub fn next_free_pos(&self, address: u64) -> Option<u64> {
         self.0
             .gaps(&(address..u64::MAX))
