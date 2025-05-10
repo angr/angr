@@ -265,6 +265,8 @@ class VariableManagerInternal(Serializable):
 
         # TODO: Types
 
+        # TODO: vvarid_to_varialbes & variable_to_vvarids
+
         return cmsg
 
     @classmethod
@@ -1065,6 +1067,15 @@ class VariableManagerInternal(Serializable):
         self.types.clear()
         self.variable_to_types.clear()
 
+    def _variables_interfere(self, interference: networkx.DiGraph, v0: SimVariable, v1: SimVariable) -> bool:
+        vvar_ids_0 = self._variable_to_vvarids[v0]
+        vvar_ids_1 = self._variable_to_vvarids[v1]
+        for vvar_id_0 in vvar_ids_0:
+            for vvar_id_1 in vvar_ids_1:
+                if interference.has_edge(vvar_id_0, vvar_id_1):
+                    return True
+        return False
+
     def unify_variables(self, interference: networkx.DiGraph | None = None) -> None:
         """
         Map SSA variables to a unified variable. Fill in self._unified_variables.
@@ -1131,16 +1142,6 @@ class VariableManagerInternal(Serializable):
 
         else:
             # merge stack variables at the same offsets only if their corresponding vvars do not interfere
-
-            def _vvars_interfere(v0, v1) -> bool:
-                vvar_ids_0 = self._variable_to_vvarids[v0]
-                vvar_ids_1 = self._variable_to_vvarids[v1]
-                for vvar_id_0 in vvar_ids_0:
-                    for vvar_id_1 in vvar_ids_1:
-                        if interference.has_edge(vvar_id_0, vvar_id_1):
-                            return True
-                return False
-
             stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
             for v in stack_vars:
                 stack_vars_by_offset[(v.offset, v.size)].append(v)
@@ -1153,7 +1154,7 @@ class VariableManagerInternal(Serializable):
                             continue
                         if v1 in congruence_classes[v0] or v0 in congruence_classes[v1]:
                             continue
-                        if not _vvars_interfere(v0, v1):
+                        if not self._variables_interfere(interference, v0, v1):
                             congruence_classes[v0].add(v1)
                             congruence_classes[v1] = congruence_classes[v0]
 
