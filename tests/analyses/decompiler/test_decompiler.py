@@ -1294,6 +1294,9 @@ class TestDecompiler(unittest.TestCase):
         assert stmts[1].lhs.unified_variable == stmts[4].rhs.unified_variable
         assert stmts[2].lhs.operand.variable == stmts[4].lhs.variable
         assert stmts[2].rhs.operand.variable == stmts[3].lhs.variable
+        # v0 = v0; is incorrect
+        assert stmts[3].lhs.unified_variable != stmts[3].rhs.unified_variable, "Variable unification went wrong."
+        assert stmts[4].lhs.unified_variable != stmts[4].rhs.unified_variable, "Variable unification went wrong."
         assert dw.condition.lhs.operand.variable == stmts[2].lhs.operand.variable
 
     @for_all_structuring_algos

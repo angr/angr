@@ -1826,7 +1826,13 @@ class Clinic(Analysis):
 
         # Unify SSA variables
         tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
-        var_manager.unify_variables()
+        liveness = self.project.analyses.SLiveness(
+            self.function,
+            func_graph=ail_graph,
+            entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            arg_vvars=[vvar for vvar, _ in arg_vvars.values()],
+        )
+        var_manager.unify_variables(interference=liveness.interference_graph())
         var_manager.assign_unified_variable_names(
             labels=self.kb.labels,
             arg_names=self.function.prototype.arg_names if self.function.prototype else None,

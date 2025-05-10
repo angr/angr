@@ -94,6 +94,8 @@ class VariableManagerInternal(Serializable):
             tuple[int, int] | tuple[int, int, int], dict[int, set[tuple[SimVariable, int]]]
         ] = defaultdict(_defaultdict_set)
         self._ident_to_variable: dict[str, SimVariable] = {}
+        self._vvarid_to_variable: dict[int, SimVariable] = {}
+        self._variable_to_vvarids: dict[SimVariable, set[int]] = defaultdict(set)
         self._variable_counters = {
             "register": count(),
             "stack": count(),
@@ -141,6 +143,8 @@ class VariableManagerInternal(Serializable):
             "_variable_to_stmt",
             "_atom_to_variable",
             "_ident_to_variable",
+            "_vvarid_to_variable",
+            "_variable_to_vvarids",
             "_variable_counters",
             "_unified_variables",
             "_variables_to_unified_variables",
@@ -505,6 +509,9 @@ class VariableManagerInternal(Serializable):
             self._variable_to_stmt[variable].add(key)
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash] = {var_and_offset}
+            if isinstance(atom, ailment.Expr.VirtualVariable):
+                self._vvarid_to_variable[atom.varid] = variable
+                self._variable_to_vvarids[variable] = set(atom.varid)
         else:
             if location.ins_addr is not None:
                 self._insn_to_variable[location.ins_addr].add(var_and_offset)
@@ -512,6 +519,9 @@ class VariableManagerInternal(Serializable):
             self._variable_to_stmt[variable].add(key)
             if atom_hash is not None:
                 self._atom_to_variable[key][atom_hash].add(var_and_offset)
+            if isinstance(atom, ailment.Expr.VirtualVariable):
+                self._vvarid_to_variable[atom.varid] = variable
+                self._variable_to_vvarids[variable].add(atom.varid)
 
     def remove_variable_by_atom(self, location: CodeLocation, variable: SimVariable, atom):
         assert location.block_addr is not None and location.stmt_idx is not None
@@ -1055,7 +1065,7 @@ class VariableManagerInternal(Serializable):
         self.types.clear()
         self.variable_to_types.clear()
 
-    def unify_variables(self) -> None:
+    def unify_variables(self, interference: networkx.DiGraph | None = None) -> None:
         """
         Map SSA variables to a unified variable. Fill in self._unified_variables.
         """
@@ -1114,8 +1124,51 @@ class VariableManagerInternal(Serializable):
         for v in sorted(reg_vars, key=lambda v: v.ident):
             self.set_unified_variable(v, v)
 
-        for v in sorted(stack_vars, key=lambda v: v.ident):
-            self.set_unified_variable(v, v)
+        if interference is None:
+            # interference graph is unavailable; we do not merge stack variables
+            for v in sorted(stack_vars, key=lambda v: v.ident):
+                self.set_unified_variable(v, v)
+
+        else:
+            # merge stack variables at the same offsets only if their corresponding vvars do not interfere
+
+            def _vvars_interfere(v0, v1) -> bool:
+                vvar_ids_0 = self._variable_to_vvarids[v0]
+                vvar_ids_1 = self._variable_to_vvarids[v1]
+                for vvar_id_0 in vvar_ids_0:
+                    for vvar_id_1 in vvar_ids_1:
+                        if interference.has_edge(vvar_id_0, vvar_id_1):
+                            return True
+                return False
+
+            stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
+            for v in stack_vars:
+                stack_vars_by_offset[(v.offset, v.size)].append(v)
+            for vs in stack_vars_by_offset.values():
+                # split vs into disjoint sets based on variable interference relations
+                congruence_classes = {v: {v} for v in vs}
+                for v0 in vs:
+                    for v1 in vs:
+                        if v0 is v1:
+                            continue
+                        if v1 in congruence_classes[v0] or v0 in congruence_classes[v1]:
+                            continue
+                        if not _vvars_interfere(v0, v1):
+                            congruence_classes[v0].add(v1)
+                            congruence_classes[v1] = congruence_classes[v0]
+
+                seen = set()
+                for cls in congruence_classes.values():
+                    if any(v in seen for v in cls):
+                        continue
+                    if len(cls) == 1:
+                        v = next(iter(cls))
+                        self.set_unified_variable(v, v)
+                    else:
+                        vs = sorted(cls, key=lambda v: v.ident)
+                        unified = vs[0].copy()
+                        for v in vs:
+                            self.set_unified_variable(v, unified)
 
     def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
         """
