@@ -559,4 +559,4 @@ class SegmentList:
         return len(self._list) > 0
 
 
-from angr.angrlib import Segment, SegmentList
+from angr.rustylib import Segment, SegmentList

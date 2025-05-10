@@ -88,7 +88,7 @@ angr = ["py.typed", "lib/*"]
 version = { attr = "angr.__version__" }
 
 [[tool.setuptools-rust.ext-modules]]
-target = "angr.angrlib"
+target = "angr.rustylib"
 path = "crates/angr/Cargo.toml"
 debug = false
 

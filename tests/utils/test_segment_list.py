@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from angr.angrlib import SegmentList
+from angr.rustylib import SegmentList
 
 
 class TestSegmentList(unittest.TestCase):

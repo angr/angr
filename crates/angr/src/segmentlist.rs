@@ -3,7 +3,7 @@ use std::{collections::HashSet, ops::Range};
 use pyo3::{prelude::*, types::PyTuple};
 use rangemap::{RangeMap, RangeSet};
 
-#[pyclass(module = "angr.angrlib.segmentlist")]
+#[pyclass(module = "angr.rustylib.segmentlist")]
 #[derive(Clone, Debug)]
 pub struct Segment {
     #[pyo3(get)]
@@ -46,7 +46,7 @@ impl Segment {
 
 /// Should be called a SegmentMap!
 #[derive(Clone, Default)]
-#[pyclass(module = "angr.angrlib.segmentlist")]
+#[pyclass(module = "angr.rustylib.segmentlist")]
 pub struct SegmentList(RangeMap<u64, Option<String>>);
 
 #[pymethods]
@@ -180,7 +180,7 @@ impl SegmentList {
 }
 
 #[derive(Clone, Debug)]
-#[pyclass(module = "angr.angrlib.segmentlist")]
+#[pyclass(module = "angr.rustylib.segmentlist")]
 pub struct SegmentSetIter {
     // Current range being iterated
     current_range: Option<Range<u64>>,
@@ -236,7 +236,7 @@ impl SegmentSetIter {
 }
 
 #[derive(Clone, Debug, Default)]
-#[pyclass(module = "angr.angrlib.segmentlist")]
+#[pyclass(module = "angr.rustylib.segmentlist")]
 pub struct SegmentSet(RangeSet<u64>);
 
 #[pymethods]

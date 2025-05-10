@@ -21,11 +21,11 @@ fn import_submodule<'py>(
 }
 
 #[pymodule]
-fn angrlib(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     import_submodule(
         m.py(),
         m,
-        "angr.angrlib",
+        "angr.rustylib",
         "segmentlist",
         segmentlist::segmentlist,
     )?;
