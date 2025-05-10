@@ -83,15 +83,6 @@ class SegmentList:
         :returns: A SegmentSet containing all ranges.
         """
 
-    def search(self, addr: int) -> int:
-        """
-        Checks which segment that the address `addr` should belong to, and, returns the offset of that segment.
-        Note that the address may not actually belong to the block.
-
-        :arg addr: The address to search.
-        :returns: The offset of the segment.
-        """
-
     def next_free_pos(self, address: int) -> int:
         """
         Returns the next free position with respect to an address, including that address itself.

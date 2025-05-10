@@ -93,8 +93,7 @@ impl SegmentList {
 
     #[getter]
     pub fn occupied_size(&self) -> u64 {
-        // Calculate the sum of sizes of all blocks
-        self.0.iter().map(|(r, _)| r.end - r.start).sum()
+        self.0.len() as u64
     }
 
     #[getter]
@@ -110,65 +109,11 @@ impl SegmentList {
             .into()
     }
 
-    pub fn search(&self, addr: u64) -> usize {
-        // Checks which segment that the address `addr` should belong to,
-        // and returns the offset of that segment.
-        // Note that the address may not actually belong to the block.
-
-        // Find the first segment whose start is greater than addr
-        let mut idx = 0;
-        for (r, _) in self.0.iter() {
-            if r.start > addr {
-                break;
-            }
-            idx += 1;
-        }
-
-        // Check if addr is within the previous segment
-        if idx > 0 {
-            let prev_idx = idx - 1;
-            if let Some((r, _)) = self.0.iter().nth(prev_idx) {
-                if r.end > addr {
-                    // Address is within the previous segment
-                    return prev_idx;
-                }
-            }
-        }
-
-        // If we get here, addr should belong at the current index
-        idx
-    }
-
-    pub fn next_free_pos(&self, address: u64) -> PyResult<u64> {
-        let idx = self.search(address);
-
-        // Check if the address is within a segment
-        if let Some((r, _)) = self.0.iter().nth(idx) {
-            if r.start <= address && address < r.end {
-                // Address is occupied, find the end of consecutive segments
-                let mut i = idx;
-                let mut current_end = r.end;
-
-                while i + 1 < self.0.len() {
-                    if let Some((next_r, _)) = self.0.iter().nth(i + 1) {
-                        if current_end == next_r.start {
-                            // Segments are consecutive
-                            current_end = next_r.end;
-                            i += 1;
-                        } else {
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-
-                return Ok(current_end);
-            }
-        }
-
-        // Address is not occupied, return the address itself
-        Ok(address)
+    pub fn next_free_pos(&self, address: u64) -> Option<u64> {
+        self.0
+            .gaps(&(address..u64::MAX))
+            .map(|gap| gap.start)
+            .next()
     }
 
     #[pyo3(signature = (address, sorts, max_distance = None))]
@@ -178,105 +123,38 @@ impl SegmentList {
         sorts: HashSet<Option<String>>,
         max_distance: Option<u64>,
     ) -> Option<u64> {
-        let list_length = self.0.len();
-
-        let idx = self.search(address);
-        if idx < list_length {
-            // Get the segment at idx
-            if let Some((r, sort)) = self.0.iter().nth(idx) {
-                // Check max_distance for the first segment
-                if let Some(md) = max_distance {
-                    if address + md < r.start {
-                        return None;
-                    }
-                }
-
-                // Check if address is within the current segment
-                if r.start <= address && address < r.end {
-                    // Address is inside the current segment
-                    if !sorts.contains(sort) {
-                        return Some(address);
-                    }
-                    // Move to the next segment
-                    let mut next_idx = idx + 1;
-
-                    // Iterate through subsequent segments
-                    while next_idx < list_length {
-                        if let Some((next_r, next_sort)) = self.0.iter().nth(next_idx) {
-                            // Check max_distance
-                            if let Some(md) = max_distance {
-                                if address + md < next_r.start {
-                                    return None;
-                                }
-                            }
-
-                            if !sorts.contains(next_sort) {
-                                return Some(next_r.start);
-                            }
-
-                            next_idx += 1;
-                        } else {
-                            break;
-                        }
-                    }
-                } else {
-                    // Address is not inside the current segment
-                    // Start checking from the current segment
-                    let mut current_idx = idx;
-
-                    while current_idx < list_length {
-                        if let Some((current_r, current_sort)) = self.0.iter().nth(current_idx) {
-                            // Check max_distance
-                            if let Some(md) = max_distance {
-                                if address + md < current_r.start {
-                                    return None;
-                                }
-                            }
-
-                            if !sorts.contains(current_sort) {
-                                return Some(current_r.start);
-                            }
-
-                            current_idx += 1;
-                        } else {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        None
+        // Determine the end of the search range
+        let end = address.saturating_add(max_distance.unwrap_or(u64::MAX));
+        let search_range = address..end;
+        // Find the lowest position among the occupied ranges
+        let min_occupied = self
+            .0
+            .overlapping(search_range.clone())
+            .filter(|(_, sort)| !sorts.contains(sort))
+            .map(|(range, _)| std::cmp::max(range.start, address))
+            .next();
+        // Find the lowest position in the gap ranges
+        let min_gaps = self
+            .0
+            .gaps(&search_range)
+            .map(|range| std::cmp::max(range.start, address))
+            .next();
+        // Pick the lowest between them
+        std::cmp::min(min_occupied, min_gaps)
     }
 
     pub fn is_occupied(&self, address: u64) -> bool {
-        let idx = self.search(address);
-        if let Some((r, _)) = self.0.iter().nth(idx) {
-            if r.start <= address && address < r.end {
-                return true;
-            }
-        }
-        false
+        self.0.contains_key(&address)
     }
 
     pub fn occupied_by_sort(&self, address: u64) -> Option<String> {
-        let idx = self.search(address);
-        if let Some((r, sort)) = self.0.iter().nth(idx) {
-            if r.start <= address && address < r.end {
-                return sort.clone();
-            }
-        }
-        None
+        self.0.get(&address)?.clone()
     }
 
     pub fn occupied_by(&self, address: u64) -> Option<(u64, u64, Option<String>)> {
-        let idx = self.search(address);
-        if let Some((r, sort)) = self.0.iter().nth(idx) {
-            if r.start <= address && address < r.end {
-                return Some((r.start, r.end - r.start, sort.clone()));
-            }
-        }
-        None
+        self.0
+            .get_key_value(&address)
+            .map(|(range, sort)| (range.start, range.end - range.start, sort.clone()))
     }
 
     pub fn occupy(&mut self, address: u64, size: u64, sort: Option<String>) {
