@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.2", "wheel", "pyvex==9.2.155.dev0"]
+requires = ["setuptools>=61.2", "setuptools-rust", "pyvex==9.2.153.dev0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -86,6 +86,11 @@ angr = ["py.typed", "lib/*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }
+
+[[tool.setuptools-rust.ext-modules]]
+target = "angr.rustylib"
+path = "crates/angr/Cargo.toml"
+debug = false
 
 [tool.uv]
 default-groups = ["dev", "extras"]
