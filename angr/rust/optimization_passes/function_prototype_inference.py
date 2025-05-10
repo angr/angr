@@ -1,17 +1,15 @@
-from ailment import Const, UnaryOp, AILBlockWalker, Statement, Block
-from ailment.expression import VirtualVariable, Load
+from ailment.expression import VirtualVariable, Const, UnaryOp
 from ailment.statement import Assignment
 
-from angr.rust.mixins import CFAMixin, SRDAMixin
+from angr.rust.mixins import CFAMixin, SSAVariableMixin
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.optimization_passes.base import SSAVariableHelper
 from angr.rust.optimization_passes.cleanup_code_remover import CLEANUP_FUNCTIONS
 from angr.rust.optimization_passes.utils import CallReplacer
 from angr.rust.sim_type import RustSimTypeFunction, is_composite_type
 
 
-class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
+class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -20,61 +18,13 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
-        SSAVariableHelper.__init__(self, self)
-
-        self._new_stack_vvars = set()
+        SSAVariableMixin.__init__(self, self)
 
         self.librust = self.project.kb.librust
         self.analyze()
 
     def _check(self):
         return self.project.is_rust_binary, None
-
-    def _fix_stack_vvar_uses(self):
-
-        class StackVvarWalker(AILBlockWalker):
-            def __init__(self, context: FunctionPrototypeInference):
-                self.context = context
-                self.srda = SRDAMixin(context._func, context._graph, context.project)
-                self.parent_expr = None
-                super().__init__()
-
-            def _handle_UnaryOp(
-                self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None
-            ):
-                if expr.op == "Reference":
-                    new_expr = expr.copy()
-                    expr = expr.operand
-                    if not isinstance(expr, VirtualVariable) or expr.varid in self.context._new_stack_vvars:
-                        return None
-                    if expr.was_stack:
-                        vvar = self.srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.ins_addr, block.idx)
-                        if vvar and vvar.varid in self.context._new_stack_vvars:
-                            new_expr.operand = vvar
-                            return new_expr
-                return None
-
-            def _handle_VirtualVariable(
-                self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
-            ):
-                if expr.varid in self.context._new_stack_vvars:
-                    return None
-                if expr.was_stack:
-                    vvar = self.srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.ins_addr, block.idx)
-                    if vvar and vvar.varid in self.context._new_stack_vvars:
-                        if expr.size < vvar.size:
-                            return Load(
-                                None,
-                                UnaryOp(None, "Reference", vvar),
-                                expr.size,
-                                self.context.project.arch.memory_endness,
-                            )
-                        return vvar
-                return None
-
-        walker = StackVvarWalker(self)
-        for block in self._graph.nodes:
-            walker.walk(block)
 
     def _analyze_and_replace_call(self, call, block, stmt, is_expr):
         # For debug purpose
@@ -123,7 +73,6 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
                             return call
                         dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
                         dst_vvar.tags["type"] = returnty
-                        self._new_stack_vvars.add(dst_vvar.varid)
                         assignment = Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
                         return assignment
                 else:
@@ -141,5 +90,5 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableHelper):
         walker = CallReplacer(callback=self._analyze_and_replace_call)
         for block in self._graph.nodes:
             walker.walk(block)
-        self._fix_stack_vvar_uses()
+        self.fix_stack_vvar_uses()
         self.out_graph = self._graph

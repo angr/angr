@@ -5,12 +5,11 @@ from ailment.expression import Const, VirtualVariable, Struct, Array
 from ailment.statement import Assignment
 from archinfo import Endness
 
-from .base import SSAVariableHelper
-from ..mixins import CFAMixin, SRDAMixin, DFAMixin
-from ..definitions.structs import ArrayReference
-from ..sim_type import RustSimStruct, RustSimTypeReference
-from ..utils.ail import unwrap_stack_vvar_reference
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
+from angr.rust.definitions.structs import ArrayReference
+from angr.rust.sim_type import RustSimStruct, RustSimTypeReference
+from angr.rust.utils.ail import unwrap_stack_vvar_reference
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 
 class StructBuilder:
@@ -85,7 +84,7 @@ class StructBuilder:
                     elements.append(ele_expr)
             elif vvar := unwrap_stack_vvar_reference(ptr_expr):
                 for i in range(len_expr.value):
-                    ele_expr = SSAVariableHelper(self.context).new_stack_vvar(
+                    ele_expr = self.context.new_stack_vvar(
                         vvar.stack_offset + i * (ele_ty.size // 8), ele_ty.size, vvar.tags
                     )
                     # Looking for nested structs or struct references
@@ -122,7 +121,7 @@ class StructBuilder:
         return Struct(0, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
 
 
-class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMixin):
+class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMixin, SSAVariableMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -133,6 +132,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         SRDAMixin.__init__(self, func, self._graph, self.project)
         CFAMixin.__init__(self, self._graph, self.project)
         DFAMixin.__init__(self, self._graph)
+        SSAVariableMixin.__init__(self, self)
 
         self._stmts_to_replace = defaultdict(list)
         self._stmts_to_remove = defaultdict(list)
@@ -159,7 +159,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
 
         if struct and used_defs:
             first_stack_def = used_defs[0]
-            new_vvar = SSAVariableHelper(self).new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
+            new_vvar = self.new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
             new_stmt = Assignment(None, new_vvar, struct, **first_stack_def.stmt.tags)
 
             for expr, struct_ty in builder.pending_potential_structs:
@@ -193,3 +193,6 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
             for stmt in self._stmts_to_remove[block]:
                 if stmt in block.statements:
                     block.statements.remove(stmt)
+
+        self.fix_stack_vvar_uses()
+        self.out_graph = self._graph
