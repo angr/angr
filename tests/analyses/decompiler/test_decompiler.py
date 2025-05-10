@@ -5111,6 +5111,49 @@ class TestDecompiler(unittest.TestCase):
         assert "1400021e0" not in dec.codegen.text.lower()
         assert "140005670(" in dec.codegen.text
 
+    def test_decompiling_rust_fmt_main(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        func = proj.kb.functions[0x469200]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # expect the following snippet to exist
+        #   v24.from_matches(&v3);
+        #   if (v24 != 9223372036854775809)
+        #   {
+        #       ...
+        #       v11 = v24;
+        #       ...
+        #       v24.with_capacity(0x2000, std::io::stdio::stdout());
+        #       ...
+        #   }
+        lines = [line.strip(" ") for line in dec.codegen.text.split("\n")]
+        from_matches_line_no = next(iter(i for i, line in enumerate(lines) if ".from_matches(" in line), None)
+        assert from_matches_line_no is not None
+        from_matches_line = lines[from_matches_line_no]
+        v = from_matches_line[: from_matches_line.index(".from_matches(")]
+        assert lines[from_matches_line_no + 1] == f"if ({v} != 9223372036854775809)"
+        assert lines[from_matches_line_no + 2] == "{"
+        v11_eq_v24_line_no = None
+        v24_with_capacity_line_no = None
+        for i in range(from_matches_line_no + 3, len(lines)):
+            if lines[i] == "}":
+                break
+            line = lines[i]
+            if re.match(r"v\d+ = " + v + ";", line):
+                assert v11_eq_v24_line_no is None
+                v11_eq_v24_line_no = i
+            elif re.match(v + r"\.with_capacity\(", line):
+                assert v24_with_capacity_line_no is None
+                v24_with_capacity_line_no = i
+
+        assert v11_eq_v24_line_no is not None
+        assert v24_with_capacity_line_no is not None
+        assert v11_eq_v24_line_no < v24_with_capacity_line_no
+
 
 if __name__ == "__main__":
     unittest.main()

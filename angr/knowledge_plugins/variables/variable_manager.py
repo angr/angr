@@ -1144,7 +1144,7 @@ class VariableManagerInternal(Serializable):
             # merge stack variables at the same offsets only if their corresponding vvars do not interfere
             stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
             for v in stack_vars:
-                stack_vars_by_offset[(v.offset, v.size)].append(v)
+                stack_vars_by_offset[v.offset].append(v)
             for vs in stack_vars_by_offset.values():
                 # split vs into disjoint sets based on variable interference relations
                 congruence_classes = {v: {v} for v in vs}
