@@ -8,7 +8,7 @@ import logging
 
 import networkx
 
-from ailment import AILBlockWalker, UnaryOp
+from ailment import AILBlockWalker
 from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement, WeakAssignment
 from ailment.expression import (
@@ -23,6 +23,7 @@ from ailment.expression import (
     Const,
     BinaryOp,
     VirtualVariable,
+    UnaryOp,
 )
 
 from angr.analyses.s_propagator import SPropagatorAnalysis
