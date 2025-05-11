@@ -9,6 +9,7 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
+    rust: "1.86"
   jobs:
     post_create_environment:
       - pip install uv
