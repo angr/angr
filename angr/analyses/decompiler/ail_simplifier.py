@@ -8,7 +8,7 @@ import logging
 
 import networkx
 
-from ailment import AILBlockWalker
+from ailment import AILBlockWalker, UnaryOp
 from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement, WeakAssignment
 from ailment.expression import (
@@ -1397,7 +1397,40 @@ class AILSimplifier(Analysis):
                 return False
 
     @staticmethod
+    def _is_safe_replacement(stmt, src_expr, dst_expr):
+        if (
+            isinstance(src_expr, VirtualVariable)
+            and src_expr.was_stack
+            and isinstance(dst_expr, VirtualVariable)
+            and (dst_expr.was_reg or dst_expr.was_parameter)
+        ):
+
+            class Checker(AILBlockWalker):
+
+                def __init__(self):
+                    super().__init__()
+                    self.safe = True
+
+                def _handle_UnaryOp(
+                    self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+                ):
+                    if expr.op == "Reference" and expr.operand.likes(src_expr):
+                        self.safe = False
+
+            walker = Checker()
+            walker.walk_statement(stmt, None)
+            return walker.safe
+
+        return True
+
+    @staticmethod
     def _replace_expr_and_update_block(block, stmt_idx, stmt, src_expr, dst_expr) -> tuple[bool, Block | None]:
+        # Special case: Do not replace Reference(stack vvar) with Reference(reg vvar)
+        # Check conservatively:
+        # If src_expr is stack vvar, dst_expr is reg vvar, and stmt contains Reference(src_expr), skip
+        if not AILSimplifier._is_safe_replacement(stmt, src_expr, dst_expr):
+            return False, None
+
         replaced, new_stmt = stmt.replace(src_expr, dst_expr)
         if replaced:
             new_block = block.copy()
