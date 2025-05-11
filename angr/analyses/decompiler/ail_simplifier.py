@@ -1407,6 +1407,9 @@ class AILSimplifier(Analysis):
         ):
 
             class Checker(AILBlockWalker):
+                """
+                Check if Reference(src_expr) exists
+                """
 
                 def __init__(self):
                     super().__init__()
