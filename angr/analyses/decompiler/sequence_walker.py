@@ -222,7 +222,7 @@ class SequenceWalker:
                 new_false_node = node.false_node
 
         if changed:
-            return IfLetNode(new_scrutinee, new_pattern, new_true_node, new_false_node, addr=node.addr)
+            return IfLetNode(new_pattern, new_scrutinee, new_true_node, new_false_node, addr=node.addr)
 
         return None
 

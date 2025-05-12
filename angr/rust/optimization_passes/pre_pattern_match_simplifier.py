@@ -96,6 +96,10 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
 
     @staticmethod
     def extract_scrutinee_and_discriminant(condition):
+        leftover = None
+        if isinstance(condition, BinaryOp) and condition.op == "LogicalAnd":
+            leftover = condition.operands[1]
+            condition = condition.operands[0]
         scrutinee, discriminant, cmp_op = None, None, None
         if isinstance(condition, BinaryOp) and condition.op in ("CmpEQ", "CmpNE"):
             op0, op1 = condition.operands
@@ -107,8 +111,8 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
             if isinstance(op1, Const):
                 discriminant = op1.value
         if scrutinee is not None and discriminant is not None and cmp_op:
-            return scrutinee, discriminant, cmp_op
-        return None, None, None
+            return scrutinee, discriminant, cmp_op, leftover
+        return None, None, None, None
 
     @staticmethod
     def inverse_variant(enum_type, discriminant) -> Optional[EnumVariant]:
