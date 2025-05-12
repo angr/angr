@@ -403,6 +403,12 @@ class Enum(TypeConstant):
         tpl = tuple(hash(variant) for variant in self.variants)
         return hash(tpl)
 
+    def get_variant(self, name) -> EnumVariant | None:
+        for variant in self.variants:
+            if name == variant.name:
+                return variant
+        return None
+
     @property
     def size(self) -> int:
         return max(variant.size for variant in self.variants)

@@ -15,6 +15,8 @@ from ..sim_type import (
     RustSimStruct,
     RustSimTypeString,
     RustSimTypeStr,
+    RustSimTypeResult,
+    RustSimTypeOption,
 )
 
 
@@ -119,6 +121,40 @@ class RustTypeTranslator(TypeTranslator):
 
         return s
 
+    def _translate_Result(self, tc: typeconsts.Enum):
+        ok_variant = tc.get_variant("Ok")
+        err_variant = tc.get_variant("Err")
+        ok_type = self._tc2simtype(ok_variant.fields[0][0])
+        err_type = self._tc2simtype(err_variant.fields[0][0])
+        return RustSimTypeResult(
+            ok_type,
+            ok_variant.discriminant,
+            ok_variant.discriminant_size,
+            err_type,
+            err_variant.discriminant,
+            err_variant.discriminant_size,
+        )
+
+    def _translate_Option(self, tc: typeconsts.Enum):
+        none_variant = tc.get_variant("None")
+        some_variant = tc.get_variant("Some")
+        some_type = self._tc2simtype(some_variant.fields[0][0])
+        return RustSimTypeOption(
+            none_variant.discriminant,
+            none_variant.discriminant_size,
+            some_type,
+            some_variant.discriminant,
+            some_variant.discriminant_size,
+        )
+
+    def _translate_Enum(self, tc: typeconsts.Enum):
+        if tc.name.startswith("Result<"):
+            return self._translate_Result(tc)
+        elif tc.name.startswith("Option<"):
+            return self._translate_Option(tc)
+        else:
+            pass
+
     def _tc2simtype(self, tc):
         if tc is None:
             return sim_type.SimTypeBottom().with_arch(self.arch)
@@ -149,4 +185,5 @@ TypeConstHandlers = {
     typeconsts.Int64: RustTypeTranslator._translate_Int64,
     typeconsts.Int128: RustTypeTranslator._translate_Int128,
     typeconsts.TypeVariableReference: RustTypeTranslator._translate_TypeVariableReference,
+    typeconsts.Enum: RustTypeTranslator._translate_Enum,
 }

@@ -25,7 +25,9 @@ class RustTypehoon(Typehoon):
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
     ):
-        super().__init__(constraints, func_var, ground_truth, var_mapping, must_struct, stackvar_max_sizes, stack_offset_tvs)
+        super().__init__(
+            constraints, func_var, ground_truth, var_mapping, must_struct, stackvar_max_sizes, stack_offset_tvs
+        )
 
     def update_variable_types(
         self,
@@ -62,6 +64,7 @@ class RustTypehoon(Typehoon):
             if len(type_candidates) > 1:
                 types_by_size: dict[int, list[SimType]] = defaultdict(list)
                 for t in type_candidates:
+                    t = t.with_arch(self.project.arch)
                     if t.size is not None:
                         types_by_size[t.size].append(t)
                 if not types_by_size:
