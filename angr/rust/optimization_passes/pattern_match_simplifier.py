@@ -1,10 +1,9 @@
 from collections import OrderedDict
-from typing import Dict, Tuple, Union
 
 import ailment
-from ailment import Statement
 from ailment.expression import VirtualVariable, Load
 from ailment.statement import Label, Assignment, Call
+from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
 
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.rust.mixins import DFAMixin
@@ -15,7 +14,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import (
 )
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
-from angr.rust.structuring.structurer_nodes import PatternMatchNode
+from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 
 
 class PatternMatchWalker(SequenceWalker, DFAMixin):
@@ -98,12 +97,15 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         false_variant,
         scrutinee,
         addr,
+        leftover,
     ):
         true_move_stmts = self._collect_move_stmts(scrutinee, true_variant, true_node)
         false_move_stmts = self._collect_move_stmts(scrutinee, false_variant, false_node)
         for stmt in true_move_stmts + false_move_stmts:
             if stmt:
                 stmt.tags["hidden"] = True
+        if leftover:
+            true_node = ConditionNode(addr, None, leftover, true_node, None)
         arms = OrderedDict(
             [
                 ((true_variant, true_move_stmts), true_node),
@@ -113,9 +115,22 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         result = PatternMatchNode(scrutinee, arms, None, addr)
         return result
 
+    def _build_if_let(self, true_node, true_variant, scrutinee, addr, leftover):
+        true_move_stmts = self._collect_move_stmts(scrutinee, true_variant, true_node)
+        for stmt in true_move_stmts:
+            if stmt:
+                stmt.tags["hidden"] = True
+        pattern = (true_variant, true_move_stmts)
+        if leftover:
+            true_node = ConditionNode(addr, None, leftover, true_node, None)
+        result = IfLetNode(pattern, scrutinee, true_node, None, addr)
+        return result
+
     def _handle_Condition(self, node, **kwargs):
-        scrutinee, discriminant, cmp_op = PrePatternMatchSimplifier.extract_scrutinee_and_discriminant(node.condition)
-        if node.true_node and node.false_node and scrutinee is not None and discriminant is not None:
+        scrutinee, discriminant, cmp_op, leftover = PrePatternMatchSimplifier.extract_scrutinee_and_discriminant(
+            node.condition
+        )
+        if node.true_node and scrutinee is not None and discriminant is not None:
             if isinstance(scrutinee, VirtualVariable) and isinstance(
                 (enum_ty := scrutinee.tags.get("type", None) or self.var_manager.get_variable_type(scrutinee.variable)),
                 (RustSimTypeOption, RustSimTypeResult),
@@ -126,13 +141,18 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                 false_variant = PrePatternMatchSimplifier.inverse_variant(enum_ty, discriminant)
                 if cmp_op == "CmpNE":
                     true_variant, false_variant = false_variant, true_variant
-                if true_variant and false_variant:
+                if true_variant and false_variant and false_node:
                     pattern_match = self._build_pattern_match(
-                        true_node, false_node, true_variant, false_variant, scrutinee, node.addr
+                        true_node, false_node, true_variant, false_variant, scrutinee, node.addr, leftover
                     )
                     if pattern_match:
                         new_node = super()._handle_PatternMatch(pattern_match, **kwargs)
                         return new_node or pattern_match
+                elif true_variant:
+                    if_let = self._build_if_let(true_node, true_variant, scrutinee, node.addr, leftover)
+                    if if_let:
+                        new_node = super()._handle_IfLet(if_let, **kwargs)
+                        return new_node or if_let
             elif isinstance(scrutinee, Call):
                 pass
         return super()._handle_Condition(node, **kwargs)
