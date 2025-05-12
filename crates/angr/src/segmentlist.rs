@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use pyo3::{prelude::*, types::PyTuple};
+use pyo3::{exceptions::PyStopIteration, prelude::*, types::PyTuple};
 use rangemap::RangeMap;
 
 #[pyclass(module = "angr.rustylib.segmentlist")]
@@ -49,6 +49,22 @@ impl Segment {
 #[pyclass(module = "angr.rustylib.segmentlist")]
 pub struct SegmentList(RangeMap<u64, Option<String>>);
 
+impl SegmentList {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn get_segment(&self, address: u64) -> Option<(u64, u64, Option<String>)> {
+        self.0
+            .get_key_value(&address)
+            .map(|(range, sort)| (range.start, range.end - range.start, sort.clone()))
+    }
+}
+
 #[pymethods]
 impl SegmentList {
     #[new]
@@ -89,6 +105,10 @@ impl SegmentList {
                     idx
                 ))
             })
+    }
+
+    pub fn __iter__(self_: Py<Self>) -> SegmentListIter {
+        SegmentListIter::new(self_)
     }
 
     #[getter]
@@ -182,9 +202,42 @@ impl SegmentList {
     }
 }
 
+#[pyclass]
+pub struct SegmentListIter {
+    segmentlist: Py<SegmentList>,
+    idx: u64,
+}
+
+#[pymethods]
+impl SegmentListIter {
+    #[new]
+    fn new(segmentlist: Py<SegmentList>) -> Self {
+        Self {
+            segmentlist,
+            idx: 0,
+        }
+    }
+
+    fn __iter__(self_: Bound<'_, Self>) -> Bound<'_, Self> {
+        self_
+    }
+
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Segment> {
+        let segmentlist = self.segmentlist.bind(py).borrow();
+        match segmentlist.get_segment(self.idx) {
+            Some((start, size, sort)) => {
+                self.idx += 1;
+                Ok(Segment::new(start, size, sort))
+            }
+            None => Err(PyErr::new::<PyStopIteration, _>("")),
+        }
+    }
+}
+
 #[pymodule]
 pub fn segmentlist(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Segment>()?;
     m.add_class::<SegmentList>()?;
+    m.add_class::<SegmentListIter>()?;
     Ok(())
 }

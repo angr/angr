@@ -50,7 +50,7 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
             parent = parent._parent
 
     def changed_bytes(self, other, **kwargs) -> set[int] | None:
-        candidates: set[int] = set()
+        candidates = SegmentList()
 
         self_history_list = [self, *list(self.parents())]
         other_history_list = [other, *list(other.parents())]
@@ -66,13 +66,19 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
                 i -= 1
                 j -= 1
 
-            for page_ in self_history_list[: i + 1]:
-                for seg in page_._changed_offsets._list:
-                    candidates.update(range(seg.start, seg.end))
-            for page_ in other_history_list[: j + 1]:
-                for seg in page_._changed_offsets._list:
-                    candidates.update(range(seg.start, seg.end))
-            return candidates
+            for page in self_history_list[: i + 1]:
+                candidates.update(page._changed_offsets)
+            for page in other_history_list[: j + 1]:
+                candidates.update(page._changed_offsets)
+
+            # Convert to a set of indices. This can be super slow if the ranges are
+            # large!
+            candidate_set = set()
+
+            for offset in candidates:
+                candidate_set.update(range(offset.start, offset.end))
+
+            return candidate_set
 
         return None
 
@@ -81,7 +87,6 @@ class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
 
         mem = self._parent
         while mem is not None:
-            for seg in mem._changed_offsets._list:
-                changed_bytes.occupy(seg.start, seg.end - seg.start, DUMMY_SORT)
+            changed_bytes.update(mem._changed_offsets)
             mem = mem._parent
         return changed_bytes

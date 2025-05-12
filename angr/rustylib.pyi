@@ -150,6 +150,13 @@ class SegmentList:
         :arg size: Size of the block.
         """
 
+    def update(self, other: SegmentList) -> None:
+        """
+        Update this SegmentList with all segments from another SegmentList.
+
+        :arg other: Another SegmentList to merge into this one.
+        """
+
     def copy(self) -> SegmentList:
         """
         Make a copy of the SegmentList.
