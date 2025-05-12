@@ -6,6 +6,7 @@ import networkx
 from ailment import BinaryOp, Assignment, UnaryOp
 from ailment.expression import Load, Const, VirtualVariable, Enum
 from ailment.statement import ConditionalJump, Return, Label, Call
+from angr.analyses.decompiler.utils import copy_graph
 
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, unwrap_combo_reg_vvar_reference
@@ -176,9 +177,9 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
                             self._group_move_stmts_for_block(false_block, scrutinee, false_variant)
 
     def _analyze(self, cache=None):
+        graph_copy = copy_graph(self._graph)
         # since we run before the RegionIdentification pass in the decompiler, we need to collect it early here
-        self._ri = self._recover_regions(self._graph)
-        copy_graph = networkx.DiGraph(self._graph)
-        if self._analyze_core(copy_graph):
-            self.out_graph = self._simplify_graph(copy_graph)
+        self._ri = self._recover_regions(graph_copy)
+        if self._analyze_core(graph_copy):
+            self.out_graph = self._simplify_graph(graph_copy)
         # self._group_move_stmts()
