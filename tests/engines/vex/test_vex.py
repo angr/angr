@@ -188,6 +188,16 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(cf == 0)
         assert s.solver.is_true(of == 1)
 
+    def test_aarch64_ccall_symbolic_op(self):
+        # GitHub issue #5460
+
+        # CCMP            W9, W8, #4, NE
+        proj = load_shellcode(b"\x24\x11\x48\x7a", arch="arm64")
+        state = proj.factory.blank_state()
+        state.regs.w8 = 0xE0
+        successors = state.step()
+        assert len(successors.flat_successors) == 1  # we are good as long as it does not raise any exceptions
+
     def test_aarch64_32bit_ccalls(self):
         # GitHub issue #1238
         s = SimState(arch="AArch64")
