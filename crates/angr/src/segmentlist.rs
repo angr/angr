@@ -113,7 +113,7 @@ impl SegmentList {
 
     #[getter]
     pub fn occupied_size(&self) -> u64 {
-        self.0.len() as u64
+        self.0.iter().map(|(r, _)| r.end - r.start).sum()
     }
 
     #[getter]
@@ -139,6 +139,7 @@ impl SegmentList {
             .next()
     }
 
+    /// Returns the next occupied position that is not in the given set of sorts.
     #[pyo3(signature = (address, sorts, max_distance = None))]
     pub fn next_pos_with_sort_not_in(
         &self,
@@ -150,20 +151,11 @@ impl SegmentList {
         let end = address.saturating_add(max_distance.unwrap_or(u64::MAX));
         let search_range = address..end;
         // Find the lowest position among the occupied ranges
-        let min_occupied = self
-            .0
+        self.0
             .overlapping(search_range.clone())
             .filter(|(_, sort)| !sorts.contains(sort))
             .map(|(range, _)| std::cmp::max(range.start, address))
-            .next();
-        // Find the lowest position in the gap ranges
-        let min_gaps = self
-            .0
-            .gaps(&search_range)
-            .map(|range| std::cmp::max(range.start, address))
-            .next();
-        // Pick the lowest between them
-        std::cmp::min(min_occupied, min_gaps)
+            .next()
     }
 
     pub fn is_occupied(&self, address: u64) -> bool {
