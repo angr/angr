@@ -491,7 +491,12 @@ class SimEngineVRBase(
                     self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             if vvar.varid in self.vvar_type_hints:
                 # handle type hints
-                self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
+                ty_const = self.vvar_type_hints[vvar.varid]
+                if isinstance(ty_const, (typeconsts.Struct, typeconsts.Enum)):
+                    constraint = typevars.Equivalence(typevar, ty_const)
+                else:
+                    constraint = typevars.Subtype(typevar, ty_const)
+                self.state.add_type_constraint(constraint)
             else:
                 # the constraint below is a default constraint that may conflict with more specific ones with different
                 # sizes; we post-process at the very end of VRA to remove conflicting default constraints.

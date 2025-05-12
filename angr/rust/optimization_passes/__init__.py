@@ -41,7 +41,7 @@ def get_rust_optimization_passes():
         StructReturnSimplifier,
         PrePatternMatchSimplifier,
         # AFTER_VARIABLE_RECOVERY
-        TypeCorrector,
+        # TypeCorrector,
         # BEFORE_REGION_IDENTIFICATION
         RedundantBlockRemover,
         # AFTER_STRUCTURING

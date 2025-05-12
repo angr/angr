@@ -7,8 +7,6 @@ from ..sim_type import (
     RustSimTypeReference,
     RustSimStruct,
     RustSimTypeArray,
-    RustSimTypeStr,
-    RustSimTypeString,
     RustSimTypeSize,
     RustSimEnum,
     RustSimTypeOption,
@@ -82,8 +80,8 @@ class RustTypeLifter(TypeLifter):
         return EnumVariant(
             variant.name,
             [(self.lift(field_ty), field_name) for field_ty, field_name in variant.fields],
-            variant.discriminant_size,
             variant.discriminant,
+            variant.discriminant_size,
             variant.size,
         )
 
