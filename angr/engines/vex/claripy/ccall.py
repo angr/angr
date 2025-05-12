@@ -51,6 +51,35 @@ def op_concretize(op):
         cases = list(claripy.reverse_ite_cases(op_e))
         if all(c.op == "BVV" for _, c in cases):
             raise CCallMultivaluedException(cases, op)
+    if op.op == "__or__":
+        # I've seen cases like this in AARCH64:
+        #    CCMP            W9, W8, #4, NE
+        #
+        #    00 | ------ IMark(0x0, 4, 0) ------
+        #    01 | t12 = GET:I64(cc_op)
+        #    02 | t11 = Or64(t12,0x0000000000000010)
+        #    03 | t13 = GET:I64(cc_dep1)
+        #    04 | t14 = GET:I64(cc_dep2)
+        #    05 | t15 = GET:I64(cc_ndep)
+        #    06 | t16 = arm64g_calculate_condition(t11,t13,t14,t15):Ity_I64
+        #    07 | t10 = 64to1(t16)
+        #    08 | t18 = GET:I64(x9)
+        #    09 | t17 = 64to32(t18)
+        #    10 | t20 = GET:I64(x8)
+        #    11 | t19 = 64to32(t20)
+        #    12 | t21 = 32Uto64(t17)
+        #    13 | t22 = 32Uto64(t19)
+        #    14 | t23 = ITE(t10,0x0000000000000003,0x0000000000000000)
+        #    15 | t24 = ITE(t10,t21,0x0000000040000000)
+        #    16 | t25 = ITE(t10,t22,0x0000000000000000)
+        #    17 | PUT(cc_op) = t23
+        #    18 | PUT(cc_dep1) = t24
+        #    19 | PUT(cc_dep2) = t25
+        #    20 | PUT(cc_ndep) = 0x0000000000000000
+        if op.args[0].op == "BVV":
+            return op.args[0].args[0]
+        if op.args[1].op == "BVV":
+            return op.args[1].args[0]
     if op.op != "BVV":
         raise SimError(
             f"Hit a symbolic conditional operation (need If or BVV, got {op.op}). " + "Something has gone wildly wrong."
