@@ -108,8 +108,7 @@ impl SegmentList {
         self.0
             .iter()
             .enumerate()
-            .skip_while(|(_, (range, _))| range.end < addr)
-            .next()
+            .find(|(_, (range, _))| range.end >= addr)
             .map(|(index, _)| index)
     }
 
