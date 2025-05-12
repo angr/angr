@@ -1636,7 +1636,10 @@ class RustEnum(RustExpression):
         for idx, expr in enumerate(self.fields):
             if idx > 0:
                 yield ", ", None
-            yield from RustExpression._try_c_repr_chunks(expr)
+            if isinstance(expr, RustStruct) and expr.name == "()":
+                yield "()", None
+            else:
+                yield from RustExpression._try_c_repr_chunks(expr, indent=indent)
         yield ")", paren
 
 
