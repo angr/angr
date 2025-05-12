@@ -23,6 +23,7 @@ from ailment.expression import (
     Const,
     BinaryOp,
     VirtualVariable,
+    UnaryOp,
 )
 
 from angr.analyses.s_propagator import SPropagatorAnalysis
@@ -60,6 +61,12 @@ class HasCallNotification(Exception):
 class HasVVarNotification(Exception):
     """
     Notifies the existence of a VirtualVariable.
+    """
+
+
+class HasRefVVarNotification(Exception):
+    """
+    Notifies the existence of a reference to a VirtualVariable.
     """
 
 
@@ -1007,6 +1014,19 @@ class AILSimplifier(Analysis):
 
             assert replace_with is not None
 
+            to_replace_used_in_refs = False
+            if isinstance(to_replace, VirtualVariable) and to_replace.was_stack:
+                # if the variable being replaced has ever been accessed as a reference, we cannot replace it safely
+                for _, (_, use_loc) in all_uses_with_def:
+                    assert use_loc.block_addr is not None and use_loc.stmt_idx is not None
+                    block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                    stmt = block.statements[use_loc.stmt_idx]
+                    if self._statement_uses_ref_vvar(stmt, to_replace.varid):
+                        to_replace_used_in_refs = True
+                        break
+            if to_replace_used_in_refs:
+                continue
+
             if any(not isinstance(expr_and_use[0], VirtualVariable) for _, expr_and_use in all_uses_with_def):
                 # if any of the uses are phi assignments, we skip
                 used_in_phi_assignment = False
@@ -1773,6 +1793,10 @@ class AILSimplifier(Analysis):
 
         return updated
 
+    #
+    # Util functions
+    #
+
     @staticmethod
     def _statement_has_call_exprs(stmt: Statement) -> bool:
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
@@ -1815,6 +1839,21 @@ class AILSimplifier(Analysis):
                 walker.walk_expression(expr)
             except HasVVarNotification:
                 return True
+        return False
+
+    @staticmethod
+    def _statement_uses_ref_vvar(stmt: Statement, vvar_id: int) -> bool:
+        def _handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
+            if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.varid == vvar_id:
+                raise HasRefVVarNotification
+
+        walker = AILBlockWalker()
+        walker.expr_handlers[UnaryOp] = _handle_UnaryOp
+        try:
+            walker.walk_statement(stmt)
+        except HasRefVVarNotification:
+            return True
+
         return False
 
 
