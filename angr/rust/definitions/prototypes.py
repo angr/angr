@@ -74,7 +74,7 @@ def generate_known_rust_prototypes(project):
         "std::io::Write::write_all": RustSimTypeFunction(
             args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeSlice(RustSimTypeInt(8))],
             returnty=RustSimTypeResult(
-                ZeroSizeStruct, 0, project.arch.bytes, RustSimTypeReference(RustSimTypeBottom()), None, 0
+                ZeroSizeStruct.copy(), 0, project.arch.bytes, RustSimTypeReference(RustSimTypeBottom()), None, 0
             ),
         ),
         "std::io::Read::read_to_string": RustSimTypeFunction(

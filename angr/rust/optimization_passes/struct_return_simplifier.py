@@ -2,9 +2,10 @@ from collections import defaultdict
 
 from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, Enum
 from ailment.statement import Return, Store
+
+from angr.rust.definitions.structs import ZeroSizeStruct
 from angr.rust.utils.ail import extract_vvar_and_offset
 from angr.rust.analyses.rust_calling_convention import Pathfinder
-
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 from angr.rust.mixins.srda_mixin import SRDAMixin
@@ -34,6 +35,8 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
         return self.project.is_rust_binary, None
 
     def _build_struct_ty(self, fields):
+        if not fields:
+            return ZeroSizeStruct.copy().with_arch(self.project.arch)
         ty_fields = {}
         for offset in sorted(fields.keys()):
             expr = fields[offset]
@@ -41,7 +44,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             ty_fields[f"field_{offset}"] = arg_ty
         struct_ty = RustSimStruct(ty_fields).with_arch(self.project.arch)
         struct_ty.name = f"struct{struct_ty.size // 8}"
-        return struct_ty
+        return struct_ty.with_arch(self.project.arch)
 
     def _is_stack_mem(self, expr):
         offset, size = None, None
@@ -82,7 +85,6 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
             if new_offset >= 0:
                 new_fields[new_offset] = v
         struct_ty = self._build_struct_ty(new_fields)
-        struct_ty.name = f"struct{struct_ty.size // 8}"
         return Struct(None, struct_ty.name, new_fields, struct_ty.offsets, struct_ty.size)
 
     def try_convert_to_enum(self, struct: Struct):

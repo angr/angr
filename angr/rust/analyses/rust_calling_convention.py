@@ -8,6 +8,7 @@ from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Ph
 from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment, Jump, Label
 from networkx import DiGraph
 
+from angr.rust.definitions.structs import ZeroSizeStruct
 from angr.rust.mixins import SRDAMixin, DFAMixin, CFAMixin
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
@@ -328,7 +329,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         for block in path:
             for stmt in reversed(block.statements):
                 if isinstance(stmt, Store) and isinstance(stmt.addr, VirtualVariable):
-                    dst_var = srda.get_terminal_vvar(stmt.addr)
+                    dst_var = self.get_terminal_vvar(stmt.addr)
                     if dst_var.varid == 0 and dst_var.was_parameter:
                         discriminant = stmt.data
                         if isinstance(discriminant, VirtualVariable):
@@ -395,6 +396,17 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                             some_type = self._remove_discriminant_from_struct(some_type)
                         none_discriminant_size = discriminant_size // 8
                         some_discriminant_size = discriminant_size // 8 if not overlapping_discriminant else 0
+                        if some_type.size // 8 == self.project.arch.bytes * 2:
+                            # Heuristics: Maybe it's a Result<(), E> if some_type's size is the same with &str's size
+                            some_type.name = "Error"
+                            return RustSimTypeResult(
+                                ZeroSizeStruct.copy(),
+                                none_discriminant,
+                                none_discriminant_size,
+                                some_type,
+                                some_discriminant,
+                                some_discriminant_size,
+                            )
                         return RustSimTypeOption(
                             none_discriminant,
                             none_discriminant_size,
