@@ -34,7 +34,7 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
       - uses: astral-sh/setup-uv@v6
       - name: Sync dependencies
-        run: uv sync -p 3.10
+        run: uv --directory angr sync -p 3.10
       - name: Run pytest
         run: uv --directory angr run pytest -n auto --splits 5 --group ${{ matrix.runner_id }} tests
   macos:
@@ -50,6 +50,6 @@ jobs:
           path: binaries
       - uses: astral-sh/setup-uv@v6
       - name: Sync dependencies
-        run: uv sync -p 3.10
+        run: uv --directory angr sync -p 3.10
       - name: Run pytest
         run: uv --directory angr run pytest -n auto tests
