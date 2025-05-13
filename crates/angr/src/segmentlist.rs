@@ -219,7 +219,7 @@ impl SegmentListIter {
         // Iterate by index: get the (range, sort) pair at position idx
         // FIXME: This is linear time, should be no more than O(log n)
         if let Some((range, sort)) = segmentlist_ref.0.iter().nth(self.idx as usize) {
-                self.idx += 1;
+            self.idx += 1;
             Ok(Segment::new(range.start, range.end, sort.clone()))
         } else {
             Err(PyErr::new::<PyStopIteration, _>(""))
