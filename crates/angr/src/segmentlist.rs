@@ -215,13 +215,14 @@ impl SegmentListIter {
     }
 
     fn __next__(&mut self, py: Python<'_>) -> PyResult<Segment> {
-        let segmentlist = self.segmentlist.bind(py).borrow();
-        match segmentlist.get_segment(self.idx) {
-            Some((start, size, sort)) => {
+        let segmentlist_ref = self.segmentlist.bind(py).borrow();
+        // Iterate by index: get the (range, sort) pair at position idx
+        // FIXME: This is linear time, should be no more than O(log n)
+        if let Some((range, sort)) = segmentlist_ref.0.iter().nth(self.idx as usize) {
                 self.idx += 1;
-                Ok(Segment::new(start, size, sort))
-            }
-            None => Err(PyErr::new::<PyStopIteration, _>("")),
+            Ok(Segment::new(range.start, range.end, sort.clone()))
+        } else {
+            Err(PyErr::new::<PyStopIteration, _>(""))
         }
     }
 }
