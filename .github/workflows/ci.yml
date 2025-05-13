@@ -10,3 +10,23 @@ on:
 jobs:
   ci:
     uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
+  smoketest:
+    name: Test installation
+    strategy:
+      matrix:
+        os: [windows-2022, macos-13]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: startsWith(runner.os, 'windows')
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Sync dependencies
+        run: uv sync -p 3.10
+
+      - name: Collect tests
+        run: uv run pytest --collect-only tests
