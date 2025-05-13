@@ -40,6 +40,10 @@ jobs:
   macos:
     name: Test macOS
     runs-on: macos-13
+    strategy:
+      matrix:
+        runner_id: [1, 2, 3]
+      fail-fast: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,4 +56,4 @@ jobs:
       - name: Sync dependencies
         run: uv --directory angr sync -p 3.10
       - name: Run pytest
-        run: uv --directory angr run pytest -n auto tests
+        run: uv --directory angr run pytest -n auto --splits 3 --group ${{ matrix.runner_id }} tests
