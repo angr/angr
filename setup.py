@@ -16,10 +16,10 @@ from setuptools.command.develop import develop as st_develop
 from setuptools.errors import LibError
 
 # Import setuptools_rust to ensure an error is raised if not installed
-try:
-    _ = importlib.import_module("setuptools_rust")
-except ImportError as err:
-    raise Exception("angr requires setuptools-rust to build") from err
+# try:
+#     _ = importlib.import_module("setuptools_rust")
+# except ImportError as err:
+#     raise Exception("angr requires setuptools-rust to build") from err
 
 if sys.platform == "darwin":
     library_file = "angr_native.dylib"
