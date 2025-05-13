@@ -1,0 +1,12 @@
+[package]
+name = "angr"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "rustylib"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.24.2", features = ["extension-module", "py-clone"] }
+rangemap = "1.5.1"

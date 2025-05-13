@@ -41,11 +41,13 @@ The easiest way to install angr from source is to use `angr-dev
 
 To set up a development environment manually, first ensure that build
 dependencies are installed. These consist of python development headers,
-``make``, and a C compiler. On Ubuntu, these can be installed with:
+``make``, a C++ compiler, and a Rust compiler. On Ubuntu, these can be installed
+with:
 
 .. code-block:: bash
 
    sudo apt-get install python3-dev build-essential
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 Then, checkout and install the following packages, in order:
 
