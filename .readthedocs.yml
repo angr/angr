@@ -11,5 +11,7 @@ build:
     python: "3.10"
   jobs:
     post_create_environment:
+      - asdf install rust latest
+      - asdf global rust latest
       - pip install uv
       - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --all-extras --group docs

@@ -33,3 +33,4 @@ dist
 *.dylib
 docs/_build
 uv.lock
+target/
