@@ -1145,7 +1145,7 @@ class VariableManagerInternal(Serializable):
         else:
             # merge stack variables at the same offsets only if their corresponding vvars do not interfere
             stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
-            for v in stack_vars:
+            for v in sorted(stack_vars, key=lambda v: v.ident):
                 stack_vars_by_offset[v.offset].append(v)
             for vs in stack_vars_by_offset.values():
                 # split vs into disjoint sets based on variable interference relations
