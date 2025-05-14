@@ -57,3 +57,11 @@ class IfLetNode(BaseNode):
         self.true_node = true_node
         self.false_node = false_node
         self.addr = addr
+
+    def dbg_repr(self, indent=0):
+        indent_str = indent * " "
+        s = indent_str + f"if let {self.pattern} {{\n"
+        s += indent_str + self.true_node.dbg_repr(indent + INDENT_DELTA) + "\n}"
+        if self.false_node:
+            s += ", else {\n" + self.false_node.dbg_repr(indent + INDENT_DELTA) + "\n}"
+        return s

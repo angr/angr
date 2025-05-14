@@ -6,6 +6,7 @@ from .macro.show_macro_simplifier import ShowMacroSimplifier
 from .macro.vec_macro_simplifier import VecMacroSimplifier
 from .outliners.string_cmp_outliner import StringCmpOutliner
 from .outliners.string_outliner import StringOutliner
+from .outliners.unwrap_outliner import UnwrapOutliner
 from .pattern_match_simplifier import PatternMatchSimplifier
 from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .pre_pattern_match_simplifier import PrePatternMatchSimplifier
@@ -14,7 +15,6 @@ from .ret_expr_rewriter import RetExprRewriter
 from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
 from .struct_return_simplifier import StructReturnSimplifier
-from .unwrap_simplifier import UnwrapSimplifier
 from .alloc_simplifier import AllocSimplifier
 from .type_corrector import TypeCorrector
 from .struct_instantiation_simplifier import StructInstantiationSimplifier
@@ -29,11 +29,11 @@ def get_rust_optimization_passes():
         CleanupCodeRemover,
         SecurityCheckRemover,
         FunctionPrototypeInference,
-        UnwrapSimplifier,
         StrArgumentSimplifier,
         StructInstantiationSimplifier,
         StringOutliner,
         StringCmpOutliner,
+        UnwrapOutliner,
         PrintMacroSimplifier,
         VecMacroSimplifier,
         ShowMacroSimplifier,

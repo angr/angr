@@ -1,5 +1,7 @@
 import logging
 
+import networkx
+
 from ailment import Const, Block
 from ailment.expression import VirtualVariable, Phi
 from ailment.statement import Jump, ConditionalJump, Assignment
@@ -11,7 +13,7 @@ l = logging.getLogger(name=__name__)
 
 class CFGTransformationMixin:
     def __init__(self, graph):
-        self._graph = graph
+        self._graph: networkx.DiGraph = graph
         self._block_by_addr_and_idx = None
 
         self.update_block_indexes()
@@ -232,3 +234,35 @@ class CFGTransformationMixin:
                 )
 
         return True
+
+    def split_block(self, block: Block, new_head_stmt):
+        if new_head_stmt not in block.statements:
+            return None, None
+        preds = list(self._graph.predecessors(block))
+        succs = list(self._graph.successors(block))
+
+        stmt_idx = block.statements.index(new_head_stmt)
+        first_stmts = block.statements[:stmt_idx]
+        second_stmts = block.statements[stmt_idx:]
+        first_block = block.copy()
+        first_block.statements = first_stmts
+        second_block = block.copy()
+        second_block.addr = new_head_stmt.ins_addr
+        second_block.statements = second_stmts
+
+        for pred in preds:
+            self._graph.add_edge(pred, first_block)
+
+        for succ in succs:
+            self._graph.add_edge(second_block, succ)
+
+        self._graph.add_edge(first_block, second_block)
+
+        self._graph.remove_node(block)
+
+        self._block_by_addr_and_idx[(first_block.addr, first_block.idx)] = first_block
+        self._block_by_addr_and_idx[(second_block.addr, second_block.idx)] = second_block
+
+        self._update_phi_variables_after_removing_block(self._graph, [second_block], block)
+
+        return first_block, second_block

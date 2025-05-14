@@ -603,6 +603,12 @@ class RustSimEnum(RustSimType, SimType):
                 return variant
         return None
 
+    def get_variant_by_name(self, name):
+        for variant in self.variants:
+            if variant.name == name:
+                return variant
+        return None
+
     def num_variants(self):
         return len(self.variants)
 
