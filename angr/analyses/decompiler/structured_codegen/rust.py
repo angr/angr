@@ -1415,6 +1415,9 @@ class RustFunctionCall(RustStatement, RustExpression):
                         semicolons and newlines at the end of the call).
         """
 
+        if asexpr:
+            indent = 0
+
         ret_expr = self.ret_expr
         args = self.args
 
