@@ -55,6 +55,10 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         return None
 
     def _collect_move_stmts(self, scrutinee: VirtualVariable, variant: EnumVariant, node):
+        if node.addr == 0x416C09:
+            import ipdb
+
+            ipdb.set_trace()
         # TODO: Support the case when scrutinee.was_combo_reg
         if not scrutinee.was_stack:
             return (None,) * len(variant.fields)
@@ -66,14 +70,18 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and (stmt.dst.was_stack or stmt.dst.was_reg)
-                    and isinstance(stmt.src, Load)
-                    and (
-                        (src_vvar := unwrap_stack_vvar_reference(stmt.src.addr))
+                ):
+                    src_vvar = None
+                    if isinstance(stmt.src, Load):
+                        src_vvar = unwrap_stack_vvar_reference(stmt.src.addr)
+                    elif isinstance(stmt.src, VirtualVariable):
+                        src_vvar = stmt.src
+                    if (
+                        isinstance(src_vvar, VirtualVariable)
                         and src_vvar.was_stack
                         and src_vvar.stack_offset not in src_offset_to_stmt
-                    )
-                ):
-                    src_offset_to_stmt[src_vvar.stack_offset] = stmt
+                    ):
+                        src_offset_to_stmt[src_vvar.stack_offset] = stmt
             field_offsets = variant.field_offsets
             move_stmts = []
             for field_offset in sorted(field_offsets.keys()):
