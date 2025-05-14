@@ -1,20 +1,18 @@
 from typing import Dict, Union
 from itertools import count
 
-from ..definitions.structs import PreDefinedStructs
-from ...analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
-from ...analyses.typehoon import typeconsts
-from ...analyses.typehoon.typeconsts import TypeConstant
-from ... import sim_type
-from ...sim_type import SimType
-from ..sim_type import (
+from angr.rust.definitions.structs import PreDefinedStructs
+from angr.analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
+from angr.analyses.typehoon import typeconsts
+from angr.analyses.typehoon.typeconsts import TypeConstant
+from angr import sim_type
+from angr.rust.sim_type import (
+    SimType,
     RustSimTypeInt,
     RustSimTypeReference,
     RustSimType,
     RustSimTypeArray,
     RustSimStruct,
-    RustSimTypeString,
-    RustSimTypeStr,
     RustSimTypeResult,
     RustSimTypeOption,
 )
@@ -133,7 +131,7 @@ class RustTypeTranslator(TypeTranslator):
             err_type,
             err_variant.discriminant,
             err_variant.discriminant_size,
-        )
+        ).with_arch(self.arch)
 
     def _translate_Option(self, tc: typeconsts.Enum):
         none_variant = tc.get_variant("None")
@@ -145,7 +143,7 @@ class RustTypeTranslator(TypeTranslator):
             some_type,
             some_variant.discriminant,
             some_variant.discriminant_size,
-        )
+        ).with_arch(self.arch)
 
     def _translate_Enum(self, tc: typeconsts.Enum):
         if tc.name.startswith("Result<"):
