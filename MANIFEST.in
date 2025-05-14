@@ -3,4 +3,4 @@ include README.md
 recursive-include native *.c *.cpp *.h *.hpp *.def Makefile Makefile-win
 include Cargo.toml
 include Cargo.lock
-recursive-include crates
+graft crates
