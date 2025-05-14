@@ -1,4 +1,4 @@
-from ailment import AILBlockWalker, Statement, Block
+from ailment import AILBlockWalker, Statement, Block, Assignment
 from ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp, Load
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
@@ -45,7 +45,7 @@ class SSAVariableMixin:
         def _handle_VirtualVariable(
             expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
         ):
-            if expr.varid in self._new_stack_vvars:
+            if expr.varid in self._new_stack_vvars or (isinstance(stmt, Assignment) and stmt.dst is expr):
                 return None
             if expr.was_stack:
                 vvar = srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.ins_addr, block.idx)
