@@ -185,10 +185,6 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                     full_sz = max(stackvar_locs[off])
                     udef_to_defs[("stack", off, full_sz)].add(def_)
                     udef_to_blockkeys[("stack", off, full_sz)].add((loc.block_addr, loc.block_idx))
-                    # add a definition for the partial stack variable
-                    if sz in stackvar_locs[off] and sz < full_sz:
-                        udef_to_defs[("stack", off, sz)].add(def_)
-                        udef_to_blockkeys[("stack", off, sz)].add((loc.block_addr, loc.block_idx))
             elif isinstance(def_, Tmp):
                 # Tmps are local to each block and do not need phi nodes
                 pass
@@ -242,7 +238,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         for def_ in defs:
             if isinstance(def_, StackBaseOffset):
                 stack_off = def_.offset
-                accesses[stack_off].add(1)
+                accesses[stack_off].add(-1)  # we will fix it later
                 offs.add(stack_off)
             elif isinstance(def_, Store) and isinstance(def_.addr, StackBaseOffset):
                 stack_off = def_.addr.offset
@@ -253,11 +249,23 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         locs: dict[int, set[int]] = {}
         for idx, off in enumerate(sorted_offs):
             sorted_sizes = sorted(accesses[off])
-            if idx < len(sorted_offs) - 1:
-                next_off = sorted_offs[idx + 1]
-                allowed_sizes = [sz for sz in sorted_sizes if off + sz <= next_off]
+            if -1 in sorted_sizes:
+                sorted_sizes.remove(-1)
+
+            allowed_sizes = []
+            if not sorted_sizes:
+                # this location is only referenced by a ref; we guess its size
+                if idx < len(sorted_offs) - 1:
+                    next_off = sorted_offs[idx + 1]
+                    sz = next_off - off
+                    if sz > 0:
+                        allowed_sizes = [sz]
             else:
-                allowed_sizes = sorted_sizes
+                if idx < len(sorted_offs) - 1:
+                    next_off = sorted_offs[idx + 1]
+                    allowed_sizes = [sz for sz in sorted_sizes if off + sz <= next_off]
+                else:
+                    allowed_sizes = sorted_sizes
 
             if allowed_sizes:
                 locs[off] = set(allowed_sizes)

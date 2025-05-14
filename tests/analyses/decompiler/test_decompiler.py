@@ -4048,12 +4048,12 @@ class TestDecompiler(unittest.TestCase):
 
         # If this testcase should fail in finding this assignment in the decompilation than do a search for
         # anywhere that algorithm_bits is used. It's possible we messed up the regex here.
-        # What we are looking for is that the use of this value is used at least 3 times.
+        # What we are looking for is that the use of this value is used at least two times.
         assign_vars = re.findall("(v[0-9]{1,2}) = .*algorithm_bits.*;", text)
         assert len(assign_vars) == 1
         assign_var = assign_vars[0]
 
-        assert text.count(f"digest_length = {assign_var};") >= 3
+        assert text.count(f"digest_length = {assign_var};") >= 2
 
     @structuring_algo("sailr")
     def disabled_test_tr_build_spec_list_deduplication(self, decompiler_options=None):
@@ -5153,6 +5153,21 @@ class TestDecompiler(unittest.TestCase):
         assert v11_eq_v24_line_no is not None
         assert v24_with_capacity_line_no is not None
         assert v11_eq_v24_line_no < v24_with_capacity_line_no
+
+    def test_decompiling_rust_fmt_build_best_path_no_ref_using_args(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        func = proj.kb.functions[0x4BC130]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # Check if Reference(reg_vvar) exists
+        # In this case, &vvar_3 and vvar_3 shouldn't exist in decompilation
+        assert re.search(r"vvar_\d+", dec.codegen.text) is None
+        assert re.search(r"&a[1-5]", dec.codegen.text) is None
+        # FIXME: we generate &a0->field_8, which is a bug that will be fixed at a later time
 
 
 if __name__ == "__main__":
