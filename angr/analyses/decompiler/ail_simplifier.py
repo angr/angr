@@ -1479,11 +1479,13 @@ class AILSimplifier(Analysis):
                 if uses is None:
                     vvar = rd.varid_to_vvar[vvar_id]
                     def_codeloc = rd.all_vvar_definitions[vvar_id]
-                    def_stmt = (
-                        blocks[(def_codeloc.block_addr, def_codeloc.block_idx)].statements[def_codeloc.stmt_idx]
-                        if not isinstance(def_codeloc, ExternalCodeLocation)
-                        else None
-                    )
+                    if isinstance(def_codeloc, ExternalCodeLocation):
+                        def_stmt = None
+                    else:
+                        assert def_codeloc.block_addr is not None and def_codeloc.stmt_idx is not None
+                        def_stmt = blocks[(def_codeloc.block_addr, def_codeloc.block_idx)].statements[
+                            def_codeloc.stmt_idx
+                        ]
                     if is_vvar_eliminatable(vvar, def_stmt):
                         uses = rd.all_vvar_uses[vvar_id]
                     elif vvar.was_stack:

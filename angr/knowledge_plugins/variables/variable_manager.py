@@ -168,7 +168,9 @@ class VariableManagerInternal(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return variables_pb2.VariableManagerInternal()  # type: ignore[reportAttributeAccessIssue]
+        return (
+            variables_pb2.VariableManagerInternal()  # type: ignore[reportAttributeAccessIssue]  # pylint:disable=no-member
+        )
 
     def serialize_to_cmessage(self):
         # pylint:disable=no-member,unused-variable
@@ -1153,8 +1155,7 @@ class VariableManagerInternal(Serializable):
                     for i in range(start, len(vs)):
                         v0 = vs[i]
                         added = False
-                        for v_rep in congruence_classes:  # TODO: does it keep order?
-                            cls = congruence_classes[v_rep]
+                        for cls in congruence_classes.values():  # the insertion order of the dict is preserved
                             if all(not self._variables_interfere(interference, v, v0) for v in cls):
                                 cls.add(v0)
                                 added = True
