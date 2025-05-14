@@ -348,6 +348,32 @@ def has_load_expr_in_between_stmts(
     )
 
 
+def is_vvar_eliminatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
+    if vvar.was_reg or vvar.was_parameter:
+        return True
+    if (  # noqa: SIM103
+        vvar.was_stack
+        and isinstance(def_stmt, Assignment)
+        and isinstance(def_stmt.src, VirtualVariable)
+        and def_stmt.src.was_stack
+        and def_stmt.src.stack_offset == vvar.stack_offset
+    ):
+        # special case: the following block
+        #   ## Block 401e98
+        #   00 | 0x401e98 | LABEL_401e98:
+        #   01 | 0x401e98 | vvar_227{stack -12} = 𝜙@32b [((4202088, None), vvar_277{stack -12}), ((4202076, None),
+        #                   vvar_278{stack -12})]
+        #   02 | 0x401ea0 | return Conv(32->64, vvar_227{stack -12});
+        # might be simplified to the following block after return duplication
+        #   ## Block 401e98.1
+        #   00 | 0x401e98 | LABEL_401e98__1:
+        #   01 | 0x401e98 | vvar_279{stack -12} = vvar_277{stack -12}
+        #   02 | 0x401ea0 | return Conv(32->64, vvar_279{stack -12});
+        # in this case, vvar_279 is eliminatable.
+        return True
+    return False
+
+
 __all__ = (
     "VVarUsesCollector",
     "check_in_between_stmts",
@@ -364,5 +390,6 @@ __all__ = (
     "is_const_vvar_load_assignment",
     "is_const_vvar_load_dirty_assignment",
     "is_phi_assignment",
+    "is_vvar_eliminatable",
     "phi_assignment_get_src",
 )

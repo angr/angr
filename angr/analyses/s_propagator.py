@@ -33,6 +33,7 @@ from angr.utils.ssa import (
     is_const_vvar_load_assignment,
     is_const_vvar_load_dirty_assignment,
     is_const_vvar_tmp_assignment,
+    is_vvar_eliminatable,
     get_tmp_uselocs,
     get_tmp_deflocs,
     phi_assignment_get_src,
@@ -245,7 +246,7 @@ class SPropagatorAnalysis(Analysis):
                         self.model.dead_vvar_ids.add(vvar.varid)
                         continue
 
-                if vvar.was_reg or vvar.was_parameter:
+                if is_vvar_eliminatable(vvar, stmt):
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
                         if (

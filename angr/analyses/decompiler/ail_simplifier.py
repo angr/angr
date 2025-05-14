@@ -29,7 +29,12 @@ from ailment.expression import (
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel
 from angr.utils.ail import is_phi_assignment, HasExprWalker
-from angr.utils.ssa import has_call_in_between_stmts, has_store_stmt_in_between_stmts, has_load_expr_in_between_stmts
+from angr.utils.ssa import (
+    has_call_in_between_stmts,
+    has_store_stmt_in_between_stmts,
+    has_load_expr_in_between_stmts,
+    is_vvar_eliminatable,
+)
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
 from angr.knowledge_plugins.propagations.states import Equivalence
@@ -1473,7 +1478,15 @@ class AILSimplifier(Analysis):
 
                 if uses is None:
                     vvar = rd.varid_to_vvar[vvar_id]
-                    if vvar.was_stack:
+                    def_codeloc = rd.all_vvar_definitions[vvar_id]
+                    def_stmt = (
+                        blocks[(def_codeloc.block_addr, def_codeloc.block_idx)].statements[def_codeloc.stmt_idx]
+                        if not isinstance(def_codeloc, ExternalCodeLocation)
+                        else None
+                    )
+                    if is_vvar_eliminatable(vvar, def_stmt):
+                        uses = rd.all_vvar_uses[vvar_id]
+                    elif vvar.was_stack:
                         if not self._remove_dead_memdefs:
                             if rd.is_phi_vvar_id(vvar_id):
                                 # we always remove unused phi variables
@@ -1488,9 +1501,6 @@ class AILSimplifier(Analysis):
                                     continue
                             else:
                                 continue
-                        uses = rd.all_vvar_uses[vvar_id]
-
-                    elif vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
                         uses = rd.all_vvar_uses[vvar_id]
 
                     else:

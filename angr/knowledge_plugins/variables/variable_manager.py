@@ -1147,16 +1147,21 @@ class VariableManagerInternal(Serializable):
                 stack_vars_by_offset[v.offset].append(v)
             for vs in stack_vars_by_offset.values():
                 # split vs into disjoint sets based on variable interference relations
-                congruence_classes = {v: {v} for v in vs}
-                for v0 in vs:
-                    for v1 in vs:
-                        if v0 is v1:
-                            continue
-                        if v1 in congruence_classes[v0] or v0 in congruence_classes[v1]:
-                            continue
-                        if not self._variables_interfere(interference, v0, v1):
-                            congruence_classes[v0].add(v1)
-                            congruence_classes[v1] = congruence_classes[v0]
+                congruence_classes = {}
+                start = 0
+                while start < len(vs):
+                    for i in range(start, len(vs)):
+                        v0 = vs[i]
+                        added = False
+                        for v_rep in congruence_classes:  # TODO: does it keep order?
+                            cls = congruence_classes[v_rep]
+                            if all(not self._variables_interfere(interference, v, v0) for v in cls):
+                                cls.add(v0)
+                                added = True
+                                break
+                        if not added:
+                            congruence_classes[v0] = {v0}
+                        start = i + 1
 
                 seen = set()
                 for cls in congruence_classes.values():
