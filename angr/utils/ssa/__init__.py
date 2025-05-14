@@ -349,7 +349,7 @@ def has_load_expr_in_between_stmts(
 
 
 def is_vvar_eliminatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
-    if vvar.was_reg or vvar.was_parameter:
+    if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
         return True
     if (  # noqa: SIM103
         vvar.was_stack
