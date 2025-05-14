@@ -3,6 +3,11 @@ name: Nightly CI
 on:
   schedule:
   - cron: "0 0 * * *"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/nightly-ci.yml"
   workflow_dispatch:
 
 jobs:
@@ -12,6 +17,43 @@ jobs:
       nightly: true
     secrets: inherit
   windows:
-    uses: ./.github/workflows/windows.yml
+    name: Test Windows
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        runner_id: [1, 2, 3, 4, 5]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: angr
+      - uses: actions/checkout@v4
+        with:
+          repository: angr/binaries
+          path: binaries
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: astral-sh/setup-uv@v6
+      - name: Sync dependencies
+        run: uv --directory angr sync -p 3.10
+      - name: Run pytest
+        run: uv --directory angr run pytest -n auto --splits 5 --group ${{ matrix.runner_id }} tests
   macos:
-    uses: ./.github/workflows/macos.yml
+    name: Test macOS
+    runs-on: macos-13
+    strategy:
+      matrix:
+        runner_id: [1, 2, 3]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: angr
+      - uses: actions/checkout@v4
+        with:
+          repository: angr/binaries
+          path: binaries
+      - uses: astral-sh/setup-uv@v6
+      - name: Sync dependencies
+        run: uv --directory angr sync -p 3.10
+      - name: Run pytest
+        run: uv --directory angr run pytest -n auto --splits 3 --group ${{ matrix.runner_id }} tests
