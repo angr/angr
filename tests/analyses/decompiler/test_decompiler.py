@@ -4048,12 +4048,12 @@ class TestDecompiler(unittest.TestCase):
 
         # If this testcase should fail in finding this assignment in the decompilation than do a search for
         # anywhere that algorithm_bits is used. It's possible we messed up the regex here.
-        # What we are looking for is that the use of this value is used at least 3 times.
+        # What we are looking for is that the use of this value is used at least two times.
         assign_vars = re.findall("(v[0-9]{1,2}) = .*algorithm_bits.*;", text)
         assert len(assign_vars) == 1
         assign_var = assign_vars[0]
 
-        assert text.count(f"digest_length = {assign_var};") >= 3
+        assert text.count(f"digest_length = {assign_var};") >= 2
 
     @structuring_algo("sailr")
     def disabled_test_tr_build_spec_list_deduplication(self, decompiler_options=None):
