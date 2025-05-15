@@ -6,12 +6,13 @@ from collections import defaultdict
 from collections.abc import Sequence
 from typing import Any
 
-import pyvex
 import archinfo
+import pypcode
+import pyvex
 
 from . import Analysis
-
 from angr.analyses import AnalysesHub
+from angr.engines import pcode
 from angr.errors import AngrTypeError
 from angr.knowledge_plugins import Function
 from angr.utils.library import get_cpp_function_name
@@ -20,16 +21,9 @@ from angr.block import DisassemblerInsn, CapstoneInsn, SootBlockNode
 from angr.codenode import BlockNode
 from .disassembly_utils import decode_instruction
 
-try:
-    from angr.engines import pcode
-    import pypcode
 
-    IRSBType = pyvex.IRSB | pcode.lifter.IRSB
-    IROpObjType = pyvex.stmt.IRStmt | pypcode.PcodeOp
-except ImportError:
-    pcode = None
-    IRSBType = pyvex.IRSB
-    IROpObjType = pyvex.stmt
+IRSBType = pyvex.IRSB | pcode.lifter.IRSB
+IROpObjType = pyvex.stmt.IRStmt | pypcode.PcodeOp
 
 l = logging.getLogger(name=__name__)
 

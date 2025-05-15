@@ -7,10 +7,12 @@ import re
 import logging
 from collections import defaultdict
 
-from archinfo.arch_arm import is_arm_arch
+import pypcode
 import pyvex
+from archinfo.arch_arm import is_arm_arch
 
 from angr.analyses import ForwardAnalysis, visitors
+from angr.engines import pcode
 from angr.utils.constants import is_alignment_mask
 from angr.analyses import AnalysesHub
 from angr.knowledge_plugins import Function
@@ -21,12 +23,6 @@ from angr.utils.types import dereference_simtype_by_lib
 
 from .analysis import Analysis
 
-try:
-    import pypcode
-    from angr.engines import pcode
-except ImportError:
-    pypcode = None
-    pcode = None
 
 if TYPE_CHECKING:
     from angr.block import Block

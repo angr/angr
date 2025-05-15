@@ -3,6 +3,7 @@ import logging
 
 import claripy
 from claripy.ast.bv import BV
+from pypcode import OpCode, Varnode, PcodeOp
 
 from angr.engines.engine import SimEngine
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -10,10 +11,6 @@ from .lifter import IRSB
 from .behavior import OpBehavior
 from angr.errors import AngrError
 from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
-import contextlib
-
-with contextlib.suppress(ImportError):
-    from pypcode import OpCode, Varnode, PcodeOp
 
 
 l = logging.getLogger(__name__)
