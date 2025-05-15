@@ -4,13 +4,10 @@ from collections.abc import Callable, Iterable
 
 import claripy
 from claripy.ast.bv import BV
+from pypcode import OpCode
 
 from angr.errors import AngrError
 
-try:
-    from pypcode import OpCode
-except ImportError:
-    OpCode = None
 
 # pylint:disable=abstract-method
 

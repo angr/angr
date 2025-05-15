@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from unittest import TestCase, skipUnless, main
+
 import os
+from unittest import TestCase, skipUnless, main
 
 import archinfo
+import pypcode
+
 import angr
 
-try:
-    import pypcode
-except ModuleNotFoundError:
-    pypcode = None
 
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
