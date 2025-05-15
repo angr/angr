@@ -649,6 +649,7 @@ class VariableManagerInternal(Serializable):
         if not variables:
             return []
 
+        var_and_offsets: list[tuple[SimVariable, int]]
         if sort == "memory":
             var_and_offsets = [
                 (var, offset)
@@ -717,7 +718,7 @@ class VariableManagerInternal(Serializable):
     def get_variables(self, sort: Literal["reg"], collapse_same_ident: bool = False) -> list[SimRegisterVariable]: ...
     @overload
     def get_variables(
-        self, sort: None, collapse_same_ident: bool = False
+        self, sort: None = None, collapse_same_ident: bool = False
     ) -> list[SimRegisterVariable | SimRegisterVariable]: ...
 
     def get_variables(self, sort=None, collapse_same_ident=False):
@@ -874,7 +875,7 @@ class VariableManagerInternal(Serializable):
             if (types is None or SimStackVariable in types) and isinstance(var, SimStackVariable):
                 if var.name is not None:
                     continue
-                if var.ident.startswith("iarg"):
+                if var.ident and var.ident.startswith("iarg"):
                     var.name = f"arg_{var.offset:x}"
                 else:
                     var.name = "s_%x" % (-var.offset)
@@ -996,9 +997,9 @@ class VariableManagerInternal(Serializable):
             name = self.types.unique_type_name()
         if name in self.types:
             return self.types[name]
-        ty = TypeRef(name, ty).with_arch(self.manager._kb._project.arch)
-        self.types[name] = ty
-        return ty
+        ty_ref = TypeRef(name, ty).with_arch(self.manager._kb._project.arch)
+        self.types[name] = ty_ref
+        return ty_ref
 
     def set_variable_type(
         self,
@@ -1134,18 +1135,18 @@ class VariableManagerInternal(Serializable):
                 stack_vars.discard(v)
 
         # deal with remaining variables
-        for v in sorted(reg_vars, key=lambda v: v.ident):
+        for v in sorted(reg_vars, key=lambda v: v.ident if v.ident else ""):
             self.set_unified_variable(v, v)
 
         if interference is None:
             # interference graph is unavailable; we do not merge stack variables
-            for v in sorted(stack_vars, key=lambda v: v.ident):
+            for v in sorted(stack_vars, key=lambda v: v.ident if v.ident else ""):
                 self.set_unified_variable(v, v)
 
         else:
             # merge stack variables at the same offsets only if their corresponding vvars do not interfere
             stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
-            for v in sorted(stack_vars, key=lambda v: v.ident):
+            for v in sorted(stack_vars, key=lambda v: v.ident if v.ident else ""):
                 stack_vars_by_offset[v.offset].append(v)
             for vs in stack_vars_by_offset.values():
                 # split vs into disjoint sets based on variable interference relations
@@ -1213,6 +1214,7 @@ class VariableManagerInternal(Serializable):
             # not used at all?
             return False
         for acc in accesses:
+            assert acc.location.block_addr is not None
             block = func_block_by_addr.get((acc.location.block_addr, acc.location.block_idx), None)
             if block is not None:
                 stmt = block.statements[acc.location.stmt_idx]
