@@ -378,7 +378,7 @@ class FunctionHandler:
                     hook = state.analysis.project.symbol_hooked_by(plt_name)
             if data.cc is None and hook is not None:
                 data.cc = hook.cc
-            if data.prototype is None and hook is not None:
+            if data.prototype is None and hook is not None and hook.prototype is not None:
                 data.prototype = hook.prototype.with_arch(state.arch)
                 data.guessed_prototype = hook.guessed_prototype
                 hook_libname = hook.library_name
