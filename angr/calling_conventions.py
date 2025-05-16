@@ -15,6 +15,7 @@ from unique_log_filter import UniqueLogFilter
 import angr
 from .errors import AngrTypeError
 from .sim_type import (
+    NamedTypeMixin,
     SimType,
     SimTypeChar,
     SimTypePointer,
@@ -124,7 +125,12 @@ class AllocHelper:
 
 
 def refine_locs_with_struct_type(
-    arch: archinfo.Arch, locs: list, arg_type: SimType, offset: int = 0, treat_bot_as_int=True
+    arch: archinfo.Arch,
+    locs: list,
+    arg_type: SimType,
+    offset: int = 0,
+    treat_bot_as_int=True,
+    treat_unsupported_as_int=True,
 ):
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
@@ -172,6 +178,18 @@ def refine_locs_with_struct_type(
         for member in arg_type.members.values():
             if member.size == arg_type.size:
                 return refine_locs_with_struct_type(arch, locs, member, offset)
+
+    # for all other types, we basically treat them as integers until someone implements proper layouting logic
+    if treat_unsupported_as_int:
+        arg_type = SimTypeInt().with_arch(arch)
+        return refine_locs_with_struct_type(
+            arch,
+            locs,
+            arg_type,
+            offset=offset,
+            treat_bot_as_int=treat_bot_as_int,
+            treat_unsupported_as_int=treat_unsupported_as_int,
+        )
 
     raise TypeError(f"I don't know how to lay out a {arg_type}")
 
@@ -1660,7 +1678,8 @@ class SimCCSystemVAMD64(SimCC):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom)):
             return ["INTEGER"] * nchunks
-        if isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
+        if isinstance(ty, (SimTypeArray, NamedTypeMixin)):
+            # NamedTypeMixin covers SimUnion, SimStruct, SimTypeString, and other struct-like classes
             assert ty.size is not None
             if ty.size > 512:
                 return ["MEMORY"] * nchunks
