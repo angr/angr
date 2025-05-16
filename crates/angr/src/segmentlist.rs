@@ -47,19 +47,22 @@ impl Segment {
 /// Should be called a SegmentMap!
 #[derive(Clone, Default)]
 #[pyclass(module = "angr.rustylib.segmentlist")]
-pub struct SegmentList(RangeMap<u64, Option<String>>);
+pub struct SegmentList {
+    map: RangeMap<u64, Option<String>>,
+    bytes_occupied: u64,
+}
 
 impl SegmentList {
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.map.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.map.is_empty()
     }
 
     pub fn get_segment(&self, address: u64) -> Option<(u64, u64, Option<String>)> {
-        self.0
+        self.map
             .get_key_value(&address)
             .map(|(range, sort)| (range.start, range.end - range.start, sort.clone()))
     }
@@ -69,7 +72,10 @@ impl SegmentList {
 impl SegmentList {
     #[new]
     pub fn new() -> Self {
-        Default::default()
+        SegmentList {
+            map: RangeMap::new(),
+            bytes_occupied: 0,
+        }
     }
 
     pub fn __getnewargs__(&self, py: Python<'_>) -> Py<PyTuple> {
@@ -77,25 +83,25 @@ impl SegmentList {
     }
 
     pub fn __getstate__(&self) -> Vec<(u64, u64, Option<String>)> {
-        self.0
+        self.map
             .iter()
             .map(|(r, sort)| (r.start, r.end - r.start, sort.clone()))
             .collect()
     }
 
     pub fn __setstate__(&mut self, state: Vec<(u64, u64, Option<String>)>) {
-        self.0.clear();
+        self.map.clear();
         for (start, size, sort) in state {
             self.occupy(start, size, sort);
         }
     }
 
     pub fn __len__(&self) -> usize {
-        self.0.len()
+        self.map.len()
     }
 
     pub fn __getitem__(&self, idx: usize) -> PyResult<Segment> {
-        self.0
+        self.map
             .iter()
             .nth(idx)
             .map(|(r, sort)| Segment::new(r.start, r.end, sort.clone()))
@@ -113,19 +119,19 @@ impl SegmentList {
 
     #[getter]
     pub fn occupied_size(&self) -> u64 {
-        self.0.iter().map(|(r, _)| r.end - r.start).sum()
+        self.bytes_occupied
     }
 
     #[getter]
     pub fn has_blocks(&self) -> bool {
-        !self.0.is_empty()
+        !self.map.is_empty()
     }
 
     /// Checks which segment that the address `addr` should belong to,
     /// and returns the offset of that segment.
     /// Note that the address may not actually belong to the block.
     pub fn search(&self, addr: u64) -> Option<usize> {
-        self.0
+        self.map
             .iter()
             .enumerate()
             .find(|(_, (range, _))| range.end >= addr)
@@ -133,7 +139,7 @@ impl SegmentList {
     }
 
     pub fn next_free_pos(&self, address: u64) -> Option<u64> {
-        self.0
+        self.map
             .gaps(&(address..u64::MAX))
             .map(|gap| gap.start)
             .next()
@@ -151,7 +157,7 @@ impl SegmentList {
         let end = address.saturating_add(max_distance.unwrap_or(u64::MAX));
         let search_range = address..end;
         // Find the lowest position among the occupied ranges
-        self.0
+        self.map
             .overlapping(search_range.clone())
             .filter(|(_, sort)| !sorts.contains(sort))
             .map(|(range, _)| std::cmp::max(range.start, address))
@@ -159,15 +165,15 @@ impl SegmentList {
     }
 
     pub fn is_occupied(&self, address: u64) -> bool {
-        self.0.contains_key(&address)
+        self.map.contains_key(&address)
     }
 
     pub fn occupied_by_sort(&self, address: u64) -> Option<String> {
-        self.0.get(&address)?.clone()
+        self.map.get(&address)?.clone()
     }
 
     pub fn occupied_by(&self, address: u64) -> Option<(u64, u64, Option<String>)> {
-        self.0
+        self.map
             .get_key_value(&address)
             .map(|(range, sort)| (range.start, range.end - range.start, sort.clone()))
     }
@@ -176,17 +182,20 @@ impl SegmentList {
         if size == 0 {
             return;
         }
-        self.0.insert(address..(address + size), sort);
+        self.map.insert(address..(address + size), sort);
+        self.bytes_occupied += size;
     }
 
     pub fn update(&mut self, other: &SegmentList) {
-        for (r, sort) in other.0.iter() {
+        for (r, sort) in other.map.iter() {
             self.occupy(r.start, r.end - r.start, sort.clone());
+            self.bytes_occupied += r.end - r.start;
         }
     }
 
     pub fn release(&mut self, address: u64, size: u64) {
-        self.0.remove(address..(address + size));
+        self.map.remove(address..(address + size));
+        self.bytes_occupied -= size;
     }
 
     pub fn copy(&self) -> SegmentList {
@@ -218,7 +227,7 @@ impl SegmentListIter {
         let segmentlist_ref = self.segmentlist.bind(py).borrow();
         // Iterate by index: get the (range, sort) pair at position idx
         // FIXME: This is linear time, should be no more than O(log n)
-        if let Some((range, sort)) = segmentlist_ref.0.iter().nth(self.idx as usize) {
+        if let Some((range, sort)) = segmentlist_ref.map.iter().nth(self.idx as usize) {
             self.idx += 1;
             Ok(Segment::new(range.start, range.end, sort.clone()))
         } else {
