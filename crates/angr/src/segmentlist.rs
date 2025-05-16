@@ -1,3 +1,4 @@
+use std::cmp::{max, min};
 use std::collections::HashSet;
 
 use pyo3::{exceptions::PyStopIteration, prelude::*, types::PyTuple};
@@ -182,20 +183,44 @@ impl SegmentList {
         if size == 0 {
             return;
         }
-        self.map.insert(address..(address + size), sort);
-        self.bytes_occupied += size;
+        let new_range = address..address + size;
+        let overlapped: u64 = self
+            .map
+            .overlapping(new_range.clone())
+            .map(|(r, _)| {
+                let s = max(r.start, new_range.start);
+                let e = min(r.end, new_range.end);
+                e.saturating_sub(s)
+            })
+            .sum();
+        let added = size.saturating_sub(overlapped);
+        self.map.insert(new_range, sort);
+        self.bytes_occupied = self.bytes_occupied.saturating_add(added);
     }
 
     pub fn update(&mut self, other: &SegmentList) {
         for (r, sort) in other.map.iter() {
-            self.occupy(r.start, r.end - r.start, sort.clone());
-            self.bytes_occupied += r.end - r.start;
+            let size = r.end - r.start;
+            self.occupy(r.start, size, sort.clone());
         }
     }
 
     pub fn release(&mut self, address: u64, size: u64) {
-        self.map.remove(address..(address + size));
-        self.bytes_occupied -= size;
+        if size == 0 {
+            return;
+        }
+        let rem = address..address + size;
+        let removed: u64 = self
+            .map
+            .overlapping(rem.clone())
+            .map(|(r, _)| {
+                let s = max(r.start, rem.start);
+                let e = min(r.end, rem.end);
+                e.saturating_sub(s)
+            })
+            .sum();
+        self.map.remove(rem);
+        self.bytes_occupied = self.bytes_occupied.saturating_sub(removed);
     }
 
     pub fn copy(&self) -> SegmentList {
@@ -242,4 +267,60 @@ pub fn segmentlist(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SegmentList>()?;
     m.add_class::<SegmentListIter>()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SegmentList;
+
+    #[test]
+    fn empty_list() {
+        let mut sl = SegmentList::new();
+        assert_eq!(sl.occupied_size(), 0);
+        sl.release(0, 10);
+        assert_eq!(sl.occupied_size(), 0);
+    }
+
+    #[test]
+    fn single_range() {
+        let mut sl = SegmentList::new();
+        sl.occupy(10, 5, None);
+        assert_eq!(sl.occupied_size(), 5);
+        assert!(sl.is_occupied(10));
+        assert!(!sl.is_occupied(9));
+    }
+
+    #[test]
+    fn multi_non_overlapping() {
+        let mut sl = SegmentList::new();
+        sl.occupy(0, 10, None);
+        sl.occupy(20, 5, Some("X".to_string()));
+        assert_eq!(sl.occupied_size(), 15);
+        sl.release(100, 5);
+        assert_eq!(sl.occupied_size(), 15);
+    }
+
+    #[test]
+    fn overlapping_inserts() {
+        let mut sl = SegmentList::new();
+        sl.occupy(0, 10, None);
+        sl.occupy(5, 10, None);
+        assert_eq!(sl.occupied_size(), 15);
+    }
+
+    #[test]
+    fn full_and_partial_release() {
+        let mut sl = SegmentList::new();
+        sl.occupy(0, 10, None);
+        // partial release [3..8)
+        sl.release(3, 5);
+        assert_eq!(sl.occupied_size(), 5);
+        assert!(sl.is_occupied(2));
+        assert!(!sl.is_occupied(4));
+        assert!(sl.is_occupied(8));
+        // full release
+        sl.release(0, 10);
+        assert_eq!(sl.occupied_size(), 0);
+        assert!(sl.is_empty());
+    }
 }
