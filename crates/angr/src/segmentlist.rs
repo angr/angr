@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use std::cmp::{max, min};
+use std::collections::HashSet;
 
 use pyo3::{exceptions::PyStopIteration, prelude::*, types::PyTuple};
 use rangemap::RangeMap;
