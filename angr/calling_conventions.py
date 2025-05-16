@@ -728,7 +728,7 @@ class SimCC:
             self.next_arg(session, SimTypePointer(SimTypeBottom()))
         return session
 
-    def return_in_implicit_outparam(self, ty):  # pylint:disable=unused-argument
+    def return_in_implicit_outparam(self, ty) -> bool:  # pylint:disable=unused-argument
         return False
 
     def stack_space(self, args):
@@ -1295,10 +1295,10 @@ class SimCCUsercall(SimCC):
 
     ArgSession = UsercallArgSession
 
-    def next_arg(self, session, arg_type):
+    def next_arg(self, session: UsercallArgSession, arg_type):  # type:ignore[reportIncompatibleMethodOverride]
         return next(session.real_args)
 
-    def return_val(self, ty, **kwargs):  # pylint: disable=unused-argument
+    def return_val(self, ty, **kwargs):  # type:ignore  # pylint: disable=unused-argument
         return self.ret_loc
 
 
@@ -1339,6 +1339,7 @@ class SimCCCdecl(SimCC):
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
             ptr_loc = self.RETURN_VAL if perspective_returned else SimStackArg(0, 4)
+            assert ptr_loc is not None
             return SimReferenceArgument(ptr_loc, referenced_loc)
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
@@ -1645,6 +1646,7 @@ class SimCCSystemVAMD64(SimCC):
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
             ptr_loc = self.RETURN_VAL if perspective_returned else SimRegArg("rdi", 8)
+            assert ptr_loc is not None
             return SimReferenceArgument(ptr_loc, referenced_loc)
         mapped_classes = []
         int_iter = iter([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
@@ -1678,7 +1680,7 @@ class SimCCSystemVAMD64(SimCC):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom)):
             return ["INTEGER"] * nchunks
-        if isinstance(ty, (SimTypeArray, NamedTypeMixin)):
+        if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimTypeString, and other struct-like classes
             assert ty.size is not None
             if ty.size > 512:
@@ -1719,6 +1721,7 @@ class SimCCSystemVAMD64(SimCC):
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
+            assert ty.length is not None and ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
@@ -1891,7 +1894,7 @@ class SimCCARM(SimCC):
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
-            assert ty.elem_type.size is not None
+            assert ty.length is not None and ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
@@ -2157,6 +2160,7 @@ class SimCCO32(SimCC):
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
+            assert ty.length is not None and ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
