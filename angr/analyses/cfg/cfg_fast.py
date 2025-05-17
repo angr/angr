@@ -2841,6 +2841,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
     def _process_irsb_data_refs(self, irsb_addr, data_refs):
         assumption = self._decoding_assumptions.get(irsb_addr & ~1)
         for ref in data_refs:
+            # data_addr + data_size might overflow; we ignore such cases
+            max_addr = 0xFFFF_FFFF if self.project.arch.bits == 32 else 0xFFFF_FFFF_FFFF_FFFF
+            if ref.data_addr + ref.data_size > max_addr:
+                continue
+
             if ref.data_type_str == "integer(store)":
                 data_type_str = "integer"
                 is_store = True
