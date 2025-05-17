@@ -15,6 +15,7 @@ from unique_log_filter import UniqueLogFilter
 import angr
 from .errors import AngrTypeError
 from .sim_type import (
+    NamedTypeMixin,
     SimType,
     SimTypeChar,
     SimTypePointer,
@@ -124,7 +125,12 @@ class AllocHelper:
 
 
 def refine_locs_with_struct_type(
-    arch: archinfo.Arch, locs: list, arg_type: SimType, offset: int = 0, treat_bot_as_int=True
+    arch: archinfo.Arch,
+    locs: list,
+    arg_type: SimType,
+    offset: int = 0,
+    treat_bot_as_int=True,
+    treat_unsupported_as_int=True,
 ):
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
@@ -172,6 +178,18 @@ def refine_locs_with_struct_type(
         for member in arg_type.members.values():
             if member.size == arg_type.size:
                 return refine_locs_with_struct_type(arch, locs, member, offset)
+
+    # for all other types, we basically treat them as integers until someone implements proper layouting logic
+    if treat_unsupported_as_int:
+        arg_type = SimTypeInt().with_arch(arch)
+        return refine_locs_with_struct_type(
+            arch,
+            locs,
+            arg_type,
+            offset=offset,
+            treat_bot_as_int=treat_bot_as_int,
+            treat_unsupported_as_int=treat_unsupported_as_int,
+        )
 
     raise TypeError(f"I don't know how to lay out a {arg_type}")
 
@@ -710,7 +728,7 @@ class SimCC:
             self.next_arg(session, SimTypePointer(SimTypeBottom()))
         return session
 
-    def return_in_implicit_outparam(self, ty):  # pylint:disable=unused-argument
+    def return_in_implicit_outparam(self, ty) -> bool:  # pylint:disable=unused-argument
         return False
 
     def stack_space(self, args):
@@ -1277,10 +1295,10 @@ class SimCCUsercall(SimCC):
 
     ArgSession = UsercallArgSession
 
-    def next_arg(self, session, arg_type):
+    def next_arg(self, session: UsercallArgSession, arg_type):  # type:ignore[reportIncompatibleMethodOverride]
         return next(session.real_args)
 
-    def return_val(self, ty, **kwargs):  # pylint: disable=unused-argument
+    def return_val(self, ty, **kwargs):  # type:ignore  # pylint: disable=unused-argument
         return self.ret_loc
 
 
@@ -1321,6 +1339,7 @@ class SimCCCdecl(SimCC):
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
             ptr_loc = self.RETURN_VAL if perspective_returned else SimStackArg(0, 4)
+            assert ptr_loc is not None
             return SimReferenceArgument(ptr_loc, referenced_loc)
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
@@ -1627,6 +1646,7 @@ class SimCCSystemVAMD64(SimCC):
             referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
             referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
             ptr_loc = self.RETURN_VAL if perspective_returned else SimRegArg("rdi", 8)
+            assert ptr_loc is not None
             return SimReferenceArgument(ptr_loc, referenced_loc)
         mapped_classes = []
         int_iter = iter([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
@@ -1656,11 +1676,12 @@ class SimCCSystemVAMD64(SimCC):
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
         nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
-        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
-            return ["INTEGER"] * nchunks
         if isinstance(ty, (SimTypeFloat,)):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
-        if isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
+        if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom)):
+            return ["INTEGER"] * nchunks
+        if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
+            # NamedTypeMixin covers SimUnion, SimStruct, SimTypeString, and other struct-like classes
             assert ty.size is not None
             if ty.size > 512:
                 return ["MEMORY"] * nchunks
@@ -1700,6 +1721,7 @@ class SimCCSystemVAMD64(SimCC):
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
+            assert ty.length is not None and ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
@@ -1872,7 +1894,7 @@ class SimCCARM(SimCC):
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
-            assert ty.elem_type.size is not None
+            assert ty.length is not None and ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
@@ -2138,6 +2160,7 @@ class SimCCO32(SimCC):
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
+            assert ty.length is not None and ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
