@@ -725,7 +725,7 @@ class SimCC:
         """
         session = self.ArgSession(self)
         if self.return_in_implicit_outparam(ret_ty):
-            self.next_arg(session, SimTypePointer(SimTypeBottom()))
+            self.next_arg(session, SimTypePointer(SimTypeBottom()).with_arch(self.arch))
         return session
 
     def return_in_implicit_outparam(self, ty) -> bool:  # pylint:disable=unused-argument
@@ -762,7 +762,7 @@ class SimCC:
                 assert self.RETURN_VAL is not None
                 ptr_loc = self.RETURN_VAL
             else:
-                ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()))
+                ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()).with_arch(self.arch))
             return SimReferenceArgument(
                 ptr_loc, SimStackArg(0, ty.size // self.arch.byte_width, is_fp=isinstance(ty, SimTypeFloat))
             )
@@ -1445,7 +1445,7 @@ class SimCCMicrosoftAMD64(SimCC):
                     size = subty.size
             if chosen is None:
                 # fallback to void*
-                chosen = SimTypePointer(SimTypeBottom())
+                chosen = SimTypePointer(SimTypeBottom()).with_arch(self.arch)
             return self.return_val(chosen, perspective_returned=perspective_returned)
 
         if not isinstance(ty, SimStruct):
