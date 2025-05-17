@@ -183,6 +183,10 @@ impl SegmentList {
         if size == 0 {
             return;
         }
+        // ensure address + size does not overflow
+        if address.checked_add(size).is_none() {
+            return;
+        }
         let new_range = address..address + size;
         let overlapped: u64 = self
             .map
