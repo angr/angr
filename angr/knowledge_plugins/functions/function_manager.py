@@ -7,11 +7,14 @@ import logging
 import collections.abc
 import re
 import weakref
+import bisect
+import os
 from sortedcontainers import SortedDict
 
 import networkx
 
 from archinfo.arch_soot import SootMethodDescriptor
+import cle
 
 from angr.errors import SimEngineError
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -49,7 +52,8 @@ class FunctionDict(SortedDict):
                 t = Function(self._backref, addr)
             with contextlib.suppress(Exception):
                 self[addr] = t
-            self._backref._function_added(t)
+            if self._backref is not None:
+                self._backref._function_added(t)
             return t
 
     def get(self, addr):
@@ -85,13 +89,19 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         super().__init__(kb=kb)
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
-        self._function_map: dict[int, Function] = FunctionDict(self, key_types=self.function_address_types)
+        self._function_map: FunctionDict[int, Function] = FunctionDict(self, key_types=self.function_address_types)
         self.function_addrs_set: set = set()
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
 
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
+
+        # local PLT dictionary cache
+        self._rplt_cache_ranges: None | list[tuple[int, int]] = None
+        self._rplt_cache: None | set[int] = None
+        # local binary name cache: min_addr -> (max_addr, binary_name)
+        self._binname_cache: None | SortedDict[int, tuple[int, str | None]] = None
 
     def __setstate__(self, state):
         self._kb = state["_kb"]
@@ -101,7 +111,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         self.callgraph = state["callgraph"]
         self.block_map = state["block_map"]
 
-        self._function_map._backref = self
+        self._function_map._backref = weakref.proxy(self)
         for func in self._function_map.values():
             func._function_manager = self
 
@@ -131,17 +141,70 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         self.callgraph = networkx.MultiDiGraph()
         self.block_map.clear()
         self.function_addrs_set = set()
+        # cache
+        self._rplt_cache = None
+        self._rplt_cache_ranges = None
+        self._binname_cache = None
 
-    def _genenare_callmap_sif(self, filepath):
+    def _genenate_callmap_sif(self, filepath):
         """
         Generate a sif file from the call map.
 
         :param filepath:    Path of the sif file
         :return:            None
         """
-        with open(filepath, "wb") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             for src, dst in self.callgraph.edges():
                 f.write(f"{src:#x}\tDirectEdge\t{dst:#x}\n")
+
+    def _addr_in_plt_cached_ranges(self, addr: int) -> bool:
+        if self._rplt_cache_ranges is None:
+            return False
+        pos = bisect.bisect_left(self._rplt_cache_ranges, addr, key=lambda x: x[0])
+        return pos > 0 and self._rplt_cache_ranges[pos - 1][0] <= addr < self._rplt_cache_ranges[pos - 1][1]
+
+    def is_plt_cached(self, addr: int) -> bool:
+        # check if the addr is in the cache range
+        if not self._addr_in_plt_cached_ranges(addr):
+            # find the object containing this addr
+            obj = self._kb._project.loader.find_object_containing(addr, membership_check=False)
+            if obj is None:
+                return False
+            if self._rplt_cache_ranges is None:
+                self._rplt_cache_ranges = []
+            obj_range = obj.min_addr, obj.max_addr
+            idx = bisect.bisect_left(self._rplt_cache_ranges, obj_range)
+            if not (idx < len(self._rplt_cache_ranges) and self._rplt_cache_ranges[idx] == obj_range):
+                self._rplt_cache_ranges.insert(idx, obj_range)
+            if isinstance(obj, cle.MetaELF):
+                if self._rplt_cache is None:
+                    self._rplt_cache = set()
+                self._rplt_cache |= set(obj.reverse_plt)
+
+        return addr in self._rplt_cache if self._rplt_cache is not None else False
+
+    def _binname_cache_get_addr_base(self, addr: int) -> int | None:
+        if self._binname_cache is None:
+            return None
+        try:
+            base_addr = next(self._binname_cache.irange(maximum=addr, reverse=True))
+        except StopIteration:
+            return None
+        return base_addr if base_addr <= addr < self._binname_cache[base_addr][0] else None
+
+    def get_binary_name_cached(self, addr: int) -> str | None:
+        base_addr = self._binname_cache_get_addr_base(addr)
+        if base_addr is None:
+            # not cached; cache it first
+            obj = self._kb._project.loader.find_object_containing(addr, membership_check=False)
+            if obj is None:
+                return None
+            if self._binname_cache is None:
+                self._binname_cache = SortedDict()
+            binary_basename = os.path.basename(obj.binary) if obj.binary else None
+            self._binname_cache[obj.min_addr] = obj.max_addr, binary_basename
+            base_addr = obj.min_addr
+        return self._binname_cache[base_addr][1] if self._binname_cache is not None else None
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
         if isinstance(node, self.address_types):

@@ -206,14 +206,17 @@ class Function(Serializable):
         if is_plt is not None:
             self.is_plt = is_plt
         else:
-            # Whether this function is a PLT entry or not is primarily relying on the PLT detection in CLE; it may also
-            # be updated (to True) during CFG recovery.
-            if self.project is None:
-                raise ValueError(
-                    "'is_plt' must be specified if you do not specify a function manager for this new function."
-                )
-
-            self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
+            if self._function_manager is not None:
+                # use the faster cached version
+                self.is_plt = self._function_manager.is_plt_cached(addr)
+            else:
+                # Whether this function is a PLT entry or not is primarily relying on the PLT detection in CLE; it may
+                # also be updated (to True) during CFG recovery.
+                if self.project is None:
+                    raise ValueError(
+                        "'is_plt' must be specified if you do not specify a function manager for this new function."
+                    )
+                self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
 
         # Determine the name of this function
         if name is None:
@@ -726,8 +729,13 @@ class Function(Serializable):
             if hooker is not None:
                 binary_name = hooker.library_name
 
-        if binary_name is None and self.binary is not None and self.binary.binary:
-            binary_name = os.path.basename(self.binary.binary)
+        if binary_name is None:
+            if self._function_manager is not None:
+                # use the faster cached version
+                binary_name = self._function_manager.get_binary_name_cached(self.addr)
+            else:
+                if self.binary is not None and self.binary.binary:
+                    binary_name = os.path.basename(self.binary.binary)
 
         return binary_name
 

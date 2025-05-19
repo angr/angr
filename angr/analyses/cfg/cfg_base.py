@@ -1952,7 +1952,7 @@ class CFGBase(Analysis):
                     # skip empty blocks (that are usually caused by lifting failures)
                     continue
                 block = func_0.get_block(block_node.addr, block_node.size)
-                if block.vex.jumpkind not in ("Ijk_Boring", "Ijk_InvalICache"):
+                if block.vex_nostmt.jumpkind not in ("Ijk_Boring", "Ijk_InvalICache"):
                     continue
                 # Skip alignment blocks
                 if self._is_noop_block(self.project.arch, block):
