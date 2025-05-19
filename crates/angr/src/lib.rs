@@ -23,13 +23,7 @@ fn import_submodule<'py>(
 
 #[pymodule]
 fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    import_submodule(
-        m.py(),
-        m,
-        "angr.rustylib",
-        "icicle",
-        icicle::icicle,
-    )?;
+    import_submodule(m.py(), m, "angr.rustylib", "icicle", icicle::icicle)?;
     import_submodule(
         m.py(),
         m,
