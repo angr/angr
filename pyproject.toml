@@ -33,7 +33,7 @@ dependencies = [
     "pycparser>=2.18",
     "pydemumble",
     "pyformlang",
-    "pypcode>=3.2.1;<4.0",
+    "pypcode>=3.2.1,<4.0",
     "pyvex==9.2.157.dev0",
     "rich>=13.1.0",
     "sortedcontainers",
