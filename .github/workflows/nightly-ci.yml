@@ -24,15 +24,15 @@ jobs:
         runner_id: [1, 2, 3, 4, 5]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           path: angr
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           repository: angr/binaries
           path: binaries
-      - uses: ilammy/msvc-dev-cmd@v1
-      - uses: astral-sh/setup-uv@v6
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6
       - name: Sync dependencies
         run: uv --directory angr sync -p 3.10
       - name: Run pytest
@@ -45,14 +45,14 @@ jobs:
         runner_id: [1, 2, 3]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           path: angr
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           repository: angr/binaries
           path: binaries
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6
       - name: Sync dependencies
         run: uv --directory angr sync -p 3.10
       - name: Run pytest
