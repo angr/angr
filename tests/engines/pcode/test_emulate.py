@@ -1,23 +1,19 @@
 from __future__ import annotations
+
 import logging
-import unittest
 import operator
+import unittest
 from dataclasses import dataclass
 
 import claripy
+import pypcode
+from pypcode import OpCode
 
 import angr
 from angr.engines.pcode.behavior import BehaviorFactory
 from angr.engines.pcode.emulate import PcodeEmulatorMixin
 from angr.sim_state import SimState
 from angr.engines import SimSuccessors
-
-
-try:
-    import pypcode
-    from pypcode import OpCode
-except ImportError:
-    pypcode = None
 
 
 log = logging.getLogger(__name__)

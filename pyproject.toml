@@ -33,6 +33,7 @@ dependencies = [
     "pycparser>=2.18",
     "pydemumble",
     "pyformlang",
+    "pypcode>=3.2.1,<4.0",
     "pyvex==9.2.157.dev0",
     "rich>=13.1.0",
     "sortedcontainers",
@@ -52,7 +53,6 @@ Repository = "https://github.com/angr/angr"
 
 [project.optional-dependencies]
 angrdb = ["sqlalchemy"]
-pcode = ["pypcode~=3.0"]
 keystone = ["keystone-engine"]
 telemetry = ["opentelemetry-api"]
 unicorn = ["unicorn==2.0.1.post1"]
@@ -72,7 +72,7 @@ dev = [
     "ruff>=0.11.7",
 ]
 docs = ["furo", "myst-parser", "sphinx", "sphinx-autodoc-typehints"]
-extras = ["angr[angrdb,keystone,pcode]"]
+extras = ["angr[angrdb,keystone]"]
 
 [tool.setuptools]
 include-package-data = true
