@@ -982,10 +982,10 @@ class SimIROp:
         return self._fp_vector_comparison(claripy.fpEQ, a0, a1)
 
     def _op_fgeneric_CmpLE(self, a0, a1):
-        return self._fp_vector_comparison(claripy.fpLT, a0, a1)
+        return self._fp_vector_comparison(claripy.fpLEQ, a0, a1)
 
     def _op_fgeneric_CmpLT(self, a0, a1):
-        return self._fp_vector_comparison(claripy.fpLEQ, a0, a1)
+        return self._fp_vector_comparison(claripy.fpLT, a0, a1)
 
     def _auto_vectorize(self, f, args, rm=None, rm_passed=False):
         if rm is not None:
