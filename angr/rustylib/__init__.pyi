@@ -1,3 +1,5 @@
+from typing_extensions import override
+
 class Segment:
     """
     A memory block
@@ -31,6 +33,7 @@ class Segment:
         :returns: Size of the Segment
         """
 
+    @override
     def __repr__(self) -> str: ...
 
 class SegmentList:

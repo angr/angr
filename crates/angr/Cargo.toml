@@ -8,5 +8,8 @@ name = "rustylib"
 crate-type = ["cdylib"]
 
 [dependencies]
+icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
+pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
 pyo3 = { version = "0.24.2", features = ["extension-module", "py-clone"] }
 rangemap = "1.5.1"
+target-lexicon = "0.12.16"

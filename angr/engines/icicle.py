@@ -2,21 +2,25 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+import os
+from dataclasses import dataclass
 
-from archinfo import Arch, Endness
 import claripy
-from icicle import ExceptionCode, Icicle, MemoryProtection, RunStatus
+import pypcode
+from archinfo import Arch, Endness
 
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.successors import SuccessorsEngine
 from angr.engines.syscall import SimEngineSyscall
+from angr.rustylib.icicle import Icicle, VmExit, ExceptionCode
 from angr.sim_state import SimState
 
 log = logging.getLogger(__name__)
 
+
+PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
 
 @dataclass
 class IcicleStateTranslationData:
@@ -76,25 +80,6 @@ class IcicleEngine(SuccessorsEngine):
         return IcicleEngine.__is_arm(icicle_arch) and addr & 1 == 1
 
     @staticmethod
-    def __make_icicle_perms(read: bool, write: bool, execute: bool) -> MemoryProtection:
-        """
-        Convert the permissions of a page to icicle's memory protection enum.
-        """
-        match read, write, execute:
-            case False, False, False:
-                return MemoryProtection.NoAccess
-            case True, False, False:
-                return MemoryProtection.ReadOnly
-            case False, False, True:
-                return MemoryProtection.ExecuteOnly
-            case True, False, True:
-                return MemoryProtection.ExecuteRead
-            case _, True, False:  # Icicle lacks a WriteOnly permission
-                return MemoryProtection.ReadWrite
-            case _, True, True:
-                return MemoryProtection.ExecuteReadWrite
-
-    @staticmethod
     def __get_pages(state: SimState) -> set[int]:
         """
         Unfortunately, the memory model doesn't have a way to get all pages.
@@ -127,7 +112,7 @@ class IcicleEngine(SuccessorsEngine):
         if proj is None:
             raise ValueError("IcicleEngine requires a project to be set")
 
-        emu = Icicle(icicle_arch)
+        emu = Icicle(icicle_arch, PROCESSORS_DIR)
 
         copied_registers = set()
 
@@ -159,9 +144,8 @@ class IcicleEngine(SuccessorsEngine):
         for page_num in mapped_pages:
             addr = page_num * state.memory.page_size
             size = state.memory.page_size
-            perm_bits = state.solver.eval_one(state.memory.permissions(addr))
-            perms = IcicleEngine.__make_icicle_perms(bool(perm_bits & 1), bool(perm_bits & 2), bool(perm_bits & 4))
-            emu.mem_map(addr, size, perms)
+            perm_bits = state.memory.permissions(addr).concrete_value
+            emu.mem_map(addr, size, perm_bits)
             memory = state.memory.concrete_load(addr, size)
             emu.mem_write(addr, memory)
 
@@ -210,7 +194,7 @@ class IcicleEngine(SuccessorsEngine):
         status = emu.run()  # pylint: ignore=assignment-from-no-return (pylint bug)
         exc = emu.exception_code
 
-        if status == RunStatus.UnhandledException:
+        if status == VmExit.UnhandledException:
             if exc in (
                 ExceptionCode.ReadUnmapped,
                 ExceptionCode.ReadPerm,
