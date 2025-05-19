@@ -83,7 +83,7 @@ exclude = ["tests*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-angr = ["py.typed", "lib/*"]
+angr = ["py.typed", "lib/*", "rustylib.*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }
