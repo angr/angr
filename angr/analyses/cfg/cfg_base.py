@@ -1147,7 +1147,8 @@ class CFGBase(Analysis):
         graph = self.graph
 
         smallest_nodes = {}  # indexed by end address of the node
-        end_addresses_to_nodes = defaultdict(set)
+        end_addr_to_node = {}  # a dictionary from node key to node *if* only one node exists for the key
+        end_addr_to_nodes = defaultdict(list)  # a dictionary from node key to nodes *if* more than one node exist
 
         for n in graph.nodes():
             if n.is_simprocedure:
@@ -1155,76 +1156,89 @@ class CFGBase(Analysis):
             end_addr = n.addr + n.size
             key = (end_addr, n.callstack_key)
             # add the new item
-            end_addresses_to_nodes[key].add(n)
+            if key not in end_addr_to_node:
+                # this is the first node of this key
+                end_addr_to_node[key] = n
+            else:
+                # this is the 2nd+ node of this key
+                if key not in end_addr_to_nodes:
+                    end_addr_to_nodes[key].append(end_addr_to_node[key])
+                end_addr_to_nodes[key].append(n)
 
-        for key in list(end_addresses_to_nodes.keys()):
-            if len(end_addresses_to_nodes[key]) == 1:
-                smallest_nodes[key] = next(iter(end_addresses_to_nodes[key]))
-                del end_addresses_to_nodes[key]
+        # update smallest_nodes
+        for key, node in end_addr_to_node.items():
+            if key in end_addr_to_nodes:
+                continue
+            smallest_nodes[key] = node
+        del end_addr_to_node  # micro memory optimization
 
-        while end_addresses_to_nodes:
+        while end_addr_to_nodes:
             key_to_find = (None, None)
-            for tpl, x in end_addresses_to_nodes.items():
-                if len(x) > 1:
-                    key_to_find = tpl
-                    break
+            for tpl in list(end_addr_to_nodes):
+                x = end_addr_to_nodes[tpl]
+                if len(x) <= 1:
+                    continue
+                key_to_find = tpl
 
-            end_addr, callstack_key = key_to_find
-            all_nodes = end_addresses_to_nodes[key_to_find]
+                end_addr, callstack_key = key_to_find
+                all_nodes = end_addr_to_nodes[key_to_find]
 
-            all_nodes = sorted(all_nodes, key=lambda node: node.addr, reverse=True)
-            smallest_node = all_nodes[0]  # take the one that has the highest address
-            other_nodes = all_nodes[1:]
+                all_nodes = sorted(all_nodes, key=lambda node: node.addr, reverse=True)
+                smallest_node = all_nodes[0]  # take the one that has the highest address
+                other_nodes = all_nodes[1:]
 
-            self._normalize_core(
-                graph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addresses_to_nodes
-            )
+                self._normalize_core(
+                    graph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addr_to_nodes
+                )
 
-            del end_addresses_to_nodes[key_to_find]
-            # make sure the smallest node is stored in end_addresses
-            smallest_nodes[key_to_find] = smallest_node
+                del end_addr_to_nodes[key_to_find]
+                # make sure the smallest node is stored in end_addresses
+                smallest_nodes[key_to_find] = smallest_node
 
-            # corner case
-            # sometimes two overlapping blocks may not be ending at the instruction. this might happen when one of the
-            # blocks (the bigger one) hits the instruction count limit or bytes limit before reaching the end address
-            # of the smaller block. in this case we manually pick up those blocks.
-            if not end_addresses_to_nodes:
-                # find if there are still overlapping blocks
-                sorted_smallest_nodes = defaultdict(list)  # callstack_key is the key of this dict
-                for k, node in smallest_nodes.items():
-                    _, callstack_key = k
-                    sorted_smallest_nodes[callstack_key].append(node)
-                for k in sorted_smallest_nodes:
-                    sorted_smallest_nodes[k] = sorted(sorted_smallest_nodes[k], key=lambda node: node.addr)
+                # corner case
+                # sometimes two overlapping blocks may not end at the instruction. this might happen when one of the
+                # blocks (the bigger one) hits the instruction count limit or bytes limit before reaching the end
+                # address of the smaller block. in this case we manually pick up those blocks.
+                if not end_addr_to_nodes:
+                    # find if there are still overlapping blocks
+                    sorted_smallest_nodes = defaultdict(list)  # callstack_key is the key of this dict
+                    for k, node in smallest_nodes.items():
+                        _, callstack_key = k
+                        sorted_smallest_nodes[callstack_key].append(node)
+                    for k in sorted_smallest_nodes:
+                        sorted_smallest_nodes[k] = sorted(sorted_smallest_nodes[k], key=lambda node: node.addr)
 
-                for callstack_key, lst in sorted_smallest_nodes.items():
-                    lst_len = len(lst)
-                    for i, node in enumerate(lst):
-                        if i == lst_len - 1:
-                            break
-                        next_node = lst[i + 1]
-                        if node is not next_node and node.addr <= next_node.addr < node.addr + node.size:
-                            # umm, those nodes are overlapping, but they must have different end addresses
-                            nodekey_a = node.addr + node.size, callstack_key
-                            nodekey_b = next_node.addr + next_node.size, callstack_key
-                            if nodekey_a == nodekey_b:
-                                # error handling: this will only happen if we have completely overlapping nodes
-                                # caused by different jumps (one of the jumps is probably incorrect), which usually
-                                # indicates an error in CFG recovery. we print a warning and skip this node
-                                l.warning(
-                                    "Found completely overlapping nodes %s. It usually indicates an error in CFG "
-                                    "recovery. Skip.",
-                                    node,
-                                )
-                                continue
+                    for callstack_key, lst in sorted_smallest_nodes.items():
+                        lst_len = len(lst)
+                        for i, node in enumerate(lst):
+                            if i == lst_len - 1:
+                                break
+                            next_node = lst[i + 1]
+                            if node is not next_node and node.addr <= next_node.addr < node.addr + node.size:
+                                # umm, those nodes are overlapping, but they must have different end addresses
+                                nodekey_a = node.addr + node.size, callstack_key
+                                nodekey_b = next_node.addr + next_node.size, callstack_key
+                                if nodekey_a == nodekey_b:
+                                    # error handling: this will only happen if we have completely overlapping nodes
+                                    # caused by different jumps (one of the jumps is probably incorrect), which usually
+                                    # indicates an error in CFG recovery. we print a warning and skip this node
+                                    l.warning(
+                                        "Found completely overlapping nodes %s. It usually indicates an error in CFG "
+                                        "recovery. Skip.",
+                                        node,
+                                    )
+                                    continue
 
-                            if nodekey_a in smallest_nodes and nodekey_b in smallest_nodes:
-                                # misuse end_addresses_to_nodes
-                                end_addresses_to_nodes[(node.addr + node.size, callstack_key)].add(node)
-                                end_addresses_to_nodes[(node.addr + node.size, callstack_key)].add(next_node)
+                                if nodekey_a in smallest_nodes and nodekey_b in smallest_nodes:
+                                    # misuse end_addresses_to_nodes
+                                    key = node.addr + node.size, callstack_key
+                                    if node not in end_addr_to_nodes[key]:
+                                        end_addr_to_nodes[key].append(node)
+                                    if next_node not in end_addr_to_nodes[key]:
+                                        end_addr_to_nodes[key].append(next_node)
 
-                            smallest_nodes.pop(nodekey_a, None)
-                            smallest_nodes.pop(nodekey_b, None)
+                                smallest_nodes.pop(nodekey_a, None)
+                                smallest_nodes.pop(nodekey_b, None)
 
         self.normalized = True
 
@@ -1235,7 +1249,7 @@ class CFGBase(Analysis):
         smallest_node,
         other_nodes,
         smallest_nodes,
-        end_addresses_to_nodes,
+        end_addr_to_nodes,
     ):
         # Break other nodes
         for n in other_nodes:
@@ -1254,8 +1268,8 @@ class CFGBase(Analysis):
             # the logic below is a little convoluted. we check if key exists in either end_address_to_nodes or
             # smallest_nodes, since we don't always add the new node back to end_addresses_to_nodes dict - we only do so
             # when there are more than one node with that key.
-            if key in end_addresses_to_nodes:
-                new_node = next((i for i in end_addresses_to_nodes[key] if i.addr == n.addr), None)
+            if key in end_addr_to_nodes:
+                new_node = next((i for i in end_addr_to_nodes[key] if i.addr == n.addr), None)
             if new_node is None and key in smallest_nodes and smallest_nodes[key].addr == n.addr:
                 new_node = smallest_nodes[key]
 
@@ -1304,8 +1318,10 @@ class CFGBase(Analysis):
 
                 # Put the new node into end_addresses list
                 if key in smallest_nodes:
-                    end_addresses_to_nodes[key].add(smallest_nodes[key])
-                    end_addresses_to_nodes[key].add(new_node)
+                    if smallest_nodes[key] not in end_addr_to_nodes[key]:
+                        end_addr_to_nodes[key].append(smallest_nodes[key])
+                    if new_node not in end_addr_to_nodes[key]:
+                        end_addr_to_nodes[key].append(new_node)
                 else:
                     smallest_nodes[key] = new_node
 
