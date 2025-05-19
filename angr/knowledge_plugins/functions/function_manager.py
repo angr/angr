@@ -52,7 +52,8 @@ class FunctionDict(SortedDict):
                 t = Function(self._backref, addr)
             with contextlib.suppress(Exception):
                 self[addr] = t
-            self._backref._function_added(t)
+            if self._backref is not None:
+                self._backref._function_added(t)
             return t
 
     def get(self, addr):
@@ -88,7 +89,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         super().__init__(kb=kb)
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
-        self._function_map: dict[int, Function] = FunctionDict(self, key_types=self.function_address_types)
+        self._function_map: FunctionDict[int, Function] = FunctionDict(self, key_types=self.function_address_types)
         self.function_addrs_set: set = set()
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
@@ -110,7 +111,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         self.callgraph = state["callgraph"]
         self.block_map = state["block_map"]
 
-        self._function_map._backref = self
+        self._function_map._backref = weakref.proxy(self)
         for func in self._function_map.values():
             func._function_manager = self
 
@@ -152,7 +153,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         :param filepath:    Path of the sif file
         :return:            None
         """
-        with open(filepath, "wb") as f:
+        with open(filepath, "w") as f:
             for src, dst in self.callgraph.edges():
                 f.write(f"{src:#x}\tDirectEdge\t{dst:#x}\n")
 
@@ -203,7 +204,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             binary_basename = os.path.basename(obj.binary) if obj.binary else None
             self._binname_cache[obj.min_addr] = obj.max_addr, binary_basename
             base_addr = obj.min_addr
-        return self._binname_cache[base_addr][1]
+        return self._binname_cache[base_addr][1] if self._binname_cache is not None else None
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
         if isinstance(node, self.address_types):
