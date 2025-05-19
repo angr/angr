@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
 
+
 @dataclass
 class IcicleStateTranslationData:
     """
