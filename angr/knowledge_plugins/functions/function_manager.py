@@ -153,7 +153,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         :param filepath:    Path of the sif file
         :return:            None
         """
-        with open(filepath, "w") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             for src, dst in self.callgraph.edges():
                 f.write(f"{src:#x}\tDirectEdge\t{dst:#x}\n")
 
