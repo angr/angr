@@ -72,6 +72,9 @@ class Decompiler(Analysis):
         generate_code: bool = True,
         use_cache: bool = True,
         expr_collapse_depth: int = 16,
+        clinic_graph=None,
+        clinic_arg_vvars=None,
+        clinic_start_stage=None,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -129,6 +132,9 @@ class Decompiler(Analysis):
         )
 
         self.clinic = None  # mostly for debugging purposes
+        self._clinic_graph = clinic_graph
+        self._clinic_arg_vvars = clinic_arg_vvars
+        self._clinic_start_stage = clinic_start_stage
         self.codegen: CStructuredCodeGenerator | None = None
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
@@ -256,6 +262,9 @@ class Decompiler(Analysis):
                 optimization_scratch=self._optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
                 complete_successors=self._complete_successors,
+                ail_graph=self._clinic_graph,
+                arg_vvars=self._clinic_arg_vvars,
+                start_stage=self._clinic_start_stage,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:

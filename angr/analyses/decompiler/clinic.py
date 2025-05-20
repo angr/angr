@@ -87,6 +87,27 @@ class DataRefDesc:
     data_type_str: str
 
 
+class ClinicStage(enum.IntEnum):
+    """
+    Different stages of treating an ailment.
+    """
+
+    INITIALIZATION = 0
+    AIL_GRAPH_CONVERSION = 1
+    MAKE_RETURN_SITES = 2
+    MAKE_ARGUMENT_LIST = 3
+    PRE_SSA_LEVEL0_FIXUPS = 4
+    SSA_LEVEL0_TRANSFORMATION = 5
+    CONSTANT_PROPAGATION = 6
+    TRACK_STACK_POINTERS = 7
+    PRE_SSA_LEVEL1_SIMPLIFICATIONS = 8
+    SSA_LEVEL1_TRANSFORMATION = 9
+    POST_SSA_LEVEL1_SIMPLIFICATIONS = 10
+    MAKE_CALLSITES = 11
+    POST_CALLSITES = 12
+    RECOVER_VARIABLES = 13
+
+
 class Clinic(Analysis):
     """
     A Clinic deals with AILments.
@@ -123,6 +144,9 @@ class Clinic(Analysis):
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
         max_type_constraints: int = 4000,
+        ail_graph: networkx.DiGraph | None = None,
+        arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
+        start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -134,12 +158,16 @@ class Clinic(Analysis):
         self.unoptimized_graph: networkx.DiGraph | None = None
         self.arg_list = None
         self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None
+        self.func_args = None
         self.variable_kb = variable_kb
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, list[DataRefDesc]] = {}  # data address to data reference description
         self.optimization_scratch = optimization_scratch if optimization_scratch is not None else {}
 
         self._func_graph: networkx.DiGraph | None = None
+        self._init_ail_graph = ail_graph
+        self._init_arg_vvars = arg_vvars
+        self._start_stage = start_stage if start_stage is not None else ClinicStage.INITIALIZATION
         self._blocks_by_addr_and_size = {}
         self.entry_node_addr: tuple[int, int | None] = self.function.addr, None
 
@@ -162,6 +190,17 @@ class Clinic(Analysis):
         # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
         self.secondary_stackvars: set[int] = set()
+
+        #
+        # intermediate variables used during decompilation
+        #
+
+        self._ail_graph: networkx.DiGraph = None  # type:ignore
+        self._spt = None
+        # cached block-level reaching definition analysis results and propagator results
+        self._block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
+        self._preserve_vvar_ids: set[int] = set()
+        self._type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] = []
 
         # inlining help
         self._sp_shift = sp_shift
@@ -236,9 +275,14 @@ class Clinic(Analysis):
     #
 
     def _analyze_for_decompiling(self):
-        if not (ail_graph := self._decompilation_graph_recovery()):
+        # initialize the AIL conversion manager
+        self._ail_manager = ailment.Manager(arch=self.project.arch)
+
+        ail_graph = self._init_ail_graph if self._init_ail_graph is not None else self._decompilation_graph_recovery()
+        if not ail_graph:
             return
-        ail_graph = self._decompilation_fixups(ail_graph)
+        if self._start_stage <= ClinicStage.INITIALIZATION:
+            ail_graph = self._decompilation_fixups(ail_graph)
 
         if self._inline_functions:
             self._max_stack_depth += self.calculate_stack_depth()
@@ -269,9 +313,6 @@ class Clinic(Analysis):
         if not is_pcode_arch:
             self._update_progress(10.0, text="Recovering calling conventions")
             self._recover_calling_conventions()
-
-        # initialize the AIL conversion manager
-        self._ail_manager = ailment.Manager(arch=self.project.arch)
 
         # Convert VEX blocks to AIL blocks and then simplify them
 
@@ -467,34 +508,68 @@ class Clinic(Analysis):
         return depth
 
     def _decompilation_simplifications(self, ail_graph):
-        # Make returns
+        self.arg_vvars = self._init_arg_vvars if self._init_arg_vvars is not None else {}
+        self.func_args = {arg_vvar for arg_vvar, _ in self.arg_vvars.values()}
+        self._ail_graph = ail_graph
+
+        stages = {
+            ClinicStage.MAKE_RETURN_SITES: self._stage_make_return_sites,
+            ClinicStage.MAKE_ARGUMENT_LIST: self._stage_make_function_argument_list,
+            ClinicStage.PRE_SSA_LEVEL0_FIXUPS: self._stage_pre_ssa_level0_fixups,
+            ClinicStage.SSA_LEVEL0_TRANSFORMATION: self._stage_transform_to_ssa_level0,
+            ClinicStage.CONSTANT_PROPAGATION: self._stage_constant_propagation,
+            ClinicStage.TRACK_STACK_POINTERS: self._stage_track_stack_pointers,
+            ClinicStage.PRE_SSA_LEVEL1_SIMPLIFICATIONS: self._stage_pre_ssa_level1_simplifications,
+            ClinicStage.SSA_LEVEL1_TRANSFORMATION: self._stage_transform_to_ssa_level1,
+            ClinicStage.POST_SSA_LEVEL1_SIMPLIFICATIONS: self._stage_post_ssa_level1_simplifications,
+            ClinicStage.MAKE_CALLSITES: self._stage_make_function_callsites,
+            ClinicStage.POST_CALLSITES: self._stage_post_callsite_simplifications,
+            ClinicStage.RECOVER_VARIABLES: self._stage_recover_variables,
+        }
+
+        for stage in sorted(stages):
+            if stage < self._start_stage:
+                continue
+            stages[stage]()
+
+        # remove empty nodes from the graph
+        self._ail_graph = self.remove_empty_nodes(self._ail_graph)
+        # note that there are still edges to remove before we can structure this graph!
+
+        self.cc_graph = self.copy_graph(self._ail_graph)
+        self.externs = self._collect_externs(self._ail_graph, self.variable_kb)
+        return self._ail_graph
+
+    def _stage_make_return_sites(self) -> None:
         self._update_progress(30.0, text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
-            ail_graph = self._make_returns(ail_graph)
-
-        ail_graph = self._run_simplification_passes(
-            ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
+            self._ail_graph = self._make_returns(self._ail_graph)
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
         )
 
-        # Make function arguments
+    def _stage_make_function_argument_list(self) -> None:
         self._update_progress(33.0, text="Making argument list")
-        arg_list = self._make_argument_list()
-        arg_vvars = self._create_function_argument_vvars(arg_list)
-        func_args = {arg_vvar for arg_vvar, _ in arg_vvars.values()}
+        self.arg_list = self._make_argument_list()
+        self.arg_vvars = self._create_function_argument_vvars(self.arg_list)
+        self.func_args = {arg_vvar for arg_vvar, _ in self.arg_vvars.values()}
 
+    def _stage_pre_ssa_level0_fixups(self) -> None:
         # duplicate orphaned conditional jump blocks
-        ail_graph = self._duplicate_orphaned_cond_jumps(ail_graph)
+        self._ail_graph = self._duplicate_orphaned_cond_jumps(self._ail_graph)
         # rewrite jmp_rax function calls
-        ail_graph = self._rewrite_jump_rax_calls(ail_graph)
+        self._ail_graph = self._rewrite_jump_rax_calls(self._ail_graph)
 
-        # Transform the graph into partial SSA form
-        self._update_progress(35.0, text="Transforming to partial-SSA form")
-        ail_graph = self._transform_to_ssa_level0(ail_graph, func_args)
+    def _stage_transform_to_ssa_level0(self) -> None:
+        self._update_progress(35.0, text="Transforming to partial-SSA form (registers)")
+        assert self.func_args is not None
+        self._ail_graph = self._transform_to_ssa_level0(self._ail_graph, self.func_args)
 
+    def _stage_constant_propagation(self) -> None:
         # full-function constant-only propagation
         self._update_progress(36.0, text="Constant propagation")
         self._simplify_function(
-            ail_graph,
+            self._ail_graph,
             remove_dead_memdefs=False,
             unify_variables=False,
             narrow_expressions=False,
@@ -503,34 +578,34 @@ class Clinic(Analysis):
             max_iterations=1,
         )
 
-        # cached block-level reaching definition analysis results and propagator results
-        block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
+    def _stage_track_stack_pointers(self) -> None:
+        self._spt = self._track_stack_pointers()
 
-        # Track stack pointers
-        self._update_progress(37.0, text="Tracking stack pointers")
-        spt = self._track_stack_pointers()
+    def _stage_transform_to_ssa_level1(self) -> None:
+        self._update_progress(37.0, text="Transforming to partial-SSA form (stack variables)")
+        # rewrite (qualified) stack variables into SSA form
+        assert self.func_args is not None
+        self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
 
-        preserve_vvar_ids: set[int] = set()
-        type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] = []
-
+    def _stage_pre_ssa_level1_simplifications(self) -> None:
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
         # before they are recognized as stack arguments.
         self._update_progress(38.0, text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(
-            ail_graph,
-            stack_pointer_tracker=spt,
-            cache=block_simplification_cache,
-            preserve_vvar_ids=preserve_vvar_ids,
-            type_hints=type_hints,
+        self._ail_graph = self._simplify_blocks(
+            self._ail_graph,
+            stack_pointer_tracker=self._spt,
+            cache=self._block_simplification_cache,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+            type_hints=self._type_hints,
         )
-        self._rewrite_alloca(ail_graph)
+        self._rewrite_alloca(self._ail_graph)
 
         # Run simplification passes
         self._update_progress(40.0, text="Running simplifications 1")
-        ail_graph = self._run_simplification_passes(
-            ail_graph,
-            stack_pointer_tracker=spt,
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph,
+            stack_pointer_tracker=self._spt,
             stack_items=self.stack_items,
             stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION,
         )
@@ -538,160 +613,161 @@ class Clinic(Analysis):
         # Simplify the entire function for the first time
         self._update_progress(45.0, text="Simplifying function 1")
         self._simplify_function(
-            ail_graph,
+            self._ail_graph,
             remove_dead_memdefs=False,
             unify_variables=False,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            arg_vvars=arg_vvars,
+            arg_vvars=self.arg_vvars,
         )
 
         # Run simplification passes again. there might be more chances for peephole optimizations after function-level
         # simplification
         self._update_progress(48.0, text="Simplifying blocks 2")
-        ail_graph = self._simplify_blocks(
-            ail_graph,
-            stack_pointer_tracker=spt,
-            cache=block_simplification_cache,
-            preserve_vvar_ids=preserve_vvar_ids,
-            type_hints=type_hints,
+        self._ail_graph = self._simplify_blocks(
+            self._ail_graph,
+            stack_pointer_tracker=self._spt,
+            cache=self._block_simplification_cache,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+            type_hints=self._type_hints,
         )
 
         # Run simplification passes
         self._update_progress(49.0, text="Running simplifications 2")
-        ail_graph = self._run_simplification_passes(
-            ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
         )
 
-        # rewrite (qualified) stack variables into SSA form
-        ail_graph = self._transform_to_ssa_level1(ail_graph, func_args)
-
-        # clear _blocks_by_addr_and_size so no one can use it again
-        # TODO: Totally remove this dict
-        self._blocks_by_addr_and_size = None
-
+    def _stage_post_ssa_level1_simplifications(self) -> None:
         # Rust-specific; only call this on Rust binaries when we can identify language and compiler
-        ail_graph = self._rewrite_rust_probestack_call(ail_graph)
+        self._ail_graph = self._rewrite_rust_probestack_call(self._ail_graph)
         # Windows-specific
-        ail_graph = self._rewrite_windows_chkstk_call(ail_graph)
+        self._ail_graph = self._rewrite_windows_chkstk_call(self._ail_graph)
+
+    def _stage_make_function_callsites(self) -> None:
+        assert self.func_args is not None
 
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
         _, stackarg_offsets, removed_vvar_ids = self._make_callsites(
-            ail_graph, func_args, stack_pointer_tracker=spt, preserve_vvar_ids=preserve_vvar_ids
+            self._ail_graph, self.func_args, stack_pointer_tracker=self._spt, preserve_vvar_ids=self._preserve_vvar_ids
         )
 
         # Run simplification passes
         self._update_progress(53.0, text="Running simplifications 2")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES)
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES
+        )
 
         # Simplify the entire function for the second time
         self._update_progress(55.0, text="Simplifying function 2")
         self._simplify_function(
-            ail_graph,
+            self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=stackarg_offsets,
             unify_variables=True,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             removed_vvar_ids=removed_vvar_ids,
-            arg_vvars=arg_vvars,
-            preserve_vvar_ids=preserve_vvar_ids,
+            arg_vvars=self.arg_vvars,
+            preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
         # After global optimization, there might be more chances for peephole optimizations.
         # Simplify blocks for the second time
         self._update_progress(60.0, text="Simplifying blocks 3")
-        ail_graph = self._simplify_blocks(
-            ail_graph,
-            stack_pointer_tracker=spt,
-            cache=block_simplification_cache,
-            preserve_vvar_ids=preserve_vvar_ids,
-            type_hints=type_hints,
+        self._ail_graph = self._simplify_blocks(
+            self._ail_graph,
+            stack_pointer_tracker=self._spt,
+            cache=self._block_simplification_cache,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+            type_hints=self._type_hints,
         )
 
         # Run simplification passes
         self._update_progress(65.0, text="Running simplifications 3")
-        ail_graph = self._run_simplification_passes(
-            ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
         )
 
         # Simplify the entire function for the third time
         self._update_progress(70.0, text="Simplifying function 3")
         self._simplify_function(
-            ail_graph,
+            self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=stackarg_offsets,
             unify_variables=True,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            arg_vvars=arg_vvars,
-            preserve_vvar_ids=preserve_vvar_ids,
+            arg_vvars=self.arg_vvars,
+            preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
         self._update_progress(75.0, text="Simplifying blocks 4")
-        ail_graph = self._simplify_blocks(
-            ail_graph,
-            stack_pointer_tracker=spt,
-            cache=block_simplification_cache,
-            preserve_vvar_ids=preserve_vvar_ids,
-            type_hints=type_hints,
+        self._ail_graph = self._simplify_blocks(
+            self._ail_graph,
+            stack_pointer_tracker=self._spt,
+            cache=self._block_simplification_cache,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+            type_hints=self._type_hints,
         )
 
         # Simplify the entire function for the fourth time
         self._update_progress(78.0, text="Simplifying function 4")
         self._simplify_function(
-            ail_graph,
+            self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=stackarg_offsets,
             unify_variables=True,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
-            arg_vvars=arg_vvars,
-            preserve_vvar_ids=preserve_vvar_ids,
+            arg_vvars=self.arg_vvars,
+            preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
         self._update_progress(79.0, text="Running simplifications 4")
-        ail_graph = self._run_simplification_passes(
-            ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
         )
 
+    def _stage_post_callsite_simplifications(self) -> None:
+        self.arg_list = []
+        self.vvar_to_vvar = {}
+        self.copied_var_ids = set()
+
+        assert self.arg_vvars is not None
+
         # update arg_list
-        arg_list = []
-        for idx in sorted(arg_vvars):
-            arg_list.append(arg_vvars[idx][1])
+        for idx in sorted(self.arg_vvars):
+            self.arg_list.append(self.arg_vvars[idx][1])
 
         # Get virtual variable mapping that can de-phi the SSA representation
-        vvar2vvar, copied_vvar_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(ail_graph, arg_vvars)
+        self.vvar_to_vvar, self.copied_var_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(
+            self._ail_graph, self.arg_vvars
+        )
+
+    def _stage_recover_variables(self) -> None:
+        assert self.arg_list is not None and self.arg_vvars is not None and self.vvar_to_vvar is not None
 
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
-        variable_kb = self._recover_and_link_variables(ail_graph, arg_list, arg_vvars, vvar2vvar, type_hints)
+        variable_kb = self._recover_and_link_variables(
+            self._ail_graph, self.arg_list, self.arg_vvars, self.vvar_to_vvar, self._type_hints
+        )
 
         # Run simplification passes
         self._update_progress(85.0, text="Running simplifications 4")
-        ail_graph = self._run_simplification_passes(
-            ail_graph,
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph,
             stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
-            avoid_vvar_ids=copied_vvar_ids,
+            avoid_vvar_ids=self.copied_var_ids,
         )
 
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")
-        self._make_function_prototype(arg_list, variable_kb)
+        self._make_function_prototype(self.arg_list, variable_kb)
 
-        # remove empty nodes from the graph
-        ail_graph = self.remove_empty_nodes(ail_graph)
-        # note that there are still edges to remove before we can structure this graph!
-
-        self.arg_list = arg_list
-        self.arg_vvars = arg_vvars
         self.variable_kb = variable_kb
-        self.cc_graph = self.copy_graph(ail_graph)
-        self.externs = self._collect_externs(ail_graph, variable_kb)
-        self.vvar_to_vvar = vvar2vvar
-        self.copied_var_ids = copied_vvar_ids
-        return ail_graph
 
     def _analyze_for_data_refs(self):
         # Set up the function graph according to configurations
