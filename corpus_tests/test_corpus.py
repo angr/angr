@@ -32,7 +32,7 @@ def analyze_binary(binary_path: str) -> dict[int, str]:
     decompilation = {}
 
     function: angr.knowledge_plugins.functions.function.Function
-    for function in cfg.functions.values():
+    for function in sorted(cfg.functions.values(), key=lambda func: func.addr):
         if function.is_plt or function.is_simprocedure:
             continue
 

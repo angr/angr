@@ -676,7 +676,7 @@ class SimpleSolver:
 
     @staticmethod
     def _get_all_paths(
-        graph: networkx.DiGraph,
+        graph: networkx.DiGraph[TypeVariable | DerivedTypeVariable],
         sketch: Sketch,
         node: DerivedTypeVariable,
         visited: dict[TypeVariable | DerivedTypeVariable, SketchNode],
@@ -684,7 +684,7 @@ class SimpleSolver:
         if node not in graph:
             return
         curr_node = visited[node]
-        for _, succ, data in graph.out_edges(node, data=True):
+        for _, succ, data in sorted(graph.out_edges(node, data=True), key=lambda x: str(x[1])):
             label = data["label"]
             if succ not in visited:
                 if isinstance(curr_node.typevar, DerivedTypeVariable):
@@ -1408,7 +1408,7 @@ class SimpleSolver:
             visited.add(curr_node)
 
             out_edges = sketch.graph.out_edges(curr_node, data=True)
-            for _, succ, data in out_edges:
+            for _, succ, data in sorted(out_edges, key=lambda x: str(x[1])):
                 if isinstance(succ, RecursiveRefNode):
                     ref = succ
                     succ: SketchNode | None = sketch.lookup(succ.target)  # type: ignore
