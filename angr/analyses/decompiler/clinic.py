@@ -187,7 +187,6 @@ class Clinic(Analysis):
         self._max_type_constraints = max_type_constraints
         self.vvar_id_start = vvar_id_start
         self.vvar_to_vvar: dict[int, int] | None = None
-        self.copied_vvar_ids = None
         # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
         self.secondary_stackvars: set[int] = set()
@@ -563,6 +562,7 @@ class Clinic(Analysis):
 
     def _stage_transform_to_ssa_level0(self) -> None:
         self._update_progress(35.0, text="Transforming to partial-SSA form (registers)")
+        assert self.func_args is not None
         self._ail_graph = self._transform_to_ssa_level0(self._ail_graph, self.func_args)
 
     def _stage_constant_propagation(self) -> None:
@@ -584,6 +584,7 @@ class Clinic(Analysis):
     def _stage_transform_to_ssa_level1(self) -> None:
         self._update_progress(37.0, text="Transforming to partial-SSA form (stack variables)")
         # rewrite (qualified) stack variables into SSA form
+        assert self.func_args is not None
         self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
 
     def _stage_pre_ssa_level1_simplifications(self) -> None:
@@ -644,6 +645,8 @@ class Clinic(Analysis):
         self._ail_graph = self._rewrite_windows_chkstk_call(self._ail_graph)
 
     def _stage_make_function_callsites(self) -> None:
+        assert self.func_args is not None
+
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
         _, stackarg_offsets, removed_vvar_ids = self._make_callsites(
@@ -730,18 +733,22 @@ class Clinic(Analysis):
     def _stage_post_callsite_simplifications(self) -> None:
         self.arg_list = []
         self.vvar_to_vvar = {}
-        self.copied_vvar_ids = set()
+        self.copied_var_ids = set()
+
+        assert self.arg_vvars is not None
 
         # update arg_list
         for idx in sorted(self.arg_vvars):
             self.arg_list.append(self.arg_vvars[idx][1])
 
         # Get virtual variable mapping that can de-phi the SSA representation
-        self.vvar_to_vvar, self.copied_vvar_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(
+        self.vvar_to_vvar, self.copied_var_ids = self._collect_dephi_vvar_mapping_and_rewrite_blocks(
             self._ail_graph, self.arg_vvars
         )
 
     def _stage_recover_variables(self) -> None:
+        assert self.arg_list is not None and self.arg_vvars is not None and self.vvar_to_vvar is not None
+
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
         variable_kb = self._recover_and_link_variables(
@@ -753,7 +760,7 @@ class Clinic(Analysis):
         self._ail_graph = self._run_simplification_passes(
             self._ail_graph,
             stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
-            avoid_vvar_ids=self.copied_vvar_ids,
+            avoid_vvar_ids=self.copied_var_ids,
         )
 
         # Make function prototype
