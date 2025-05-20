@@ -324,14 +324,15 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             except SimMemoryMissingError:
                 pass
 
-            if len(existing_variables) > 1:
+            existing_vars_list = sorted(existing_variables, key=lambda val: (val[0], val[1].key), reverse=True)
+            if len(existing_vars_list) > 1:
                 # create a phi node for all other variables
                 l.warning(
                     "Reading memory with overlapping variables: %s. Ignoring all but the first one.", existing_variables
                 )
 
-            if existing_variables:
-                offset, variable = next(iter(existing_variables))
+            if existing_vars_list:
+                offset, variable = existing_vars_list[0]
                 self.variable_manager[self.func_addr].read_from(variable, offset, self._codeloc_from_state(state))
 
     def _hook_memory_write(self, state):

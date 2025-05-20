@@ -616,6 +616,8 @@ class Decompiler(Analysis):
                             self.func.prototype.args[:i] + (new_type,) + self.func.prototype.args[i + 1 :]
                         )
         except Exception:  # pylint:disable=broad-except
+            if self._fail_fast:
+                raise
             l.warning(
                 "Typehoon analysis failed. Variables will not have types. Please report to GitHub.", exc_info=True
             )

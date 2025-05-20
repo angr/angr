@@ -82,6 +82,10 @@ class SimVariable(Serializable):
     def bits(self) -> int:
         return self.size * 8
 
+    @property
+    def key(self) -> tuple[str | int | None, ...]:
+        raise NotImplementedError
+
     #
     # Operations
     #
@@ -135,6 +139,10 @@ class SimConstantVariable(SimVariable):
         r._hash = self._hash
         return r
 
+    @property
+    def key(self) -> tuple[str | int | None, ...]:
+        return ("const", self.value, self.size, self.ident)
+
 
 class SimTemporaryVariable(SimVariable):
     """
@@ -170,6 +178,10 @@ class SimTemporaryVariable(SimVariable):
         r = SimTemporaryVariable(self.tmp_id, size=self.size)
         r._hash = self._hash
         return r
+
+    @property
+    def key(self) -> tuple[str | int | None, ...]:
+        return ("tmp", self.tmp_id, self.size, self.ident)
 
     @classmethod
     def _get_cmsg(cls):
@@ -225,6 +237,10 @@ class SimRegisterVariable(SimVariable):
             )
 
         return False
+
+    @property
+    def key(self) -> tuple[str | int | None, ...]:
+        return ("reg", self.reg, self.size, self.ident)
 
     def copy(self) -> SimRegisterVariable:
         s = SimRegisterVariable(
@@ -303,6 +319,10 @@ class SimMemoryVariable(SimVariable):
         )
         r._hash = self._hash
         return r
+
+    @property
+    def key(self) -> tuple[str | int | None, ...]:
+        return ("mem", self.addr, self.size, self.ident)
 
     @classmethod
     def _get_cmsg(cls):
@@ -402,6 +422,17 @@ class SimStackVariable(SimMemoryVariable):
         )
         s._hash = self._hash
         return s
+
+    @property
+    def key(self) -> tuple[str | int | None, ...]:
+        return (
+            "stack",
+            self.base,
+            self.base_addr if isinstance(self.base_addr, int) else None,
+            self.offset if isinstance(self.offset, int) else None,
+            self.size,
+            self.ident,
+        )
 
     @classmethod
     def _get_cmsg(cls):

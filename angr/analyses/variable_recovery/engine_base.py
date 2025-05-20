@@ -784,20 +784,14 @@ class SimEngineVRBase(
 
                     all_vars = {(0, variable) for variable in variables}
 
-                all_vars_list = list(all_vars)
+                all_vars_list = sorted(all_vars, key=lambda val: (val[0], val[1].key), reverse=True)
 
                 if len(all_vars_list) > 1:
-                    # sort by some value so that the outcome here isn't random
-                    cast(list[tuple[int, SimStackVariable]], all_vars_list).sort(
-                        reverse=True,
-                        key=lambda val: (val[0], val[1].offset, val[1].base, val[1].base_addr, val[1].size),
-                    )
-
                     l.warning(
                         "Reading memory with overlapping variables: %s. Ignoring all but the first one.", all_vars_list
                     )
 
-                var_offset, var = next(iter(all_vars_list))  # won't fail
+                var_offset, var = all_vars_list[0]  # won't fail
                 # calculate variable_offset
                 if dynamic_offset is None:
                     offset_into_variable = var_offset

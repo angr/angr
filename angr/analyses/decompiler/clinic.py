@@ -1813,6 +1813,8 @@ class Clinic(Analysis):
                     },
                 )
             except Exception:  # pylint:disable=broad-except
+                if self._fail_fast:
+                    raise
                 l.warning(
                     "Typehoon analysis failed. Variables will not have types. Please report to GitHub.", exc_info=True
                 )

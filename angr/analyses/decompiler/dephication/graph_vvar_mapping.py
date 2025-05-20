@@ -158,7 +158,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         for vvar_id in live_outs[src]:
                             interference.add_edge(new_vvar_id, vvar_id)
 
-                else:  # insertion_type == 1
+                else:  # insertion_type == 1, i.e. the set has only one element
                     phi_block_loc, old_phi_varid, new_phi_varid = next(iter(new_vvar_ids))
                     self.copied_vvar_ids.add(new_phi_varid)
 

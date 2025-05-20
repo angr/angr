@@ -582,7 +582,7 @@ class VariableManagerInternal(Serializable):
                     return phi
 
         # allocate a new phi variable
-        repre = next(iter(variables))
+        repre = sorted(variables, key=lambda val: val.key)[0]
         repre_type = type(repre)
         repre_size = max(var.size for var in variables)
         if repre_type is SimRegisterVariable:
@@ -635,7 +635,13 @@ class VariableManagerInternal(Serializable):
         return loc in self._variable_to_stmt[variable]
 
     def find_variable_by_stmt(self, block_addr, stmt_idx, sort, block_idx: int | None = None):
-        return next(iter(self.find_variables_by_stmt(block_addr, stmt_idx, sort, block_idx=block_idx)), None)
+        variables = sorted(
+            self.find_variables_by_stmt(block_addr, stmt_idx, sort, block_idx=block_idx),
+            key=lambda var: (var[1], var[0].key),
+        )
+        if variables:
+            return variables[0]
+        return None
 
     def find_variables_by_stmt(
         self, block_addr: int, stmt_idx: int, sort: str, block_idx: int | None = None
@@ -667,7 +673,13 @@ class VariableManagerInternal(Serializable):
         return var_and_offsets
 
     def find_variable_by_atom(self, block_addr, stmt_idx, atom, block_idx: int | None = None):
-        return next(iter(self.find_variables_by_atom(block_addr, stmt_idx, atom, block_idx=block_idx)), None)
+        variables = sorted(
+            self.find_variables_by_atom(block_addr, stmt_idx, atom, block_idx=block_idx),
+            key=lambda val: (val[1], val[0].key),
+        )
+        if variables:
+            return variables[0]
+        return None
 
     def find_variables_by_atom(
         self, block_addr, stmt_idx, atom, block_idx: int | None = None

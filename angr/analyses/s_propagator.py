@@ -409,9 +409,8 @@ class SPropagatorAnalysis(Analysis):
                             ][tmp_used] = v
                         continue
 
-                    if len(tmp_uses) <= 2:
-                        tmp_used, tmp_use_stmtidx = next(iter(tmp_uses))
-                        if is_const_vvar_load_dirty_assignment(stmt):
+                    if len(tmp_uses) <= 2 and is_const_vvar_load_dirty_assignment(stmt):
+                        for tmp_used, tmp_use_stmtidx in tmp_uses:
                             same_inst = (
                                 block.statements[tmp_def_stmtidx].ins_addr == block.statements[tmp_use_stmtidx].ins_addr
                             )
@@ -426,7 +425,6 @@ class SPropagatorAnalysis(Analysis):
                                 replacements[
                                     CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
                                 ][tmp_used] = stmt.src
-                                continue
 
         self.model.replacements = replacements
 

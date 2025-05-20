@@ -1332,10 +1332,13 @@ class CFunctionCall(CStatement, CExpression):
         return False
 
     @staticmethod
-    def _is_func_likely_cxx_class_method(func_name: str) -> bool:
+    def _is_func_likely_method(func_name: str, rust: bool) -> bool:
         if "::" not in func_name:
             return False
         chunks = func_name.split("::")
+        if rust and re.match(r"[A-Z][a-zA-Z0-9_]*", chunks[-2]) is None:
+            # let's say that rust structs are always UpperCamelCase
+            return False
         return re.match(r"[a-zA-Z_][a-zA-Z0-9_]*", chunks[-1]) is not None
 
     def c_repr_chunks(self, indent=0, asexpr: bool = False):
@@ -1357,7 +1360,11 @@ class CFunctionCall(CStatement, CExpression):
                 func_name = get_cpp_function_name(self.callee_func.demangled_name, specialized=False, qualified=True)
             else:
                 func_name = self.callee_func.name
-            if self.prettify_thiscall and self.args and self._is_func_likely_cxx_class_method(func_name):
+            if (
+                self.prettify_thiscall
+                and self.args
+                and self._is_func_likely_method(func_name, self.callee_func.is_rust_function())
+            ):
                 func_name = self.callee_func.short_name
                 yield from self._c_repr_chunks_thiscall(func_name, asexpr=asexpr)
                 return
@@ -3571,7 +3578,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return self._variable(SimTemporaryVariable(expr.tmp_idx, expr.bits), expr.size)
 
     def _handle_Expr_Const(
-        self, expr: Expr.Const, type_=None, reference_values=None, variable=None, likely_signed=True, **kwargs
+        self,
+        expr: Expr.Const,
+        type_=None,
+        reference_values: dict[SimType | str, str | bytes | int | float | Function | CExpression] | None = None,
+        variable=None,
+        likely_signed=True,
+        **kwargs,
     ):
         inline_string = False
         function_pointer = False
@@ -3581,8 +3594,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if type_ is None and reference_values is None and hasattr(expr, "reference_values"):
             reference_values = expr.reference_values.copy()
-            if reference_values:
-                type_ = next(iter(reference_values))
+            if len(reference_values) == 1:  # type: ignore
+                type_ = next(iter(reference_values))  # type: ignore
 
         if reference_values is None:
             reference_values = {}
