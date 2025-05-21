@@ -391,10 +391,10 @@ class SimEngineVRAIL(
             ):
                 # there is already a conversion - overwrite it
                 if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
-                    typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ConvertTo(expr.to_bits))
+                    typevar = typevars.new_dtv(r.typevar.type_var, label=typevars.ConvertTo(expr.to_bits))
             else:
                 if not isinstance(r.typevar, typeconsts.TypeConstant):
-                    typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ConvertTo(expr.to_bits))
+                    typevar = typevars.new_dtv(r.typevar, label=typevars.ConvertTo(expr.to_bits))
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
@@ -406,11 +406,9 @@ class SimEngineVRAIL(
                 r.typevar.one_label, typevars.ReinterpretAs
             ):
                 # there is already a reinterpretas - overwrite it
-                typevar = typevars.DerivedTypeVariable(
-                    r.typevar.type_var, typevars.ReinterpretAs(expr.to_type, expr.to_bits)
-                )
+                typevar = typevars.new_dtv(r.typevar.type_var, label=typevars.ReinterpretAs(expr.to_type, expr.to_bits))
             else:
-                typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
+                typevar = typevars.new_dtv(r.typevar, label=typevars.ReinterpretAs(expr.to_type, expr.to_bits))
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
@@ -479,7 +477,7 @@ class SimEngineVRAIL(
 
         if r1.data.concrete:
             # addition with constants. create a derived type variable
-            typevar = typevars.DerivedTypeVariable(r0_typevar, typevars.AddN(r1.data.concrete_value))
+            typevar = typevars.new_dtv(r0_typevar, label=typevars.AddN(r1.data.concrete_value))
         elif r1.typevar is not None:
             typevar = typevars.TypeVariable()
             type_constraints.add(typevars.Add(r0_typevar, r1.typevar, typevar))
@@ -495,7 +493,7 @@ class SimEngineVRAIL(
 
         type_constraints = set()
         if r0.typevar is not None and r1.data.concrete:
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data.concrete_value))
+            typevar = typevars.new_dtv(r0.typevar, label=typevars.SubN(r1.data.concrete_value))
         else:
             typevar = typevars.TypeVariable()
             if r0.typevar is not None and r1.typevar is not None:
@@ -611,11 +609,16 @@ class SimEngineVRAIL(
             result_size = arg0.bits
             return RichR(r0.data ^ r1.data, typevar=typeconsts.int_type(result_size), type_constraints=None)
 
+        # xor does not transfer type variables; instead, it forces both operands to be unsigned integers
+        if isinstance(r0.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r0.typevar, typeconsts.int_type(r0.data.size()))
+            self.state.add_type_constraint(tc)
+        if isinstance(r1.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r1.typevar, typeconsts.int_type(r0.data.size()))
+            self.state.add_type_constraint(tc)
+
         r = self.state.top(expr.bits)
-        return RichR(
-            r,
-            typevar=r0.typevar,
-        )
+        return RichR(r)
 
     def _handle_binop_Shl(self, expr):
         arg0, arg1 = expr.operands

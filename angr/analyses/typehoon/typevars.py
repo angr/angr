@@ -1,7 +1,8 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
 from typing import Any, Union, TYPE_CHECKING
-from collections.abc import Iterable
+
+from collections.abc import Sequence, Iterable
 from itertools import count
 
 from angr.utils.constants import MAX_POINTSTO_BITS
@@ -576,3 +577,37 @@ class HasField(BaseLabel):
 class IsArray(BaseLabel):
     def __repr__(self):
         return "is_array"
+
+
+def new_dtv(
+    type_var: TypeVariable,
+    *,
+    label: BaseLabel | None = None,
+    labels: Sequence[BaseLabel] | None = None,
+) -> TypeVariable | DerivedTypeVariable:
+    """
+    Create a new DerivedTypeVariable with the given type variable (or DerivedTypeVariable) and labels.
+    """
+
+    new_labels = (label,) if label is not None else tuple(labels)
+    if isinstance(type_var, DerivedTypeVariable):
+        base_typevar = type_var.type_var
+        new_labels = type_var.labels + new_labels
+
+        # condense the last two labels to see if they are AddN and SubN
+        if len(new_labels) >= 2 and {type(new_labels[-2]), type(new_labels[-1])} == {AddN, SubN}:
+            new_n = 0
+            for lbl in (new_labels[-2], new_labels[-1]):
+                if isinstance(lbl, AddN):
+                    new_n += lbl.n
+                elif isinstance(lbl, SubN):
+                    new_n -= lbl.n
+            new_labels = type_var.labels[:-2]
+            if new_n > 0:
+                new_labels += (AddN(new_n),)
+            elif new_n < 0:
+                new_labels += (SubN(-new_n),)
+    else:
+        base_typevar = type_var
+
+    return DerivedTypeVariable(base_typevar, None, labels=new_labels) if new_labels else base_typevar

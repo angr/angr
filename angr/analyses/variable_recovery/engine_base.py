@@ -453,15 +453,21 @@ class SimEngineVRBase(
 
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable):
-                # assign a new type variable to it
-                typevar = typevars.TypeVariable()
+                # optimization: if richr.typevar is a derived typevar, we simply carry it over instead of creating a
+                # new typevar here
+                # this is because the solver does not support constraints like tv_1 <: tv_2.+1; we replace it with
+                # tv_1 = tv_2 + 1
+                if isinstance(richr.typevar, typevars.DerivedTypeVariable):
+                    typevar = richr.typevar
+                else:
+                    typevar = typevars.TypeVariable()
                 self.state.typevars.add_type_variable(variable, typevar)
             else:
                 typevar = self.state.typevars.get_type_variable(variable)
 
             # create constraints accordingly
-
-            self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+            if richr.typevar is not typevar:
+                self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             if vvar.varid in self.vvar_type_hints:
                 # handle type hints
                 self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
