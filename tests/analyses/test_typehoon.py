@@ -173,6 +173,11 @@ class TestTypehoon(unittest.TestCase):
         func = cfg.kb.functions["Cipher"]
         p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print(dec.codegen.text)
+
+        # no masking should exist in the decompilation; all redundant variable type casts are removed
+        assert "& 0x" not in dec.codegen.text
 
         assert dec.clinic is not None and dec.clinic.typehoon is not None
         assert 0 < max(dec.clinic.typehoon.eqclass_constraints_count) < 350
