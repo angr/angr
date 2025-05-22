@@ -407,7 +407,7 @@ class SimEngineVRAIL(
             ):
                 # there is already a reinterpretas - overwrite it
                 typevar = typevars.new_dtv(r.typevar.type_var, label=typevars.ReinterpretAs(expr.to_type, expr.to_bits))
-            else:
+            elif isinstance(r.typevar, typevars.TypeVariable):
                 typevar = typevars.new_dtv(r.typevar, label=typevars.ReinterpretAs(expr.to_type, expr.to_bits))
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
@@ -475,9 +475,11 @@ class SimEngineVRAIL(
         # create a new type variable and add constraints accordingly
         r0_typevar = r0.typevar if r0.typevar is not None else typevars.TypeVariable()
 
+        typevar = None
         if r1.data.concrete:
             # addition with constants. create a derived type variable
-            typevar = typevars.new_dtv(r0_typevar, label=typevars.AddN(r1.data.concrete_value))
+            if isinstance(r0_typevar, typevars.TypeVariable):
+                typevar = typevars.new_dtv(r0_typevar, label=typevars.AddN(r1.data.concrete_value))
         elif r1.typevar is not None:
             typevar = typevars.TypeVariable()
             type_constraints.add(typevars.Add(r0_typevar, r1.typevar, typevar))
@@ -492,7 +494,8 @@ class SimEngineVRAIL(
         compute = r0.data - r1.data  # type: ignore
 
         type_constraints = set()
-        if r0.typevar is not None and r1.data.concrete:
+        typevar = None
+        if r0.typevar is not None and r1.data.concrete and isinstance(r0.typevar, typevars.TypeVariable):
             typevar = typevars.new_dtv(r0.typevar, label=typevars.SubN(r1.data.concrete_value))
         else:
             typevar = typevars.TypeVariable()

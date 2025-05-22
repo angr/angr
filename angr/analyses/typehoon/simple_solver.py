@@ -25,6 +25,7 @@ from .typevars import (
     FuncIn,
     FuncOut,
     ConvertTo,
+    new_dtv,
 )
 from .typeconsts import (
     BottomType,
@@ -710,9 +711,8 @@ class SimpleSolver:
                 else:
                     raise TypeError("Unexpected")
                 labels += (label,)
-                succ_derived_typevar = DerivedTypeVariable(
+                succ_derived_typevar = new_dtv(
                     base_typevar,
-                    None,
                     labels=labels,
                 )
                 succ_node = SketchNode(succ_derived_typevar)
