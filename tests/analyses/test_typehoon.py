@@ -164,6 +164,19 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(sol.basetype.fields[8], Pointer64)
         assert sol.basetype.fields[8].basetype == sol.basetype
 
+    def test_solving_cascading_type_constraints(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "tiny_aes_test.elf"), auto_load_libs=False)
+        cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+        func = cfg.kb.functions["Cipher"]
+        p.analyses.CompleteCallingConventions()
+        dec = p.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        # print(dec.codegen.text)
+
+        assert dec.clinic.typehoon is not None
+        assert 0 < max(dec.clinic.typehoon.eqclass_constraints_count) < 350
+
 
 class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):
