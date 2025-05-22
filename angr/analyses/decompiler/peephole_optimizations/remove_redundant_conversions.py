@@ -217,7 +217,12 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         **expr.tags,
                     )
 
-            if expr.to_bits < expr.from_bits and operand_expr.op in {"Add", "And", "Xor", "Or", "Mul", "Shr", "Sar"}:
+            if (
+                expr.to_bits < expr.from_bits
+                and expr.from_type == Convert.TYPE_INT
+                and expr.to_type == Convert.TYPE_INT
+                and operand_expr.op in {"Add", "And", "Xor", "Or", "Mul"}
+            ):
                 # ignore the high bits of each operand
                 op0, op1 = operand_expr.operands
                 new_op0 = Convert(
