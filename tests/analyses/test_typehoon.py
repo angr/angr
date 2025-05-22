@@ -60,6 +60,7 @@ class TestTypehoon(unittest.TestCase):
         proj.analyses.CompleteCallingConventions()
 
         dec = proj.analyses.Decompiler(main_func)
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "->field_0 = 10;" in dec.codegen.text
         assert "->field_4 = 20;" in dec.codegen.text
         assert "->field_8 = 808464432;" in dec.codegen.text
@@ -74,6 +75,7 @@ class TestTypehoon(unittest.TestCase):
         proj.analyses.CompleteCallingConventions()
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert dec.codegen.text.count("UNICODE_STRING v") == 2
 
     def test_type_inference_basic_case_0(self):
@@ -172,9 +174,12 @@ class TestTypehoon(unittest.TestCase):
         p.analyses.CompleteCallingConventions()
         dec = p.analyses.Decompiler(func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
-        # print(dec.codegen.text)
+        print(dec.codegen.text)
 
-        assert dec.clinic.typehoon is not None
+        # no masking should exist in the decompilation; all redundant variable type casts are removed
+        assert "& 0x" not in dec.codegen.text
+
+        assert dec.clinic is not None and dec.clinic.typehoon is not None
         assert 0 < max(dec.clinic.typehoon.eqclass_constraints_count) < 350
 
 
