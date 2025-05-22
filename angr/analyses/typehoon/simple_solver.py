@@ -25,6 +25,7 @@ from .typevars import (
     FuncIn,
     FuncOut,
     ConvertTo,
+    new_dtv,
 )
 from .typeconsts import (
     BottomType,
@@ -241,6 +242,10 @@ class Sketch:
             for data in self.graph.get_edge_data(src, dst).values():
                 if "label" in data and data["label"] == label:
                     return
+        if isinstance(src, SketchNode) and src.typevar not in self.node_mapping:
+            self.node_mapping[src.typevar] = src
+        if isinstance(dst, SketchNode) and dst.typevar not in self.node_mapping:
+            self.node_mapping[dst.typevar] = dst
         self.graph.add_edge(src, dst, label=label)
 
     def add_constraint(self, constraint: TypeConstraint) -> None:
@@ -440,14 +445,23 @@ class SimpleSolver:
         for src, dst in self._base_lattice.edges:
             self._base_lattice_inverted.add_edge(dst, src)
 
+        # statistics
+        self.processed_constraints_count: int = 0
+        self.simplified_constraints_count: int = 0
+        self.eqclass_constraints_count: list[int] = []
+
         #
         # Solving state
         #
         self._equivalence = defaultdict(dict)
         for typevar in list(self._constraints):
             if self._constraints[typevar]:
+                self.processed_constraints_count += len(self._constraints[typevar])
+
                 self._constraints[typevar] |= self._eq_constraints_from_add(typevar)
                 self._constraints[typevar] = self._handle_equivalence(typevar)
+
+                self.simplified_constraints_count += len(self._constraints[typevar])
 
         self.solution = {}
         for tv, sol in self._equivalence.items():
@@ -518,6 +532,7 @@ class SimpleSolver:
                 idx + 1,
                 len(constraintset2tvs),
             )
+            self.eqclass_constraints_count.append(len(constraint_subset))
 
             while True:
                 base_constraint_graph = self._generate_constraint_graph(constraint_subset, tvs | PRIMITIVE_TYPES)
@@ -696,9 +711,8 @@ class SimpleSolver:
                 else:
                     raise TypeError("Unexpected")
                 labels += (label,)
-                succ_derived_typevar = DerivedTypeVariable(
+                succ_derived_typevar = new_dtv(
                     base_typevar,
-                    None,
                     labels=labels,
                 )
                 succ_node = SketchNode(succ_derived_typevar)

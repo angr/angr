@@ -60,6 +60,7 @@ class TestTypehoon(unittest.TestCase):
         proj.analyses.CompleteCallingConventions()
 
         dec = proj.analyses.Decompiler(main_func)
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert "->field_0 = 10;" in dec.codegen.text
         assert "->field_4 = 20;" in dec.codegen.text
         assert "->field_8 = 808464432;" in dec.codegen.text
@@ -74,6 +75,7 @@ class TestTypehoon(unittest.TestCase):
         proj.analyses.CompleteCallingConventions()
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
         assert dec.codegen.text.count("UNICODE_STRING v") == 2
 
     def test_type_inference_basic_case_0(self):
@@ -163,6 +165,17 @@ class TestTypehoon(unittest.TestCase):
         assert sol.basetype.fields[0].basetype == sol.basetype
         assert isinstance(sol.basetype.fields[8], Pointer64)
         assert sol.basetype.fields[8].basetype == sol.basetype
+
+    def test_solving_cascading_type_constraints(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "tiny_aes_test.elf"), auto_load_libs=False)
+        cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+        func = cfg.kb.functions["Cipher"]
+        p.analyses.CompleteCallingConventions()
+        dec = p.analyses.Decompiler(func, cfg=cfg.model)
+
+        assert dec.clinic is not None and dec.clinic.typehoon is not None
+        assert 0 < max(dec.clinic.typehoon.eqclass_constraints_count) < 350
 
 
 class TestTypeTranslator(unittest.TestCase):

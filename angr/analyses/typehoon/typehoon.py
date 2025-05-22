@@ -63,6 +63,10 @@ class Typehoon(Analysis):
         self.structs = None
         self.simtypes_solution = None
 
+        # stats
+        self.processed_constraints_count: int = 0
+        self.eqclass_constraints_count: list[int] = []
+
         # import pprint
         # pprint.pprint(self._var_mapping)
         # pprint.pprint(self._constraints)
@@ -209,6 +213,8 @@ class Typehoon(Analysis):
 
         solver = SimpleSolver(self.bits, self._constraints, typevars, stackvar_max_sizes=self._stackvar_max_sizes)
         self.solution = solver.solution
+        self.processed_constraints_count = solver.processed_constraints_count
+        self.eqclass_constraints_count = solver.eqclass_constraints_count
 
     def _specialize(self):
         """

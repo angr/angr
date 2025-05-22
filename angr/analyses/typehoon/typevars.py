@@ -1,7 +1,8 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
 from typing import Any, Union, TYPE_CHECKING
-from collections.abc import Iterable
+
+from collections.abc import Sequence, Iterable
 from itertools import count
 
 from angr.utils.constants import MAX_POINTSTO_BITS
@@ -314,11 +315,12 @@ class TypeVariable:
 class DerivedTypeVariable(TypeVariable):
     __slots__ = ("labels", "type_var")
 
+    type_var: TypeVariable
     labels: tuple[BaseLabel, ...]
 
     def __init__(
         self,
-        type_var: TypeType,
+        type_var: TypeVariable | DerivedTypeVariable,
         label: BaseLabel | None,
         labels: Iterable[BaseLabel] | None = None,
         idx=None,
@@ -576,3 +578,45 @@ class HasField(BaseLabel):
 class IsArray(BaseLabel):
     def __repr__(self):
         return "is_array"
+
+
+def new_dtv(
+    type_var: TypeVariable,
+    *,
+    label: BaseLabel | None = None,
+    labels: Sequence[BaseLabel] | None = None,
+) -> TypeVariable | DerivedTypeVariable:
+    """
+    Create a new DerivedTypeVariable with the given type variable (or DerivedTypeVariable) and labels.
+    """
+
+    if label is None and labels is None:
+        raise ValueError("Either label or labels must be specified")
+    new_labels = (label,) if label is not None else tuple(labels)  # type: ignore[reportArgumentType]
+    if isinstance(type_var, DerivedTypeVariable):
+        base_typevar = type_var.type_var
+        new_labels = type_var.labels + new_labels
+    else:
+        base_typevar = type_var
+
+    # condense the last N labels if they are AddN and SubN
+    off = 1
+    while off <= len(new_labels) and isinstance(new_labels[-off], (AddN, SubN)):
+        off += 1
+    if off <= len(new_labels) and not isinstance(new_labels[-off], (AddN, SubN)):
+        off -= 1
+
+    if off >= 2:
+        new_n = 0
+        for lbl in new_labels[-off:]:
+            if isinstance(lbl, AddN):
+                new_n += lbl.n
+            elif isinstance(lbl, SubN):
+                new_n -= lbl.n
+        new_labels = new_labels[:-off]
+        if new_n > 0:
+            new_labels += (AddN(new_n),)
+        elif new_n < 0:
+            new_labels += (SubN(-new_n),)
+
+    return DerivedTypeVariable(base_typevar, None, labels=new_labels) if new_labels else base_typevar
