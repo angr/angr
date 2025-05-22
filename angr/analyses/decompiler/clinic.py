@@ -218,6 +218,9 @@ class Clinic(Analysis):
 
         self._new_block_addrs = set()
 
+        # a reference to the Typehoon type inference engine; useful for debugging and loading stats post decompilation
+        self.typehoon = None
+
         # sanity checks
         if not self.kb.functions:
             l.warning("No function is available in kb.functions. It will lead to a suboptimal conversion result.")
@@ -1888,6 +1891,7 @@ class Clinic(Analysis):
                         if isinstance(v, SimMemoryVariable) and not isinstance(v, SimStackVariable)
                     },
                 )
+                self.typehoon = tp
             except Exception:  # pylint:disable=broad-except
                 if self._fail_fast:
                     raise

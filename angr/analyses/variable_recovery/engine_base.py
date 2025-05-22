@@ -694,7 +694,7 @@ class SimEngineVRBase(
 
         typevar = typevars.TypeVariable() if richr_addr.typevar is None else richr_addr.typevar
 
-        if typevar is not None:
+        if isinstance(typevar, typevars.TypeVariable):
             if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.one_label, typevars.AddN):
                 base_typevar = typevar.type_var
                 field_offset = typevar.one_label.n
@@ -1158,7 +1158,7 @@ class SimEngineVRBase(
 
     def _create_access_typevar(
         self,
-        typevar: typeconsts.TypeConstant | TypeVariable | DerivedTypeVariable,
+        typevar: TypeVariable | DerivedTypeVariable,
         is_store: bool,
         size: int | None,
         offset: int,
@@ -1169,13 +1169,13 @@ class SimEngineVRBase(
                 if len(typevar.labels) == 1:
                     typevar = typevar.type_var
                 else:
-                    typevar = DerivedTypeVariable(typevar.type_var, None, labels=typevar.labels[:-1])
+                    typevar = typevars.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
             elif isinstance(typevar.labels[-1], SubN):
                 offset -= typevar.labels[-1].n
                 if len(typevar.labels) == 1:
                     typevar = typevar.type_var
                 else:
-                    typevar = DerivedTypeVariable(typevar.type_var, None, labels=typevar.labels[:-1])
+                    typevar = typevars.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
         lbl = Store() if is_store else Load()
         bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
         return DerivedTypeVariable(

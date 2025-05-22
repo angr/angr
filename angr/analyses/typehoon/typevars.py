@@ -315,7 +315,7 @@ class TypeVariable:
 class DerivedTypeVariable(TypeVariable):
     __slots__ = ("labels", "type_var")
 
-    typevar: TypeVariable
+    type_var: TypeVariable
     labels: tuple[BaseLabel, ...]
 
     def __init__(
