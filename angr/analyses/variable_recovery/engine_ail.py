@@ -614,7 +614,7 @@ class SimEngineVRAIL(
             tc = typevars.Subtype(r0.typevar, typeconsts.int_type(r0.data.size()))
             self.state.add_type_constraint(tc)
         if isinstance(r1.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r1.typevar, typeconsts.int_type(r0.data.size()))
+            tc = typevars.Subtype(r1.typevar, typeconsts.int_type(r1.data.size()))
             self.state.add_type_constraint(tc)
 
         r = self.state.top(expr.bits)

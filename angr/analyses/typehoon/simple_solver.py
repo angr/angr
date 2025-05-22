@@ -241,6 +241,10 @@ class Sketch:
             for data in self.graph.get_edge_data(src, dst).values():
                 if "label" in data and data["label"] == label:
                     return
+        if isinstance(src, SketchNode) and src.typevar not in self.node_mapping:
+            self.node_mapping[src.typevar] = src
+        if isinstance(dst, SketchNode) and dst.typevar not in self.node_mapping:
+            self.node_mapping[dst.typevar] = dst
         self.graph.add_edge(src, dst, label=label)
 
     def add_constraint(self, constraint: TypeConstraint) -> None:

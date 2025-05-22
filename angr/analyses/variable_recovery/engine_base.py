@@ -456,7 +456,7 @@ class SimEngineVRBase(
                 # optimization: if richr.typevar is a derived typevar, we simply carry it over instead of creating a
                 # new typevar here
                 # this is because the solver does not support constraints like tv_1 <: tv_2.+1; we replace it with
-                # tv_1 = tv_2 + 1
+                # tv_1 = tv_2.+1
                 if isinstance(richr.typevar, typevars.DerivedTypeVariable):
                     typevar = richr.typevar
                 else:
@@ -884,8 +884,8 @@ class SimEngineVRBase(
         else:
             richr_addr_typevar = richr_addr.typevar
 
-        if richr_addr_typevar is not None:
-            # create a type constraint
+        if isinstance(richr_addr_typevar, typevars.TypeVariable):
+            # ensure it's not a type constant, and then we create a type constraint for this typevar
             typevar = self._create_access_typevar(richr_addr_typevar, False, size, offset)
             self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.TopType()))
 
