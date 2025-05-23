@@ -3733,17 +3733,12 @@ class TestDecompiler(unittest.TestCase):
 
         self._print_decompilation_result(d)
         text = d.codegen.text
-        # there are two acceptable scenarios (because type inference is non-deterministic. we should fix it in the
-        # future)
-        # case 1: v7 is an unsigned int
-        # *((unsigned short *)((char *)&v7 + 2 * v32)) = *((short *)((char *)&v7 + 2 * v32)) ^ (unsigned short)(145 + v32);
-        # case 2: v7 is an unsigned short
-        # (&v7)[v32] = (&v7)[v32] ^ (unsigned short)(145 + v32);
+        # *((unsigned short *)((char *)&v5 + 2 * v25)) = *((short *)((char *)&v5 + 2 * v25)) ^ 145 + (unsigned short)v25;
 
         m0 = re.search(
             r"\*\(\(unsigned short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) = "
             r"\*\(\(short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) \^ "
-            r"\(unsigned short\)\(145 \+ [^;\n]*v\d+\);",
+            r"145 \+ \(unsigned short\)[^;\n]*v\d+;",
             text,
         )
         m1 = re.search(r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ [^;\n]*v\d+\);", text)
