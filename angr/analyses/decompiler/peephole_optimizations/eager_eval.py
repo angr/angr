@@ -17,7 +17,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     NAME = "Eager expression evaluation"
     expr_classes = (BinaryOp, UnaryOp, Convert)
 
-    def optimize(self, expr, **kwargs):
+    def optimize(self, expr, **kwargs):  # type:ignore
         if isinstance(expr, BinaryOp):
             return self._optimize_binaryop(expr)
         if isinstance(expr, Convert):
@@ -121,8 +121,9 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return Const(
                     expr.idx, None, (expr.operands[0].value - expr.operands[1].value) & mask, expr.bits, **expr.tags
                 )
-            if isinstance(expr.operands[1], Const) and expr.operands[1].sign_bit == 1:
+            if isinstance(expr.operands[1], Const) and expr.operands[1].is_int and expr.operands[1].sign_bit == 1:
                 # x - (-A)  ==>  x + A
+                assert isinstance(expr.operands[1].value, int)
                 mask = (1 << expr.operands[1].bits) - 1
                 complement = Const(
                     expr.operands[1].idx,
