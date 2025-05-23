@@ -81,6 +81,10 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
         # return a tuple of ( is_signed (False for is_unsigned), bits of the expression to test for signedness, and the
         # expression itself ).
         if isinstance(expr, BinaryOp):
+            if expr.op == "CmpGE" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
+                # >= 0
+                return False, expr.operands[1].bits, expr.operands[0]
+
             eq0, eq1 = False, False
             if isinstance(expr.operands[1], Const):
                 if expr.op == "CmpEQ":

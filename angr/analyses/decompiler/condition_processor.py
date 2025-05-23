@@ -689,7 +689,9 @@ class ConditionProcessor:
             target_ast = self.claripy_ast_from_ail_condition(last_stmt.target, ins_addr=last_stmt.ins_addr)
             return target_ast == dst_block.addr
         if type(last_stmt) is ailment.Stmt.ConditionalJump:
-            bool_var = self.claripy_ast_from_ail_condition(last_stmt.condition, ins_addr=last_stmt.ins_addr)
+            bool_var = self.claripy_ast_from_ail_condition(
+                last_stmt.condition, must_bool=True, ins_addr=last_stmt.ins_addr
+            )
             if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var
             return claripy.Not(bool_var)
@@ -817,7 +819,7 @@ class ConditionProcessor:
         )
 
     def claripy_ast_from_ail_condition(
-        self, condition, nobool: bool = False, *, ins_addr: int = 0
+        self, condition, *, nobool: bool = False, must_bool: bool = False, ins_addr: int = 0
     ) -> claripy.ast.Bool | claripy.ast.Bits:
         # Unpack a condition all the way to the leaves
         if isinstance(
@@ -848,7 +850,7 @@ class ConditionProcessor:
             return var
         if isinstance(condition, ailment.Expr.Convert):
             # convert is special. if it generates a 1-bit variable, it should be treated as a BoolS
-            if condition.to_bits == 1:
+            if condition.to_bits == 1 and not nobool:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
                 name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {hash(var_)})"
                 var = claripy.BoolS(name, explicit_name=True)
@@ -910,6 +912,15 @@ class ConditionProcessor:
             self._condition_mapping[r.args[0]] = condition
         # don't lose tags
         self._ast2annotations[r] = condition.tags
+
+        if isinstance(r, claripy.ast.BV) and r.size() == 1 and must_bool:
+            # convert to a BoolS
+            if r.op == "BVV":
+                r = claripy.false() if r.args[0] == 0 else claripy.true()
+            else:
+                # r.op == "BVS"
+                r = claripy.BoolS(f"bool_from_bv1_{r.args[0]}", explicit_name=True)
+                self._condition_mapping[r.args[0]] = condition
         return r
 
     #
