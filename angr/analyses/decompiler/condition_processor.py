@@ -226,7 +226,6 @@ class ConditionProcessor:
         self.arch = arch
         self._condition_mapping: dict[str, Any] = {} if condition_mapping is None else condition_mapping
         self.jump_table_conds: dict[int, set] = defaultdict(set)
-        self.edge_conditions = {}
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
@@ -264,7 +263,7 @@ class ConditionProcessor:
                     predicate = self.recover_edge_condition(graph, src, dst)
                     edge_conditions[(src, dst)] = predicate
 
-        self.edge_conditions = edge_conditions
+        return edge_conditions
 
     def recover_reaching_conditions(
         self,
@@ -285,8 +284,7 @@ class ConditionProcessor:
             """
             return dominates(inv_idoms, node_a, node_b)
 
-        self.recover_edge_conditions(region, graph=graph)
-        edge_conditions = self.edge_conditions
+        edge_conditions = self.recover_edge_conditions(region, graph=graph)
 
         if graph:
             _g = graph
@@ -549,7 +547,9 @@ class ConditionProcessor:
         raise NotImplementedError
 
     @classmethod
-    def get_last_statements(cls, block) -> list[ailment.Stmt.Statement | None]:
+    def get_last_statements(
+        cls, block
+    ) -> list[ailment.Stmt.Statement | ConditionalBreakNode | BreakNode | ContinueNode | None]:
         if type(block) is SequenceNode:
             for last_node in reversed(block.nodes):
                 try:
@@ -689,7 +689,9 @@ class ConditionProcessor:
             target_ast = self.claripy_ast_from_ail_condition(last_stmt.target, ins_addr=last_stmt.ins_addr)
             return target_ast == dst_block.addr
         if type(last_stmt) is ailment.Stmt.ConditionalJump:
-            bool_var = self.claripy_ast_from_ail_condition(last_stmt.condition, ins_addr=last_stmt.ins_addr)
+            bool_var = self.claripy_ast_from_ail_condition(
+                last_stmt.condition, must_bool=True, ins_addr=last_stmt.ins_addr
+            )
             if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var
             return claripy.Not(bool_var)
@@ -817,7 +819,7 @@ class ConditionProcessor:
         )
 
     def claripy_ast_from_ail_condition(
-        self, condition, nobool: bool = False, *, ins_addr: int = 0
+        self, condition, *, nobool: bool = False, must_bool: bool = False, ins_addr: int = 0
     ) -> claripy.ast.Bool | claripy.ast.Bits:
         # Unpack a condition all the way to the leaves
         if isinstance(
@@ -848,7 +850,7 @@ class ConditionProcessor:
             return var
         if isinstance(condition, ailment.Expr.Convert):
             # convert is special. if it generates a 1-bit variable, it should be treated as a BoolS
-            if condition.to_bits == 1:
+            if condition.to_bits == 1 and not nobool:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0], ins_addr=ins_addr)
                 name = f"ailcond_Conv({condition.from_bits}->{condition.to_bits}, {hash(var_)})"
                 var = claripy.BoolS(name, explicit_name=True)
@@ -910,6 +912,15 @@ class ConditionProcessor:
             self._condition_mapping[r.args[0]] = condition
         # don't lose tags
         self._ast2annotations[r] = condition.tags
+
+        if isinstance(r, claripy.ast.BV) and r.size() == 1 and must_bool:
+            # convert to a BoolS
+            if r.op == "BVV":
+                r = claripy.false() if r.args[0] == 0 else claripy.true()
+            else:
+                # r.op == "BVS"
+                r = claripy.BoolS(f"bool_from_bv1_{r.args[0]}", explicit_name=True)
+                self._condition_mapping[r.args[0]] = condition
         return r
 
     #

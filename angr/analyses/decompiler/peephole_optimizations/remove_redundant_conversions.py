@@ -8,7 +8,7 @@ from .base import PeepholeOptimizationExprBase
 class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    NAME = "Remove redundant conversions around binary operators"
+    NAME = "Remove or rewrite redundant conversions around binary operators"
     expr_classes = (BinaryOp, Convert)
 
     def optimize(self, expr: BinaryOp | Convert, **kwargs):
@@ -22,7 +22,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     @staticmethod
     def _optimize_BinaryOp(expr: BinaryOp):
         # TODO make this lhs/rhs agnostic
-        if isinstance(expr.operands[0], Convert):
+        if isinstance(expr.operands[0], Convert):  # noqa: SIM102
             # check: is the lhs convert an up-cast and is rhs a const?
             if expr.operands[0].to_bits > expr.operands[0].from_bits and isinstance(expr.operands[1], Const):
                 to_bits = expr.operands[0].to_bits
@@ -76,34 +76,6 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         BinaryOp(
                             expr.idx, expr.op, [op0.operand, con], expr.signed, bits=op0.operand.bits, **expr.tags
                         ),
-                        **op0.tags,
-                    )
-
-            elif (
-                isinstance(expr.operands[1], Convert)
-                and expr.operands[1].to_bits == expr.operands[0].to_bits
-                and expr.operands[1].from_bits == expr.operands[0].from_bits
-            ):
-                if expr.op in {"Add", "Sub"}:
-                    op0 = expr.operands[0]
-                    op0_inner = expr.operands[0].operand
-                    # op1 = expr.operands[1]
-                    op1_inner = expr.operands[1].operand
-
-                    new_expr = BinaryOp(
-                        expr.idx,
-                        expr.op,
-                        (op0_inner, op1_inner),
-                        expr.signed,
-                        bits=op0.from_bits,
-                        **expr.tags,
-                    )
-                    return Convert(
-                        op0.idx,
-                        op0.from_bits,
-                        op0.to_bits,
-                        op0.is_signed,
-                        new_expr,
                         **op0.tags,
                     )
 
@@ -244,4 +216,58 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                         op0,
                         **expr.tags,
                     )
+
+            if (
+                expr.to_bits < expr.from_bits
+                and expr.from_type == Convert.TYPE_INT
+                and expr.to_type == Convert.TYPE_INT
+            ):
+                if operand_expr.op in {"Add", "And", "Xor", "Or", "Mul"}:
+                    # ignore the high bits of each operand
+                    op0, op1 = operand_expr.operands
+                    new_op0 = Convert(
+                        expr.idx,
+                        expr.from_bits,
+                        expr.to_bits,
+                        False,
+                        op0,
+                        **expr.tags,
+                    )
+                    new_op1 = Convert(
+                        expr.idx,
+                        expr.from_bits,
+                        expr.to_bits,
+                        False,
+                        op1,
+                        **expr.tags,
+                    )
+
+                    return BinaryOp(
+                        expr.idx,
+                        operand_expr.op,
+                        [new_op0, new_op1],
+                        operand_expr.signed,
+                        bits=expr.to_bits,
+                        **operand_expr.tags,
+                    )
+                if operand_expr.op in {"Shr", "Sar"} and isinstance(operand_expr.operands[0], Convert):
+                    op0, op1 = operand_expr.operands
+                    assert isinstance(op0, Convert)
+                    if op0.to_bits > op0.from_bits and op0.to_bits == expr.from_bits:
+                        new_operand = BinaryOp(
+                            expr.idx,
+                            operand_expr.op,
+                            [op0.operand, op1],
+                            operand_expr.signed,
+                            bits=op0.from_bits,
+                            **operand_expr.tags,
+                        )
+                        return Convert(
+                            expr.idx,
+                            new_operand.bits,
+                            expr.to_bits,
+                            expr.is_signed,
+                            new_operand,
+                            **expr.tags,
+                        )
         return None

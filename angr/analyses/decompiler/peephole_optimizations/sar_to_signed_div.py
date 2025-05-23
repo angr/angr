@@ -14,7 +14,7 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
     NAME = "(signed(expr)? expr + A ** 2 - 1: expr) >>s A => expr /s 2 ** A"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp, stmt_idx: int | None = None, block=None):
+    def optimize(self, expr: BinaryOp, stmt_idx: int | None = None, block=None, **kwargs):
         if expr.op == "Sar" and isinstance(expr.operands[1], Const):
             op0, const = expr.operands
 
@@ -81,6 +81,10 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
         # return a tuple of ( is_signed (False for is_unsigned), bits of the expression to test for signedness, and the
         # expression itself ).
         if isinstance(expr, BinaryOp):
+            if expr.op == "CmpGE" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
+                # >= 0
+                return False, expr.operands[1].bits, expr.operands[0]
+
             eq0, eq1 = False, False
             if isinstance(expr.operands[1], Const):
                 if expr.op == "CmpEQ":
@@ -96,17 +100,44 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
             if not eq0 and not eq1:
                 return None
 
-            if isinstance(expr.operands[0], BinaryOp) and expr.operands[0].op == "And":
-                and_expr = expr.operands[0]
-                if (
-                    isinstance(and_expr.operands[1], Const)
-                    and and_expr.operands[1].value == 1
-                    # continue to match the shift
-                    and isinstance(and_expr.operands[0], BinaryOp)
-                    and and_expr.operands[0].op == "Shr"
-                ):
-                    rshift_expr = and_expr.operands[0]
+            # unpack
+            if (
+                isinstance(expr.operands[0], Convert)
+                and expr.operands[0].from_bits > expr.operands[0].to_bits
+                and expr.operands[0].to_bits == 1
+            ):
+                the_expr = expr.operands[0].operand
+            else:
+                the_expr = expr.operands[0]
+
+            if isinstance(the_expr, BinaryOp):
+                if the_expr.op == "And":
+                    and_expr = the_expr
+                    if (
+                        isinstance(and_expr.operands[1], Const)
+                        and and_expr.operands[1].value == 1
+                        # continue to match the shift
+                        and isinstance(and_expr.operands[0], BinaryOp)
+                        and and_expr.operands[0].op == "Shr"
+                    ):
+                        rshift_expr = and_expr.operands[0]
+                        inner, right = rshift_expr.operands
+                        if isinstance(right, Const) and right.value in {0xF, 0x1F, 0x3F}:
+                            assert isinstance(right.value, int)
+                            return eq1, right.value + 1, inner
+                elif the_expr.op == "Shr":
+                    rshift_expr = the_expr
                     inner, right = rshift_expr.operands
-                    if isinstance(right, Const) and right.value in {0xF, 0x1F, 0x3F}:
+                    right_shift_amounts = {
+                        16: 15,
+                        32: 31,
+                        64: 63,
+                    }
+                    if (
+                        isinstance(right, Const)
+                        and inner.bits in right_shift_amounts
+                        and right.value == right_shift_amounts[inner.bits]
+                    ):
+                        assert isinstance(right.value, int)
                         return eq1, right.value + 1, inner
         return None

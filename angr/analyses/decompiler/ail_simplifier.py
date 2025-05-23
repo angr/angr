@@ -102,6 +102,44 @@ class DefEqRelation(Enum):
     DEF_IN_EQ_PRED_BLOCK = 3
 
 
+class PartialConstantExprRewriter(AILBlockWalker):
+    """
+    Rewrites expressions whose high bits are definitely zero to constants (if possible) or mask them with masks
+    properly.
+    """
+
+    def __init__(self, varid: int, zero_high_bits: int):
+        super().__init__(update_block=False)
+        self.varid = varid
+        self.zero_high_bits = zero_high_bits
+
+    def _handle_BinaryOp(  # type:ignore
+        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if (
+            expr.op == "And"
+            and isinstance(expr.operands[0], VirtualVariable)
+            and expr.operands[0].varid == self.varid
+            and isinstance(expr.operands[1], Const)
+            and expr.operands[1].is_int
+        ):
+            vvar = expr.operands[0]
+            mask_expr = expr.operands[1]
+            mask = mask_expr.value
+            assert isinstance(mask, int)
+            # high_bits_mask[vvar.bits - 1:vvar.bits - self.zero_high_bits] == 0
+            high_bits_mask = ((1 << vvar.bits) - 1) ^ ((1 << (vvar.bits - self.zero_high_bits)) - 1)
+            high_bits_mask &= mask  # in case high bits of mask are zero
+            new_mask = mask ^ high_bits_mask
+            if new_mask == mask:
+                return None
+            if new_mask == 0:
+                return Const(expr_idx, None, 0, expr.bits, **expr.tags)
+            new_mask_expr = Const(mask_expr.idx, mask_expr.variable, new_mask, mask_expr.bits, **mask_expr.tags)
+            return BinaryOp(expr_idx, expr.op, [vvar, new_mask_expr], bits=expr.bits, **expr.tags)
+        return super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+
 class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
@@ -175,6 +213,15 @@ class AILSimplifier(Analysis):
         self.simplified |= folded_exprs
         if folded_exprs:
             _l.debug("... expressions folded")
+            self._rebuild_func_graph()
+            # reaching definition analysis results are no longer reliable
+            self._clear_cache()
+
+        _l.debug("Propagating partial-constant expressions")
+        pconst_propagated = self._propagate_partial_constant_exprs()
+        self.simplified |= pconst_propagated
+        if pconst_propagated:
+            _l.debug("... partial-constant expressions propagated")
             self._rebuild_func_graph()
             # reaching definition analysis results are no longer reliable
             self._clear_cache()
@@ -686,6 +733,59 @@ class AILSimplifier(Analysis):
             # blocks have been rebuilt - expression propagation results are no longer reliable
             self._clear_cache()
         return replaced
+
+    #
+    # Partial constant expression propagation
+    #
+
+    def _propagate_partial_constant_exprs(self) -> bool:
+        """
+        Discover virtual variables whose certain consecutive bits are constant and propagate these bits.
+        """
+
+        # vvar_zero_bits[varid] = N  ==>  the high N bits of vvar varid are 0s
+        vvar_zero_bits: dict[int, int] = {}
+
+        # go over all vvar definitions and find the ones with partial constants
+        for block in self.func_graph:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, Convert)
+                    and stmt.src.to_bits > stmt.src.from_bits
+                ):
+                    # this is a conversion from a wider to a narrower type; the top N bits are 0s
+                    vvar_zero_bits[stmt.dst.varid] = stmt.src.to_bits - stmt.src.from_bits
+
+        if not vvar_zero_bits:
+            return False
+
+        # now replace the uses of these vvars
+        addr_and_idx_to_block: dict[tuple[int, int | None], Block] = {}
+        for block in self.func_graph:
+            addr_and_idx_to_block[(block.addr, block.idx)] = block
+
+        rda = self._compute_reaching_definitions()
+        changed = False
+        for vvarid, zero_high_bits in vvar_zero_bits.items():
+            rewriter = PartialConstantExprRewriter(vvarid, zero_high_bits)
+            for _, use_loc in rda.all_vvar_uses[vvarid]:
+                assert use_loc.block_addr is not None
+                original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
+                block = self.blocks.get(original_block, original_block)
+                stmt = block.statements[use_loc.stmt_idx]
+                new_stmt = rewriter.walk_statement(stmt, block)
+
+                if new_stmt is not None and new_stmt is not stmt:
+                    statements = block.statements[::]
+                    statements[use_loc.stmt_idx] = new_stmt
+                    new_block = block.copy(statements=statements)
+
+                    self.blocks[original_block] = new_block
+                    changed = True
+
+        return changed
 
     #
     # Unifying local variables
