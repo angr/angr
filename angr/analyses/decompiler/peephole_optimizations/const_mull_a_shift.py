@@ -20,7 +20,7 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
         r = None
 
         if isinstance(expr, Convert):
-            if expr.from_bits == 64 and expr.to_bits == 32:
+            if expr.from_bits == 64 and expr.to_bits == 32 and isinstance(expr.operand, BinaryOp):
                 r = self.optimize_binaryop(expr.operand)
 
         elif isinstance(expr, BinaryOp):
@@ -119,13 +119,13 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
 
         return None
 
-    def _match_case_a(self, expr0: Expression, expr1: Convert) -> BinaryOp | None:
+    def _match_case_a(self, expr0: Expression, expr1_op: Convert) -> BinaryOp | None:
         # (
         #   (((Conv(32->64, vvar_44{reg 32}) * 0x4325c53f<64>) >>a 0x24<8>) & 0xffffffff<64>) -
         #   Conv(32->s64, (vvar_44{reg 32} >>a 0x1f<8>))
         # )
 
-        expr1 = expr1.operand
+        expr1_op = expr1_op.operand
 
         if (
             isinstance(expr0, BinaryOp)
@@ -141,9 +141,9 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
             isinstance(expr0, BinaryOp)
             and expr0.op in {"Shr", "Sar"}
             and isinstance(expr0.operands[1], Const)
-            and isinstance(expr1, BinaryOp)
-            and expr1.op in {"Shr", "Sar"}
-            and isinstance(expr1.operands[1], Const)
+            and isinstance(expr1_op, BinaryOp)
+            and expr1_op.op in {"Shr", "Sar"}
+            and isinstance(expr1_op.operands[1], Const)
         ):
             if (
                 isinstance(expr0.operands[0], BinaryOp)
@@ -151,20 +151,20 @@ class ConstMullAShift(PeepholeOptimizationExprBase):
                 and isinstance(expr0.operands[0].operands[1], Const)
             ):
                 a0 = expr0.operands[0].operands[0]
-                a1 = expr1.operands[0]
+                a1 = expr1_op.operands[0]
             elif (
-                isinstance(expr1.operands[0], BinaryOp)
-                and expr1.operands[0].op in {"Mull", "Mul"}
-                and isinstance(expr1.operands[0].operands[1], Const)
+                isinstance(expr1_op.operands[0], BinaryOp)
+                and expr1_op.operands[0].op in {"Mull", "Mul"}
+                and isinstance(expr1_op.operands[0].operands[1], Const)
             ):
                 a1 = expr0.operands[0].operands[0]
-                a0 = expr1.operands[0]
+                a0 = expr1_op.operands[0]
             else:
                 a0, a1 = None, None
 
             # a0: Conv(32->64, vvar_44{reg 32})
             # a1: vvar_44{reg 32}
-            if isinstance(a0, Convert) and a0.from_bits == a1.bits:
+            if isinstance(a0, Convert) and a1 is not None and a0.from_bits == a1.bits:
                 a0 = a0.operand
 
             if a0 is not None and a1 is not None and a0.likes(a1):

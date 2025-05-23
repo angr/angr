@@ -226,7 +226,6 @@ class ConditionProcessor:
         self.arch = arch
         self._condition_mapping: dict[str, Any] = {} if condition_mapping is None else condition_mapping
         self.jump_table_conds: dict[int, set] = defaultdict(set)
-        self.edge_conditions = {}
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
@@ -264,7 +263,7 @@ class ConditionProcessor:
                     predicate = self.recover_edge_condition(graph, src, dst)
                     edge_conditions[(src, dst)] = predicate
 
-        self.edge_conditions = edge_conditions
+        return edge_conditions
 
     def recover_reaching_conditions(
         self,
@@ -285,8 +284,7 @@ class ConditionProcessor:
             """
             return dominates(inv_idoms, node_a, node_b)
 
-        self.recover_edge_conditions(region, graph=graph)
-        edge_conditions = self.edge_conditions
+        edge_conditions = self.recover_edge_conditions(region, graph=graph)
 
         if graph:
             _g = graph
@@ -549,7 +547,9 @@ class ConditionProcessor:
         raise NotImplementedError
 
     @classmethod
-    def get_last_statements(cls, block) -> list[ailment.Stmt.Statement | None]:
+    def get_last_statements(
+        cls, block
+    ) -> list[ailment.Stmt.Statement | ConditionalBreakNode | BreakNode | ContinueNode | None]:
         if type(block) is SequenceNode:
             for last_node in reversed(block.nodes):
                 try:

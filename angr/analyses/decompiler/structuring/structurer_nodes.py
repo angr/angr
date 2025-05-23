@@ -234,7 +234,7 @@ class CascadingConditionNode(BaseNode):
         self,
         addr,
         condition_and_nodes: list[tuple[Any, BaseNode | ailment.Block | MultiNode]],
-        else_node: BaseNode = None,
+        else_node: BaseNode | None = None,
     ):
         self.addr = addr
         self.condition_and_nodes = condition_and_nodes

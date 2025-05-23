@@ -162,6 +162,7 @@ class TestDecompiler(unittest.TestCase):
                 "__libc_csu_init",
             }:
                 self._print_decompilation_result(dec)
+                assert dec.codegen.text is not None
                 assert "(true)" not in dec.codegen.text and "(false)" not in dec.codegen.text
 
     @for_all_structuring_algos
@@ -192,6 +193,7 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
         # it should be properly structured to a while loop with conditional breaks.
+        assert dec.codegen.text is not None
         assert "break" in dec.codegen.text
 
     @for_all_structuring_algos
@@ -296,6 +298,7 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
+        assert code is not None
         assert "switch" in code
         assert "case 1:" in code
         assert "case 2:" in code
@@ -325,6 +328,7 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
+        assert code is not None
         assert "switch" in code
         assert "case 1:" in code
         assert "case 2:" in code
@@ -355,6 +359,7 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
+        assert code is not None
         assert "switch" in code
         assert "case 1:" in code
         assert "case 2:" in code
@@ -390,6 +395,7 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         self._print_decompilation_result(dec)
         code = dec.codegen.text
+        assert code is not None
         assert "switch" in code
         assert "case" in code
 

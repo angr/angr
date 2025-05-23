@@ -113,9 +113,9 @@ class PartialConstantExprRewriter(AILBlockWalker):
         self.varid = varid
         self.zero_high_bits = zero_high_bits
 
-    def _handle_BinaryOp(
+    def _handle_BinaryOp(  # type:ignore
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None
-    ):  # type:ignore
+    ):
         if (
             expr.op == "And"
             and isinstance(expr.operands[0], VirtualVariable)
@@ -123,10 +123,10 @@ class PartialConstantExprRewriter(AILBlockWalker):
             and isinstance(expr.operands[1], Const)
             and expr.operands[1].is_int
         ):
-            assert isinstance(expr.operands[1].value, int)
             vvar = expr.operands[0]
             mask_expr = expr.operands[1]
             mask = mask_expr.value
+            assert isinstance(mask, int)
             # high_bits_mask[vvar.bits - 1:vvar.bits - self.zero_high_bits] == 0
             high_bits_mask = ((1 << vvar.bits) - 1) ^ ((1 << (vvar.bits - self.zero_high_bits)) - 1)
             high_bits_mask &= mask  # in case high bits of mask are zero
