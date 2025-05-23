@@ -42,12 +42,6 @@ repos:
 # Modifiers
 #
 
--   repo: https://github.com/asottile/setup-cfg-fmt
-    rev: v2.8.0
-    hooks:
-    -   id: setup-cfg-fmt
-        args: ["--include-version-classifiers"]
-
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
