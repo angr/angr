@@ -54,6 +54,9 @@ class ConvASub0ShrAnd(PeepholeOptimizationExprBase):
                 ):
                     real_expr = real_expr.operands[0]
 
+                if real_expr.bits != to_bits:
+                    return None
+
                 cvt = Convert(expr.idx, real_expr.bits, to_bits, False, real_expr, **expr.tags)
                 return BinaryOp(
                     None,

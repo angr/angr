@@ -96,17 +96,42 @@ class SarToSignedDiv(PeepholeOptimizationExprBase):
             if not eq0 and not eq1:
                 return None
 
-            if isinstance(expr.operands[0], BinaryOp) and expr.operands[0].op == "And":
-                and_expr = expr.operands[0]
-                if (
-                    isinstance(and_expr.operands[1], Const)
-                    and and_expr.operands[1].value == 1
-                    # continue to match the shift
-                    and isinstance(and_expr.operands[0], BinaryOp)
-                    and and_expr.operands[0].op == "Shr"
-                ):
-                    rshift_expr = and_expr.operands[0]
+            # unpack
+            if (
+                isinstance(expr.operands[0], Convert)
+                and expr.operands[0].from_bits > expr.operands[0].to_bits
+                and expr.operands[0].to_bits == 1
+            ):
+                the_expr = expr.operands[0].operand
+            else:
+                the_expr = expr.operands[0]
+
+            if isinstance(the_expr, BinaryOp):
+                if the_expr.op == "And":
+                    and_expr = the_expr
+                    if (
+                        isinstance(and_expr.operands[1], Const)
+                        and and_expr.operands[1].value == 1
+                        # continue to match the shift
+                        and isinstance(and_expr.operands[0], BinaryOp)
+                        and and_expr.operands[0].op == "Shr"
+                    ):
+                        rshift_expr = and_expr.operands[0]
+                        inner, right = rshift_expr.operands
+                        if isinstance(right, Const) and right.value in {0xF, 0x1F, 0x3F}:
+                            return eq1, right.value + 1, inner
+                elif the_expr.op == "Shr":
+                    rshift_expr = the_expr
                     inner, right = rshift_expr.operands
-                    if isinstance(right, Const) and right.value in {0xF, 0x1F, 0x3F}:
+                    right_shift_amounts = {
+                        16: 15,
+                        32: 31,
+                        64: 63,
+                    }
+                    if (
+                        isinstance(right, Const)
+                        and inner.bits in right_shift_amounts
+                        and right.value == right_shift_amounts[inner.bits]
+                    ):
                         return eq1, right.value + 1, inner
         return None

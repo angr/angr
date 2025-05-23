@@ -221,33 +221,53 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                 expr.to_bits < expr.from_bits
                 and expr.from_type == Convert.TYPE_INT
                 and expr.to_type == Convert.TYPE_INT
-                and operand_expr.op in {"Add", "And", "Xor", "Or", "Mul"}
             ):
-                # ignore the high bits of each operand
-                op0, op1 = operand_expr.operands
-                new_op0 = Convert(
-                    expr.idx,
-                    expr.from_bits,
-                    expr.to_bits,
-                    False,
-                    op0,
-                    **expr.tags,
-                )
-                new_op1 = Convert(
-                    expr.idx,
-                    expr.from_bits,
-                    expr.to_bits,
-                    False,
-                    op1,
-                    **expr.tags,
-                )
+                if operand_expr.op in {"Add", "And", "Xor", "Or", "Mul"}:
+                    # ignore the high bits of each operand
+                    op0, op1 = operand_expr.operands
+                    new_op0 = Convert(
+                        expr.idx,
+                        expr.from_bits,
+                        expr.to_bits,
+                        False,
+                        op0,
+                        **expr.tags,
+                    )
+                    new_op1 = Convert(
+                        expr.idx,
+                        expr.from_bits,
+                        expr.to_bits,
+                        False,
+                        op1,
+                        **expr.tags,
+                    )
 
-                return BinaryOp(
-                    expr.idx,
-                    operand_expr.op,
-                    [new_op0, new_op1],
-                    operand_expr.signed,
-                    bits=expr.to_bits,
-                    **operand_expr.tags,
-                )
+                    return BinaryOp(
+                        expr.idx,
+                        operand_expr.op,
+                        [new_op0, new_op1],
+                        operand_expr.signed,
+                        bits=expr.to_bits,
+                        **operand_expr.tags,
+                    )
+                if operand_expr.op in {"Shr", "Sar"} and isinstance(operand_expr.operands[0], Convert):
+                    op0, op1 = operand_expr.operands
+                    assert isinstance(op0, Convert)
+                    if op0.to_bits > op0.from_bits and op0.to_bits == expr.from_bits:
+                        new_operand = BinaryOp(
+                            expr.idx,
+                            operand_expr.op,
+                            [op0.operand, op1],
+                            operand_expr.signed,
+                            bits=op0.from_bits,
+                            **operand_expr.tags,
+                        )
+                        return Convert(
+                            expr.idx,
+                            new_operand.bits,
+                            expr.to_bits,
+                            expr.is_signed,
+                            new_operand,
+                            **expr.tags,
+                        )
         return None
