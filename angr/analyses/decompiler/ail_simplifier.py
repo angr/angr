@@ -113,13 +113,17 @@ class PartialConstantExprRewriter(AILBlockWalker):
         self.varid = varid
         self.zero_high_bits = zero_high_bits
 
-    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_BinaryOp(
+        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+    ):  # type:ignore
         if (
             expr.op == "And"
             and isinstance(expr.operands[0], VirtualVariable)
             and expr.operands[0].varid == self.varid
             and isinstance(expr.operands[1], Const)
+            and expr.operands[1].is_int
         ):
+            assert isinstance(expr.operands[1].value, int)
             vvar = expr.operands[0]
             mask_expr = expr.operands[1]
             mask = mask_expr.value
@@ -767,6 +771,7 @@ class AILSimplifier(Analysis):
         for vvarid, zero_high_bits in vvar_zero_bits.items():
             rewriter = PartialConstantExprRewriter(vvarid, zero_high_bits)
             for _, use_loc in rda.all_vvar_uses[vvarid]:
+                assert use_loc.block_addr is not None
                 original_block = addr_and_idx_to_block[(use_loc.block_addr, use_loc.block_idx)]
                 block = self.blocks.get(original_block, original_block)
                 stmt = block.statements[use_loc.stmt_idx]
