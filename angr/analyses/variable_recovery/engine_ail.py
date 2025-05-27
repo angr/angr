@@ -17,11 +17,7 @@ from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
-from ...engines.engine import DataType_co
 from ailment.statement import FunctionLikeMacro
-from ...rust.sim_type import RustSimTypeStr, RustSimTypeString, RustSimTypeFunction
-from ...rust.sim_type import RustSimTypeFunction, RustSimStruct, RustSimTypeStr, RustSimTypeReference
-from ...rust.typehoon.lifter import RustTypeLifter
 from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:

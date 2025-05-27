@@ -2,6 +2,7 @@ from typing import Optional
 
 from ailment import Const
 
+from angr.rust.definitions.structs import default_structs
 from ..optimization_passes.utils import extract_str_from_addr
 from ..sim_type import RustSimStruct
 from ...knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -64,10 +65,13 @@ class KnownStructs(KnowledgeBasePlugin):
         self.known_struct_types[key] = value
 
     def __getitem__(self, item):
-        return self.known_struct_types.get(item, None)
+        return self.known_struct_types.get(item, None) or default_structs.get(item, None)
 
     def __contains__(self, item):
-        return item in self.known_struct_types
+        return item in self.known_struct_types or item in default_structs
+
+    def is_memory_layout_recovered(self, struct_name):
+        return struct_name in self.known_struct_types
 
     def match_with_known_structs(self, fields) -> Optional[RustSimStruct]:
         return StructMatcher(self._kb._project).match(fields)

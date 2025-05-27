@@ -21,7 +21,12 @@ class Librust(KnowledgeBasePlugin, SimLibrary):
         for name, prototype in generate_known_rust_prototypes(self._kb._project).items():
             self.set_prototype(name, prototype)
             for func in functions[name]:
-                func.prototype = prototype.with_arch(self._kb._project.arch)
+                try:
+                    func.prototype = prototype.with_arch(self._kb._project.arch)
+                except:
+                    import ipdb
+
+                    ipdb.set_trace()
 
 
 KnowledgeBasePlugin.register_default("librust", Librust)

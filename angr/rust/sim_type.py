@@ -47,14 +47,19 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
 
 
 class RustSimTypeSize(RustSimTypeInt):
-    def __init__(self, label=None):
-        super().__init__(size=0, signed=False)
+    def __init__(self, signed=True, label=None):
+        super().__init__(size=0, signed=signed)
 
     @property
     def size(self):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
         return self._arch.bits
+
+    def __repr__(self):
+        name = "i" if self.signed else "u"
+        name += "size"
+        return name
 
 
 class RustSimTypeFunction(RustSimType, SimTypeFunction):
@@ -203,7 +208,7 @@ class RustSimTypeReference(RustSimType, SimTypePointer):
             raise ValueError("Can't tell my size without an arch!")
         # Normally the size of a reference type is arch.bits
         # But if it's a reference to an array type, then the size will be arch.bits * 2
-        if isinstance(self.pts_to, RustSimTypeArray) or isinstance(self.pts_to, RustSimTypeStr):
+        if isinstance(self.pts_to, RustSimTypeArray):
             return self._arch.bits * 2
         return self._arch.bits
 
@@ -365,81 +370,6 @@ class RustSimTypeSlice(RustSimStruct, SimType):
 
     def __repr__(self):
         return self.name
-
-
-class RustSimTypeStr(RustSimStruct, SimType):
-    def __init__(self, label=None, arch=None):
-        RustSimStruct.__init__(
-            self,
-            {
-                "ptr": RustSimTypeReference(pts_to=RustSimTypeInt(size=8, signed=False).with_arch(arch)).with_arch(
-                    arch
-                ),
-                "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
-            },
-            name="str",
-        )
-        SimType.__init__(self, label)
-
-    def _with_arch(self, arch):
-        if arch.name in self._arch_memo:
-            return self._arch_memo[arch.name]
-
-        out = RustSimTypeStr(label=self.label, arch=arch)
-        out._arch = arch
-        self._arch_memo[arch.name] = out
-
-        return out
-
-    def repr(self, name=None, full=0, memo=None, indent=0):
-        if name is None or len(name) == 0:
-            return self.__repr__()
-        return f"{name}: {self.__repr__()}"
-
-    def copy(self):
-        return RustSimTypeStr(self.label).with_arch(self._arch)
-
-    @property
-    def size(self):
-        return self._arch.bits * 2
-
-    def __repr__(self):
-        return "str"
-
-
-class RustSimTypeString(RustSimStruct, SimType):
-    def __init__(self, label=None, arch=None):
-        RustSimStruct.__init__(
-            self,
-            {
-                "ptr": RustSimTypeReference(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
-                "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
-                "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
-            },
-            name="String",
-        )
-        SimType.__init__(self, label)
-
-    def _with_arch(self, arch):
-        if arch.name in self._arch_memo:
-            return self._arch_memo[arch.name]
-
-        out = RustSimTypeString(label=self.label, arch=arch)
-        out._arch = arch
-        self._arch_memo[arch.name] = out
-
-        return out
-
-    def copy(self):
-        return RustSimTypeString(self.label).with_arch(self._arch)
-
-    def repr(self, name=None, full=0, memo=None, indent=0):
-        if name is None or len(name) == 0:
-            return self.__repr__()
-        return f"{name}: {self.__repr__()}"
-
-    def __repr__(self):
-        return "String"
 
 
 DEFAULT_VEC_FIELDS_ORDER = ("cap", "ptr", "len")
@@ -708,3 +638,77 @@ class RustSimTypeResult(RustSimEnum):
 
     def __repr__(self):
         return self.repr()
+
+
+class RustSimTypeUnit(RustSimStruct):
+    def __init__(self):
+        super().__init__(
+            fields=OrderedDict(()),
+            align=0,
+            name="()",
+        )
+
+    def copy(self):
+        return RustSimTypeUnit().with_arch(self._arch)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = RustSimTypeUnit()
+        out._arch = arch
+        out.fields = OrderedDict(())
+
+        self._arch_memo[arch.name] = out
+
+        return out
+
+    @property
+    def size(self):
+        return 0
+
+
+class RustSimTypeArrayRef(RustSimStruct):
+    def __init__(self, ele_ty):
+        name = f"&[{repr(ele_ty)}]"
+        super().__init__(fields={"ptr": RustSimTypeReference(ele_ty), "len": RustSimTypeSize()}, name=name)
+        self.ele_ty = ele_ty
+
+    def copy(self):
+        return RustSimTypeArrayRef(self.ele_ty).with_arch(self._arch)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = RustSimTypeArrayRef(self.ele_ty)
+        out._arch = arch
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+        out.ele_ty = out.ele_ty.with_arch(arch)
+
+        self._arch_memo[arch.name] = out
+
+        return out
+
+
+class RustSimTypeStrRef(RustSimStruct):
+    def __init__(self):
+        super().__init__(
+            fields=OrderedDict((("ptr", RustSimTypeReference(RustSimTypeInt(8))), ("len", RustSimTypeSize()))),
+            name="&str",
+        )
+
+    def copy(self):
+        return RustSimTypeStrRef().with_arch(self._arch)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = RustSimTypeStrRef()
+        out._arch = arch
+        out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+
+        self._arch_memo[arch.name] = out
+
+        return out

@@ -2,7 +2,7 @@ from ailment import AILBlockWalker, Block, BinaryOp, Const
 from ailment.expression import VirtualVariable, Load, StringLiteral
 from ailment.statement import Call, Statement, FunctionLikeMacro
 
-from ..sim_type import RustSimTypeString
+from ..definitions.structs import String
 from ..utils.ail import unwrap_stack_vvar_reference
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ..mixins.cfa_mixin import CFAMixin
@@ -36,16 +36,16 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
                 if isinstance(vvar, VirtualVariable) and vvar.was_stack:
                     returnty = None
                     if self.context.match_call(call, [STR_CMP_NE_FUNCTION], monopolize=False, use_trait_name=False):
-                        returnty = RustSimTypeString().with_arch(self.context.project.arch)
+                        returnty = String().with_arch(self.context.project.arch)
                     elif self.context.match_call(call, [STR_CMP_EQ_FUNCTION], monopolize=False, use_trait_name=False):
-                        returnty = RustSimTypeString().with_arch(self.context.project.arch)
+                        returnty = String().with_arch(self.context.project.arch)
                     else:
                         value = self.context.get_terminal_vvar_value(vvar)
                         if isinstance(value, FunctionLikeMacro):
                             returnty = value.returnty
                         elif isinstance(value, Call):
                             returnty = value.prototype.returnty
-                    if isinstance(returnty, RustSimTypeString):
+                    if isinstance(returnty, String):
                         args.pop(0)
                         new_args.append(vvar)
                         changed = True
