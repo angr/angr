@@ -9,7 +9,7 @@ from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp, VirtualVariable, StringLiteral, Struct, Array, Enum, Let
 
 from ailment.statement import FunctionLikeMacro
-from ....rust.definitions.structs import StrSlice
+from ....rust.definitions.structs import String
 from ....rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 from ....sim_type import (
     SimTypeLongLong,
@@ -33,12 +33,11 @@ from ....rust.sim_type import (
     RustSimTypeInt,
     RustSimTypeFunction,
     RustSimTypeReference,
-    RustSimTypeStr,
-    RustSimTypeString,
     RustSimTypeVec,
     RustSimStruct,
     EnumVariant,
     RustSimTypeOption,
+    RustSimTypeStrRef,
 )
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
@@ -1743,7 +1742,7 @@ class RustStringLiteral(RustExpression):
         super().__init__(**kwargs)
 
         self.data = data
-        self._type = RustSimTypeReference(RustSimTypeString()).with_arch(self.codegen.project.arch)
+        self._type = RustSimTypeReference(String()).with_arch(self.codegen.project.arch)
 
     @property
     def type(self):
@@ -2791,7 +2790,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.cstyle_ifs = value
 
     def _translate_prototype_to_rust(self, prototype: SimTypeFunction):
-        translator = RustTypeTranslator(arch=self.project.arch)
+        translator = RustTypeTranslator(project=self.project, arch=self.project.arch)
         args = [translator.ctype2rust(arg) for arg in prototype.args]
         returnty = translator.ctype2rust(prototype.returnty)
         return RustSimTypeFunction(args, returnty, prototype.label, prototype.arg_names, prototype.variadic)
@@ -3771,13 +3770,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         str_len = memory.unpack(expr.value + self.project.arch.bytes, self.project.arch.struct_fmt())[0]
                         try:
                             decoded_str = memory.load(str_addr, str_len).decode("utf-8")
-                            type_ = StrSlice()
+                            type_ = RustSimTypeStrRef()
                             reference_values[type_] = decoded_str
                             inline_string = True
                         except UnicodeDecodeError:
                             pass
                     # If we failed to extract UTF-8 characters, it might be an empty string
-                    if not inline_string and isinstance(type_, StrSlice):
+                    if not inline_string and isinstance(type_, RustSimTypeStrRef):
                         decoded_str = ""
                         reference_values[type_] = decoded_str
                         inline_string = True

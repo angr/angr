@@ -1,7 +1,6 @@
 from typing import Dict, Union
 from itertools import count
 
-from angr.rust.definitions.structs import PreDefinedStructs
 from angr.analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
 from angr.analyses.typehoon import typeconsts
 from angr.analyses.typehoon.typeconsts import TypeConstant
@@ -31,7 +30,8 @@ class RustTypeTranslator(TypeTranslator):
     Translate type variables to RustSimType equivalence.
     """
 
-    def __init__(self, arch=None):
+    def __init__(self, project=None, arch=None):
+        self.project = project
         self.arch = arch
 
         self.translated: Dict[TypeConstant, SimType] = {}
@@ -84,10 +84,10 @@ class RustTypeTranslator(TypeTranslator):
             name = self.struct_name()
 
         # Check if it's pre-defined Rust structs
-        if name in PreDefinedStructs:
-            s = PreDefinedStructs[name].with_arch(self.arch)
-            self.structs[tc] = s
-            return s
+        # if self.project and name in self.project.kb.known_structs:
+        #     s = self.project.kb.known_structs[name]
+        #     self.structs[tc] = s
+        #     return s
 
         s = RustSimStruct({}, name=name).with_arch(self.arch)
         self.structs[tc] = s

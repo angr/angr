@@ -1,35 +1,34 @@
-from .structs import ZeroSizeStruct
-from ..sim_type import (
+from .structs import String
+from angr.rust.sim_type import (
     RustSimTypeFunction,
-    RustSimTypeStr,
-    RustSimTypeString,
     RustSimTypeInt,
     RustSimTypeReference,
     RustSimTypeSize,
     RustSimTypeBottom,
     RustSimTypeResult,
     RustSimTypeSlice,
+    RustSimTypeUnit,
+    RustSimTypeStrRef,
 )
-from ..definitions import structs as default_structs
 
 
 def generate_known_rust_prototypes(project):
     known_structs = project.kb.known_structs
-    Arguments = known_structs["Arguments"] or default_structs.Arguments
+    Arguments = known_structs["Arguments"]
     return {
         "String::from": RustSimTypeFunction(
-            args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(RustSimTypeStr())],
+            args=[RustSimTypeReference(String()), RustSimTypeStrRef()],
             returnty=None,
             is_arg0_retbuf=True,
         ),
         "String::new": RustSimTypeFunction(
-            args=[RustSimTypeReference(RustSimTypeString())],
+            args=[RustSimTypeReference(String())],
             returnty=None,
             is_arg0_retbuf=True,
         ),
         "Vec::with_capacity": RustSimTypeFunction(
             args=[RustSimTypeSize()],
-            returnty=RustSimTypeString(),
+            returnty=String(),
         ),
         "std::io::stdio::_print": RustSimTypeFunction(
             args=[RustSimTypeReference(Arguments)],
@@ -40,12 +39,12 @@ def generate_known_rust_prototypes(project):
             returnty=None,
         ),
         "alloc::fmt::format::format_inner": RustSimTypeFunction(
-            args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(Arguments)],
+            args=[RustSimTypeReference(String()), RustSimTypeReference(Arguments)],
             returnty=None,
             is_arg0_retbuf=True,
         ),
         "alloc::fmt::format": RustSimTypeFunction(
-            args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(Arguments)],
+            args=[RustSimTypeReference(String()), RustSimTypeReference(Arguments)],
             returnty=None,
             is_arg0_retbuf=True,
         ),
@@ -74,11 +73,11 @@ def generate_known_rust_prototypes(project):
         "std::io::Write::write_all": RustSimTypeFunction(
             args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeSlice(RustSimTypeInt(8))],
             returnty=RustSimTypeResult(
-                ZeroSizeStruct.copy(), 0, project.arch.bytes, RustSimTypeReference(RustSimTypeBottom()), None, 0
+                RustSimTypeUnit(), 0, project.arch.bytes, RustSimTypeReference(RustSimTypeBottom()), None, 0
             ),
         ),
         "std::io::Read::read_to_string": RustSimTypeFunction(
-            args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(RustSimTypeString())],
+            args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(String())],
             returnty=RustSimTypeResult(
                 RustSimTypeSize().with_arch(project.arch),
                 0,
@@ -88,12 +87,19 @@ def generate_known_rust_prototypes(project):
                 0,
             ),
         ),
+        # "std::io::Read::read_to_string": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(known_structs["String"])],
+        #     returnty=RustSimTypeResult(
+        #         RustSimTypeSize(signed=False), 0, project.arch.bytes, known_structs["Error"], None, 0
+        #     ).with_arch(project.arch),
+        #     is_arg0_retbuf=False,
+        # ),
         "<alloc::string::String as core::cmp::PartialEq>::eq": RustSimTypeFunction(
-            args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(RustSimTypeString())],
+            args=[RustSimTypeReference(String()), RustSimTypeReference(String())],
             returnty=RustSimTypeInt(8, signed=False),
         ),
         "<alloc::string::String as core::cmp::PartialEq>::ne": RustSimTypeFunction(
-            args=[RustSimTypeReference(RustSimTypeString()), RustSimTypeReference(RustSimTypeString())],
+            args=[RustSimTypeReference(String()), RustSimTypeReference(String())],
             returnty=RustSimTypeInt(8, signed=False),
         ),
     }

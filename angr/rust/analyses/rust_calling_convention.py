@@ -8,17 +8,14 @@ from ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Ph
 from ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment, Jump, Label
 from networkx import DiGraph
 
-from angr.rust.definitions.structs import ZeroSizeStruct
 from angr.rust.mixins import SRDAMixin, DFAMixin, CFAMixin
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
-from angr.rust.sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType
+from angr.rust.sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType, RustSimTypeUnit
 from angr.rust.knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from angr.rust.sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, has_call, extract_vvar_and_offset
 from angr.rust.utils.library import normalize
-from angr.rust.knowledge_plugins.known_structs import KnownStructs
-from angr.rust.analyses.struct_memory_layout import SimpleMessageLayoutInference
 from angr.utils.graph import GraphUtils
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins import Function
@@ -399,7 +396,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                         # Heuristics: Maybe it's a Result<(), E> if some_type's size is the same with &str's size
                         some_type.name = "Error"
                         return RustSimTypeResult(
-                            ZeroSizeStruct.copy(),
+                            RustSimTypeUnit(),
                             none_discriminant,
                             none_discriminant_size,
                             some_type,
@@ -459,12 +456,12 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             or self.is_call_expr is True
         ):
             # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
-            if len(self._fact_collector.const_ret_values) == 2 and 0 in self._fact_collector.const_ret_values:
-                addr = max(self._fact_collector.const_ret_values)
-                if SimpleMessageLayoutInference(self.project).is_const_simple_message(addr):
-                    ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
-                    err_type = self.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
-                    return RustSimTypeResult(ok_type, err_type, 0, None, 0), False
+            # if len(self._fact_collector.const_ret_values) == 2 and 0 in self._fact_collector.const_ret_values:
+            #     addr = max(self._fact_collector.const_ret_values)
+            #     if SimpleMessageLayoutInference(self.project).is_const_simple_message(addr):
+            #         ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
+            #         err_type = self.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
+            #         return RustSimTypeResult(ok_type, err_type, 0, None, 0), False
             return None, False
 
         memory_writes = self.model.memory_writes[0]

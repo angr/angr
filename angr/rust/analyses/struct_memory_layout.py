@@ -7,8 +7,6 @@ from ailment.expression import Load, VirtualVariable
 from ailment.statement import Store, ConditionalJump, Call
 
 from ..definitions.prototypes import generate_known_rust_prototypes
-from ..definitions.structs import SimpleMessage, StrSlice, ArrayReference, Arguments
-from ..knowledge_plugins.known_structs import KnownStructs
 from ..optimization_passes.utils import extract_str_from_addr
 from ..utils.ail import (
     unwrap_stack_vvar_reference,
@@ -16,8 +14,7 @@ from ..utils.ail import (
 )
 from ...analyses import Analysis, AnalysesHub
 from ..mixins import CFAMixin, DFAMixin
-from ..sim_type import RustSimTypeOption, RustSimStruct, RustSimTypeReference, RustSimTypeString
-from ..utils.library import normalize
+from ..sim_type import RustSimTypeOption, RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef, RustSimTypeStrRef
 
 l = logging.getLogger(name=__name__)
 
@@ -39,51 +36,51 @@ class LayoutInference:
         self.project.kb.known_structs[name] = struct_ty.with_arch(self.project.arch)
 
 
-class SimpleMessageLayoutInference(LayoutInference):
-    ERROR_MESSAGES = (
-        "stream did not contain valid UTF-8",
-        "failed to fill whole buffer",
-        "The number of hardware threads is not known for the target platform",
-        "operation not supported on this platform",
-        "failed to write whole buffer",
-        "cannot set a 0 duration timeout",
-    )
-
-    def __init__(self, project):
-        super().__init__(project)
-
-    def infer_layout(self, addr):
-        if KnownStructs.SIMPLE_MESSAGE in self.project.kb.known_structs:
-            return True
-        kind = self.get_integer(addr)
-        if kind is not None and 0 <= kind < 42:
-            message = extract_str_from_addr(self.project, addr + self.project.arch.bytes)
-            if message in SimpleMessageLayoutInference.ERROR_MESSAGES:
-                self.cache_layout(KnownStructs.SIMPLE_MESSAGE, SimpleMessage())
-                return True
-        kind = self.get_integer(addr + 2 * self.project.arch.bytes)
-        if kind is not None and 0 <= kind < 42:
-            message = extract_str_from_addr(self.project, addr)
-            if message in SimpleMessageLayoutInference.ERROR_MESSAGES:
-                struct_ty = SimpleMessage()
-                struct_ty.fields = OrderedDict(reversed(struct_ty.fields.items()))
-                self.cache_layout(KnownStructs.SIMPLE_MESSAGE, struct_ty)
-                return True
-        return False
-
-    def is_const_simple_message(self, addr):
-        struct_ty = self.project.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
-        if struct_ty:
-            reordered = struct_ty.offsets["kind"] != 0
-            if reordered:
-                kind = self.get_integer(addr + 2 * self.project.arch.bytes)
-                message = extract_str_from_addr(self.project, addr)
-            else:
-                kind = self.get_integer(addr)
-                message = extract_str_from_addr(self.project, addr + self.project.arch.bytes)
-            if kind is not None and 0 <= kind < 42 and message in SimpleMessageLayoutInference.ERROR_MESSAGES:
-                return True
-        return False
+# class SimpleMessageLayoutInference(LayoutInference):
+#     ERROR_MESSAGES = (
+#         "stream did not contain valid UTF-8",
+#         "failed to fill whole buffer",
+#         "The number of hardware threads is not known for the target platform",
+#         "operation not supported on this platform",
+#         "failed to write whole buffer",
+#         "cannot set a 0 duration timeout",
+#     )
+#
+#     def __init__(self, project):
+#         super().__init__(project)
+#
+#     def infer_layout(self, addr):
+#         if KnownStructs.SIMPLE_MESSAGE in self.project.kb.known_structs:
+#             return True
+#         kind = self.get_integer(addr)
+#         if kind is not None and 0 <= kind < 42:
+#             message = extract_str_from_addr(self.project, addr + self.project.arch.bytes)
+#             if message in SimpleMessageLayoutInference.ERROR_MESSAGES:
+#                 self.cache_layout(KnownStructs.SIMPLE_MESSAGE, SimpleMessage())
+#                 return True
+#         kind = self.get_integer(addr + 2 * self.project.arch.bytes)
+#         if kind is not None and 0 <= kind < 42:
+#             message = extract_str_from_addr(self.project, addr)
+#             if message in SimpleMessageLayoutInference.ERROR_MESSAGES:
+#                 struct_ty = SimpleMessage()
+#                 struct_ty.fields = OrderedDict(reversed(struct_ty.fields.items()))
+#                 self.cache_layout(KnownStructs.SIMPLE_MESSAGE, struct_ty)
+#                 return True
+#         return False
+#
+#     def is_const_simple_message(self, addr):
+#         struct_ty = self.project.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
+#         if struct_ty:
+#             reordered = struct_ty.offsets["kind"] != 0
+#             if reordered:
+#                 kind = self.get_integer(addr + 2 * self.project.arch.bytes)
+#                 message = extract_str_from_addr(self.project, addr)
+#             else:
+#                 kind = self.get_integer(addr)
+#                 message = extract_str_from_addr(self.project, addr + self.project.arch.bytes)
+#             if kind is not None and 0 <= kind < 42 and message in SimpleMessageLayoutInference.ERROR_MESSAGES:
+#                 return True
+#         return False
 
 
 class ReferenceCounter(AILBlockWalkerBase):
@@ -160,7 +157,7 @@ class StructFieldsMatcher:
 
     def __init__(self, project):
         self.project = project
-        self._handlers = {ArrayReference: self._match_ArrayReference, RustSimTypeOption: self._match_Option}
+        self._handlers = {RustSimTypeArrayRef: self._match_ArrayReference, RustSimTypeOption: self._match_Option}
 
     def _get_field_exprs_between(self, field_exprs, start_offset, end_offset):
         result = {}
@@ -176,11 +173,11 @@ class StructFieldsMatcher:
                 return True
         return False
 
-    def _match_ArrayReference(self, single_field_exprs, field_ty: ArrayReference):
+    def _match_ArrayReference(self, single_field_exprs, field_ty: RustSimTypeArrayRef):
         if len(single_field_exprs) == 2 and 0 in single_field_exprs and self.project.arch.bytes in single_field_exprs:
             ptr_expr = single_field_exprs[0]
             len_expr = single_field_exprs[self.project.arch.bytes]
-            if isinstance(field_ty.ele_ty, StrSlice):
+            if isinstance(field_ty.ele_ty, RustSimTypeStrRef):
                 if (
                     isinstance(ptr_expr, Const)
                     and isinstance(len_expr, Const)
@@ -226,7 +223,7 @@ class StructFieldsMatcher:
 
 
 # Structs targeted by StructMemoryLayoutAnalysis and the default RustSimStructs
-TARGET_STRUCT_TYPES = {"Arguments": Arguments}
+TARGET_STRUCT_TYPES = {"Arguments"}
 
 
 class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
@@ -295,13 +292,13 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
                     if (
                         struct_name in TARGET_STRUCT_TYPES
                         and attempts[struct_name] < self.max_attempts_per_struct
-                        and struct_name not in self.kb.known_structs
+                        and not self.project.kb.known_structs.is_memory_layout_recovered(struct_name)
                     ):
                         callers_and_callees = self._get_callers_and_callees(func_name)
                         while (
                             callers_and_callees
                             and attempts[struct_name] < self.max_attempts_per_struct
-                            and struct_name not in self.kb.known_structs
+                            and not self.project.kb.known_structs.is_memory_layout_recovered(struct_name)
                         ):
                             caller, callee = callers_and_callees.pop()
                             recovered_struct_ty = self._recover_layout_from_callsites(
@@ -313,10 +310,9 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
                                     f"Recovered struct memory layout for {struct_name}: {recovered_struct_ty.fields}"
                                 )
                             attempts[struct_name] += 1
-        for struct_name, default_struct_ty in TARGET_STRUCT_TYPES.items():
+        for struct_name in TARGET_STRUCT_TYPES:
             # Fall back to default memory layout if analysis failed for this struct
-            if struct_name not in self.project.kb.known_structs:
-                self.kb.known_structs[struct_name] = default_struct_ty.with_arch(self.project.arch)
+            if not self.project.kb.known_structs.is_memory_layout_recovered(struct_name):
                 l.debug(f"Failed to recover struct memory layout for {struct_name}. Use default layout")
 
         # Regenerate Rust standard library function prototypes with recovered struct types

@@ -1,6 +1,5 @@
 from typing import Union
 
-import angr.rust.sim_type
 from ..sim_type import (
     RustSimType,
     RustSimTypeInt,
@@ -76,7 +75,7 @@ class RustTypeLifter(TypeLifter):
         obj.field_names = field_names
         return obj
 
-    def _lift_EnumVariant(self, variant: angr.rust.sim_type.EnumVariant):
+    def _lift_EnumVariant(self, variant):
         return EnumVariant(
             variant.name,
             [(self.lift(field_ty), field_name) for field_ty, field_name in variant.fields],

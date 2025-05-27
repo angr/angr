@@ -25,6 +25,10 @@ class RetExprRewriter(OptimizationPass):
         def callback(call: Call, block, stmt, is_expr):
             if isinstance(call.target, Const) and call.target.value in self.kb.functions:
                 func = self.kb.functions[call.target.value]
+                if func.demangled_name == "<std::fs::File as std::io::Read>::read_to_string":
+                    import ipdb
+
+                    ipdb.set_trace()
                 if func.prototype and func.calling_convention and func.prototype.returnty:
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
                     if (

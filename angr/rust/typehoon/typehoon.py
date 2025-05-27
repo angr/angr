@@ -89,7 +89,7 @@ class RustTypehoon(Typehoon):
         """
 
         simtypes_solution = {}
-        translator = RustTypeTranslator(arch=self.project.arch)
+        translator = RustTypeTranslator(project=self.project, arch=self.project.arch)
         needs_backpatch = set()
 
         for tv, sol in self.solution.items():

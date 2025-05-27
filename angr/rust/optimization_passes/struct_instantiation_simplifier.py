@@ -6,8 +6,7 @@ from ailment.statement import Assignment
 from archinfo import Endness
 
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
-from angr.rust.definitions.structs import ArrayReference
-from angr.rust.sim_type import RustSimStruct, RustSimTypeReference
+from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -102,7 +101,7 @@ class StructBuilder:
         if field_exprs is None:
             return None
         field_exprs = self._fix_field_exprs(field_exprs, struct_ty)
-        if isinstance(struct_ty, ArrayReference):
+        if isinstance(struct_ty, RustSimTypeArrayRef):
             # Special handling for ArrayReference type
             array = self._build_array(field_exprs, struct_ty)
             if array:
