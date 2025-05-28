@@ -1,6 +1,7 @@
+from __future__ import annotations
 import unittest
 
-import ailment
+import angr.ailment as ailment
 
 try:
     import angr
