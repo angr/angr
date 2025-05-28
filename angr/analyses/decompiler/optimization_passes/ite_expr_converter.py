@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any, TYPE_CHECKING
 
-from ailment.statement import ConditionalJump, Assignment, Statement
-from ailment.expression import Const, ITE, Expression
+from angr.ailment.statement import ConditionalJump, Assignment, Statement
+from angr.ailment.expression import Const, ITE, Expression
 
 from angr.analyses import ReachingDefinitionsAnalysis
 from angr.code_location import CodeLocation
@@ -15,7 +15,7 @@ from angr.analyses.decompiler.structuring.structurer_nodes import EmptyBlockNoti
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
-    from ailment import Block as AILBlock
+    from angr.ailment import Block as AILBlock
 
 
 _l = logging.getLogger(__name__)

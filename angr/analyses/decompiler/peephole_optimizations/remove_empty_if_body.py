@@ -1,6 +1,6 @@
 from __future__ import annotations
-from ailment.statement import ConditionalJump
-from ailment.expression import ITE, UnaryOp
+from angr.ailment.statement import ConditionalJump
+from angr.ailment.expression import ITE, UnaryOp
 
 from .base import PeepholeOptimizationStmtBase
 

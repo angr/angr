@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ailment import Block
+from angr.ailment import Block
 
 from .sequence_walker import SequenceWalker
 

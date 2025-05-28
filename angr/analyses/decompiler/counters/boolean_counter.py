@@ -1,12 +1,12 @@
 from __future__ import annotations
 import typing
 
-from ailment import AILBlockWalkerBase
+from angr.ailment import AILBlockWalkerBase
 
 if typing.TYPE_CHECKING:
-    from ailment.expression import BinaryOp
-    from ailment.statement import Statement
-    from ailment.block import Block
+    from angr.ailment.expression import BinaryOp
+    from angr.ailment.statement import Statement
+    from angr.ailment.block import Block
 
 
 class BooleanCounter(AILBlockWalkerBase):

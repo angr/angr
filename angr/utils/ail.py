@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from ailment import AILBlockWalkerBase
-from ailment.block import Block
-from ailment.expression import Expression, VirtualVariable, Phi
-from ailment.statement import Assignment, Statement, ConditionalJump
+from angr.ailment import AILBlockWalkerBase
+from angr.ailment.block import Block
+from angr.ailment.expression import Expression, VirtualVariable, Phi
+from angr.ailment.statement import Assignment, Statement, ConditionalJump
 
 
 def is_phi_assignment(stmt: Statement) -> bool:

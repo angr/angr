@@ -1,7 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
-from ailment.expression import Convert, BinaryOp, Const, Expression
+from angr.ailment.expression import Convert, BinaryOp, Const, Expression
 
 from .base import PeepholeOptimizationExprBase
 

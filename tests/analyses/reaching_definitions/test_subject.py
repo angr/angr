@@ -5,7 +5,7 @@ import unittest
 
 import networkx
 
-import ailment
+import angr.ailment as ailment
 
 from archinfo.arch_x86 import ArchX86
 from angr.analyses.forward_analysis.visitors import FunctionGraphVisitor

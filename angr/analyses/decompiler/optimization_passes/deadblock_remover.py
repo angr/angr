@@ -6,8 +6,8 @@ import networkx
 
 import claripy
 
-from ailment.statement import Jump
-from ailment.expression import Const
+from angr.ailment.statement import Jump
+from angr.ailment.expression import Const
 from angr.utils.graph import to_acyclic_graph
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from .optimization_pass import OptimizationPass, OptimizationPassStage

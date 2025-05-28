@@ -7,7 +7,7 @@ from collections import defaultdict, OrderedDict
 import networkx
 
 import claripy
-import ailment
+import angr.ailment as ailment
 
 from angr.utils.graph import GraphUtils
 from angr.knowledge_plugins.cfg import IndirectJumpType

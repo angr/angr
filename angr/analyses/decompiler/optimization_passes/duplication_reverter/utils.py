@@ -3,10 +3,10 @@ import logging
 
 import networkx as nx
 
-import ailment
-from ailment import Const
-from ailment.block import Block
-from ailment.statement import Statement, ConditionalJump, Jump
+import angr.ailment as ailment
+from angr.ailment import Const
+from angr.ailment.block import Block
+from angr.ailment.statement import Statement, ConditionalJump, Jump
 
 from angr.analyses.decompiler.structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from .errors import UnsupportedAILNodeError

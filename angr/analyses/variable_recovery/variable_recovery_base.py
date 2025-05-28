@@ -9,7 +9,7 @@ import archinfo
 import claripy
 from claripy.annotation import Annotation
 from archinfo import Arch
-from ailment.expression import BinaryOp, StackBaseOffset
+from angr.ailment.expression import BinaryOp, StackBaseOffset
 
 from angr.knowledge_plugins.functions.function import Function
 from angr.project import Project

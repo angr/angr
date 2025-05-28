@@ -8,10 +8,10 @@ import logging
 
 import networkx
 
-from ailment import AILBlockWalker
-from ailment.block import Block
-from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement, WeakAssignment
-from ailment.expression import (
+from angr.ailment import AILBlockWalker
+from angr.ailment.block import Block
+from angr.ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement, WeakAssignment
+from angr.ailment.expression import (
     Register,
     Convert,
     Load,
@@ -51,7 +51,7 @@ from .ccall_rewriters import CCALL_REWRITERS
 from .counters.expression_counters import SingleExpressionCounter
 
 if TYPE_CHECKING:
-    from ailment.manager import Manager
+    from angr.ailment.manager import Manager
 
 
 _l = logging.getLogger(__name__)

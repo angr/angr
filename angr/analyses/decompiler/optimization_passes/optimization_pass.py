@@ -8,7 +8,7 @@ from enum import Enum
 
 import networkx
 
-import ailment
+import angr.ailment as ailment
 
 from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker

@@ -2,7 +2,7 @@
 from __future__ import annotations
 from collections import OrderedDict
 
-import ailment
+import angr.ailment as ailment
 
 from angr.errors import UnsupportedNodeTypeError
 from .structuring.structurer_nodes import (

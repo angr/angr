@@ -3,12 +3,12 @@ from typing import Any
 import copy
 import logging
 
-import ailment.expression
+import angr.ailment as ailment
 import networkx
 
-from ailment import Block, AILBlockWalker
-from ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
-from ailment.expression import Const, Phi, VirtualVariable
+from angr.ailment import Block, AILBlockWalker
+from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
+from angr.ailment.expression import Const, Phi, VirtualVariable
 
 from angr.utils.ail import is_phi_assignment
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice

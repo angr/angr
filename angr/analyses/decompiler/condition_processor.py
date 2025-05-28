@@ -6,7 +6,7 @@ from collections.abc import Generator
 import operator
 import logging
 
-import ailment
+import angr.ailment as ailment
 import claripy
 import networkx
 from unique_log_filter import UniqueLogFilter

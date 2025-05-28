@@ -6,7 +6,7 @@ from itertools import count, chain
 
 import networkx
 
-import ailment
+import angr.ailment as ailment
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 import logging
 
-import ailment
+import angr.ailment as ailment
 import cle
 
 from angr.utils.funcid import is_function_security_check_cookie

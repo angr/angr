@@ -1,9 +1,9 @@
 from __future__ import annotations
 from collections import defaultdict
 
-from ailment.statement import Statement
-from ailment.expression import VirtualVariable
-from ailment.block import Block
+from angr.ailment.statement import Statement
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.block import Block
 
 from angr.code_location import CodeLocation
 

@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from archinfo import Endness
-from ailment.constant import UNDETERMINED_SIZE
-from ailment.expression import Const, VirtualVariable, BinaryOp, UnaryOp, Load
-from ailment.statement import Call, WeakAssignment
+from angr.ailment.constant import UNDETERMINED_SIZE
+from angr.ailment.expression import Const, VirtualVariable, BinaryOp, UnaryOp, Load
+from angr.ailment.statement import Call, WeakAssignment
 
 from angr.sim_type import SimTypeReference, SimCppClass
 from angr.knowledge_plugins.key_definitions import atoms

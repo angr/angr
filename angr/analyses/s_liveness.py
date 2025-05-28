@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import networkx
-from ailment.expression import VirtualVariable
-from ailment.statement import Assignment, Call, ConditionalJump
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Assignment, Call, ConditionalJump
 
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment

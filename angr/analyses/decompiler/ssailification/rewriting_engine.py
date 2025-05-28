@@ -4,9 +4,9 @@ from typing import Literal
 import logging
 
 from archinfo import Endness
-from ailment.block import Block
-from ailment.manager import Manager
-from ailment.statement import (
+from angr.ailment.block import Block
+from angr.ailment.manager import Manager
+from angr.ailment.statement import (
     Statement,
     Assignment,
     CAS,
@@ -18,7 +18,7 @@ from ailment.statement import (
     Jump,
     WeakAssignment,
 )
-from ailment.expression import (
+from angr.ailment.expression import (
     Atom,
     Expression,
     Register,

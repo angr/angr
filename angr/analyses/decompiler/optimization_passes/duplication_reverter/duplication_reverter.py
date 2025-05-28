@@ -6,10 +6,10 @@ import itertools
 
 import networkx as nx
 
-import ailment
-from ailment.block import Block
-from ailment.statement import ConditionalJump, Jump, Assignment, Return, Label
-from ailment.expression import Const, Register, Convert, Expression
+import angr.ailment as ailment
+from angr.ailment.block import Block
+from angr.ailment.statement import ConditionalJump, Jump, Assignment, Return, Label
+from angr.ailment.expression import Const, Register, Convert, Expression
 
 from .ail_merge_graph import AILMergeGraph, AILBlockSplit
 from .errors import SAILRSemanticError

@@ -3,9 +3,9 @@ import logging
 from typing import Any, TYPE_CHECKING
 from collections.abc import Callable
 
-from ailment.block import Block as AILBlock
-from ailment.statement import Statement
-from ailment.expression import Expression, BinaryOp
+from angr.ailment.block import Block as AILBlock
+from angr.ailment.statement import Statement
+from angr.ailment.expression import Expression, BinaryOp
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.ail_simplifier import AILBlockWalker

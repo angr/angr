@@ -1,7 +1,8 @@
 # pylint: disable=missing-class-docstring,no-self-use
+from __future__ import annotations
 import unittest
 
-import ailment
+import angr.ailment as ailment
 
 
 class TestExpression(unittest.TestCase):

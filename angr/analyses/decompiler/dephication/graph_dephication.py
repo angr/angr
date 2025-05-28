@@ -4,8 +4,8 @@ from collections import defaultdict
 
 import networkx
 
-from ailment.expression import Phi, VirtualVariable
-from ailment.statement import Assignment
+from angr.ailment.expression import Phi, VirtualVariable
+from angr.ailment.statement import Assignment
 
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import register_analysis

@@ -4,9 +4,9 @@ from collections import defaultdict
 
 import networkx
 
-from ailment import AILBlockWalker, Block
-from ailment.statement import ConditionalJump, Statement, Assignment
-from ailment.expression import Const, BinaryOp, VirtualVariable
+from angr.ailment import AILBlockWalker, Block
+from angr.ailment.statement import ConditionalJump, Statement, Assignment
+from angr.ailment.expression import Const, BinaryOp, VirtualVariable
 
 from angr.analyses.decompiler.utils import first_nonlabel_nonphi_statement
 from angr.utils.graph import dominates

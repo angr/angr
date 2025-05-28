@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ailment import Expr, Stmt
+from angr.ailment import Expr, Stmt
 
 from angr.calling_conventions import SimCCUsercall
 from angr.engines.vex.claripy.ccall import data

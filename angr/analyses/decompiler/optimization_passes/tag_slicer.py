@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 
-from ailment.statement import ConditionalJump, Jump, Label
+from angr.ailment.statement import ConditionalJump, Jump, Label
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 

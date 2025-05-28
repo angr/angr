@@ -1,8 +1,8 @@
 from __future__ import annotations
 import logging
 import networkx as nx
-from ailment.block import Block
-from ailment.statement import Statement, ConditionalJump
+from angr.ailment.block import Block
+from angr.ailment.statement import Statement, ConditionalJump
 
 from .utils import find_block_by_addr
 

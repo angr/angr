@@ -3,7 +3,7 @@ from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable, Generator
 
 import claripy
-import ailment
+import angr.ailment as ailment
 
 if TYPE_CHECKING:
     from angr.code_location import CodeLocation

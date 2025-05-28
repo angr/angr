@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import archinfo
 
-from ailment import Block
-from ailment.statement import Statement, Call, Assignment
-from ailment.expression import Const, Register, VirtualVariable
+from angr.ailment import Block
+from angr.ailment.statement import Statement, Call, Assignment
+from angr.ailment.expression import Const, Register, VirtualVariable
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes import register_optimization_pass

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from ailment.block import Block
-from ailment.statement import Assignment, Call, Return
-from ailment.expression import VirtualVariable
+from angr.ailment.block import Block
+from angr.ailment.statement import Assignment, Call, Return
+from angr.ailment.expression import VirtualVariable
 import networkx
 
 from angr.knowledge_plugins.functions import Function

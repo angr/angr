@@ -5,7 +5,7 @@ from collections import defaultdict
 from itertools import count
 from bisect import bisect_left
 
-from ailment.expression import (
+from angr.ailment.expression import (
     Expression,
     Register,
     StackBaseOffset,
@@ -14,7 +14,7 @@ from ailment.expression import (
     VirtualVariableCategory,
     Load,
 )
-from ailment.statement import Statement, Store
+from angr.ailment.statement import Statement, Store
 
 from angr.knowledge_plugins.functions import Function
 from angr.code_location import CodeLocation

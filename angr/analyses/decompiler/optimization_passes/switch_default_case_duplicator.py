@@ -6,9 +6,9 @@ import logging
 
 import networkx
 
-from ailment.block import Block
-from ailment.statement import Jump
-from ailment.expression import Const
+from angr.ailment.block import Block
+from angr.ailment.statement import Jump
+from angr.ailment.expression import Const
 
 from angr.knowledge_plugins.cfg import IndirectJumpType
 from .optimization_pass import OptimizationPass, OptimizationPassStage

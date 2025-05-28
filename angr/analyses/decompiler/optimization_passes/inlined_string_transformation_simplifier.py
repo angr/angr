@@ -5,7 +5,7 @@ from collections.abc import Callable
 from collections import defaultdict
 
 from archinfo import Endness
-from ailment.expression import (
+from angr.ailment.expression import (
     Const,
     Register,
     Expression,
@@ -17,7 +17,7 @@ from ailment.expression import (
     UnaryOp,
     VirtualVariableCategory,
 )
-from ailment.statement import ConditionalJump, Jump, Assignment
+from angr.ailment.statement import ConditionalJump, Jump, Assignment
 import claripy
 
 from angr.utils.bits import zeroextend_on_demand

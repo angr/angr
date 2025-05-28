@@ -1,6 +1,6 @@
 # pylint:disable=unused-argument,arguments-differ
 from __future__ import annotations
-import ailment
+import angr.ailment as ailment
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from angr.analyses.decompiler.structuring.structurer_nodes import (

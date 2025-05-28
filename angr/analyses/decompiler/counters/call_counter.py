@@ -1,14 +1,14 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from ailment import Block
-from ailment.statement import Label
-from ailment.block_walker import AILBlockWalkerBase
+from angr.ailment import Block
+from angr.ailment.statement import Label
+from angr.ailment.block_walker import AILBlockWalkerBase
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:
-    from ailment.statement import Call
+    from angr.ailment.statement import Call
 
 
 class AILBlockCallCounter(AILBlockWalkerBase):

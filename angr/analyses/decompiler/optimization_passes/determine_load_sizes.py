@@ -1,9 +1,9 @@
 from __future__ import annotations
 import logging
 
-from ailment.constant import UNDETERMINED_SIZE
-from ailment.expression import BinaryOp, Load, Const
-from ailment.statement import Assignment, WeakAssignment
+from angr.ailment.constant import UNDETERMINED_SIZE
+from angr.ailment.expression import BinaryOp, Load, Const
+from angr.ailment.statement import Assignment, WeakAssignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 

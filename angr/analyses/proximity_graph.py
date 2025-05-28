@@ -4,8 +4,8 @@ import logging
 
 import networkx
 
-import ailment
-from ailment import AILBlockWalker
+import angr.ailment as ailment
+from angr.ailment import AILBlockWalker
 
 from angr.codenode import BlockNode
 from angr.sim_variable import SimMemoryVariable

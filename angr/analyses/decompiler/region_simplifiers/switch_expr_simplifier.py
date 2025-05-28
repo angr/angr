@@ -2,7 +2,7 @@
 from __future__ import annotations
 from collections import OrderedDict
 
-import ailment
+import angr.ailment as ailment
 
 from angr.analyses.decompiler.structuring.structurer_nodes import SwitchCaseNode
 from angr.analyses.decompiler.sequence_walker import SequenceWalker

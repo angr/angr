@@ -6,7 +6,7 @@ import time
 import contextlib
 
 import claripy
-import ailment
+import angr.ailment as ailment
 import pyvex
 
 from angr.code_location import CodeLocation

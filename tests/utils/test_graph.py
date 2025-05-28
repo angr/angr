@@ -3,7 +3,7 @@
 from __future__ import annotations
 import unittest
 import networkx as nx
-from ailment.block import Block
+from angr.ailment.block import Block
 from angr.utils.graph import Dominators, TemporaryNode, GraphUtils
 
 

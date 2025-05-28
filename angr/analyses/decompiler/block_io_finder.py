@@ -2,9 +2,9 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
-from ailment import Block
-from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump
-from ailment.expression import (
+from angr.ailment import Block
+from angr.ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump
+from angr.ailment.expression import (
     Load,
     VirtualVariable,
     Expression,
@@ -16,7 +16,7 @@ from ailment.expression import (
     Const,
     StackBaseOffset,
 )
-from ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockWalkerBase
 
 
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset, ConstantSrc

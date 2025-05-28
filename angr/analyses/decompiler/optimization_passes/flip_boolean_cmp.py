@@ -2,8 +2,8 @@
 from __future__ import annotations
 from typing import Any
 
-import ailment
-from ailment.expression import Op
+import angr.ailment as ailment
+from angr.ailment.expression import Op
 
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
 from angr.analyses.decompiler.utils import (

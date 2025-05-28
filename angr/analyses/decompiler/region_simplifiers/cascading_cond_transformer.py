@@ -1,7 +1,7 @@
 # pylint:disable=no-self-use,arguments-renamed,isinstance-second-argument-not-valid-type
 from __future__ import annotations
 
-import ailment
+import angr.ailment as ailment
 import claripy
 
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode, CascadingConditionNode

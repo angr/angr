@@ -7,7 +7,7 @@ from collections.abc import Iterable
 import logging
 
 import networkx
-import ailment
+import angr.ailment as ailment
 
 import angr
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter

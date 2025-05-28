@@ -4,9 +4,9 @@ import logging
 from collections.abc import Callable
 from collections import defaultdict
 
-from ailment import Block
-from ailment.statement import Statement, Assignment, Call, Label
-from ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
+from angr.ailment import Block
+from angr.ailment.statement import Statement, Assignment, Call, Label
+from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import GraphUtils

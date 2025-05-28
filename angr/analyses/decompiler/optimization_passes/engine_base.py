@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 
-import ailment
+import angr.ailment as ailment
 
 from angr.engines.light import SimEngineLightAIL
 

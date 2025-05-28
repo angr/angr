@@ -4,7 +4,7 @@ import logging
 
 import networkx
 
-import ailment
+import angr.ailment as ailment
 
 from angr.utils.ail import is_phi_assignment
 from angr.analyses import ForwardAnalysis

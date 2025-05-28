@@ -6,7 +6,7 @@ import logging
 
 import networkx
 
-import ailment
+import angr.ailment as ailment
 import claripy
 
 from angr.analyses import Analysis

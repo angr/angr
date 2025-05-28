@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import unittest
 
-import ailment
+import angr.ailment as ailment
 import angr
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode

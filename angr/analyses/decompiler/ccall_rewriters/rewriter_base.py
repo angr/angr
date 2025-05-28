@@ -1,5 +1,5 @@
 from __future__ import annotations
-import ailment
+import angr.ailment as ailment
 
 
 class CCallRewriterBase:

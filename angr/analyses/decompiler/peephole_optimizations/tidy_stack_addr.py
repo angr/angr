@@ -1,12 +1,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from ailment.expression import UnaryOp, BinaryOp, StackBaseOffset, Const
+from angr.ailment.expression import UnaryOp, BinaryOp, StackBaseOffset, Const
 
 from .base import PeepholeOptimizationExprBase
 
 if TYPE_CHECKING:
-    from ailment.expression import Expression
+    from angr.ailment.expression import Expression
 
 
 class TidyStackAddr(PeepholeOptimizationExprBase):

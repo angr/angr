@@ -1,6 +1,6 @@
 # pylint:disable=no-self-use,too-many-boolean-expressions
 from __future__ import annotations
-from ailment.expression import BinaryOp, Const, Convert
+from angr.ailment.expression import BinaryOp, Const, Convert
 
 from .base import PeepholeOptimizationExprBase
 from .utils import get_expr_shift_left_amount

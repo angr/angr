@@ -1,7 +1,7 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
-from ailment.expression import BinaryOp, Const, Expression, Convert
-from ailment.statement import Call
+from angr.ailment.expression import BinaryOp, Const, Expression, Convert
+from angr.ailment.statement import Call
 
 from .base import PeepholeOptimizationExprBase
 from .utils import get_expr_shift_left_amount

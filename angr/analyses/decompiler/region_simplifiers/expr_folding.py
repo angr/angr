@@ -4,10 +4,10 @@ from collections import defaultdict
 from collections.abc import Iterable
 from typing import Any, TYPE_CHECKING
 
-import ailment
-from ailment import Expression, Block, AILBlockWalker
-from ailment.expression import ITE, Load
-from ailment.statement import Statement, Assignment, Call, Return
+import angr.ailment as ailment
+from angr.ailment import Expression, Block, AILBlockWalker
+from angr.ailment.expression import ITE, Load
+from angr.ailment.statement import Statement, Assignment, Call, Return
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector
@@ -21,7 +21,7 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
 )
 
 if TYPE_CHECKING:
-    from ailment.expression import MultiStatementExpression
+    from angr.ailment.expression import MultiStatementExpression
 
 
 class LocationBase:

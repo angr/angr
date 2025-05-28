@@ -2,9 +2,9 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-from ailment.block import Block
-from ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
-from ailment.statement import Assignment, Jump, ConditionalJump, Label
+from angr.ailment.block import Block
+from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Jump, ConditionalJump, Label
 
 from angr.analyses import Analysis
 from angr.analyses.s_reaching_definitions import SRDAModel

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import networkx
 import capstone
 
-import ailment
+import angr.ailment as ailment
 
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase

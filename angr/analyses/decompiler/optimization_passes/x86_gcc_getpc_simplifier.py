@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any
 import logging
 
-import ailment
+import angr.ailment as ailment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
