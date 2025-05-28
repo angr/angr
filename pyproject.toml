@@ -19,7 +19,6 @@ requires-python = ">=3.10"
 dependencies = [
     "cxxheaderparser",
     "GitPython",
-    "ailment==9.2.159.dev0",
     "archinfo==9.2.159.dev0",
     "cachetools",
     "capstone==5.0.3",
@@ -38,6 +37,7 @@ dependencies = [
     "rich>=13.1.0",
     "sortedcontainers",
     "sympy",
+    "typing-extensions",
     "unique-log-filter",
     "colorama;platform_system=='Windows'",
 ]
@@ -101,7 +101,6 @@ archinfo = { git = "https://github.com/angr/archinfo.git", branch = "master" }
 pyvex = { git = "https://github.com/angr/pyvex.git", branch = "master" }
 cle = { git = "https://github.com/angr/cle.git", branch = "master" }
 claripy = { git = "https://github.com/angr/claripy.git", branch = "master" }
-ailment = { git = "https://github.com/angr/ailment.git", branch = "master" }
 
 [tool.black]
 line-length = 120
