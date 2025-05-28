@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -10,17 +11,17 @@ class Block:
     """
 
     __slots__ = (
+        "_hash",
         "addr",
+        "idx",
         "original_size",
         "statements",
-        "idx",
-        "_hash",
     )
 
     def __init__(self, addr: int, original_size, statements=None, idx=None):
         self.addr = addr
         self.original_size = original_size
-        self.statements: list["Statement"] = [] if statements is None else statements
+        self.statements: list[Statement] = [] if statements is None else statements
         self.idx = idx
         self._hash = None  # cached hash value
 
@@ -35,8 +36,7 @@ class Block:
     def __repr__(self):
         if self.idx is None:
             return "<AILBlock %#x of %d statements>" % (self.addr, len(self.statements))
-        else:
-            return "<AILBlock %#x.%d of %d statements>" % (self.addr, self.idx, len(self.statements))
+        return "<AILBlock %#x.%d of %d statements>" % (self.addr, self.idx, len(self.statements))
 
     def dbg_repr(self, indent=0):
         indent_str = " " * indent

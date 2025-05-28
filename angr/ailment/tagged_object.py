@@ -1,12 +1,15 @@
+from __future__ import annotations
+
+
 class TaggedObject:
     """
     A class that takes arbitrary tags.
     """
 
     __slots__ = (
-        "idx",
-        "_tags",
         "_hash",
+        "_tags",
+        "idx",
     )
 
     def __init__(self, idx: int | None, **kwargs):
@@ -49,7 +52,7 @@ class TaggedObject:
         return self._hash
 
     def _hash_core(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @property
     def tags(self) -> dict:

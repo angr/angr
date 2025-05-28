@@ -1,4 +1,5 @@
 # pylint:disable=missing-class-docstring
+from __future__ import annotations
 import logging
 
 import pyvex
@@ -63,7 +64,7 @@ class VEXExprConverter(Converter):
         except ValueError:
             # e.g., "ValueError: Type Ity_INVALID does not have size"
             bits = 0
-        return DirtyExpression(manager.next_atom(), f"unsupported_{str(type(expr))}", [], bits=bits)
+        return DirtyExpression(manager.next_atom(), f"unsupported_{type(expr)!s}", [], bits=bits)
 
     @staticmethod
     def convert_list(exprs, manager):
@@ -135,7 +136,7 @@ class VEXExprConverter(Converter):
                 vex_block_addr=manager.block_addr,
                 vex_stmt_idx=manager.vex_stmt_idx,
             )
-        elif op_name is None:
+        if op_name is None:
             # is it a conversion?
             simop = vexop_to_simop(expr.op)
             if simop._conversion:
@@ -184,7 +185,7 @@ class VEXExprConverter(Converter):
                     vex_stmt_idx=manager.vex_stmt_idx,
                 )
             raise NotImplementedError("Unsupported operation")
-        elif op_name == "Not" and expr.op != "Iop_Not1":
+        if op_name == "Not" and expr.op != "Iop_Not1":
             # NotN (N != 1) is equivalent to bitwise negation
             op_name = "BitwiseNeg"
 
@@ -246,7 +247,7 @@ class VEXExprConverter(Converter):
                     vex_block_addr=manager.block_addr,
                     vex_stmt_idx=manager.vex_stmt_idx,
                 )
-            elif op._from_side == "HL":
+            if op._from_side == "HL":
                 # Concatenating the two arguments and form a new value
                 op_name = "Concat"
             elif op._from_type == "F" and op._to_type == "F":

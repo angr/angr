@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class SkipConversionNotice(Exception):
     pass
 
@@ -5,4 +8,4 @@ class SkipConversionNotice(Exception):
 class Converter:
     @staticmethod
     def convert(thing):
-        raise NotImplementedError()
+        raise NotImplementedError

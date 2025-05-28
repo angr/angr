@@ -13,17 +13,16 @@ try:
 except ImportError:
     import hashlib as md5lib
 
-GetBitsTypeParams: TypeAlias = "Bits | Expression"
+GetBitsTypeParams: TypeAlias = "Expression"
 
 
 def get_bits(expr: GetBitsTypeParams) -> int:
 
     if isinstance(expr, Expression):
         return expr.bits
-    elif isinstance(expr, Bits):
+    if isinstance(expr, Bits):
         return expr.size()
-    else:
-        raise TypeError(type(expr))
+    raise TypeError(type(expr))
 
 
 md5_unpacker = struct.Struct("4I")
@@ -59,16 +58,15 @@ def _dump_int(t: int) -> bytes:
     t = abs(t)
     if t <= 0xFFFF:
         return prefix + struct.pack("<H", t)
-    elif t <= 0xFFFF_FFFF:
+    if t <= 0xFFFF_FFFF:
         return prefix + struct.pack("<I", t)
-    elif t <= 0xFFFF_FFFF_FFFF_FFFF:
+    if t <= 0xFFFF_FFFF_FFFF_FFFF:
         return prefix + struct.pack("<Q", t)
-    else:
-        cnt = b""
-        while t > 0:
-            cnt += _dump_int(t & 0xFFFF_FFFF_FFFF_FFFF)
-            t >>= 64
-        return prefix + cnt
+    cnt = b""
+    while t > 0:
+        cnt += _dump_int(t & 0xFFFF_FFFF_FFFF_FFFF)
+        t >>= 64
+    return prefix + cnt
 
 
 def _dump_type(t: type) -> bytes:
@@ -117,4 +115,4 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
     return arg1 == arg2
 
 
-from .expression import Expression  # noqa: E402
+from .expression import Expression
