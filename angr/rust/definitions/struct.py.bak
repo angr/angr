@@ -1,0 +1,86 @@
+from collections import OrderedDict
+
+from angr.rust.sim_type import (
+    RustSimStruct,
+    RustSimTypeReference,
+    RustSimTypeSize,
+    RustSimTypeBottom,
+    RustSimTypeInt,
+    RustSimTypeOption,
+    RustSimTypeArrayRef,
+    RustSimTypeStrRef,
+    RustSimEnum,
+    EnumVariant,
+)
+from angr.sim_type import SimType
+
+
+class String(RustSimStruct, SimType):
+    def __init__(self, label=None, arch=None):
+        RustSimStruct.__init__(
+            self,
+            {
+                "ptr": RustSimTypeReference(pts_to=RustSimTypeInt(size=8, signed=False)).with_arch(arch),
+                "cap": RustSimTypeInt(size=64, signed=False).with_arch(arch),
+                "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
+            },
+            name="String",
+        )
+        SimType.__init__(self, label)
+
+    def _with_arch(self, arch):
+        if arch.name in self._arch_memo:
+            return self._arch_memo[arch.name]
+
+        out = String(label=self.label, arch=arch)
+        out._arch = arch
+        self._arch_memo[arch.name] = out
+
+        return out
+
+    def copy(self):
+        return String(self.label).with_arch(self._arch)
+
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        if name is None or len(name) == 0:
+            return self.__repr__()
+        return f"{name}: {self.__repr__()}"
+
+    def __repr__(self):
+        return "String"
+
+
+default_structs = {}
+
+default_structs["Argument"] = RustSimStruct(
+    name="Argument",
+    fields=OrderedDict(
+        (
+            ("value", RustSimTypeReference(RustSimTypeBottom())),
+            ("formatter", RustSimTypeReference(RustSimTypeBottom())),
+        )
+    ),
+)
+
+default_structs["Arguments"] = RustSimStruct(
+    name="Arguments",
+    fields=OrderedDict(
+        (
+            ("pieces", RustSimTypeArrayRef(RustSimTypeStrRef())),
+            ("fmt", RustSimTypeOption(0, 0, RustSimTypeArrayRef(RustSimTypeBottom()), None, 0)),
+            ("args", RustSimTypeArrayRef(default_structs["Argument"])),
+        )
+    ),
+)
+
+default_structs["Error"] = RustSimStruct(
+    name="Error",
+    fields=OrderedDict(
+        (
+            ("kind", RustSimTypeSize()),
+            ("message", RustSimTypeStrRef()),
+        )
+    ),
+)
+
+default_structs["String"] = String()

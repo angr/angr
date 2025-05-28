@@ -9,7 +9,6 @@ from ailment import Block, Expr, Stmt, Tmp
 from ailment.expression import StackBaseOffset, BinaryOp, VirtualVariable, StringLiteral, Struct, Array, Enum, Let
 
 from ailment.statement import FunctionLikeMacro
-from ....rust.definitions.structs import String
 from ....rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 from ....sim_type import (
     SimTypeLongLong,
@@ -1600,18 +1599,22 @@ class RustStruct(RustExpression):
         indent_str = self.indent_str(indent=indent)
         field_indent_str = self.indent_str(indent=indent + INDENT_DELTA)
         yield str(self.name), self
-        yield " {\n", brace
-        for offset, name in self.field_names.items():
-            yield field_indent_str, None
-            yield name, self
-            yield ": ", self
-            if offset in self.fields:
-                yield from RustExpression._try_c_repr_chunks(self.fields[offset])
-            else:
-                yield "<UNKNOWN>", None
-            yield "\n", None
-        yield indent_str, None
-        yield "}", brace
+        if not self.field_names:
+            yield " {", brace
+            yield " }", brace
+        else:
+            yield " {\n", brace
+            for offset, name in self.field_names.items():
+                yield field_indent_str, None
+                yield name, self
+                yield ": ", self
+                if offset in self.fields:
+                    yield from RustExpression._try_c_repr_chunks(self.fields[offset], indent + INDENT_DELTA)
+                else:
+                    yield "<UNKNOWN>", None
+                yield "\n", None
+            yield indent_str, None
+            yield "}", brace
 
 
 class RustEnum(RustExpression):
@@ -1742,7 +1745,7 @@ class RustStringLiteral(RustExpression):
         super().__init__(**kwargs)
 
         self.data = data
-        self._type = RustSimTypeReference(String()).with_arch(self.codegen.project.arch)
+        self._type = RustSimTypeStrRef().with_arch(self.codegen.project.arch)
 
     @property
     def type(self):

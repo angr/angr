@@ -15,7 +15,7 @@ class StructMatcher:
         self._matchers = (self._match_Arguments,)
 
     def _match_Arguments(self, fields):
-        arguments_ty = self.project.kb.known_structs["Arguments"]
+        arguments_ty = self.project.kb.known_structs["core::fmt::Arguments"].with_arch(self.project.arch)
         offsets = arguments_ty.offsets
         pieces_ptr_offset = offsets["pieces"]
         pieces_len_offset = pieces_ptr_offset + self.project.arch.bytes
@@ -48,15 +48,10 @@ class StructMatcher:
 
 class KnownStructs(KnowledgeBasePlugin):
 
-    STR_SLICE = "&str"
-    SIMPLE_MESSAGE = "SimpleMessage"
-    ARGUMENT = "Argument"
-    ARGUMENTS = "Arguments"
-    KNOWN_STRUCT_NAMES = (STR_SLICE, SIMPLE_MESSAGE, ARGUMENT, ARGUMENTS)
-
     def __init__(self, kb):
         super().__init__(kb)
-        self.known_struct_types = {}
+        self.known_struct_types = dict(default_structs)
+        self._calibrated_structs = set()
 
     def __iter__(self):
         return iter(self.known_struct_types)
@@ -65,13 +60,17 @@ class KnownStructs(KnowledgeBasePlugin):
         self.known_struct_types[key] = value
 
     def __getitem__(self, item):
-        return self.known_struct_types.get(item, None) or default_structs.get(item, None)
+        return self.known_struct_types.get(item, None)
 
     def __contains__(self, item):
-        return item in self.known_struct_types or item in default_structs
+        return item in self.known_struct_types
 
-    def is_memory_layout_recovered(self, struct_name):
-        return struct_name in self.known_struct_types
+    def is_calibrated(self, struct_name):
+        return struct_name in self._calibrated_structs
+
+    def update(self, struct_name, struct_ty):
+        self._calibrated_structs.add(struct_name)
+        self.known_struct_types[struct_name] = struct_ty
 
     def match_with_known_structs(self, fields) -> Optional[RustSimStruct]:
         return StructMatcher(self._kb._project).match(fields)
