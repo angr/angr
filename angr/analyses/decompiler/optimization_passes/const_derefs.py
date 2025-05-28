@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
-from ailment import Block, AILBlockWalker
-from ailment.expression import Load, Const, BinaryOp, UnaryOp
-from ailment.statement import Statement, Assignment, Call, ConditionalJump
+from angr.ailment import Block, AILBlockWalker
+from angr.ailment.expression import Load, Const, BinaryOp, UnaryOp
+from angr.ailment.statement import Statement, Assignment, Call, ConditionalJump
 
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
 from .optimization_pass import OptimizationPass, OptimizationPassStage

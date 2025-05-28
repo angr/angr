@@ -1,6 +1,6 @@
 from __future__ import annotations
-from ailment.statement import Assignment
-from ailment.expression import BinaryOp, Const, Tmp
+from angr.ailment.statement import Assignment
+from angr.ailment.expression import BinaryOp, Const, Tmp
 
 from .base import PeepholeOptimizationStmtBase
 from .utils import get_expr_shift_left_amount

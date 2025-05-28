@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 import logging
 
-import ailment
-from ailment.constant import UNDETERMINED_SIZE
+import angr.ailment as ailment
+from angr.ailment.constant import UNDETERMINED_SIZE
 import claripy
 from unique_log_filter import UniqueLogFilter
 

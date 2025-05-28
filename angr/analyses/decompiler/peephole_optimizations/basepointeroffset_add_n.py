@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ailment.expression import BinaryOp, BasePointerOffset, Const
+from angr.ailment.expression import BinaryOp, BasePointerOffset, Const
 
 from .base import PeepholeOptimizationExprBase
 

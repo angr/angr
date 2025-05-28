@@ -2,8 +2,8 @@
 from __future__ import annotations
 import logging
 
-from ailment import Block
-from ailment.statement import ConditionalJump, Return
+from angr.ailment import Block
+from angr.ailment.statement import ConditionalJump, Return
 
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 from angr.utils.graph import subgraph_between_nodes

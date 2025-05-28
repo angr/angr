@@ -3,15 +3,15 @@ from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
-from ailment import AILBlockWalkerBase, AILBlockWalker
-from ailment.statement import Assignment, Call
-from ailment.expression import VirtualVariable, Convert, BinaryOp, Phi
+from angr.ailment import AILBlockWalkerBase, AILBlockWalker
+from angr.ailment.statement import Assignment, Call
+from angr.ailment.expression import VirtualVariable, Convert, BinaryOp, Phi
 
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import CodeLocation
 
 if TYPE_CHECKING:
-    from ailment.expression import (
+    from angr.ailment.expression import (
         Expression,
         Load,
         UnaryOp,
@@ -19,8 +19,8 @@ if TYPE_CHECKING:
         DirtyExpression,
         VEXCCallExpression,
     )
-    from ailment.statement import Statement
-    from ailment.block import Block
+    from angr.ailment.statement import Statement
+    from angr.ailment.block import Block
 
 
 _l = logging.getLogger(__name__)

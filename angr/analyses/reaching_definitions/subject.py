@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 
-import ailment
+import angr.ailment as ailment
 
 from angr.block import Block
 from angr.knowledge_plugins.functions.function_manager import Function

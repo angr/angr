@@ -2,7 +2,7 @@
 from __future__ import annotations
 from collections import defaultdict
 
-import ailment
+import angr.ailment as ailment
 
 from .sequence_walker import SequenceWalker
 

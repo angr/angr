@@ -7,7 +7,7 @@ import os
 import pickle
 from unittest import TestCase, main
 
-import ailment
+import angr.ailment as ailment
 import claripy
 
 import angr

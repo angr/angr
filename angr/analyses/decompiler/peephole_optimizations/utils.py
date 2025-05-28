@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ailment.expression import BinaryOp, Const
+from angr.ailment.expression import BinaryOp, Const
 
 
 def get_expr_shift_left_amount(expr: BinaryOp) -> int | None:

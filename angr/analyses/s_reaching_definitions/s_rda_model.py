@@ -4,7 +4,7 @@ from collections import defaultdict
 from collections.abc import Generator
 from typing import Any, Literal, overload
 
-from ailment.expression import VirtualVariable, Tmp
+from angr.ailment.expression import VirtualVariable, Tmp
 
 from angr.knowledge_plugins.key_definitions import atoms, Definition
 from angr.code_location import CodeLocation

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from ailment.expression import BinaryOp, UnaryOp, Expression
-from ailment.statement import Statement, Assignment
-from ailment import Block
+from angr.ailment.expression import BinaryOp, UnaryOp, Expression
+from angr.ailment.statement import Statement, Assignment
+from angr.ailment import Block
 from angr.project import Project
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.key_definitions import atoms

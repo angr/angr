@@ -6,10 +6,10 @@ import logging
 
 import networkx
 
-import ailment
-from ailment import Block
-from ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
-from ailment.statement import Assignment, Label
+import angr.ailment as ailment
+from angr.ailment import Block
+from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, Label
 
 from angr.code_location import CodeLocation
 from angr.analyses import ForwardAnalysis

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ailment.expression import UnaryOp, BinaryOp
+from angr.ailment.expression import UnaryOp, BinaryOp
 
 from .base import PeepholeOptimizationExprBase
 

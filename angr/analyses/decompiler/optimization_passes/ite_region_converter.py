@@ -2,9 +2,9 @@
 from __future__ import annotations
 import logging
 
-from ailment.block import Block
-from ailment.statement import Statement, Call, ConditionalJump, Assignment, Jump
-from ailment.expression import ITE, Const, VirtualVariable, Phi
+from angr.ailment.block import Block
+from angr.ailment.statement import Statement, Call, ConditionalJump, Assignment, Jump
+from angr.ailment.expression import ITE, Const, VirtualVariable, Phi
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import subgraph_between_nodes

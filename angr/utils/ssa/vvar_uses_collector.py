@@ -1,10 +1,10 @@
 from __future__ import annotations
 from collections import defaultdict
 
-from ailment import AILBlockWalkerBase
-from ailment.expression import VirtualVariable, Phi
-from ailment.statement import Statement, Assignment
-from ailment.block import Block
+from angr.ailment import AILBlockWalkerBase
+from angr.ailment.expression import VirtualVariable, Phi
+from angr.ailment.statement import Statement, Assignment
+from angr.ailment.block import Block
 
 from angr.code_location import CodeLocation
 

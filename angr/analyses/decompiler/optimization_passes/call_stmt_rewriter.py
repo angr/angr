@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 
-from ailment.statement import Call, Assignment
+from angr.ailment.statement import Call, Assignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 

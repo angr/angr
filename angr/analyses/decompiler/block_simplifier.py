@@ -4,9 +4,9 @@ import logging
 from typing import TYPE_CHECKING
 from collections.abc import Iterable, Mapping
 
-from ailment.statement import Statement, Assignment, Call, Store, Jump
-from ailment.expression import Tmp, Load, Const, Register, Convert, Expression
-from ailment import AILBlockWalkerBase
+from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
+from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression
+from angr.ailment import AILBlockWalkerBase
 
 from angr.code_location import ExternalCodeLocation, CodeLocation
 
@@ -26,7 +26,7 @@ from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_op
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.key_definitions.live_definitions import Definition
-    from ailment.block import Block
+    from angr.ailment.block import Block
 
 
 _l = logging.getLogger(name=__name__)

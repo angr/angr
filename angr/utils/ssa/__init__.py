@@ -6,10 +6,20 @@ from typing import Any, Literal, overload
 import networkx
 
 import archinfo
-from ailment import Expression, Block
-from ailment.expression import VirtualVariable, Const, Phi, Tmp, Load, Register, StackBaseOffset, DirtyExpression, ITE
-from ailment.statement import Statement, Assignment, Call, Store, CAS
-from ailment.block_walker import AILBlockWalkerBase
+from angr.ailment import Expression, Block
+from angr.ailment.expression import (
+    VirtualVariable,
+    Const,
+    Phi,
+    Tmp,
+    Load,
+    Register,
+    StackBaseOffset,
+    DirtyExpression,
+    ITE,
+)
+from angr.ailment.statement import Statement, Assignment, Call, Store, CAS
+from angr.ailment.block_walker import AILBlockWalkerBase
 
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import CodeLocation

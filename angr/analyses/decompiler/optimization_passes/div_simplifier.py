@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 
-from ailment import Expr
+from angr.ailment import Expr
 from unique_log_filter import UniqueLogFilter
 
 from .engine_base import SimplifierAILEngine, SimplifierAILState

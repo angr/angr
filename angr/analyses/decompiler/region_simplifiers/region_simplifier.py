@@ -1,5 +1,5 @@
 from __future__ import annotations
-import ailment
+import angr.ailment as ailment
 
 from angr.analyses.decompiler.goto_manager import GotoManager
 from angr.analyses import AnalysesHub

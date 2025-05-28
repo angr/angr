@@ -4,7 +4,7 @@ from typing import Any
 from collections.abc import Iterable
 from collections import defaultdict
 
-import ailment
+import angr.ailment as ailment
 import pyvex
 
 from angr.analyses import ForwardAnalysis

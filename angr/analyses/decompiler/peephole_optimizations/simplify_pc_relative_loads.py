@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
-from ailment.expression import BinaryOp, Const, Load
+from angr.ailment.expression import BinaryOp, Const, Load
 
 from angr.utils.loader import is_pc, is_in_readonly_section, is_in_readonly_segment
 from .base import PeepholeOptimizationExprBase

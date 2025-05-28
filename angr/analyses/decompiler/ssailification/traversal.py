@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 
-import ailment
+import angr.ailment as ailment
 
 from angr.analyses import ForwardAnalysis
 from angr.analyses.forward_analysis import FunctionGraphVisitor

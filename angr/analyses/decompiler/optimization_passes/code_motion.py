@@ -2,8 +2,8 @@ from __future__ import annotations
 import itertools
 import logging
 
-from ailment import Block
-from ailment.statement import Jump, ConditionalJump, Statement, DirtyStatement
+from angr.ailment import Block
+from angr.ailment.statement import Jump, ConditionalJump, Statement, DirtyStatement
 import networkx as nx
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage

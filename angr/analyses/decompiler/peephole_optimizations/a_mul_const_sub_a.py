@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring,no-self-use,too-many-boolean-expressions
 from __future__ import annotations
-from ailment.expression import BinaryOp, Const
+from angr.ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationExprBase
 

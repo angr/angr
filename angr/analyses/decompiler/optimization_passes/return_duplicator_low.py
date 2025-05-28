@@ -5,8 +5,8 @@ from typing import Any
 
 import networkx
 
-from ailment import Block
-from ailment.statement import ConditionalJump, Label
+from angr.ailment import Block
+from angr.ailment.statement import ConditionalJump, Label
 
 from .return_duplicator_base import ReturnDuplicatorBase
 from .optimization_pass import StructuringOptimizationPass

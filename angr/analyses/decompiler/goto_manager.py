@@ -1,6 +1,6 @@
 from __future__ import annotations
-import ailment
-from ailment.block import Block
+import angr.ailment as ailment
+from angr.ailment.block import Block
 import networkx
 
 from .utils import find_block_by_addr

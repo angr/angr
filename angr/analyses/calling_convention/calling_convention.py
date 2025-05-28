@@ -9,7 +9,7 @@ import capstone
 
 from pyvex.stmt import Put
 from pyvex.expr import RdTmp
-import ailment
+import angr.ailment as ailment
 
 from angr.code_location import ExternalCodeLocation
 

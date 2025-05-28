@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import OrderedDict
 
 import claripy
-import ailment
-from ailment.expression import negate
+import angr.ailment as ailment
+from angr.ailment.expression import negate
 
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import (

@@ -5,10 +5,10 @@ import itertools
 
 import networkx
 import claripy
-from ailment import Const
-from ailment.block_walker import AILBlockWalkerBase
-from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from ailment.expression import Convert, Register, Expression, Load
+from angr.ailment import Const
+from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
+from angr.ailment.expression import Convert, Register, Expression, Load
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer

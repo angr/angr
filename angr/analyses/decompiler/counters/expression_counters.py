@@ -3,13 +3,13 @@ from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import defaultdict
 
-from ailment.expression import Expression, Register
-from ailment.statement import Statement
-from ailment.block_walker import AILBlockWalkerBase
-from ailment import Block
+from angr.ailment.expression import Expression, Register
+from angr.ailment.statement import Statement
+from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment import Block
 
 if TYPE_CHECKING:
-    from ailment.expression import BinaryOp, UnaryOp
+    from angr.ailment.expression import BinaryOp, UnaryOp
 
 
 class SingleExpressionCounter(AILBlockWalkerBase):

@@ -6,10 +6,10 @@ import logging
 
 import networkx
 
-import ailment
-from ailment import Block
-from ailment.statement import ConditionalJump, Jump
-from ailment.expression import Const
+import angr.ailment as ailment
+from angr.ailment import Block
+from angr.ailment.statement import ConditionalJump, Jump
+from angr.ailment.expression import Const
 
 from angr.utils.graph import GraphUtils
 from angr.utils.graph import dfs_back_edges, subgraph_between_nodes, dominates

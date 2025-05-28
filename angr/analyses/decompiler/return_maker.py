@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 
-import ailment
+import angr.ailment as ailment
 
 from angr.sim_type import SimTypeBottom
 from angr.calling_conventions import SimRegArg

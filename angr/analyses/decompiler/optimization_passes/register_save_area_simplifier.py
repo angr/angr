@@ -4,7 +4,7 @@ from collections.abc import Iterable
 import logging
 
 import archinfo
-import ailment
+import angr.ailment as ailment
 
 from angr.calling_conventions import SimRegArg
 from angr.code_location import CodeLocation

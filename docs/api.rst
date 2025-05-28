@@ -523,3 +523,16 @@ Distributed analysis
 .. automodule:: angr.distributed
 .. automodule:: angr.distributed.server
 .. automodule:: angr.distributed.worker
+
+angr Intermediate Language
+--------------------------
+.. automodule:: angr.ailment
+.. automodule:: angr.ailment.converter_common
+.. automodule:: angr.ailment.converter_pcode
+.. automodule:: angr.ailment.converter_vex
+.. automodule:: angr.ailment.expression
+.. automodule:: angr.ailment.statement
+.. automodule:: angr.ailment.block
+.. automodule:: angr.ailment.manager
+.. automodule:: angr.ailment.tagged_object
+.. automodule:: angr.ailment.utils

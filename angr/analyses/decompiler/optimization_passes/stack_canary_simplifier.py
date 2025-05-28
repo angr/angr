@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 import logging
 
-import ailment
+import angr.ailment as ailment
 
 from angr.utils.bits import s2u
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType

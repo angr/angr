@@ -2,8 +2,8 @@
 from __future__ import annotations
 import logging
 
-from ailment.block import Block
-from ailment.statement import (
+from angr.ailment.block import Block
+from angr.ailment.statement import (
     Statement,
     Assignment,
     Store,
@@ -14,7 +14,7 @@ from ailment.statement import (
     DirtyStatement,
     WeakAssignment,
 )
-from ailment.expression import (
+from angr.ailment.expression import (
     Atom,
     Expression,
     VirtualVariable,

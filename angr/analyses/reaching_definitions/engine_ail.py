@@ -7,7 +7,7 @@ from typing import cast
 
 from archinfo.types import RegisterOffset
 import claripy
-import ailment
+import angr.ailment as ailment
 from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from angr.engines.light import SpOffset

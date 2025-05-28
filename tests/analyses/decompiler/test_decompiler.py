@@ -11,7 +11,7 @@ import time
 import unittest
 from functools import wraps
 
-import ailment
+import angr.ailment as ailment
 
 import angr
 from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal

@@ -3,7 +3,7 @@ from typing import Any, Generic, TypeVar, cast
 import contextlib
 import logging
 
-import ailment
+import angr.ailment as ailment
 import claripy
 
 from angr.analyses.variable_recovery.variable_recovery_base import VariableRecoveryStateBase

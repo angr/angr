@@ -4,8 +4,8 @@ import copy
 import logging
 
 import archinfo
-from ailment import Stmt, Expr, Const
-from ailment.manager import Manager
+from angr.ailment import Stmt, Expr, Const
+from angr.ailment.manager import Manager
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (

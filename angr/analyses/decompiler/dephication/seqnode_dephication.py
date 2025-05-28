@@ -3,9 +3,9 @@ from collections import defaultdict
 import logging
 from typing import Any
 
-from ailment.block import Block
-from ailment.statement import Assignment
-from ailment.expression import VirtualVariable, Phi, BinaryOp, UnaryOp
+from angr.ailment.block import Block
+from angr.ailment.statement import Assignment
+from angr.ailment.expression import VirtualVariable, Phi, BinaryOp, UnaryOp
 
 import angr
 from angr.utils.ail import is_phi_assignment

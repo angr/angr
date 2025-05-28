@@ -1,6 +1,6 @@
 from __future__ import annotations
-from ailment.statement import Call
-from ailment.expression import Const
+from angr.ailment.statement import Call
+from angr.ailment.expression import Const
 import claripy
 
 from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase

@@ -8,8 +8,8 @@ import os
 
 import unittest
 import archinfo
-import ailment
-from ailment.expression import BinaryOp, Const
+import angr.ailment as ailment
+from angr.ailment.expression import BinaryOp, Const
 import angr
 from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences, EagerEvaluation
 

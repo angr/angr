@@ -7,9 +7,9 @@ import logging
 import struct
 import re
 
-from ailment import Block, Expr, Stmt, Tmp
-from ailment.constant import UNDETERMINED_SIZE
-from ailment.expression import StackBaseOffset, BinaryOp
+from angr.ailment import Block, Expr, Stmt, Tmp
+from angr.ailment.constant import UNDETERMINED_SIZE
+from angr.ailment.expression import StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
 from angr.sim_type import (

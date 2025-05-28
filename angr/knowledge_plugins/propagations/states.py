@@ -7,7 +7,7 @@ import weakref
 
 from typing_extensions import Self
 
-import ailment
+import angr.ailment as ailment
 import claripy
 import archinfo
 

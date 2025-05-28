@@ -9,9 +9,9 @@ import logging
 import networkx
 
 import claripy
-from ailment.block import Block
-from ailment.statement import Statement, ConditionalJump, Jump, Label, Return
-from ailment.expression import Const, UnaryOp, MultiStatementExpression
+from angr.ailment.block import Block
+from angr.ailment.statement import Statement, ConditionalJump, Jump, Label, Return
+from angr.ailment.expression import Const, UnaryOp, MultiStatementExpression
 
 from angr.utils.graph import GraphUtils
 from angr.utils.ail import is_phi_assignment, is_head_controlled_loop_block

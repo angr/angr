@@ -4,8 +4,7 @@ from typing import Any
 from collections import OrderedDict
 
 import claripy
-import ailment
-import ailment.utils
+import angr.ailment as ailment
 
 
 INDENT_DELTA = 2

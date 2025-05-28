@@ -1,7 +1,7 @@
 # pylint:disable=unused-argument
 from __future__ import annotations
 
-import ailment
+import angr.ailment as ailment
 
 from .sequence_walker import SequenceWalker
 

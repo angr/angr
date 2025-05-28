@@ -8,8 +8,8 @@ import networkx
 
 import claripy
 import pyvex
-import ailment
-from ailment.expression import VirtualVariable
+import angr.ailment as ailment
+from angr.ailment.expression import VirtualVariable
 
 import angr.errors
 from angr import SIM_TYPE_COLLECTIONS

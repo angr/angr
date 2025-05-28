@@ -1,8 +1,8 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
 
-from ailment.expression import Const
-from ailment.statement import Call
+from angr.ailment.expression import Const
+from angr.ailment.statement import Call
 
 from .base import PeepholeOptimizationStmtBase
 

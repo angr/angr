@@ -6,7 +6,7 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 
-import ailment
+import angr.ailment as ailment
 
 import angr
 

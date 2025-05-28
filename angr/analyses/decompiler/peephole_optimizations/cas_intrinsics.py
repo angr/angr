@@ -1,8 +1,8 @@
 # pylint:disable=arguments-differ,too-many-boolean-expressions
 from __future__ import annotations
 
-from ailment.expression import BinaryOp, Load
-from ailment.statement import CAS, ConditionalJump, Statement, Assignment, Call
+from angr.ailment.expression import BinaryOp, Load
+from angr.ailment.statement import CAS, ConditionalJump, Statement, Assignment, Call
 
 from .base import PeepholeOptimizationMultiStmtBase
 

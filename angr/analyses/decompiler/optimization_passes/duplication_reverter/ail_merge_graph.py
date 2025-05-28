@@ -4,8 +4,8 @@ from collections import defaultdict
 
 import networkx as nx
 
-from ailment.block import Block
-from ailment.statement import ConditionalJump
+from angr.ailment.block import Block
+from angr.ailment.statement import ConditionalJump
 
 from .errors import SAILRSemanticError
 from .similarity import ail_similarity_to_orig_blocks

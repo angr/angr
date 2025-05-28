@@ -1,6 +1,6 @@
 from __future__ import annotations
-from ailment.statement import ConditionalJump
-from ailment.expression import BinaryOp, Const
+from angr.ailment.statement import ConditionalJump
+from angr.ailment.expression import BinaryOp, Const
 
 from .base import PeepholeOptimizationStmtBase
 

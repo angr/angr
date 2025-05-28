@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ailment.expression import Const, Load
+from angr.ailment.expression import Const, Load
 
 from angr import SIM_LIBRARIES
 from angr.calling_conventions import default_cc

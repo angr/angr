@@ -6,8 +6,8 @@ from collections import defaultdict
 
 import networkx
 
-from ailment.block import Block
-from ailment.expression import (
+from angr.ailment.block import Block
+from angr.ailment.expression import (
     Const,
     VirtualVariable,
     VirtualVariableCategory,
@@ -16,7 +16,7 @@ from ailment.expression import (
     Convert,
     Expression,
 )
-from ailment.statement import Assignment, Store, Return, Jump, ConditionalJump
+from angr.ailment.statement import Assignment, Store, Return, Jump, ConditionalJump
 
 from angr.knowledge_plugins.functions import Function
 from angr.code_location import CodeLocation, ExternalCodeLocation

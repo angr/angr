@@ -2,7 +2,7 @@
 from __future__ import annotations
 from collections import defaultdict
 
-import ailment
+import angr.ailment as ailment
 
 from angr.analyses.decompiler.condition_processor import ConditionProcessor, EmptyBlockNotice
 from angr.analyses.decompiler.sequence_walker import SequenceWalker

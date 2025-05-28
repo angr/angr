@@ -4,9 +4,9 @@ import enum
 from typing import Any
 from collections import OrderedDict, defaultdict
 
-import ailment
-from ailment import UnaryOp
-from ailment.expression import negate
+import angr.ailment as ailment
+from angr.ailment import UnaryOp
+from angr.ailment.expression import negate
 
 from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
 from angr.analyses.decompiler.structuring.structurer_nodes import (

@@ -4,8 +4,8 @@ import string
 
 from archinfo import Endness
 
-from ailment.expression import Const, StackBaseOffset, VirtualVariable
-from ailment.statement import Call, Assignment
+from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable
+from angr.ailment.statement import Call, Assignment
 
 from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase

@@ -3,7 +3,7 @@ from typing import Any
 from collections import defaultdict
 
 import claripy
-import ailment
+import angr.ailment as ailment
 from angr.serializable import Serializable
 from angr.knowledge_plugins.functions.function import Function
 from .states import PropagatorVEXState, PropagatorState

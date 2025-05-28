@@ -7,7 +7,7 @@ from typing import Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
-import ailment
+import angr.ailment as ailment
 
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function

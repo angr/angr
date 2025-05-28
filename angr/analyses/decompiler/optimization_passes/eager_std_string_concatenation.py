@@ -6,9 +6,9 @@ import re
 
 from archinfo import Endness
 
-from ailment.constant import UNDETERMINED_SIZE
-from ailment.statement import Assignment, WeakAssignment
-from ailment.expression import VirtualVariable, BinaryOp, Const, Load
+from angr.ailment.constant import UNDETERMINED_SIZE
+from angr.ailment.statement import Assignment, WeakAssignment
+from angr.ailment.expression import VirtualVariable, BinaryOp, Const, Load
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 

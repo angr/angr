@@ -8,8 +8,8 @@ import logging
 import unittest
 
 import networkx as nx
-from ailment import Block, Assignment, Register, Const, BinaryOp
-from ailment.statement import Return, Store, ConditionalJump, Call
+from angr.ailment import Block, Assignment, Register, Const, BinaryOp
+from angr.ailment.statement import Return, Store, ConditionalJump, Call
 
 import angr
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp

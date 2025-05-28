@@ -6,7 +6,7 @@ from abc import abstractmethod
 import re
 import logging
 
-import ailment
+import angr.ailment as ailment
 import pyvex
 import claripy
 from pyvex.expr import IRExpr
