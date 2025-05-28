@@ -55,7 +55,6 @@ Then, checkout and install the following packages, in order:
 * `pyvex <https://github.com/angr/pyvex>`_ (clone with ``--recursive``)
 * `cle <https://github.com/angr/cle>`_
 * `claripy <https://github.com/angr/claripy>`_
-* `ailment <https://github.com/angr/ailment>`_
 * `angr <https://github.com/angr/angr>`_ (``pip install`` with
   ``--no-build-isolation``)
 
