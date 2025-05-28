@@ -536,7 +536,7 @@ class VEXStmtConverter(Converter):
             "Ijk_ClientReq",
             "Ijk_SigFPE_IntDiv",
         }:
-            raise SkipConversionNotice()
+            raise SkipConversionNotice
 
         return ConditionalJump(
             idx,

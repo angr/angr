@@ -154,9 +154,12 @@ class PCodeIRSBConverter(Converter):
                 self._convert_current_op()
             self._statement_idx += 1
 
-            if "sparc:" in self._irsb.arch.name and self._irsb.arch.bits == 32:
-                if self._current_op.opcode == OpCode.CALL:
-                    break
+            if (
+                "sparc:" in self._irsb.arch.name
+                and self._irsb.arch.bits == 32
+                and self._current_op.opcode == OpCode.CALL
+            ):
+                break
 
         return Block(self._irsb.addr, self._irsb.size, statements=self._statements)
 
@@ -536,10 +539,9 @@ class PCodeIRSBConverter(Converter):
         Convert a p-code call operation
         """
         ret_reg_offset = self._manager.arch.ret_offset
-        if ret_reg_offset is not None:
-            ret_expr = Register(None, None, ret_reg_offset, self._manager.arch.bits)  # ???
-        else:
-            ret_expr = None
+        ret_expr = (
+            None if ret_reg_offset is None else Register(None, None, ret_reg_offset, self._manager.arch.bits)
+        )  # ???
         dest = Const(self._manager.next_atom(), None, self._irsb.next, self._manager.arch.bits)
         stmt = Call(
             self._manager.next_atom(),

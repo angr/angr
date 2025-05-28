@@ -244,22 +244,13 @@ class Store(Statement):
         return stable_hash((Store, self.idx, self.addr, self.data, self.size, self.endness, self.guard))
 
     def __repr__(self):
-        return "Store (%s, %s[%d])%s" % (
-            self.addr,
-            str(self.data),
-            self.size,
-            "" if self.guard is None else "[%s]" % self.guard,
-        )
+        return f"Store ({self.addr}, {self.data}[{self.size}])" + ("" if self.guard is None else f"[{self.guard}]")
 
     def __str__(self):
         if self.variable is None:
             return f"STORE(addr={self.addr}, data={self.data!s}, size={self.size}, endness={self.endness}, guard={self.guard})"
-        return "%s =%s %s<%d>%s" % (
-            self.variable.name,
-            "L" if self.endness == "Iend_LE" else "B",
-            str(self.data),
-            self.size,
-            "" if self.guard is None else "[%s]" % self.guard,
+        return f"{self.variable.name} ={'L' if self.endness == 'Iend_LE' else 'B'} {self.data}<{self.size}>" + (
+            "" if self.guard is None else f"[{self.guard}]"
         )
 
     def replace(self, old_expr, new_expr):
@@ -343,12 +334,12 @@ class Jump(Statement):
     def __repr__(self):
         if self.target_idx is not None:
             return f"Jump ({self.target}.{self.target_idx})"
-        return "Jump (%s)" % self.target
+        return f"Jump ({self.target})"
 
     def __str__(self):
         if self.target_idx is not None:
             return f"Goto({self.target}.{self.target_idx})"
-        return "Goto(%s)" % self.target
+        return f"Goto({self.target})"
 
     @property
     def depth(self):
@@ -589,27 +580,21 @@ class Call(Expression, Statement):
         return f"Call (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
 
     def __str__(self):
-        cc = "Unknown CC" if self.calling_convention is None else "%s" % self.calling_convention
+        cc = "Unknown CC" if self.calling_convention is None else f"{self.calling_convention}"
         if self.args is None:
             if self.calling_convention is not None:
                 s = (
-                    ("%s" % cc)
+                    (f"{cc}")
                     if self.prototype is None
                     else f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
                 )
             else:
-                s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
+                s = (f"{cc}") if self.prototype is None else repr(self.prototype)
         else:
             s = (f"{cc}: {self.args}") if self.prototype is None else f"{self.calling_convention}: {self.args}"
 
-        if self.ret_expr is None:
-            ret_s = "no-ret-value"
-        else:
-            ret_s = f"{self.ret_expr}"
-        if self.fp_ret_expr is None:
-            fp_ret_s = "no-fp-ret-value"
-        else:
-            fp_ret_s = f"{self.fp_ret_expr}"
+        ret_s = "no-ret-value" if self.ret_expr is None else f"{self.ret_expr}"
+        fp_ret_s = "no-fp-ret-value" if self.fp_ret_expr is None else f"{self.fp_ret_expr}"
 
         return f"Call({self.target}, {s}, ret: {ret_s}, fp_ret: {fp_ret_s})"
 
@@ -729,7 +714,7 @@ class Return(Statement):
         exprs = ",".join(str(ret_expr) for ret_expr in self.ret_exprs)
         if not exprs:
             return "return;"
-        return "return %s;" % exprs
+        return f"return {exprs};"
 
     def replace(self, old_expr, new_expr):
         new_ret_exprs = []
