@@ -86,9 +86,7 @@ def is_none_or_likeable(arg1, arg2, is_list=False):
     Returns whether two things are both None or can like each other
     """
     if arg1 is None or arg2 is None:
-        if arg1 == arg2:
-            return True
-        return False
+        return arg1 == arg2
 
     if is_list:
         return len(arg1) == len(arg2) and all(is_none_or_likeable(a1, a2) for a1, a2 in zip(arg1, arg2))
@@ -103,9 +101,7 @@ def is_none_or_matchable(arg1, arg2, is_list=False):
     Returns whether two things are both None or can match each other
     """
     if arg1 is None or arg2 is None:
-        if arg1 == arg2:
-            return True
-        return False
+        return arg1 == arg2
 
     if is_list:
         return len(arg1) == len(arg2) and all(is_none_or_matchable(a1, a2) for a1, a2 in zip(arg1, arg2))

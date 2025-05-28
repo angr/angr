@@ -35,18 +35,18 @@ class Block:
 
     def __repr__(self):
         if self.idx is None:
-            return "<AILBlock %#x of %d statements>" % (self.addr, len(self.statements))
-        return "<AILBlock %#x.%d of %d statements>" % (self.addr, self.idx, len(self.statements))
+            return f"<AILBlock {self.addr:#x} of {len(self.statements)} statements>"
+        return f"<AILBlock {self.addr:#x}.{self.idx} of {len(self.statements)} statements>"
 
     def dbg_repr(self, indent=0):
         indent_str = " " * indent
         if self.idx is None:
             block_str = f"{indent_str}## Block {self.addr:x}\n"
         else:
-            block_str = "%s## Block %x.%d\n" % (indent_str, self.addr, self.idx)
+            block_str = f"{indent_str}## Block {self.addr:x}.{self.idx}\n"
         stmts_str = "\n".join(
             [
-                ("%s%02d | %s | " % (indent_str, i, hex(getattr(stmt, "ins_addr", 0)))) + str(stmt)
+                (f"{indent_str}{i:02d} | {getattr(stmt, 'ins_addr', 0):#x} | {stmt}")
                 for i, stmt in enumerate(self.statements)
             ]
         )

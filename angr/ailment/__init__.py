@@ -54,7 +54,7 @@ class IRSBConverter(Converter):
             return PCodeIRSBConverter.convert(irsb, manager)
         if "vex" in available_converters and isinstance(irsb, pyvex.IRSB):
             return VEXIRSBConverter.convert(irsb, manager)
-        raise ValueError("No converter available for %s" % type(irsb))
+        raise ValueError(f"No converter available for {type(irsb)}")
 
 
 __all__ = [

@@ -87,7 +87,7 @@ class Atom(Expression):
         self.variable_offset = variable_offset
 
     def __repr__(self) -> str:
-        return "Atom (%d)" % self.idx
+        return f"Atom ({self.idx})"
 
     def copy(self) -> Self:  # pylint:disable=no-self-use
         raise NotImplementedError
@@ -111,9 +111,9 @@ class Const(Atom):
 
     def __str__(self):
         if isinstance(self.value, int):
-            return "%#x<%d>" % (self.value, self.bits)
+            return f"{self.value:#x}<{self.bits}>"
         if isinstance(self.value, float):
-            return "%f<%d>" % (self.value, self.bits)
+            return f"{self.value:f}<{self.bits}>"
         return f"{self.value}<{self.bits}>"
 
     def likes(self, other):
@@ -162,7 +162,7 @@ class Tmp(Atom):
         return str(self)
 
     def __str__(self):
-        return "t%d" % self.tmp_idx
+        return f"t{self.tmp_idx}"
 
     def likes(self, other):
         return type(self) is type(other) and self.tmp_idx == other.tmp_idx and self.bits == other.bits
@@ -198,10 +198,10 @@ class Register(Atom):
 
     def __str__(self):
         if hasattr(self, "reg_name"):
-            return "%s<%d>" % (self.reg_name, self.bits // 8)
+            return f"{self.reg_name}<{self.bits // 8}>"
         if self.variable is None:
-            return "reg_%d<%d>" % (self.reg_offset, self.bits // 8)
-        return "%s" % str(self.variable.name)
+            return f"reg_{self.reg_offset}<{self.bits // 8}>"
+        return f"{self.variable.name!s}"
 
     matches = likes
     __hash__ = TaggedObject.__hash__  # type: ignore
@@ -604,7 +604,7 @@ class Convert(UnaryOp):
         self.rounding_mode = rounding_mode
 
     def __str__(self):
-        return "Conv(%d->%s%d, %s)" % (self.from_bits, "s" if self.is_signed else "", self.to_bits, self.operand)
+        return f"Conv({self.from_bits}->{'s' if self.is_signed else ''}{self.to_bits}, {self.operand})"
 
     def __repr__(self):
         return str(self)
@@ -972,10 +972,9 @@ class BinaryOp(Op):
             r1, replaced_operand_1 = False, new_expr
 
         r2, replaced_rm = False, None
-        if self.rounding_mode is not None:
-            if self.rounding_mode == old_expr:
-                r2 = True
-                replaced_rm = new_expr
+        if self.rounding_mode is not None and self.rounding_mode == old_expr:
+            r2 = True
+            replaced_rm = new_expr
 
         if r0 or r1:
             return True, BinaryOp(
@@ -1058,7 +1057,7 @@ class Load(Expression):
         return str(self)
 
     def __str__(self):
-        return "Load(addr=%s, size=%d, endness=%s)" % (self.addr, self.size, self.endness)
+        return f"Load(addr={self.addr}, size={self.size}, endness={self.endness})"
 
     def has_atom(self, atom, identity=True):
         if super().has_atom(atom, identity=identity):
@@ -1474,7 +1473,7 @@ class MultiStatementExpression(Expression):
     __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
-        return stable_hash((MultiStatementExpression,) + tuple(self.stmts) + (self.expr,))
+        return stable_hash((MultiStatementExpression, *tuple(self.stmts), self.expr))
 
     def likes(self, other):
         return (
@@ -1498,7 +1497,7 @@ class MultiStatementExpression(Expression):
     def __str__(self):
         stmts_str = [str(stmt) for stmt in self.stmts]
         expr_str = str(self.expr)
-        concatenated_str = ", ".join(stmts_str + [expr_str])
+        concatenated_str = ", ".join([*stmts_str, expr_str])
         return f"({concatenated_str})"
 
     @property
@@ -1567,16 +1566,14 @@ class BasePointerOffset(Expression):
 
     def __repr__(self):
         if self.offset is None:
-            return "BaseOffset(%s)" % self.base
-        if isinstance(self.offset, int):
-            return "BaseOffset(%s, %d)" % (self.base, self.offset)
+            return f"BaseOffset({self.base})"
         return f"BaseOffset({self.base}, {self.offset})"
 
     def __str__(self):
         if self.offset is None:
             return str(self.base)
         if isinstance(self.offset, int):
-            return "%s%+d" % (self.base, self.offset)
+            return f"{self.base}{self.offset:+d}"
         return f"{self.base}+{self.offset}"
 
     def likes(self, other):
