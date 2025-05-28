@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from angr.utils.constants import DEFAULT_STATEMENT
@@ -183,7 +184,7 @@ class PCodeIRSBConverter(Converter):
         """
         opcode = self._current_op.opcode
 
-        op = opcode_to_generic_name.get(opcode, None)
+        op = opcode_to_generic_name.get(opcode)
         in1 = self._get_value(self._current_op.inputs[0])
         if op is None:
             log.warning("p-code: Unsupported opcode of type %s", opcode.__name__)
@@ -199,7 +200,7 @@ class PCodeIRSBConverter(Converter):
         Convert the current binary op to corresponding AIL statement
         """
         opcode = self._current_op.opcode
-        op = opcode_to_generic_name.get(opcode, None)
+        op = opcode_to_generic_name.get(opcode)
         in1 = self._get_value(self._current_op.inputs[0])
         in2 = self._get_value(self._current_op.inputs[1])
         signed = op in {"CmpLEs", "CmpGTs"}
@@ -256,11 +257,10 @@ class PCodeIRSBConverter(Converter):
             self._unique_tracker[offset] = self._unique_counter, size
             self._unique_counter += 1
             return self._unique_tracker[offset][0]
-        else:
-            if offset in self._unique_tracker:
-                return self._unique_tracker[offset][0]
-            # this might be a partial access of an existing temporary variable. return None for now
-            return None
+        if offset in self._unique_tracker:
+            return self._unique_tracker[offset][0]
+        # this might be a partial access of an existing temporary variable. return None for now
+        return None
 
     def _convert_varnode(self, varnode: Varnode, is_write: bool) -> Expression:
         """
@@ -275,10 +275,10 @@ class PCodeIRSBConverter(Converter):
 
         if space_name == "const":
             return Const(self._manager.next_atom(), None, varnode.offset, size)
-        elif space_name == "register":
+        if space_name == "register":
             offset = self._map_register_name(varnode)
             return Register(self._manager.next_atom(), None, offset, size, reg_name=varnode.getRegisterName())
-        elif space_name == "unique":
+        if space_name == "unique":
             offset = self._remap_temp(varnode.offset, varnode.size, is_write)
             if offset is None:
                 # this might be a partial access of an existing temporary variable
@@ -304,7 +304,7 @@ class PCodeIRSBConverter(Converter):
                 return Convert(self._manager.next_atom(), t.bits, size, False, t, ins_addr=self._manager.ins_addr)
 
             return Tmp(self._manager.next_atom(), None, offset, size)
-        elif space_name in ["ram", "mem"]:
+        if space_name in ["ram", "mem"]:
             assert not is_write
             addr = Const(self._manager.next_atom(), None, varnode.offset, self._manager.arch.bits)
             # Note: Load takes bytes, not bits, for size
@@ -315,8 +315,7 @@ class PCodeIRSBConverter(Converter):
                 self._manager.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
             )
-        else:
-            raise NotImplementedError()
+        raise NotImplementedError
 
     def _set_value(self, varnode: Varnode, value: Expression) -> Statement:
         """
@@ -335,7 +334,7 @@ class PCodeIRSBConverter(Converter):
             return Assignment(
                 self._statement_idx, self._convert_varnode(varnode, True), value, ins_addr=self._manager.ins_addr
             )
-        elif space_name in ["ram", "mem"]:
+        if space_name in ["ram", "mem"]:
             addr = Const(self._manager.next_atom(), None, varnode.offset, self._manager.arch.bits)
             return Store(
                 self._statement_idx,
@@ -345,8 +344,7 @@ class PCodeIRSBConverter(Converter):
                 self._manager.arch.memory_endness,
                 ins_addr=self._manager.ins_addr,
             )
-        else:
-            raise NotImplementedError()
+        raise NotImplementedError
 
     def _get_value(self, varnode: Varnode) -> Expression:
         """

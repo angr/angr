@@ -37,13 +37,12 @@ class Expression(TaggedObject):
 
     @abstractmethod
     def __repr__(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def has_atom(self, atom, identity=True):
         if identity:
             return self is atom
-        else:
-            return self.likes(atom)
+        return self.likes(atom)
 
     def __eq__(self, other):
         if self is other:
@@ -52,11 +51,11 @@ class Expression(TaggedObject):
 
     @abstractmethod
     def likes(self, other):  # pylint:disable=unused-argument,no-self-use
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def matches(self, other):  # pylint:disable=unused-argument,no-self-use
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, Self]:
         if self is old_expr:
@@ -91,7 +90,7 @@ class Atom(Expression):
         return "Atom (%d)" % self.idx
 
     def copy(self) -> Self:  # pylint:disable=no-self-use
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Const(Atom):
@@ -113,10 +112,9 @@ class Const(Atom):
     def __str__(self):
         if isinstance(self.value, int):
             return "%#x<%d>" % (self.value, self.bits)
-        elif isinstance(self.value, float):
+        if isinstance(self.value, float):
             return "%f<%d>" % (self.value, self.bits)
-        else:
-            return f"{self.value}<{self.bits}>"
+        return f"{self.value}<{self.bits}>"
 
     def likes(self, other):
         # nan is nan, but nan != nan
@@ -203,8 +201,7 @@ class Register(Atom):
             return "%s<%d>" % (self.reg_name, self.bits // 8)
         if self.variable is None:
             return "reg_%d<%d>" % (self.reg_offset, self.bits // 8)
-        else:
-            return "%s" % str(self.variable.name)
+        return "%s" % str(self.variable.name)
 
     matches = likes
     __hash__ = TaggedObject.__hash__  # type: ignore
@@ -228,9 +225,9 @@ class VirtualVariableCategory(IntEnum):
 class VirtualVariable(Atom):
 
     __slots__ = (
-        "varid",
         "category",
         "oident",
+        "varid",
     )
 
     def __init__(
@@ -274,7 +271,7 @@ class VirtualVariable(Atom):
         if self.was_reg:
             assert isinstance(self.oident, int)
             return self.oident
-        elif self.was_parameter and self.parameter_category == VirtualVariableCategory.REGISTER:
+        if self.was_parameter and self.parameter_category == VirtualVariableCategory.REGISTER:
             return self.parameter_reg_offset  # type: ignore
         raise TypeError("Is not a register")
 
@@ -283,7 +280,7 @@ class VirtualVariable(Atom):
         if self.was_stack:
             assert isinstance(self.oident, int)
             return self.oident
-        elif self.was_parameter and self.parameter_category == VirtualVariableCategory.STACK:
+        if self.was_parameter and self.parameter_category == VirtualVariableCategory.STACK:
             return self.parameter_stack_offset  # type: ignore
         raise TypeError("Is not a stack variable")
 
@@ -408,10 +405,8 @@ class Phi(Atom):
                 if self_vvar is None and other_vvar is None:
                     continue
                 if (
-                    self_vvar is None
-                    and other_vvar is not None
-                    or self_vvar is not None
-                    and other_vvar is None
+                    (self_vvar is None and other_vvar is not None)
+                    or (self_vvar is not None and other_vvar is None)
                     or (self_vvar is not None and other_vvar is not None and not self_vvar.matches(other_vvar))
                 ):
                     return False
@@ -505,7 +500,7 @@ class UnaryOp(Op):
         self.variable_offset = variable_offset
 
     def __str__(self):
-        return f"({self.op} {str(self.operand)})"
+        return f"({self.op} {self.operand!s})"
 
     def __repr__(self):
         return str(self)
@@ -540,8 +535,7 @@ class UnaryOp(Op):
 
         if r:
             return True, UnaryOp(self.idx, self.op, replaced_operand, bits=self.bits, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     @property
     def operands(self):
@@ -579,11 +573,11 @@ class Convert(UnaryOp):
 
     __slots__ = (
         "from_bits",
-        "to_bits",
-        "is_signed",
         "from_type",
-        "to_type",
+        "is_signed",
         "rounding_mode",
+        "to_bits",
+        "to_type",
     )
 
     def __init__(
@@ -686,8 +680,7 @@ class Convert(UnaryOp):
                 rounding_mode=replaced_rm if replaced_rm is not None else self.rounding_mode,
                 **self.tags,
             )
-        else:
-            return False, self
+        return False, self
 
     def copy(self) -> Convert:
         return Convert(
@@ -773,8 +766,7 @@ class Reinterpret(UnaryOp):
             return True, Reinterpret(
                 self.idx, self.from_bits, self.from_type, self.to_bits, self.to_type, replaced_operand, **self.tags
             )
-        else:
-            return False, self
+        return False, self
 
     def copy(self) -> Reinterpret:
         return Reinterpret(
@@ -784,12 +776,12 @@ class Reinterpret(UnaryOp):
 
 class BinaryOp(Op):
     __slots__ = (
-        "operands",
-        "variable",
-        "variable_offset",
         "floating_point",
+        "operands",
         "rounding_mode",
         "signed",
+        "variable",
+        "variable_offset",
         "vector_count",
         "vector_size",
     )
@@ -906,7 +898,7 @@ class BinaryOp(Op):
 
     def __str__(self):
         op_str = self.OPSTR_MAP.get(self.verbose_op, self.verbose_op)
-        return f"({str(self.operands[0])} {op_str} {str(self.operands[1])})"
+        return f"({self.operands[0]!s} {op_str} {self.operands[1]!s})"
 
     def __repr__(self):
         return f"{self.verbose_op}({self.operands[0]}, {self.operands[1]})"
@@ -996,8 +988,7 @@ class BinaryOp(Op):
                 rounding_mode=replaced_rm if r2 else self.rounding_mode,
                 **self.tags,
             )
-        else:
-            return False, self
+        return False, self
 
     @property
     def verbose_op(self):
@@ -1031,12 +1022,12 @@ class BinaryOp(Op):
 class Load(Expression):
     __slots__ = (
         "addr",
-        "size",
+        "alt",
         "endness",
+        "guard",
+        "size",
         "variable",
         "variable_offset",
-        "guard",
-        "alt",
     )
 
     def __init__(
@@ -1086,8 +1077,7 @@ class Load(Expression):
 
         if r:
             return True, Load(self.idx, replaced_addr, self.size, self.endness, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     def _likes_addr(self, other_addr):
         if hasattr(self.addr, "likes") and hasattr(other_addr, "likes"):
@@ -1237,8 +1227,7 @@ class ITE(Expression):
 
         if replaced:
             return True, ITE(self.idx, new_cond, new_iffalse, new_iftrue, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     @property
     def size(self):
@@ -1252,10 +1241,10 @@ class DirtyExpression(Expression):
     __slots__ = (
         "callee",
         "guard",
-        "operands",
-        "mfx",
         "maddr",
+        "mfx",
         "msize",
+        "operands",
     )
 
     def __init__(
@@ -1378,8 +1367,7 @@ class DirtyExpression(Expression):
                 bits=self.bits,
                 **self.tags,
             )
-        else:
-            return False, self
+        return False, self
 
     @property
     def size(self):
@@ -1458,8 +1446,7 @@ class VEXCCallExpression(Expression):
 
         if replaced:
             return True, VEXCCallExpression(self.idx, self.callee, tuple(new_operands), bits=self.bits, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     @property
     def size(self):
@@ -1474,8 +1461,8 @@ class MultiStatementExpression(Expression):
     """
 
     __slots__ = (
-        "stmts",
         "expr",
+        "stmts",
     )
 
     def __init__(self, idx: int | None, stmts: list[Statement], expr: Expression, **kwargs):

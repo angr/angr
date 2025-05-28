@@ -27,15 +27,15 @@ class Statement(TaggedObject, ABC):
 
     @abstractmethod
     def __repr__(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def __str__(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, Self]:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def eq(self, expr0, expr1):  # pylint:disable=no-self-use
         if claripy is not None and (isinstance(expr0, claripy.ast.Base) or isinstance(expr1, claripy.ast.Base)):
@@ -44,11 +44,11 @@ class Statement(TaggedObject, ABC):
 
     @abstractmethod
     def likes(self, other) -> bool:  # pylint:disable=unused-argument,no-self-use
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def matches(self, other) -> bool:  # pylint:disable=unused-argument,no-self-use
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class Assignment(Statement):
@@ -85,7 +85,7 @@ class Assignment(Statement):
         return f"Assignment ({self.dst}, {self.src})"
 
     def __str__(self):
-        return f"{str(self.dst)} = {str(self.src)}"
+        return f"{self.dst!s} = {self.src!s}"
 
     def replace(self, old_expr: Expression, new_expr: Expression):
         if self.dst == old_expr:
@@ -103,8 +103,7 @@ class Assignment(Statement):
 
         if r_dst or r_src:
             return True, Assignment(self.idx, replaced_dst, replaced_src, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     def copy(self) -> Assignment:
         return Assignment(self.idx, self.dst, self.src, **self.tags)
@@ -147,7 +146,7 @@ class WeakAssignment(Statement):
         return f"WeakAssignment ({self.dst}, {self.src})"
 
     def __str__(self):
-        return f"{str(self.dst)} =W {str(self.src)}"
+        return f"{self.dst!s} =W {self.src!s}"
 
     def replace(self, old_expr: Expression, new_expr: Expression):
         if self.dst == old_expr:
@@ -165,8 +164,7 @@ class WeakAssignment(Statement):
 
         if r_dst or r_src:
             return True, WeakAssignment(self.idx, replaced_dst, replaced_src, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     def copy(self) -> WeakAssignment:
         return WeakAssignment(self.idx, self.dst, self.src, **self.tags)
@@ -179,12 +177,12 @@ class Store(Statement):
 
     __slots__ = (
         "addr",
-        "size",
         "data",
         "endness",
-        "variable",
-        "offset",
         "guard",
+        "offset",
+        "size",
+        "variable",
     )
 
     def __init__(
@@ -255,17 +253,14 @@ class Store(Statement):
 
     def __str__(self):
         if self.variable is None:
-            return "STORE(addr={}, data={}, size={}, endness={}, guard={})".format(
-                self.addr, str(self.data), self.size, self.endness, self.guard
-            )
-        else:
-            return "%s =%s %s<%d>%s" % (
-                self.variable.name,
-                "L" if self.endness == "Iend_LE" else "B",
-                str(self.data),
-                self.size,
-                "" if self.guard is None else "[%s]" % self.guard,
-            )
+            return f"STORE(addr={self.addr}, data={self.data!s}, size={self.size}, endness={self.endness}, guard={self.guard})"
+        return "%s =%s %s<%d>%s" % (
+            self.variable.name,
+            "L" if self.endness == "Iend_LE" else "B",
+            str(self.data),
+            self.size,
+            "" if self.guard is None else "[%s]" % self.guard,
+        )
 
     def replace(self, old_expr, new_expr):
         if self.addr.likes(old_expr):
@@ -299,8 +294,7 @@ class Store(Statement):
                 variable=self.variable,
                 **self.tags,
             )
-        else:
-            return False, self
+        return False, self
 
     def copy(self) -> Store:
         return Store(
@@ -365,8 +359,7 @@ class Jump(Statement):
 
         if r:
             return True, Jump(self.idx, replaced_target, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     def copy(self):
         return Jump(
@@ -383,10 +376,10 @@ class ConditionalJump(Statement):
 
     __slots__ = (
         "condition",
-        "true_target",
         "false_target",
-        "true_target_idx",
         "false_target_idx",
+        "true_target",
+        "true_target_idx",
     )
 
     def __init__(
@@ -504,8 +497,7 @@ class ConditionalJump(Statement):
                 false_target_idx=self.false_target_idx,
                 **self.tags,
             )
-        else:
-            return False, self
+        return False, self
 
     def copy(self) -> ConditionalJump:
         return ConditionalJump(
@@ -529,12 +521,12 @@ class Call(Expression, Statement):
     """
 
     __slots__ = (
-        "target",
-        "calling_convention",
-        "prototype",
         "args",
-        "ret_expr",
+        "calling_convention",
         "fp_ret_expr",
+        "prototype",
+        "ret_expr",
+        "target",
     )
 
     def __init__(
@@ -689,8 +681,7 @@ class Call(Expression, Statement):
                 bits=new_bits,
                 **self.tags,
             )
-        else:
-            return False, self
+        return False, self
 
     def copy(self):
         return Call(
@@ -738,8 +729,7 @@ class Return(Statement):
         exprs = ",".join(str(ret_expr) for ret_expr in self.ret_exprs)
         if not exprs:
             return "return;"
-        else:
-            return "return %s;" % exprs
+        return "return %s;" % exprs
 
     def replace(self, old_expr, new_expr):
         new_ret_exprs = []
@@ -787,7 +777,7 @@ class CAS(Statement):
     old: The value that is currently stored at addr before compare-and-swap; it will be returned after compare-and-swap.
     """
 
-    __slots__ = ("addr", "data_lo", "data_hi", "expd_lo", "expd_hi", "old_lo", "old_hi", "endness")
+    __slots__ = ("addr", "data_hi", "data_lo", "endness", "expd_hi", "expd_lo", "old_hi", "old_lo")
 
     def __init__(
         self,
@@ -964,9 +954,9 @@ class Label(Statement):
     """
 
     __slots__ = (
-        "name",
-        "ins_addr",
         "block_idx",
+        "ins_addr",
+        "name",
     )
 
     def __init__(self, idx: int | None, name: str, ins_addr: int, block_idx: int | None = None, **kwargs):

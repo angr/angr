@@ -1,5 +1,6 @@
 # pylint:disable=unused-argument,no-self-use
 # pyright: reportIncompatibleMethodOverride=false
+from __future__ import annotations
 from typing import Any
 from collections.abc import Callable
 

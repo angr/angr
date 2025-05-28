@@ -1,5 +1,4 @@
-
-
+from __future__ import annotations
 import logging
 
 from .block import Block
@@ -53,31 +52,30 @@ class IRSBConverter(Converter):
 
         if "pcode" in available_converters and isinstance(irsb, pcode.lifter.IRSB):
             return PCodeIRSBConverter.convert(irsb, manager)
-        elif "vex" in available_converters and isinstance(irsb, pyvex.IRSB):
+        if "vex" in available_converters and isinstance(irsb, pyvex.IRSB):
             return VEXIRSBConverter.convert(irsb, manager)
-        else:
-            raise ValueError("No converter available for %s" % type(irsb))
+        raise ValueError("No converter available for %s" % type(irsb))
 
 
 __all__ = [
-    "available_converters",
+    "AILBlockWalker",
+    "AILBlockWalkerBase",
+    "Assignment",
+    "BinaryOp",
     "Block",
+    "Const",
+    "Expr",
+    "Expression",
+    "IRSBConverter",
+    "Manager",
+    "PCodeIRSBConverter",
+    "Register",
+    "Statement",
+    "Stmt",
+    "Tmp",
+    "UnaryOp",
+    "VEXIRSBConverter",
+    "available_converters",
     "expression",
     "statement",
-    "Stmt",
-    "Expr",
-    "Statement",
-    "Assignment",
-    "Expression",
-    "Const",
-    "Tmp",
-    "Register",
-    "UnaryOp",
-    "BinaryOp",
-    "Manager",
-    "IRSBConverter",
-    "AILBlockWalkerBase",
-    "AILBlockWalker",
-    "PCodeIRSBConverter",
-    "VEXIRSBConverter",
 ]
