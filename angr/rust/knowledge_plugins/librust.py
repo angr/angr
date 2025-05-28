@@ -24,6 +24,9 @@ class Librust(KnowledgeBasePlugin, SimLibrary):
                 try:
                     func.prototype = prototype.with_arch(self._kb._project.arch)
                 except:
+                    import traceback
+
+                    traceback.print_exc()
                     import ipdb
 
                     ipdb.set_trace()

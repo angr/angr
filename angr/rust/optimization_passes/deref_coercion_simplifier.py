@@ -2,11 +2,10 @@ from ailment import AILBlockWalker, Block, BinaryOp, Const
 from ailment.expression import VirtualVariable, Load, StringLiteral
 from ailment.statement import Call, Statement, FunctionLikeMacro
 
-from ..definitions.structs import String
 from ..utils.ail import unwrap_stack_vvar_reference
+from angr.rust.sim_type import RustSimStruct
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ..mixins.cfa_mixin import CFAMixin
-from ..mixins.srda_mixin import SRDAMixin
+from angr.rust.mixins import CFAMixin, SRDAMixin
 
 STR_CMP_NE_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::ne"
 STR_CMP_EQ_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::eq"
@@ -18,6 +17,7 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
         self.context = context
 
     def handle_Call(self, call: Call, stmt, block):
+        String_ty = self.context.project.kb.known_structs["alloc::string::String"]
         if call.args:
             changed = False
             args = list(call.args)
@@ -36,16 +36,16 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
                 if isinstance(vvar, VirtualVariable) and vvar.was_stack:
                     returnty = None
                     if self.context.match_call(call, [STR_CMP_NE_FUNCTION], monopolize=False, use_trait_name=False):
-                        returnty = String().with_arch(self.context.project.arch)
+                        returnty = String_ty.with_arch(self.context.project.arch)
                     elif self.context.match_call(call, [STR_CMP_EQ_FUNCTION], monopolize=False, use_trait_name=False):
-                        returnty = String().with_arch(self.context.project.arch)
+                        returnty = String_ty.with_arch(self.context.project.arch)
                     else:
                         value = self.context.get_terminal_vvar_value(vvar)
                         if isinstance(value, FunctionLikeMacro):
                             returnty = value.returnty
                         elif isinstance(value, Call):
                             returnty = value.prototype.returnty
-                    if isinstance(returnty, String):
+                    if isinstance(returnty, RustSimStruct) and returnty == String_ty.name:
                         args.pop(0)
                         new_args.append(vvar)
                         changed = True

@@ -12,7 +12,6 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 from angr.rust.mixins import CFAMixin, DFAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
 from angr.rust.sim_type import RustSimType
-from angr.rust.definitions.structs import String
 from angr.rust.utils.library import demangle
 
 PRINT_FUNCTIONS = (
@@ -44,8 +43,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    @staticmethod
-    def _select_macro(func_name, fmt_str) -> Tuple[str, str, RustSimType | None] | Tuple[None, None, None]:
+    def _select_macro(self, func_name, fmt_str) -> Tuple[str, str, RustSimType | None] | Tuple[None, None, None]:
         match func_name.split("::")[-1]:
             case "_print":
                 if fmt_str.endswith("\n"):
@@ -56,7 +54,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
                     return "eprintln", fmt_str[:-1], None
                 return "eprint", fmt_str, None
             case "format_inner" | "format" | "map_or_else":
-                return "format", fmt_str, String()
+                return "format", fmt_str, self.project.kb.known_structs["alloc::string::String"]
             case "panic_fmt":
                 return "panic", fmt_str, None
         l.error(f"Can't find a macro for {func_name}")
