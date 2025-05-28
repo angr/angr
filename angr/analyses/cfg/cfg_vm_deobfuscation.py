@@ -438,7 +438,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # create a new solver which holds partial constriants, this is essentially used as simplification solver
         #initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
-        initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(),
+        if not hasattr(initial_state, 'partial_symbolic_constraint_solver'):
+            initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(),
                                                                                   unsafe_replacement=True,
                                                                                   auto_replace=False)))
         initial_state.globals['existing_mba_split_constraints'] = []
@@ -1577,7 +1578,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         job.state.memory.store(page_no+offset, sym_result, endness=self.project.arch.memory_endness, inspect=False)
                     elif k=='reg':
                         job.state.registers.store(page_no+offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
-
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
         if 'use_vip_finder' in job.state.globals and job.state.globals['use_vip_finder'] and len(sim_successors.all_successors) > 0 and \
