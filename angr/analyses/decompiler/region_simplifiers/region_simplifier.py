@@ -7,6 +7,7 @@ from angr.analyses.analysis import Analysis
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
+from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
 from .goto import GotoSimplifier
 from .if_ import IfSimplifier
 from .cascading_ifs import CascadingIfsRemover
@@ -18,6 +19,7 @@ from .expr_folding import (
     StoreStatementFinder,
     ExpressionLocation,
     InterferenceChecker,
+    LoopNodeFinder,
 )
 from .cascading_cond_transformer import CascadingConditionTransformer
 from .switch_expr_simplifier import SwitchExpressionSimplifier
@@ -44,7 +46,7 @@ class RegionSimplifier(Analysis):
         self._should_simplify_ifelses = simplify_ifelse
 
         self.goto_manager: GotoManager | None = None
-        self.result = None
+        self.result = self.region
 
         self._simplify()
 
@@ -101,6 +103,16 @@ class RegionSimplifier(Analysis):
     #
 
     def _fold_oneuse_expressions(self, region):
+        loop_nodes = LoopNodeFinder(region).loop_nodes
+        for sub_region in [*loop_nodes, region]:
+            # fold one-use expressions in each sub-region
+            if isinstance(sub_region, LoopNode):
+                self._fold_oneuse_expressions_in_region(sub_region.sequence_node)
+            else:
+                self._fold_oneuse_expressions_in_region(sub_region)
+        return region
+
+    def _fold_oneuse_expressions_in_region(self, region):
         # pylint:disable=unreachable
         expr_counter = ExpressionCounter(region)
 
