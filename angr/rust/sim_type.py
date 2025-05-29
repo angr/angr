@@ -313,7 +313,9 @@ class RustSimStruct(RustSimType, SimStruct):
         return self.name
 
     def copy(self):
-        return RustSimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
+        return RustSimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align).with_arch(
+            self._arch
+        )
 
     def match(self, field_exprs, **kwargs) -> bool:
         return False

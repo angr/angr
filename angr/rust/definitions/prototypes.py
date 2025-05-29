@@ -102,4 +102,23 @@ def generate_known_rust_prototypes(project):
             args=[RustSimTypeReference(String), RustSimTypeReference(String)],
             returnty=RustSimTypeInt(8, signed=False),
         ),
+        # "<alloc::string::String as core::fmt::Write>::write_str": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(known_structs["alloc::string::String"]), known_structs["&str"]],
+        #     returnty=known_structs["core::result::Result<(), core::fmt::Error>"],
+        # ),
+        # "<alloc::string::String as core::fmt::Write>::write_char": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(known_structs["alloc::string::String"]), RustSimTypeInt(8, signed=False)],
+        #     returnty=known_structs["core::result::Result<(), core::fmt::Error>"],
+        # ),
+        # "<std::fs::File as std::io::Read>::read_to_string": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(String)],
+        #     returnty=RustSimTypeResult(
+        #         RustSimTypeSize().with_arch(project.arch),
+        #         0,
+        #         project.arch.bytes,
+        #         RustSimTypeReference(RustSimTypeBottom()),
+        #         None,
+        #         0,
+        #     ),
+        # ),
     }
