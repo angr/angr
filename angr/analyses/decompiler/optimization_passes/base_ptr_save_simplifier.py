@@ -88,32 +88,32 @@ class BasePointerSaveSimplifier(OptimizationPass):
         :rtype:     tuple|None
         """
 
-        first_block = self._get_block(self._func.addr)
-        if first_block is None:
-            return None
+        # scan the first N blocks of the function until we find the first baseptr save statement
+        max_level = 5
 
-        for idx, stmt in enumerate(first_block.statements):
-            if (
-                isinstance(stmt, ailment.Stmt.Assignment)
-                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-                and stmt.dst.was_stack
-                and stmt.dst.stack_offset < 0
-            ):
+        for block in self.bfs_nodes(depth=max_level):
+            for idx, stmt in enumerate(block.statements):
                 if (
-                    isinstance(stmt.src, ailment.Expr.VirtualVariable)
-                    and stmt.src.was_reg
-                    and stmt.src.reg_offset == self.project.arch.bp_offset
+                    isinstance(stmt, ailment.Stmt.Assignment)
+                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                    and stmt.dst.was_stack
+                    and stmt.dst.stack_offset < 0
                 ):
-                    return first_block, idx, stmt.dst
-                if isinstance(stmt.src, ailment.Expr.StackBaseOffset) and stmt.src.offset == 0:
-                    return first_block, idx, stmt.dst
-                if (
-                    isinstance(stmt.src, ailment.Expr.UnaryOp)
-                    and isinstance(stmt.src.operand, ailment.Expr.VirtualVariable)
-                    and stmt.src.operand.was_stack
-                    and stmt.src.operand.stack_offset == 0
-                ):
-                    return first_block, idx, stmt.dst
+                    if (
+                        isinstance(stmt.src, ailment.Expr.VirtualVariable)
+                        and stmt.src.was_reg
+                        and stmt.src.reg_offset == self.project.arch.bp_offset
+                    ):
+                        return block, idx, stmt.dst
+                    if isinstance(stmt.src, ailment.Expr.StackBaseOffset) and stmt.src.offset == 0:
+                        return block, idx, stmt.dst
+                    if (
+                        isinstance(stmt.src, ailment.Expr.UnaryOp)
+                        and isinstance(stmt.src.operand, ailment.Expr.VirtualVariable)
+                        and stmt.src.operand.was_stack
+                        and stmt.src.operand.stack_offset == 0
+                    ):
+                        return block, idx, stmt.dst
 
         # Not found
         return None

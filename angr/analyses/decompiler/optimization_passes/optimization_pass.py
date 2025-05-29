@@ -179,6 +179,30 @@ class OptimizationPass(BaseOptimizationPass):
     # Util methods
     #
 
+    def bfs_nodes(self, depth: int | None = None, start_node: ailment.Block | None = None) -> Generator[ailment.Block]:
+        seen = set()
+
+        if start_node is None:
+            start_node = self._get_block(self._func.addr)
+        if start_node is None:
+            return
+
+        queue = [(0, start_node)]
+        while queue:
+            node_depth, node = queue.pop(0)
+            if node in seen:
+                continue
+            seen.add(node)
+
+            yield node
+
+            if depth is not None and node_depth >= depth:
+                continue
+
+            for succ in sorted(self._graph.successors(node), key=lambda x: (x.addr, x.idx if hasattr(x, "idx") else 0)):
+                if succ not in seen:
+                    queue.append((node_depth + 1, succ))
+
     def new_block_addr(self) -> int:
         """
         Return a block address that does not conflict with any existing blocks.

@@ -5169,6 +5169,26 @@ class TestDecompiler(unittest.TestCase):
         assert re.search(r"&a[1-5]", dec.codegen.text) is None
         # FIXME: we generate &a0->field_8, which is a bug that will be fixed at a later time
 
+    def test_decompiling_function_incorrect_one_use_expr_folding(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "angr_issue_5505")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        func = proj.kb.functions["foo"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # ensure none of the return statements include calls to init
+        lines = dec.codegen.text.split("\n")
+        for line in lines:
+            if "return" in line:
+                assert "init(" not in line, f"Found a return statement with init: {line}"
+        # ensure the rbp-saving statement is also removed
+        assert func.info.get("bp_as_gpr", False) is True
+        for line in lines:
+            # it was `*((int *)&v1) = vvar_14{reg 56};`
+            assert "vvar" not in line and "reg" not in line
+
 
 if __name__ == "__main__":
     unittest.main()
