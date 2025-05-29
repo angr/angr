@@ -140,6 +140,7 @@ ignore = [
     "UP038",  # Use `X | Y` in `isinstance` call instead of `(X, Y)`; it is slower
     "RUF007", # Prefer `itertools.pairwise()` over `zip()` when iterating over successive pairs
     "B905",   # Zip calls without an explicit strict parameter
+    "RET501", # rewrites "return None" to "return" if it's the only return statement; pylint then removes the return
 ]
 
 [tool.ruff.lint.per-file-ignores]

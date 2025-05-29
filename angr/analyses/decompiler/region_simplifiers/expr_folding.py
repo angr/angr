@@ -4,7 +4,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from typing import Any, TYPE_CHECKING
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment import Expression, Block, AILBlockWalker
 from angr.ailment.expression import ITE, Load
 from angr.ailment.statement import Statement, Assignment, Call, Return
@@ -174,6 +174,7 @@ class LoopNodeFinder(SequenceWalker):
     def _handle_Loop(self, node: LoopNode, **kwargs):
         super()._handle_Loop(node, **kwargs)
         self.loop_nodes.append(node)
+        return None
 
 
 class MultiStatementExpressionAssignmentFinder(AILBlockWalker):
@@ -366,7 +367,7 @@ class ExpressionCounter(SequenceWalker):
             self._collect_assignments(node.condition, node)
             self._collect_uses(node.condition, ConditionLocation(node.addr))
         # we do not go ahead and collect into the loop body
-        return
+        return None
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
         self._collect_uses(node.switch_expr, ConditionLocation(node.addr))
@@ -717,7 +718,7 @@ class ExpressionFolder(SequenceWalker):
                 node.condition = r
 
         # again, do not replace into the loop body
-        return
+        return None
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
         replacer = ExpressionReplacer(self._assignments, self._uses)
