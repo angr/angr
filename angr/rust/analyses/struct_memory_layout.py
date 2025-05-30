@@ -150,6 +150,7 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
             self._analyze()
 
     def _parse_ground_truth(self):
+        self.kb.librust.regenerate()
         for target_struct_name in TARGET_STRUCT_TYPES:
             struct_ty = self.project.kb.known_structs[target_struct_name].with_arch(self.project.arch)
             for func, arg_idx, prototype in self._related_prototypes[target_struct_name]:
