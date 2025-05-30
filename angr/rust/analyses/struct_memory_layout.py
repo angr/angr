@@ -168,7 +168,7 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
                 feature_collector = FeatureCollector(self.project)
                 clinic = self.project.kb.clinic_factory.get(func)
                 if clinic:
-                    feature_collector.process(arg_idx, clinic.graph)
+                    feature_collector.process(arg_idx, clinic)
                     self.ground_truth[func.demangled_name] = feature_collector.get_feature(struct_ty)
 
     def _permutate_fields(self, struct_ty: RustSimStruct) -> List[RustSimStruct]:
