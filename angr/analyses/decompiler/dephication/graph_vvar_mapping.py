@@ -140,9 +140,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             if candidate_vvar_set:
                 candidate_vvar_set_to_phiid[frozenset(candidate_vvar_set)].add(phi_id)
 
-        for candidate_vvar_set, phi_ids in candidate_vvar_set_to_phiid.items():
+        for vvar_set, phi_ids in candidate_vvar_set_to_phiid.items():
             # insert copies of variables as needed
-            for varid in candidate_vvar_set:
+            for varid in vvar_set:
                 insertion_type, new_vvar_ids = self._insert_vvar_copy(varid, phi_ids)
 
                 if insertion_type == 0:
@@ -292,6 +292,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         def _handle_VirtualVariable(  # pylint:disable=unused-argument
             expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
         ):
+            assert old_vvarid is not None and new_vvarid is not None
             return (
                 None
                 if expr.varid != old_vvarid
@@ -304,11 +305,12 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             block.statements.insert(len(block.statements) - 1, stmt)
 
             # replace the vvar usage in the last statement if it's used there
-            replacer = AILBlockWalker()
-            replacer.expr_handlers[VirtualVariable] = _handle_VirtualVariable
-            new_stmt = replacer.walk_statement(block.statements[-1])
-            if new_stmt is not None and new_stmt is not block.statements[-1]:
-                block.statements[-1] = new_stmt
+            if old_vvarid is not None and new_vvarid is not None:
+                replacer = AILBlockWalker()
+                replacer.expr_handlers[VirtualVariable] = _handle_VirtualVariable
+                new_stmt = replacer.walk_statement(block.statements[-1])
+                if new_stmt is not None and new_stmt is not block.statements[-1]:
+                    block.statements[-1] = new_stmt
 
         else:
             block.statements.append(stmt)
