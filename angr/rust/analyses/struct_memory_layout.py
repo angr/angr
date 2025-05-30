@@ -10,7 +10,7 @@ from angr.ailment.statement import Store, ConditionalJump, Call
 from angr.rust.definitions.features import struct_features
 from angr.rust.definitions.prototypes import generate_known_rust_prototypes
 from angr.rust.utils.ail import extract_vvar_and_offset
-from angr.rust.mixins import CFAMixin, DFAMixin
+from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin
 from angr.rust.sim_type import RustSimStruct, RustSimTypeReference
 from angr.analyses import Analysis, AnalysesHub
 
@@ -31,6 +31,8 @@ class FeatureCollector(AILBlockWalkerBase):
             "cond_uses": defaultdict(int),
         }
 
+        self._srda: SRDAMixin | None = None
+
     @staticmethod
     def _resolve_struct_field(struct_ty: RustSimStruct, offset, path=None):
         if path is None:
@@ -48,12 +50,14 @@ class FeatureCollector(AILBlockWalkerBase):
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         vvar, offset = extract_vvar_and_offset(stmt.addr)
+        vvar = self._srda.get_terminal_vvar(vvar)
         if vvar and vvar.was_parameter and vvar.varid == self.arg_idx:
             self.feature["writes"][offset] += 1
         super()._handle_Store(stmt_idx, stmt, block)
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
         vvar, offset = extract_vvar_and_offset(expr.addr)
+        vvar = self._srda.get_terminal_vvar(vvar)
         if vvar and vvar.was_parameter and vvar.varid == self.arg_idx:
             self.feature["reads"][offset] += 1
             if isinstance(stmt, ConditionalJump):
@@ -66,14 +70,16 @@ class FeatureCollector(AILBlockWalkerBase):
         if isinstance(call.target, Const) and call.target.value in self.project.kb.functions:
             func = self.project.kb.functions[call.target.value]
             for arg_idx, arg in enumerate(call.args or []):
-                if isinstance(arg, VirtualVariable) and arg.was_parameter and arg.varid == self.arg_idx:
-                    clinic = self.project.kb.clinic_factory.get(func)
-                    walker = FeatureCollector(self.project, self.depth + 1)
-                    walker.process(arg_idx, clinic.graph)
-                    for tag in walker.feature:
-                        sub_feature = walker.feature[tag]
-                        for offset, value in sub_feature.items():
-                            self.feature[tag][offset] += value
+                if isinstance(arg, VirtualVariable):
+                    arg = self._srda.get_terminal_vvar(arg)
+                    if arg.was_parameter and arg.varid == self.arg_idx:
+                        clinic = self.project.kb.clinic_factory.get(func)
+                        walker = FeatureCollector(self.project, self.depth + 1)
+                        walker.process(arg_idx, clinic)
+                        for tag in walker.feature:
+                            sub_feature = walker.feature[tag]
+                            for offset, value in sub_feature.items():
+                                self.feature[tag][offset] += value
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         self._handle_call(stmt)
@@ -103,9 +109,10 @@ class FeatureCollector(AILBlockWalkerBase):
             new_feature[tag] = new_sub_feature
         return new_feature
 
-    def process(self, arg_idx, graph):
+    def process(self, arg_idx, clinic):
         self.arg_idx = arg_idx
-        for block in graph.nodes:
+        self._srda = SRDAMixin(clinic.func, clinic.graph, self.project)
+        for block in clinic.graph.nodes:
             self.walk(block)
 
 
@@ -154,7 +161,7 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
         for target_struct_name in TARGET_STRUCT_TYPES:
             struct_ty = self.project.kb.known_structs[target_struct_name].with_arch(self.project.arch)
             for func, arg_idx, prototype in self._related_prototypes[target_struct_name]:
-                if func.demangled_name == "<alloc::string::String as core::fmt::Write>::write_str":
+                if func.demangled_name == "alloc::fmt::format::format_inner":
                     import ipdb
 
                     ipdb.set_trace()
@@ -222,7 +229,7 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
                 : self.max_attempts_per_struct
             ]:
                 clinic = self.project.kb.clinic_factory.get(func)
-                feature_collector.process(arg_idx, clinic.graph)
+                feature_collector.process(arg_idx, clinic)
             candidates = self._permutate_fields(struct_ty)
             best_candidate, min_edit_distance = struct_ty, sys.maxsize
             ground_truth = struct_features[target_struct_name]
