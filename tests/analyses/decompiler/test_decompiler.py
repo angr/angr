@@ -5190,7 +5190,7 @@ class TestDecompiler(unittest.TestCase):
             assert "vvar" not in line and "reg" not in line
 
     def test_decompiling_budgit_cgc_recvline(self, decompiler_options=None):
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "budgit")
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "BudgIT")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
         func = proj.kb.functions[0x402360]
