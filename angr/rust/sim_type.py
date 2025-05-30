@@ -37,6 +37,11 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         return f"{name}: {self.__repr__()}"
 
     @property
+    def alignment(self):
+        align = super().alignment
+        return align if align > 0 else 1
+
+    @property
     def size(self):
         return self._size
 
@@ -444,7 +449,7 @@ class EnumVariant:
         if self.has_fields():
             field_ty = self.fields[0][0]
             if self.discriminant_size:
-                return max(self.discriminant_size, field_ty.alignment)
+                return max(self.discriminant_size, field_ty.alignment if isinstance(field_ty.alignment, int) else 0)
         return 0
 
     @property
@@ -514,9 +519,12 @@ class RustSimEnum(RustSimType, SimType):
         self.name = name
         self.variants = variants
 
+        self._size = None
+
     @property
     def size(self) -> int:
-        return max(variant.bits for variant in self.variants)
+        self._size = self._size or max(variant.bits for variant in self.variants)
+        return self._size
 
     def copy(self):
         return RustSimEnum(self.name, self.variants).with_arch(self._arch)
