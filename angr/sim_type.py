@@ -1677,7 +1677,7 @@ class SimStruct(NamedTypeMixin, SimType):
                     self.name,
                 )
                 continue
-            if not self._pack:
+            if not self._pack and ty.size > 0:
                 align = ty.alignment
                 if align is NotImplemented:
                     # hack!
@@ -1687,8 +1687,8 @@ class SimStruct(NamedTypeMixin, SimType):
                 offsets[name] = offset_so_far
                 offset_so_far += ty.size // self._arch.byte_width
             else:
-                offsets[name] = offset_so_far // self._arch.byte_width
-                offset_so_far += ty.size
+                offsets[name] = offset_so_far
+                offset_so_far += ty.size // self._arch.byte_width
 
         return offsets
 

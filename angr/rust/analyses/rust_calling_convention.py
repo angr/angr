@@ -299,9 +299,11 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             if self.graph is None and self.func.normalized and self.func.size:
                 try:
                     cfg = self.kb.cfgs.get_most_accurate()
+                    l.error(f"Clinic for {self.func.demangled_name}")
                     self.graph = self.project.analyses.Clinic(
                         self.func, cfg=cfg, optimization_passes=[UnreachableBranchFixer, CleanupCodeRemover]
                     ).graph
+                    l.error(f"Clinic end for {self.func.demangled_name}")
                 except Exception as e:
                     l.error(f"Failed to recover AIL graph for {normalize(self.func.name)}")
                     l.error("".join(traceback.format_exception(e)))

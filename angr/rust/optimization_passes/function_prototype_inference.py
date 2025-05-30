@@ -30,6 +30,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         # For debug purpose
         if self.match_call(call, CLEANUP_FUNCTIONS):
             return
+
         # Perform calling convention analysis on target function if it's never analyzed
         if (
             call

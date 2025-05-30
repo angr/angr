@@ -3,7 +3,7 @@ from ailment.expression import ComboRegister
 from ailment.statement import Call
 from .utils import CallReplacer
 
-from ...calling_conventions import SimStructArg, SimRegArg
+from ...calling_conventions import SimStructArg, SimRegArg, SimFunctionArgument
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -21,23 +21,28 @@ class RetExprRewriter(OptimizationPass):
     def _check(self):
         return self.project.is_rust_binary, None
 
+    def _flatten_locs(self, arg: SimFunctionArgument):
+        if isinstance(arg, SimStructArg):
+            locs = []
+            for loc in arg.locs.values():
+                locs += self._flatten_locs(loc)
+            return locs
+        return [arg]
+
     def _analyze(self, cache=None):
         def callback(call: Call, block, stmt, is_expr):
             if isinstance(call.target, Const) and call.target.value in self.kb.functions:
                 func = self.kb.functions[call.target.value]
-                if func.demangled_name == "<std::fs::File as std::io::Read>::read_to_string":
-                    import ipdb
-
-                    ipdb.set_trace()
                 if func.prototype and func.calling_convention and func.prototype.returnty:
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
+                    ret_locs = self._flatten_locs(ret_val)
                     if (
                         isinstance(ret_val, SimStructArg)
                         and len(ret_val.locs) >= 2
-                        and all(isinstance(arg, SimRegArg) for arg in ret_val.locs.values())
+                        and all(isinstance(arg, SimRegArg) for arg in ret_locs)
                     ):
                         regs = []
-                        for reg_arg in ret_val.locs.values():
+                        for reg_arg in ret_locs:
                             reg_offset, reg_size = self.project.arch.registers[reg_arg.reg_name]
                             reg = Register(
                                 None,

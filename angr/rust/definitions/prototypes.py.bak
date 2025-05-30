@@ -1,0 +1,135 @@
+from angr.rust.sim_type import (
+    RustSimTypeFunction,
+    RustSimTypeInt,
+    RustSimTypeReference,
+    RustSimTypeSize,
+    RustSimTypeBottom,
+    RustSimTypeResult,
+    RustSimTypeSlice,
+    RustSimTypeUnit,
+    RustSimTypeStrRef,
+)
+
+
+def generate_known_rust_prototypes(project):
+    known_structs = project.kb.known_structs
+    Arguments = known_structs["core::fmt::Arguments"]
+    String = known_structs["alloc::string::String"]
+    return {
+        "String::from": RustSimTypeFunction(
+            args=[RustSimTypeReference(String), RustSimTypeStrRef()],
+            returnty=None,
+            is_arg0_retbuf=True,
+        ),
+        "String::new": RustSimTypeFunction(
+            args=[RustSimTypeReference(String)],
+            returnty=None,
+            is_arg0_retbuf=True,
+        ),
+        "Vec::with_capacity": RustSimTypeFunction(
+            args=[RustSimTypeSize()],
+            returnty=String,
+        ),
+        "std::io::stdio::_print": RustSimTypeFunction(
+            args=[RustSimTypeReference(Arguments)],
+            returnty=None,
+        ),
+        "core::panicking::panic_fmt": RustSimTypeFunction(
+            args=[RustSimTypeReference(Arguments)],
+            returnty=None,
+        ),
+        "alloc::fmt::format::format_inner": RustSimTypeFunction(
+            args=[RustSimTypeReference(String), RustSimTypeReference(Arguments)],
+            returnty=None,
+            is_arg0_retbuf=True,
+        ),
+        "alloc::fmt::format": RustSimTypeFunction(
+            args=[RustSimTypeReference(String), RustSimTypeReference(Arguments)],
+            returnty=None,
+            is_arg0_retbuf=True,
+        ),
+        "std::io::stdio::_eprint": RustSimTypeFunction(
+            args=[RustSimTypeReference(Arguments)],
+            returnty=None,
+        ),
+        "std::env::args": RustSimTypeFunction(
+            args=[RustSimTypeReference(Arguments)], returnty=None, is_arg0_retbuf=True
+        ),
+        "std::env::Args::len": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=RustSimTypeSize(), is_class_member_function=True
+        ),
+        "std::env::Args::next": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeInt(64)), RustSimTypeReference(RustSimTypeInt(64))],
+            returnty=RustSimTypeSize(),
+            is_arg0_retbuf=True,
+            is_class_member_function=True,
+        ),
+        "core::result::unwrap": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
+        ),
+        "core::option::unwrap": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
+        ),
+        "std::io::Write::write_all": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeSlice(RustSimTypeInt(8))],
+            returnty=RustSimTypeResult(
+                RustSimTypeUnit(), 0, project.arch.bytes, RustSimTypeReference(RustSimTypeBottom()), None, 0
+            ),
+        ),
+        # "<std::fs::File as std::io::Read>::read_to_string": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(String)],
+        #     returnty=RustSimTypeResult(
+        #         RustSimTypeSize().with_arch(project.arch),
+        #         0,
+        #         project.arch.bytes,
+        #         RustSimTypeReference(RustSimTypeBottom()),
+        #         None,
+        #         0,
+        #     ),
+        # ),
+        "<std::fs::File as std::io::Read>::read_to_string": RustSimTypeFunction(
+            args=[
+                RustSimTypeReference(known_structs["std::fs::File"]),
+                RustSimTypeReference(known_structs["alloc::string::String"]),
+            ],
+            returnty=known_structs["core::result::Result<usize, std::io::error::Error>"],
+        ),
+        # "std::io::Read::read_to_string": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(known_structs["String"])],
+        #     returnty=RustSimTypeResult(
+        #         RustSimTypeSize(signed=False), 0, project.arch.bytes, known_structs["Error"], None, 0
+        #     ).with_arch(project.arch),
+        #     is_arg0_retbuf=False,
+        # ),
+        "<alloc::string::String as core::cmp::PartialEq>::eq": RustSimTypeFunction(
+            args=[RustSimTypeReference(String), RustSimTypeReference(String)],
+            returnty=RustSimTypeInt(8, signed=False),
+        ),
+        "<alloc::string::String as core::cmp::PartialEq>::ne": RustSimTypeFunction(
+            args=[RustSimTypeReference(String), RustSimTypeReference(String)],
+            returnty=RustSimTypeInt(8, signed=False),
+        ),
+        "std::fs::File::create": RustSimTypeFunction(
+            args=[known_structs["&std::path::Path"]],
+            returnty=known_structs["core::result::Result<std::fs::File, std::io::error::Error>"],
+        ),
+        # "<alloc::string::String as core::fmt::Write>::write_str": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(known_structs["alloc::string::String"]), known_structs["&str"]],
+        #     returnty=known_structs["core::result::Result<(), core::fmt::Error>"],
+        # ),
+        # "<alloc::string::String as core::fmt::Write>::write_char": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(known_structs["alloc::string::String"]), RustSimTypeInt(8, signed=False)],
+        #     returnty=known_structs["core::result::Result<(), core::fmt::Error>"],
+        # ),
+        # "<std::fs::File as std::io::Read>::read_to_string": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(String)],
+        #     returnty=RustSimTypeResult(
+        #         RustSimTypeSize().with_arch(project.arch),
+        #         0,
+        #         project.arch.bytes,
+        #         RustSimTypeReference(RustSimTypeBottom()),
+        #         None,
+        #         0,
+        #     ),
+        # ),
+    }
