@@ -1,6 +1,6 @@
-from ailment import AILBlockWalker, Block, BinaryOp, Const
-from ailment.expression import VirtualVariable, Load, StringLiteral
-from ailment.statement import Call, Statement, FunctionLikeMacro
+from angr.ailment import AILBlockWalker, Block, BinaryOp, Const
+from angr.ailment.expression import VirtualVariable, Load, StringLiteral
+from angr.ailment.statement import Call, Statement, FunctionLikeMacro
 
 from ..utils.ail import unwrap_stack_vvar_reference
 from angr.rust.sim_type import RustSimStruct

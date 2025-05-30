@@ -4,10 +4,9 @@ from collections import OrderedDict, defaultdict
 from typing import List
 import sys
 
-from ailment import Const, AILBlockWalkerBase, Block, Statement
-from ailment.expression import Load, VirtualVariable
-from ailment.statement import Store, ConditionalJump, Call
-
+from angr.ailment import Const, AILBlockWalkerBase, Block, Statement
+from angr.ailment.expression import Load, VirtualVariable
+from angr.ailment.statement import Store, ConditionalJump, Call
 from angr.rust.definitions.features import struct_features
 from angr.rust.definitions.prototypes import generate_known_rust_prototypes
 from angr.rust.utils.ail import extract_vvar_and_offset

@@ -1,8 +1,8 @@
 from typing import Any, Tuple, Union
 
-from ailment import Block, AILBlockWalker, Expression, UnaryOp, BinaryOp, Const
-from ailment.expression import VirtualVariable
-from ailment.statement import Call, Statement
+from angr.ailment import Block, AILBlockWalker, Expression, UnaryOp, BinaryOp, Const
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Call, Statement
 
 
 class CallFinder(AILBlockWalker):

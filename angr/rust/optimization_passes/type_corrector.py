@@ -1,6 +1,6 @@
-import ailment
-from ailment.expression import VirtualVariable, Struct
-from ailment.statement import Call, Store, Assignment, FunctionLikeMacro
+import angr.ailment as ailment
+from angr.ailment.expression import VirtualVariable, Struct
+from angr.ailment.statement import Call, Store, Assignment, FunctionLikeMacro
 
 from ..sim_type import RustSimStruct, RustSimEnum, is_composite_type
 from ...utils.graph import GraphUtils

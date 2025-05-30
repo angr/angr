@@ -1,6 +1,5 @@
-from ailment.expression import StackBaseOffset, VirtualVariable, StringLiteral
-from ailment.statement import Call, Assignment, FunctionLikeMacro
-
+from angr.ailment.expression import StackBaseOffset, VirtualVariable, StringLiteral
+from angr.ailment.statement import Call, Assignment, FunctionLikeMacro
 from angr.utils.graph import GraphUtils
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.mixins.cfa_mixin import CFAMixin

@@ -1,7 +1,7 @@
-import ailment
-from ailment import AILBlockWalker, Block
-from ailment.statement import *
-from ailment.expression import *
+import angr.ailment as ailment
+from angr.ailment import AILBlockWalker, Block
+from angr.ailment.statement import *
+from angr.ailment.expression import *
 
 
 def extract_callee(obj, kb):

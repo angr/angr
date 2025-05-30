@@ -2,10 +2,9 @@ import logging
 from collections import defaultdict
 from typing import Tuple
 
-from ailment import Block
-from ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array
-from ailment.statement import Call, FunctionLikeMacro
-
+from angr.ailment import Block
+from angr.ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array
+from angr.ailment.statement import Call, FunctionLikeMacro
 from angr.rust.optimization_passes.utils import extract_str_from_addr
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from collections import OrderedDict
 from enum import Enum, IntEnum
 from typing import TYPE_CHECKING, Self, cast
 
@@ -223,13 +224,48 @@ class Register(Atom):
         return Register(manager.next_atom(), self.variable, self.reg_offset, self.bits, **self.tags)
 
 
+class ComboRegister(Atom):
+
+    def __init__(self, idx, variable, registers: list[Register | VirtualVariable], **kwargs):
+        super().__init__(idx, variable, **kwargs)
+        self.registers = registers
+        self.bits = sum(reg.bits for reg in registers)
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    def likes(self, other):
+        return (
+            type(self) is type(other)
+            and len(self.registers) == len(other.registers)
+            and all(reg.likes(other_reg) for reg, other_reg in zip(self.registers, other.registers))
+        )
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return "ComboRegister(" + ", ".join(str(reg) for reg in self.registers) + ")"
+
+    matches = likes
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash(("combo_reg", tuple(self.registers), self.bits, self.idx))
+
+    def copy(self) -> ComboRegister:
+        return ComboRegister(self.idx, self.variable, self.registers, **self.tags)
+
+
 class VirtualVariableCategory(IntEnum):
     REGISTER = 0
     STACK = 1
     MEMORY = 2
     PARAMETER = 3
     TMP = 4
-    UNKNOWN = 5
+    COMBO_REGISTER = 5
+    UNKNOWN = 6
 
 
 class VirtualVariable(Atom):
@@ -272,6 +308,10 @@ class VirtualVariable(Atom):
         return self.category == VirtualVariableCategory.TMP
 
     @property
+    def was_combo_reg(self) -> bool:
+        return self.category == VirtualVariableCategory.COMBO_REGISTER
+
+    @property
     def reg_offset(self) -> int:
         if self.was_reg:
             assert isinstance(self.oident, int)
@@ -279,6 +319,13 @@ class VirtualVariable(Atom):
         if self.was_parameter and self.parameter_category == VirtualVariableCategory.REGISTER:
             return self.parameter_reg_offset  # type: ignore
         raise TypeError("Is not a register")
+
+    @property
+    def reg_offsets(self) -> tuple:
+        if self.was_combo_reg:
+            assert isinstance(self.oident, tuple)
+            return self.oident
+        raise TypeError("Is not a combo register")
 
     @property
     def stack_offset(self) -> int:
@@ -2012,3 +2059,258 @@ class Call(Expression):
             bits=self.bits,
             **self.tags,
         )
+#
+# Rust-specific expressions
+#
+
+
+class StringLiteral(Expression):
+    def __init__(self, idx, data, bits, **kwargs):
+        super().__init__(idx, 0, **kwargs)
+        self.data = data
+        self._bits = bits
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    @property
+    def bits(self):
+        return self._bits
+
+    def __repr__(self):
+        return f'"{repr(self.data)[1:-1]}"'
+
+    def __str__(self):
+        return f"StringLiteral({repr(self)})"
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash(self.data)
+
+    def likes(self, other):
+        return type(self) is type(other) and self.data == other.data
+
+    def replace(self, old_expr: Expression, new_expr: Expression) -> tuple[bool, Self]:
+        if old_expr.likes(self):
+            r, replaced = True, new_expr
+        else:
+            r, replaced = False, self
+
+        return r, replaced
+
+    matches = likes
+
+
+class Struct(Expression):
+    def __init__(self, idx, name, fields, field_offsets, bits, **kwargs):
+        super().__init__(idx, (max(field.depth for field in fields.values()) if len(fields) else 0) + 1, **kwargs)
+        self.name = name
+        self.fields = fields
+        self.field_offsets = field_offsets
+        self.field_names = OrderedDict([(v, k) for k, v in field_offsets.items()])
+        self._bits = bits
+
+    def get_field(self, name):
+        offset = self.field_offsets.get(name, None)
+        return self.fields.get(offset, None)
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    @property
+    def bits(self):
+        return self._bits
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return self.name + " " + str(self.fields)
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((self.name, tuple(self.fields.items()), tuple(self.field_offsets.items()), self.bits))
+
+    def likes(self, other):
+        return (
+            type(self) is type(other)
+            and self.name == other.name
+            and self.fields.keys() == other.fields.keys()
+            and all(self.fields[k].likes(other.fields[k]) for k in self.fields)
+            and self.field_offsets == other.field_offsets
+        )
+
+    def copy(self):
+        return Struct(self.idx, self.name, self.fields, self.field_offsets, self.bits)
+
+    def replace(self, old_expr, new_expr):
+        new_fields = OrderedDict()
+        replaced = False
+        for offset, field in self.fields.items():
+            if field is old_expr:
+                new_fields[offset] = new_expr
+                replaced = True
+            else:
+                field_replaced, new_field = field.replace(old_expr, new_expr)
+                if field_replaced:
+                    new_fields[offset] = new_field
+                    replaced = True
+                else:
+                    new_fields[offset] = field
+
+        if replaced:
+            return True, Struct(self.idx, self.name, new_fields, self.field_offsets, self.bits, **self.tags)
+        else:
+            return False, self
+
+    matches = likes
+
+
+class Enum(Expression):
+    def __init__(self, idx, name, fields, bits, **kwargs):
+        super().__init__(idx, (max(field.depth for field in fields) if len(fields) else 0) + 1, **kwargs)
+        self.name = name
+        self.fields = fields
+        self._bits = bits
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    @property
+    def bits(self):
+        return self._bits
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return f"{self.name}({str(self.fields)})"
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((self.name, tuple(self.fields), self.bits))
+
+    def likes(self, other):
+        return (
+            type(self) is type(other)
+            and self.name == other.name
+            and self.fields == other.fields
+            and self.bits == other.bits
+        )
+
+    def copy(self):
+        return Enum(self.idx, self.name, self.fields, self.bits)
+
+    def replace(self, old_expr, new_expr):
+        new_fields = []
+        replaced = False
+        for field in self.fields:
+            if field is old_expr:
+                new_fields.append(new_expr)
+                replaced = True
+            else:
+                field_replaced, new_field = field.replace(old_expr, new_expr)
+                if field_replaced:
+                    new_fields.append(new_field)
+                    replaced = True
+                else:
+                    new_fields.append(field)
+
+        if replaced:
+            return True, Enum(self.idx, self.name, new_fields, self.bits, **self.tags)
+        else:
+            return False, self
+
+    matches = likes
+
+
+class Array(Expression):
+    def __init__(self, idx, elements, bits, **kwargs):
+        super().__init__(idx, (max(ele.depth for ele in elements) if len(elements) else 0) + 1, **kwargs)
+        self.elements = elements
+        self._bits = bits
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    @property
+    def bits(self):
+        return self._bits
+
+    @property
+    def length(self):
+        return len(self.elements)
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return str(self.elements)
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((tuple(self.elements), self.bits))
+
+    def likes(self, other):
+        return type(self) is type(other) and self.elements == other.elements and self.bits == other.bits
+
+    def copy(self):
+        return Array(self.idx, self.elements, self.bits)
+
+    def replace(self, old_expr, new_expr):
+        new_elements = []
+        replaced = False
+        for element in self.elements:
+            if element is old_expr:
+                new_elements.append(new_expr)
+                replaced = True
+            else:
+                element_replaced, new_element = element.replace(old_expr, new_expr)
+                if element_replaced:
+                    new_elements.append(new_element)
+                    replaced = True
+                else:
+                    new_elements.append(element)
+
+        if replaced:
+            return True, Array(self.idx, new_elements, self.bits, **self.tags)
+        else:
+            return False, self
+
+    matches = likes
+
+
+class Let(Op):
+    __slots__ = ("variant", "defs", "src", "bits")
+
+    def __init__(self, idx, variant, defs, src, **kwargs):
+        super().__init__(idx, depth=src.depth + 1, op="let", **kwargs)
+        self.variant = variant
+        self.defs = defs
+        self.src = src
+
+        self.bits = src.bits
+
+    def __repr__(self):
+        return str(self)
+
+    def __str__(self):
+        return f"let {self.variant.name}(_) = {self.src}"
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((self.variant, self.src))
+
+    def likes(self, other):
+        return type(self) is type(other) and self.variant == other.variant and self.src == other.src
+
+    matches = likes

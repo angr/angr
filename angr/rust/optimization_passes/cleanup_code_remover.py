@@ -1,8 +1,7 @@
 import logging
 
-from ailment.expression import VirtualVariable
-from ailment.statement import Return, Label, Call
-
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Return, Label, Call
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin, SRDAMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.utils.ail import CallFinder, find_call

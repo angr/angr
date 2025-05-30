@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ailment import Const
+from angr.ailment import Const
 
 from angr.rust.definitions.structs import default_structs
 from ..optimization_passes.utils import extract_str_from_addr

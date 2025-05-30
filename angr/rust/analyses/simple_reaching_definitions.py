@@ -1,10 +1,9 @@
 from collections import defaultdict
 from typing import Optional, Dict
 
-from ailment import Expression, Block
-from ailment.expression import BasePointerOffset
-from ailment.statement import Call, Store
-
+from angr.ailment import Expression, Block
+from angr.ailment.expression import BasePointerOffset
+from angr.ailment.statement import Call, Store
 from angr.analyses import Analysis, AnalysesHub
 from angr.utils.graph import GraphUtils
 

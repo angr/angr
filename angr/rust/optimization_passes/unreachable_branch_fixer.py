@@ -1,7 +1,6 @@
-from ailment import BinaryOp
-from ailment.expression import VirtualVariable, Const
-from ailment.statement import ConditionalJump, Assignment
-
+from angr.ailment import BinaryOp
+from angr.ailment.expression import VirtualVariable, Const
+from angr.ailment.statement import ConditionalJump, Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
 

@@ -1,4 +1,4 @@
-from ailment import Const
+from angr.ailment import Const
 
 
 class StrMixin:

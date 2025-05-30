@@ -2,13 +2,13 @@ import logging
 from typing import Optional
 
 import archinfo
-from ailment import Block, Const
-from ailment.expression import (
+from angr.ailment import Block, Const
+from angr.ailment.expression import (
     Convert,
     VirtualVariable,
     VirtualVariableCategory,
 )
-from ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
+from angr.ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
 from networkx import NetworkXError
 
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass

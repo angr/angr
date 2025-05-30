@@ -1,9 +1,9 @@
 from typing import Dict, Optional
 
 import archinfo
-from ailment import Const, AILBlockWalker, Block
-from ailment.expression import BinaryOp, VirtualVariable, UnaryOp, StringLiteral
-from ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump, Statement, FunctionLikeMacro
+from angr.ailment import Const, AILBlockWalker, Block
+from angr.ailment.expression import BinaryOp, VirtualVariable, UnaryOp, StringLiteral
+from angr.ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump, Statement, FunctionLikeMacro
 
 from .base import TransformationPass, SSAVariableHelper
 from ..mixins.srda_mixin import SRDAMixin
