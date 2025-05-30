@@ -153,13 +153,15 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
         for target_struct_name in TARGET_STRUCT_TYPES:
             struct_ty = self.project.kb.known_structs[target_struct_name].with_arch(self.project.arch)
             for func, arg_idx, prototype in self._related_prototypes[target_struct_name]:
+                if func.demangled_name == "<alloc::string::String as core::fmt::Write>::write_str":
+                    import ipdb
+
+                    ipdb.set_trace()
                 feature_collector = FeatureCollector(self.project)
                 clinic = self.project.kb.clinic_factory.get(func)
-                feature_collector.process(arg_idx, clinic.graph)
-                self.ground_truth[func.demangled_name] = feature_collector.get_feature(struct_ty)
-                import ipdb
-
-                ipdb.set_trace()
+                if clinic:
+                    feature_collector.process(arg_idx, clinic.graph)
+                    self.ground_truth[func.demangled_name] = feature_collector.get_feature(struct_ty)
 
     def _permutate_fields(self, struct_ty: RustSimStruct) -> List[RustSimStruct]:
         if struct_ty.name in self._permutation_memo:
