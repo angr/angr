@@ -119,7 +119,7 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
     This analysis aims to recover the memory layouts (field orders) of Rust standard library structs.
     """
 
-    def __init__(self, max_attempts_per_struct=5):
+    def __init__(self, max_attempts_per_struct=10, parse_ground_truth=False):
         CFAMixin.__init__(self, None, self.project)
         DFAMixin.__init__(self, None)
         self.max_attempts_per_struct = max_attempts_per_struct
@@ -143,7 +143,23 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
 
         self._permutation_memo = {}
 
-        self._analyze()
+        if parse_ground_truth:
+            self.ground_truth = {}
+            self._parse_ground_truth()
+        else:
+            self._analyze()
+
+    def _parse_ground_truth(self):
+        for target_struct_name in TARGET_STRUCT_TYPES:
+            struct_ty = self.project.kb.known_structs[target_struct_name].with_arch(self.project.arch)
+            for func, arg_idx, prototype in self._related_prototypes[target_struct_name]:
+                feature_collector = FeatureCollector(self.project)
+                clinic = self.project.kb.clinic_factory.get(func)
+                feature_collector.process(arg_idx, clinic.graph)
+                self.ground_truth[func.demangled_name] = feature_collector.get_feature(struct_ty)
+                import ipdb
+
+                ipdb.set_trace()
 
     def _permutate_fields(self, struct_ty: RustSimStruct) -> List[RustSimStruct]:
         if struct_ty.name in self._permutation_memo:
