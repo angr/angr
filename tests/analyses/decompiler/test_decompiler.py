@@ -5189,6 +5189,32 @@ class TestDecompiler(unittest.TestCase):
             # it was `*((int *)&v1) = vvar_14{reg 56};`
             assert "vvar" not in line and "reg" not in line
 
+    def test_decompiling_budgit_cgc_recvline(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "budgit")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        func = proj.kb.functions[0x402360]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # we expect no redundant assignments like "v4 = v4;"
+        lines = dec.codegen.text.split("\n")
+        for line in lines:
+            line = line.strip(" ")
+            m = re.match(r"v(\d+) = v(\d+);", line)
+            if m is not None:
+                v1, v2 = m.groups()
+                assert v1 != v2, f"Found a redundant assignment: {line}"
+        # we expect two equivalence checks like v3[1] == 7
+        var_ids = []
+        for line in lines:
+            m = re.search(r"v(\d+)\[1] == 7", line)
+            if m is not None:
+                var_ids.append(m.group(1))
+        assert len(var_ids) == 2, f"Expected two equivalence checks, found {len(var_ids)}: {var_ids}"
+        assert len(set(var_ids)) == 1, f"Expected the same variable in both equivalence checks, found {var_ids}"
+
 
 if __name__ == "__main__":
     unittest.main()
