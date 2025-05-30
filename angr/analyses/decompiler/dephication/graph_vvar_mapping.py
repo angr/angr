@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
+from angr.ailment import AILBlockWalker
 from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Jump, ConditionalJump, Label
@@ -88,6 +89,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         unresolved_neighbor_map = defaultdict(set)
 
         # check for interferences
+        candidate_vvar_set_to_phiid: defaultdict[frozenset[int], set[int]] = defaultdict(set)
         for phi_id, src_and_varids in phi_to_srcvarid.items():
             candidate_vvar_set: set[int] = set()
             src_and_varids = list(src_and_varids)
@@ -135,9 +137,13 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         if not unresolved_neighbor_map[neighbor]:
                             del unresolved_neighbor_map[neighbor]
 
+            if candidate_vvar_set:
+                candidate_vvar_set_to_phiid[frozenset(candidate_vvar_set)].add(phi_id)
+
+        for vvar_set, phi_ids in candidate_vvar_set_to_phiid.items():
             # insert copies of variables as needed
-            for varid in candidate_vvar_set:
-                insertion_type, new_vvar_ids = self._insert_vvar_copy(varid, phi_id)
+            for varid in vvar_set:
+                insertion_type, new_vvar_ids = self._insert_vvar_copy(varid, phi_ids)
 
                 if insertion_type == 0:
                     for src, old_vvar_id, new_vvar_id in new_vvar_ids:
@@ -159,19 +165,20 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                             interference.add_edge(new_vvar_id, vvar_id)
 
                 else:  # insertion_type == 1, i.e. the set has only one element
-                    phi_block_loc, old_phi_varid, new_phi_varid = next(iter(new_vvar_ids))
-                    self.copied_vvar_ids.add(new_phi_varid)
+                    for phi_block_loc, old_phi_varid, new_phi_varid in new_vvar_ids:
+                        self.copied_vvar_ids.add(new_phi_varid)
 
-                    phi_congruence_class[new_phi_varid] = {new_phi_varid}
+                        phi_congruence_class[new_phi_varid] = {new_phi_varid}
 
-                    live_ins[phi_block_loc].discard(old_phi_varid)
-                    live_ins[phi_block_loc].add(new_phi_varid)
+                        live_ins[phi_block_loc].discard(old_phi_varid)
+                        live_ins[phi_block_loc].add(new_phi_varid)
 
-                    # update interference graph
-                    for vvar_id in live_ins[phi_block_loc]:
-                        interference.add_edge(new_phi_varid, vvar_id)
+                        # update interference graph
+                        for vvar_id in live_ins[phi_block_loc]:
+                            interference.add_edge(new_phi_varid, vvar_id)
 
-            # update phi_congruence_class
+        # update phi_congruence_class
+        for phi_id in phi_to_srcvarid:
             (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
             phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
             # phi_stmt is the newly created phi statement with variables replaced
@@ -199,82 +206,112 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
         return mapping
 
-    def _insert_vvar_copy(self, varid: int, phi_varid: int) -> tuple[int, set]:
-        (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_varid]
-        if varid != phi_varid:
-            # it's one of the source vvars
-
-            phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
-            phi_stmt = phi_block.statements[phidef_stmt_idx]
-
-            new_vvar_ids = set()
-
-            for src, vvar in list(phi_stmt.src.src_and_vvars):
-                if vvar is None or vvar.varid != varid:
-                    continue
-
-                new_vvar_id = self.vvar_id_start
-                self.vvar_id_start += 1
-
-                vvar = self._rd.varid_to_vvar[varid]
-                src_block_addr, src_block_idx = src
-
-                the_block = self._blocks[(src_block_addr, src_block_idx)]
-                ins_addr = the_block.addr + the_block.original_size - 1
-                if vvar.category == VirtualVariableCategory.PARAMETER:
-                    # it's a parameter, so we copy the variable into a dummy register vvar
-                    # a parameter vvar should never be assigned to
-                    new_category = VirtualVariableCategory.REGISTER
-                    new_oident = DEPHI_VVAR_REG_OFFSET
-                else:
-                    new_category = vvar.category
-                    new_oident = vvar.oident
-                new_vvar = VirtualVariable(
-                    None, new_vvar_id, vvar.bits, new_category, oident=new_oident, ins_addr=ins_addr
-                )
-                assignment = Assignment(None, new_vvar, vvar, ins_addr=ins_addr)
-
-                self._append_stmt(the_block, assignment)
-
-                # update the phi statement
-                replaced_vvars: set[int] = set()
-                for _, phi_used_vvar in list(phi_stmt.src.src_and_vvars):
-                    if phi_used_vvar is not None and phi_used_vvar.varid == varid and varid not in replaced_vvars:
-                        replaced, phi_stmt = phi_stmt.replace(phi_used_vvar, new_vvar)
-                        assert replaced
-                        replaced_vvars.add(varid)
-                phi_block.statements[phidef_stmt_idx] = phi_stmt
-
-                new_vvar_ids.add((src, varid, new_vvar_id))
-
-            return 0, new_vvar_ids
-
-        # it's the phi assignment destination vvar
-
+    def _insert_vvar_copy(
+        self, varid: int, phi_varids: set[int]
+    ) -> tuple[int, set[tuple[tuple[int, int | None], int, int]]]:
+        new_vvar_info: set[tuple[tuple[int, int | None], int, int]] = set()
         new_vvar_id = self.vvar_id_start
         self.vvar_id_start += 1
 
-        phi_vvar = self._rd.varid_to_vvar[phi_varid]
-        phi_block_addr, phi_block_idx = self._vvar_defloc[phi_varid][0]
-        the_block = self._blocks[(phi_block_addr, phi_block_idx)]
-        ins_addr = the_block.addr
-        new_vvar = VirtualVariable(
-            None, new_vvar_id, phi_vvar.bits, phi_vvar.category, oident=phi_vvar.oident, ins_addr=ins_addr
-        )
-        assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr)
+        if varid not in phi_varids:
+            # it's one of the source vvars
 
-        phi_stmt = the_block.statements[phidef_stmt_idx]
-        replaced, phi_stmt = phi_stmt.replace(phi_vvar, new_vvar)
-        the_block.statements[phidef_stmt_idx] = phi_stmt
+            stmt_appended_locs: dict[tuple[int, int | None], VirtualVariable] = {}
 
-        self._record_stmt_for_prepending(the_block, assignment)
+            # update all phi statements
+            for phi_varid in phi_varids:
+                (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_varid]
+                phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
+                phi_stmt = phi_block.statements[phidef_stmt_idx]
 
-        return 1, {((phi_block_addr, phi_block_idx), phi_varid, new_vvar_id)}
+                for src, vvar in list(phi_stmt.src.src_and_vvars):
+                    if vvar is None or vvar.varid != varid:
+                        continue
+
+                    if src not in stmt_appended_locs:
+                        # we have not yet appended a statement to this block
+                        the_block = self._blocks[src]
+                        ins_addr = the_block.addr + the_block.original_size - 1
+                        if vvar.category == VirtualVariableCategory.PARAMETER:
+                            # it's a parameter, so we copy the variable into a dummy register vvar
+                            # a parameter vvar should never be assigned to
+                            new_category = VirtualVariableCategory.REGISTER
+                            new_oident = DEPHI_VVAR_REG_OFFSET
+                        else:
+                            new_category = vvar.category
+                            new_oident = vvar.oident
+                        new_vvar = VirtualVariable(
+                            None, new_vvar_id, vvar.bits, new_category, oident=new_oident, ins_addr=ins_addr
+                        )
+                        assignment = Assignment(None, new_vvar, vvar, ins_addr=ins_addr)
+
+                        self._append_stmt(the_block, assignment, old_vvarid=varid, new_vvarid=new_vvar_id)
+
+                        stmt_appended_locs[src] = new_vvar
+
+                    else:
+                        new_vvar = stmt_appended_locs[src]
+
+                    replaced_vvars: set[int] = set()
+                    for _, phi_used_vvar in list(phi_stmt.src.src_and_vvars):
+                        if phi_used_vvar is not None and phi_used_vvar.varid == varid and varid not in replaced_vvars:
+                            replaced, phi_stmt = phi_stmt.replace(phi_used_vvar, new_vvar)
+                            assert replaced
+                            replaced_vvars.add(varid)
+                    phi_block.statements[phidef_stmt_idx] = phi_stmt
+
+                    new_vvar_info.add((src, varid, new_vvar_id))
+
+            return 0, new_vvar_info
+
+        # it's the phi assignment destination vvar
+
+        for phi_varid in phi_varids:
+            phi_vvar = self._rd.varid_to_vvar[phi_varid]
+            (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_varid]
+            the_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
+            ins_addr = the_block.addr
+            new_vvar = VirtualVariable(
+                None, new_vvar_id, phi_vvar.bits, phi_vvar.category, oident=phi_vvar.oident, ins_addr=ins_addr
+            )
+            assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr)
+
+            phi_stmt = the_block.statements[phidef_stmt_idx]
+            replaced, phi_stmt = phi_stmt.replace(phi_vvar, new_vvar)
+            the_block.statements[phidef_stmt_idx] = phi_stmt
+
+            self._record_stmt_for_prepending(the_block, assignment)
+
+            new_vvar_info.add(((phidef_block_addr, phidef_block_idx), phi_varid, new_vvar_id))
+
+        return 1, new_vvar_info
 
     @staticmethod
-    def _append_stmt(block, stmt):
+    def _append_stmt(block, stmt, old_vvarid: int | None = None, new_vvarid: int | None = None):
+
+        def _handle_VirtualVariable(  # pylint:disable=unused-argument
+            expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
+        ):
+            assert old_vvarid is not None and new_vvarid is not None
+            return (
+                None
+                if expr.varid != old_vvarid
+                else VirtualVariable(
+                    None, new_vvarid, expr.bits, expr.category, oident=expr.oident, ins_addr=expr.ins_addr
+                )
+            )
+
         if block.statements and isinstance(block.statements[-1], (Jump, ConditionalJump)):
             block.statements.insert(len(block.statements) - 1, stmt)
+
+            # replace the vvar usage in the last statement if it's used there
+            if old_vvarid is not None and new_vvarid is not None:
+                replacer = AILBlockWalker()
+                replacer.expr_handlers[VirtualVariable] = _handle_VirtualVariable
+                new_stmt = replacer.walk_statement(block.statements[-1])
+                if new_stmt is not None and new_stmt is not block.statements[-1]:
+                    block.statements[-1] = new_stmt
+
         else:
             block.statements.append(stmt)
 

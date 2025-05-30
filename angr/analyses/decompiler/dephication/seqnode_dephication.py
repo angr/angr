@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import defaultdict
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from angr.ailment.block import Block
 from angr.ailment.statement import Assignment
@@ -15,6 +15,9 @@ from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 from .dephication_base import DephicationBase
 from .rewriting_engine import SimEngineDephiRewriting
+
+if TYPE_CHECKING:
+    from angr import KnowledgeBase
 
 
 l = logging.getLogger(__name__)
@@ -54,7 +57,14 @@ class SeqNodeRewriter(SequenceWalker):
     variables.
     """
 
-    def __init__(self, seq_node: SequenceNode, vvar_to_vvar: dict[int, int], project: angr.Project):
+    def __init__(
+        self,
+        seq_node: SequenceNode,
+        vvar_to_vvar: dict[int, int],
+        project: angr.Project,
+        variable_kb: KnowledgeBase | None = None,
+        func_addr: int | None = None,
+    ):
         super().__init__(
             handlers={
                 Block: self._handle_Block,
@@ -67,7 +77,7 @@ class SeqNodeRewriter(SequenceWalker):
         )
 
         self.vvar_to_vvar = vvar_to_vvar
-        self.engine = SimEngineDephiRewriting(project, self.vvar_to_vvar)
+        self.engine = SimEngineDephiRewriting(project, self.vvar_to_vvar, func_addr=func_addr, variable_kb=variable_kb)
 
         self.output = self.walk(seq_node)
         if self.output is None:
@@ -109,13 +119,19 @@ class SeqNodeRewriter(SequenceWalker):
 
 class SeqNodeDephication(DephicationBase):
     """
-    SeqNodeDephication removes phi expressions from an AIL SeqNode and its children.
+    SeqNodeDephication removes phi expressions from a SequenceNode and its children. It also removes redundant variable
+    assignments, e.g., `vvar_2 = vvar_1` where both vvar_1 and vvar_2 are mapped to the same variable.
     """
 
     def __init__(
-        self, func: Function | str, seq_node, vvar_to_vvar_mapping: dict[int, int] | None = None, rewrite: bool = False
+        self,
+        func: Function | str,
+        seq_node,
+        vvar_to_vvar_mapping: dict[int, int] | None = None,
+        rewrite: bool = False,
+        variable_kb: KnowledgeBase | None = None,
     ):
-        super().__init__(func, vvar_to_vvar_mapping=vvar_to_vvar_mapping, rewrite=rewrite)
+        super().__init__(func, vvar_to_vvar_mapping=vvar_to_vvar_mapping, rewrite=rewrite, variable_kb=variable_kb)
 
         self._seq_node = seq_node
 
@@ -127,7 +143,13 @@ class SeqNodeDephication(DephicationBase):
         return collector.phi_to_src
 
     def _rewrite_container(self) -> Any:
-        rewriter = SeqNodeRewriter(self._seq_node, self.vvar_to_vvar_mapping, self.project)
+        rewriter = SeqNodeRewriter(
+            self._seq_node,
+            self.vvar_to_vvar_mapping,
+            self.project,
+            func_addr=self._function.addr,
+            variable_kb=self.variable_kb,
+        )
         return rewriter.output
 
 
