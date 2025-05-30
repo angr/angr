@@ -4,11 +4,11 @@ from collections import defaultdict, OrderedDict
 import logging
 from functools import reduce
 
-import ailment
-from ailment import Block, Expr, Stmt, Tmp
-from ailment.expression import StackBaseOffset, BinaryOp, VirtualVariable, StringLiteral, Struct, Array, Enum, Let
+import angr.ailment as ailment
+from angr.ailment import Block, Expr, Stmt, Tmp
+from angr.ailment.expression import StackBaseOffset, BinaryOp, VirtualVariable, StringLiteral, Struct, Array, Enum, Let
 
-from ailment.statement import FunctionLikeMacro
+from angr.ailment.statement import FunctionLikeMacro
 from ....rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 from ....sim_type import (
     SimTypeLongLong,

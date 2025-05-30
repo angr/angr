@@ -1,9 +1,9 @@
 from typing import Dict, Optional, List
 
 import archinfo
-from ailment import Const
-from ailment.expression import BinaryOp, VirtualVariable, Load, StackBaseOffset
-from ailment.statement import Store, Assignment, Call, FunctionLikeMacro
+from angr.ailment import Const
+from angr.ailment.expression import BinaryOp, VirtualVariable, Load, StackBaseOffset
+from angr.ailment.statement import Store, Assignment, Call, FunctionLikeMacro
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 from ..base import SSAVariableHelper

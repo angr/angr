@@ -1,6 +1,5 @@
-from ailment import AILBlockWalker, Statement, Block, Assignment
-from ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp, Load
-
+from angr.ailment import AILBlockWalker, Statement, Block, Assignment
+from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp, Load
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 from angr.rust.mixins.srda_mixin import SRDAMixin
 

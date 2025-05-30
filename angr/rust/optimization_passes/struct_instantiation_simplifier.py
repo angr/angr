@@ -1,10 +1,10 @@
 from collections import defaultdict
 
 import claripy
-from ailment.expression import Const, VirtualVariable, Struct, Array
-from ailment.statement import Assignment
 from archinfo import Endness
 
+from angr.ailment.expression import Const, VirtualVariable, Struct, Array
+from angr.ailment.statement import Assignment
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
 from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef
 from angr.rust.utils.ail import unwrap_stack_vvar_reference

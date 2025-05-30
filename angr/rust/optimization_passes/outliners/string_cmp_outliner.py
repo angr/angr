@@ -1,8 +1,8 @@
 from archinfo import Endness
 
-from ailment import AILBlockWalker, BinaryOp, Const
-from ailment.expression import Load, Convert, StringLiteral
-from ailment.statement import ConditionalJump, Call
+from angr.ailment import AILBlockWalker, BinaryOp, Const
+from angr.ailment.expression import Load, Convert, StringLiteral
+from angr.ailment.statement import ConditionalJump, Call
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 

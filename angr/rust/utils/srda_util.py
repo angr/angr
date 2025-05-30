@@ -1,6 +1,6 @@
 import networkx as nx
-from ailment import Assignment
-from ailment.expression import VirtualVariable
+from angr.ailment import Assignment
+from angr.ailment.expression import VirtualVariable
 
 from angr.analyses.s_reaching_definitions import SRDAView, SReachingDefinitionsAnalysis
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE

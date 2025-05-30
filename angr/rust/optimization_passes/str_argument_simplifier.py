@@ -1,6 +1,6 @@
-from ailment import AILBlockWalker, Block, Const
-from ailment.statement import Call, Statement
-from ailment.expression import StringLiteral
+from angr.ailment import AILBlockWalker, Block, Const
+from angr.ailment.statement import Call, Statement
+from angr.ailment.expression import StringLiteral
 
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 

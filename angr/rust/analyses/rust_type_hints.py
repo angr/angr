@@ -1,6 +1,6 @@
-from ailment import Assignment
-from ailment.expression import VirtualVariable
-from ailment.statement import Call, FunctionLikeMacro
+from angr.ailment import Assignment
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Call, FunctionLikeMacro
 
 from ..sim_type import is_composite_type, RustSimTypeFunction
 from ..typehoon.lifter import RustTypeLifter

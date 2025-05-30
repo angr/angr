@@ -1,5 +1,6 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
+from collections import OrderedDict
 from abc import abstractmethod
 from typing import Any, Generic, TypeVar, cast
 from collections.abc import Callable
@@ -16,6 +17,7 @@ from .statement import (
     Jump,
     DirtyStatement,
     WeakAssignment,
+    FunctionLikeMacro,
 )
 from .expression import (
     Call,
@@ -34,6 +36,11 @@ from .expression import (
     MultiStatementExpression,
     VirtualVariable,
     Phi,
+    Enum,
+    Struct,
+    Array,
+    StringLiteral,
+    ComboRegister,
     Atom,
     Extract,
     Insert,
@@ -73,6 +80,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             VEXCCallExpression: self._handle_VEXCCallExpression,
             Tmp: self._handle_Tmp,
             Register: self._handle_Register,
+            ComboRegister: self._handle_ComboRegister,
             Reinterpret: self._handle_Reinterpret,
             Const: self._handle_Const,
             MultiStatementExpression: self._handle_MultiStatementExpression,
@@ -80,6 +88,11 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             Phi: self._handle_Phi,
             Extract: self._handle_Extract,
             Insert: self._handle_Insert,
+            Enum: self._handle_Enum,
+            Struct: self._handle_Struct,
+            Array: self._handle_Array,
+            FunctionLikeMacro: self._handle_FunctionLikeMacroExpr,
+            StringLiteral: self._handle_StringLiteral,
         }
 
         self.stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = (
@@ -414,6 +427,12 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     ):
         return None
 
+    def _handle_ComboRegister(
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        for idx, reg in enumerate(expr.registers):
+            self._handle_expr(idx, reg, stmt_idx, stmt, block)
+
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return None
 
@@ -456,6 +475,35 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+
+    def _handle_Enum(self, expr_idx: int, expr: Enum, stmt_idx: int, stmt: Statement, block: Block | None):
+        for idx, field in enumerate(expr.fields):
+            self._handle_expr(idx, field, stmt_idx, stmt, block)
+
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
+        for idx, field in enumerate(expr.fields.values()):
+            self._handle_expr(idx, field, stmt_idx, stmt, block)
+
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement, block: Block | None):
+        for idx, ele in enumerate(expr.elements):
+            self._handle_expr(idx, ele, stmt_idx, stmt, block)
+
+    def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
+        if stmt.args:
+            for i, arg in enumerate(stmt.args):
+                self._handle_expr(i, arg, stmt_idx, stmt, block)
+
+    def _handle_FunctionLikeMacroExpr(
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if expr.args:
+            for i, arg in enumerate(expr.args):
+                self._handle_expr(i, arg, stmt_idx, stmt, block)
+
+    def _handle_StringLiteral(
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        pass
 
 
 class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
@@ -571,6 +619,12 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None) -> Statement:
         new_expr = self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
         changed = new_expr is not stmt.expr
+
+        new_ret_expr = None
+        if stmt.ret_expr is not None:
+            new_ret_expr = self._handle_expr(-1, stmt.ret_expr, stmt_idx, stmt, block)
+            if new_ret_expr is not None and new_ret_expr is not stmt.ret_expr:
+                changed = True
 
         if changed:
             return SideEffectStatement(
@@ -688,6 +742,27 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             new_expr.addr = addr
             return new_expr
         return expr
+
+    def _handle_ComboRegister(
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        changed = False
+        new_regs = []
+
+        for idx, reg in enumerate(expr.registers):
+            new_reg = self._handle_expr(idx, reg, stmt_idx, stmt, block)
+            if new_reg and new_reg is not reg:
+                changed = True
+                new_regs.append(new_reg)
+            else:
+                new_regs.append(reg)
+
+        if changed:
+            new_expr = expr.copy()
+            expr.registers = new_regs
+            return new_expr
+
+        return None
 
     def _handle_CallExpr(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -891,3 +966,113 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             result.value = new_value
             return result
         return expr
+
+    def _handle_Enum(self, expr_idx: int, expr: Enum, stmt_idx: int, stmt: Statement, block: Block | None):
+        changed = False
+        new_fields = []
+        for idx, field in enumerate(expr.fields):
+            new_field = self._handle_expr(idx, field, stmt_idx, stmt, block)
+            if new_field is not None and new_field is not field:
+                changed = True
+                new_fields.append(new_field)
+            else:
+                new_fields.append(field)
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.fields = tuple(new_fields)
+            return new_expr
+        return None
+
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
+        changed = False
+        new_fields = OrderedDict()
+        for idx, (offset, field) in enumerate(expr.fields.items()):
+            new_field = self._handle_expr(idx, field, stmt_idx, stmt, block)
+            if new_field is not None and new_field is not field:
+                changed = True
+                new_fields[offset] = new_field
+            else:
+                new_fields[offset] = field
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.fields = new_fields
+            return new_expr
+        return None
+
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement, block: Block | None):
+        changed = False
+        new_elements = []
+        for idx, ele in enumerate(expr.elements):
+            new_ele = self._handle_expr(idx, ele, stmt_idx, stmt, block)
+            if new_ele is not None and new_ele is not ele:
+                changed = True
+                new_elements.append(new_ele)
+            else:
+                new_elements.append(ele)
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.elements = tuple(new_elements)
+            return new_expr
+        return None
+
+    def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
+        changed = False
+
+        new_args = None
+        if stmt.args is not None:
+            new_args = []
+
+            i = 0
+            while i < len(stmt.args):
+                arg = stmt.args[i]
+                new_arg = self._handle_expr(i, arg, stmt_idx, stmt, block)
+                if new_arg is not None and new_arg is not arg:
+                    if not changed:
+                        # initialize new_args
+                        new_args = list(stmt.args[:i])
+                    new_args.append(new_arg)
+                    changed = True
+                else:
+                    if changed:
+                        new_args.append(arg)
+                i += 1
+
+        if changed:
+            new_stmt = stmt.copy()
+            new_stmt.args = new_args
+            if self._update_block and block is not None:
+                block.statements[stmt_idx] = new_stmt
+            return new_stmt
+        return None
+
+    def _handle_FunctionLikeMacroExpr(
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        changed = False
+
+        new_args = None
+        if expr.args is not None:
+            i = 0
+            new_args = []
+            while i < len(expr.args):
+                arg = expr.args[i]
+                new_arg = self._handle_expr(i, arg, stmt_idx, stmt, block)
+                if new_arg is not None and new_arg is not arg:
+                    if not changed:
+                        # initialize new_args
+                        new_args = list(expr.args[:i])
+                    new_args.append(new_arg)
+                    changed = True
+                else:
+                    if changed:
+                        new_args.append(arg)
+                i += 1
+
+        if changed:
+            expr = expr.copy()
+            expr.args = new_args
+            return expr
+        return None

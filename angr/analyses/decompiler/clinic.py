@@ -12,10 +12,10 @@ import networkx
 import capstone
 
 from angr import ailment
+from angr.ailment import AILBlockWalker, Statement, Block
 from angr.ailment.block_walker import AILBlockViewer
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.code_location import ExternalCodeLocation
-from angr.ailment import Statement, Block, AILBlockWalker
 from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -70,15 +70,11 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
-from .utils import first_nonlabel_statement_id
-from ..typehoon import Typehoon
 from .optimization_passes import get_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
 from ..typehoon.typehoon import Typehoon
-from ailment.expression import Struct, Array, Enum, Let, ComboRegister, VirtualVariable
-from ailment.statement import FunctionLikeMacro
-from ...rust.typehoon.typehoon import RustTypehoon
+from angr.ailment.expression import Struct, Array, Enum, Let, ComboRegister, VirtualVariable
+from angr.ailment.statement import FunctionLikeMacro
 from .semantic_naming import SemanticNamingOrchestrator
-from ...rust.sim_type import RustSimTypeInt
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -925,10 +921,6 @@ class Clinic(Analysis):
     def _stage_recover_variables(self) -> None:
         assert self.arg_list is not None and self.arg_vvars is not None and self.vvar_to_vvar is not None
 
-        # Run simplification passes
-        self._update_progress(79.5, text="Running Rust-specific simplifications")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.RUST_SPECIFIC_SIMPLIFICATION)
-
         # Recover variables on AIL blocks
         self._update_progress(80.0, text="Recovering variables")
         variable_kb = self._recover_and_link_variables(
@@ -941,10 +933,10 @@ class Clinic(Analysis):
             self._ail_graph,
             stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
             avoid_vvar_ids=self.copied_var_ids,
-            variable_kb=variable_kb
+            variable_kb=variable_kb,
         )
 
-        ail_graph = self._fix_combo_reg_references(ail_graph)
+        self._ail_graph = self._fix_combo_reg_references(self._ail_graph)
 
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")

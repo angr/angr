@@ -1,10 +1,9 @@
 from collections import defaultdict
 
-from ailment.expression import Const, BinaryOp, VirtualVariable, Load
-from ailment.statement import Assignment, Call, ConditionalJump
+from angr.ailment.expression import Const, BinaryOp, VirtualVariable, Load
+from angr.ailment.statement import Assignment, Call, ConditionalJump
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.rust.sim_type import RustSimTypeResult, RustSimTypeOption
-
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, CFGTransformationMixin, SSAVariableMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 

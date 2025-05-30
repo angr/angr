@@ -1,6 +1,6 @@
-from ailment import Const, Register
-from ailment.expression import ComboRegister
-from ailment.statement import Call
+from angr.ailment import Const, Register
+from angr.ailment.expression import ComboRegister
+from angr.ailment.statement import Call
 from .utils import CallReplacer
 
 from ...calling_conventions import SimStructArg, SimRegArg, SimFunctionArgument

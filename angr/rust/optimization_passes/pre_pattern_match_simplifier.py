@@ -3,11 +3,11 @@ import logging
 from typing import Any, Optional
 
 import networkx
-from ailment import BinaryOp, Assignment, UnaryOp
-from ailment.expression import Load, Const, VirtualVariable, Enum
-from ailment.statement import ConditionalJump, Return, Label, Call
-from angr.analyses.decompiler.utils import copy_graph
 
+from angr.ailment import BinaryOp, Assignment, UnaryOp
+from angr.ailment.expression import Load, Const, VirtualVariable, Enum
+from angr.ailment.statement import ConditionalJump, Return, Label, Call
+from angr.analyses.decompiler.utils import copy_graph
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, unwrap_combo_reg_vvar_reference
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer

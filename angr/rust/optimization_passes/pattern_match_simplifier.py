@@ -1,8 +1,8 @@
 from collections import OrderedDict
 
-import ailment
-from ailment.expression import VirtualVariable, Load
-from ailment.statement import Label, Assignment, Call
+import angr.ailment as ailment
+from angr.ailment.expression import VirtualVariable, Load
+from angr.ailment.statement import Label, Assignment, Call
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
 
 from angr.rust.utils.ail import unwrap_stack_vvar_reference

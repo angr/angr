@@ -1,8 +1,7 @@
 from collections import defaultdict
 
-from ailment.expression import BasePointerOffset, Load, StackBaseOffset
-from ailment.statement import Call, Store, Assignment, FunctionLikeMacro
-
+from angr.ailment.expression import BasePointerOffset, Load, StackBaseOffset
+from angr.ailment.statement import Call, Store, Assignment, FunctionLikeMacro
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference, is_composite_type

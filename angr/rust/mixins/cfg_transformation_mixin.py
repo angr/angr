@@ -2,9 +2,9 @@ import logging
 
 import networkx
 
-from ailment import Const, Block
-from ailment.expression import VirtualVariable, Phi
-from ailment.statement import Jump, ConditionalJump, Assignment
+from angr.ailment import Const, Block
+from angr.ailment.expression import VirtualVariable, Phi
+from angr.ailment.statement import Jump, ConditionalJump, Assignment
 from networkx import NetworkXError
 
 

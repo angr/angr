@@ -1,8 +1,7 @@
 from collections import defaultdict
 
-from ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, Enum
-from ailment.statement import Return, Store
-
+from angr.ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, Enum
+from angr.ailment.statement import Return, Store
 from angr.rust.utils.ail import extract_vvar_and_offset
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage

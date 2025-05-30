@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from typing import Tuple
 
-from ailment.statement import Statement
+from angr.ailment.statement import Statement
 
 from angr.analyses.decompiler.structuring.structurer_nodes import BaseNode, SequenceNode, INDENT_DELTA
 from angr.rust.sim_type import EnumVariant

@@ -1,5 +1,5 @@
-from ailment.expression import VirtualVariable
-from ailment.statement import Label, Jump, Assignment, ConditionalJump
+from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Label, Jump, Assignment, ConditionalJump
 
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin
 from angr.rust.utils.ail import has_call

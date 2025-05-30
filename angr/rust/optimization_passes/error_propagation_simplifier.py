@@ -1,8 +1,7 @@
-from ailment import Block, Assignment, Const, AILBlockWalkerBase
-from ailment.expression import VirtualVariable, Enum
-from ailment.statement import Label, Return, Jump, Call
+from angr.ailment import Block, Assignment, Const, AILBlockWalkerBase
+from angr.ailment.expression import VirtualVariable, Enum
+from angr.ailment.statement import Label, Return, Jump, Call
 from angr.analyses.decompiler.utils import _flatten_structured_node
-
 from angr.rust.sim_type import RustSimTypeResult
 from angr.analyses.decompiler.optimization_passes import OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes.optimization_pass import SequenceOptimizationPass

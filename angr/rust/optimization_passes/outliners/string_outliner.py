@@ -1,7 +1,6 @@
-from ailment import AILBlockWalker, Block
-from ailment.expression import Const, Struct
-from ailment.statement import Assignment, Call
-
+from angr.ailment import AILBlockWalker, Block
+from angr.ailment.expression import Const, Struct
+from angr.ailment.statement import Assignment, Call
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 
 

@@ -2,10 +2,10 @@ from collections import defaultdict
 from typing import List, Any
 
 
-from ailment import Expression, AILBlockWalkerBase, Block, Const, AILBlockWalker
-from ailment.statement import Call, Statement
+from angr.ailment import Expression, AILBlockWalkerBase, Block, Const, AILBlockWalker
+from angr.ailment.statement import Call, Statement
 from angr.analyses import Analysis, AnalysesHub
-from ..mixins import CFAMixin
+from angr.rust.mixins import CFAMixin
 
 
 class SimpleTaintAnalysis(Analysis, CFAMixin):

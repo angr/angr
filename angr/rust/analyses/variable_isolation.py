@@ -1,6 +1,6 @@
-from ailment import Const, AILBlockWalker, Block
-from ailment.expression import BasePointerOffset
-from ailment.statement import Call, Statement
+from angr.ailment import Const, AILBlockWalker, Block
+from angr.ailment.expression import BasePointerOffset
+from angr.ailment.statement import Call, Statement
 
 from ...analyses import Analysis, AnalysesHub
 
