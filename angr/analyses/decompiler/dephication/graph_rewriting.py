@@ -4,8 +4,7 @@ import logging
 
 import networkx
 
-import angr.ailment as ailment
-
+from angr import ailment
 from angr.utils.ail import is_phi_assignment
 from angr.analyses import ForwardAnalysis
 from angr.analyses.forward_analysis.visitors.graph import NodeType
@@ -21,23 +20,20 @@ class GraphRewritingAnalysis(ForwardAnalysis[None, NodeType, object, object]):
     This analysis traverses the AIL graph and rewrites virtual variables accordingly.
     """
 
-    def __init__(
-        self,
-        project,
-        func,
-        ail_graph,
-        vvar_to_vvar: dict[int, int],
-    ):
+    def __init__(self, project, func, ail_graph, vvar_to_vvar: dict[int, int], variable_kb=None):
         self.project = project
         self._function = func
         self._graph_visitor = FunctionGraphVisitor(self._function, ail_graph)
+        self.variable_kb = variable_kb
 
         ForwardAnalysis.__init__(
             self, order_jobs=False, allow_merging=False, allow_widening=False, graph_visitor=self._graph_visitor
         )
         self._graph = ail_graph
         self._vvar_to_vvar = vvar_to_vvar
-        self._engine_ail = SimEngineDephiRewriting(self.project, self._vvar_to_vvar)
+        self._engine_ail = SimEngineDephiRewriting(
+            self.project, self._vvar_to_vvar, func_addr=self._function.addr, variable_kb=self.variable_kb
+        )
 
         self._visited_blocks: set[Any] = set()
         self.out_blocks = {}

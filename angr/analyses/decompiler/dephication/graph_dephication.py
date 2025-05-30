@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -6,11 +7,14 @@ import networkx
 
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment
-
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import register_analysis
 from .graph_rewriting import GraphRewritingAnalysis
 from .dephication_base import DephicationBase
+
+if TYPE_CHECKING:
+    from angr import KnowledgeBase
+
 
 l = logging.getLogger(name=__name__)
 
@@ -27,6 +31,7 @@ class GraphDephication(DephicationBase):  # pylint:disable=abstract-method
         ail_graph,
         vvar_to_vvar_mapping: dict[int, int] | None = None,
         rewrite: bool = False,
+        variable_kb: KnowledgeBase | None = None,
     ):
         """
         :param func:                            The subject of the analysis: a function, or a single basic block
@@ -35,7 +40,7 @@ class GraphDephication(DephicationBase):  # pylint:disable=abstract-method
 
         self._graph = ail_graph
 
-        super().__init__(func, vvar_to_vvar_mapping=vvar_to_vvar_mapping, rewrite=rewrite)
+        super().__init__(func, vvar_to_vvar_mapping=vvar_to_vvar_mapping, rewrite=rewrite, variable_kb=variable_kb)
 
         self._analyze()
 
@@ -56,7 +61,9 @@ class GraphDephication(DephicationBase):  # pylint:disable=abstract-method
 
     def _rewrite_container(self) -> networkx.DiGraph:
         # replace all vvars with phi variables in the graph
-        rewriter = GraphRewritingAnalysis(self.project, self._function, self._graph, self.vvar_to_vvar_mapping)
+        rewriter = GraphRewritingAnalysis(
+            self.project, self._function, self._graph, self.vvar_to_vvar_mapping, variable_kb=self.variable_kb
+        )
         return rewriter.out_graph
 
 

@@ -1,5 +1,6 @@
 # pylint:disable=unused-argument,no-self-use,too-many-boolean-expressions
 from __future__ import annotations
+from typing import TYPE_CHECKING
 import logging
 
 from angr.ailment.block import Block
@@ -28,8 +29,10 @@ from angr.ailment.expression import (
     DirtyExpression,
     Reinterpret,
 )
-
 from angr.engines.light import SimEngineNostmtAIL
+
+if TYPE_CHECKING:
+    from angr import KnowledgeBase
 
 
 _l = logging.getLogger(__name__)
@@ -47,11 +50,15 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         self,
         project,
         vvar_to_vvar: dict[int, int],
+        func_addr: int | None = None,
+        variable_kb: KnowledgeBase | None = None,
     ):
         super().__init__(project)
 
         self.vvar_to_vvar = vvar_to_vvar
         self.out_block = None
+        self.func_addr = func_addr
+        self.variable_kb = variable_kb
 
         self._stmt_handlers["IncompleteSwitchCaseHeadStatement"] = self._handle_stmt_IncompleteSwitchCaseHeadStatement
 
@@ -99,13 +106,29 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 **stmt.dst.tags,
             )
 
-        if new_dst is not None or new_src is not None:
-            # ensure we do not generate vvar_A = vvar_A
-            dst = stmt.dst if new_dst is None else new_dst
-            src = stmt.src if new_src is None else new_src
-            if isinstance(dst, VirtualVariable) and isinstance(src, VirtualVariable) and dst.varid == src.varid:
+        # ensure we do not generate vvar_A = vvar_A or var_A = var_A (even if lhs and rhs are different vvars, they
+        # can be mapped to the same variable)
+        dst = stmt.dst if new_dst is None else new_dst
+        src = stmt.src if new_src is None else new_src
+        if isinstance(dst, VirtualVariable) and isinstance(src, VirtualVariable):
+            if dst.varid == src.varid:
                 # skip it
                 return ()
+            if (
+                self.func_addr is not None
+                and self.variable_kb is not None
+                and self.func_addr in self.variable_kb.variables
+            ):
+                dst_var = getattr(dst, "variable", None)
+                src_var = getattr(src, "variable", None)
+                var_manager = self.variable_kb.variables[self.func_addr]
+                if (
+                    dst_var is not None
+                    and src_var is not None
+                    and var_manager.unified_variable(dst_var) is var_manager.unified_variable(src_var)
+                ):
+                    # skip it
+                    return ()
 
             return Assignment(stmt.idx, dst, src, **stmt.tags)
         return None

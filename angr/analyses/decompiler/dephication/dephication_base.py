@@ -1,9 +1,13 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from typing import Any
 import logging
 from collections import defaultdict
 
 from angr.analyses import Analysis
+
+if TYPE_CHECKING:
+    from angr import KnowledgeBase
 
 l = logging.getLogger(name=__name__)
 
@@ -14,12 +18,19 @@ class DephicationBase(Analysis):
     AIL statement containers.
     """
 
-    def __init__(self, func, vvar_to_vvar_mapping: dict[int, int] | None = None, rewrite: bool = False):
+    def __init__(
+        self,
+        func,
+        vvar_to_vvar_mapping: dict[int, int] | None = None,
+        rewrite: bool = False,
+        variable_kb: KnowledgeBase | None = None,
+    ):
         if isinstance(func, str):
             self._function = self.kb.functions[func]
         else:
             self._function = func
 
+        self.variable_kb = variable_kb
         self.vvar_to_vvar_mapping = vvar_to_vvar_mapping if vvar_to_vvar_mapping is not None else None
         self.rewrite = rewrite
         self.output = None
