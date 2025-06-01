@@ -14,10 +14,10 @@ from angr.rust.sim_type import (
 def generate_known_rust_prototypes(project):
     known_structs = project.kb.known_structs
     return {
-        "core::option::Option<T>::map_or_else": RustSimTypeFunction(
-            args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(known_structs["core::fmt::Arguments"])],
-            returnty=None,
-        ),
+        # "core::option::Option<T>::map_or_else": RustSimTypeFunction(
+        #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(known_structs["core::fmt::Arguments"])],
+        #     returnty=None,
+        # ),
         "std::io::Write::write_all": RustSimTypeFunction(
             args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeArrayRef(RustSimTypeInt(8))],
             returnty=RustSimTypeResult(

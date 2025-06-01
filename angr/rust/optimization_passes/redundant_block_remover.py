@@ -56,7 +56,7 @@ class RedundantBlockRemover(OptimizationPass, CFAMixin, CFGTransformationMixin):
                             )
                         )
                     )
-                    and not has_call(stmt)
+                    and not has_call(stmt, include_macro=True)
                     for stmt in block.statements
                 ):
                     blocks_to_remove.add(block)

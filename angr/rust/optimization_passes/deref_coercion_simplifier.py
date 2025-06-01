@@ -18,6 +18,8 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
 
     def handle_Call(self, call: Call, stmt, block):
         String_ty = self.context.project.kb.known_structs["alloc::string::String"]
+        ptr_offset = String_ty.get_field_offset("vec.buf.ptr.pointer")
+        len_offset = String_ty.get_field_offset("vec.len")
         if call.args:
             changed = False
             args = list(call.args)
@@ -25,31 +27,25 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
             while len(args) >= 2:
                 arg0 = args.pop(0)
                 vvar = arg0
-                if isinstance(vvar, VirtualVariable) and vvar.was_stack:
-                    vvar = self.context.get_stack_vvar_by_insn(
-                        vvar.stack_offset - self.context.project.arch.bytes, stmt.ins_addr, block.idx
-                    )
-                if isinstance(vvar, Load) and (vvar := unwrap_stack_vvar_reference(vvar.addr)):
-                    vvar = self.context.get_stack_vvar_by_insn(
-                        vvar.stack_offset - self.context.project.arch.bytes, stmt.ins_addr, block.idx
-                    )
-                if isinstance(vvar, VirtualVariable) and vvar.was_stack:
-                    returnty = None
-                    if self.context.match_call(call, [STR_CMP_NE_FUNCTION], monopolize=False, use_trait_name=False):
-                        returnty = String_ty.with_arch(self.context.project.arch)
-                    elif self.context.match_call(call, [STR_CMP_EQ_FUNCTION], monopolize=False, use_trait_name=False):
-                        returnty = String_ty.with_arch(self.context.project.arch)
-                    else:
+                if isinstance(arg0, VirtualVariable) and vvar.was_stack:
+                    vvar = self.context.get_stack_vvar_by_insn(vvar.stack_offset - ptr_offset, stmt.ins_addr, block.idx)
+                    if isinstance(vvar, VirtualVariable) and vvar.was_stack:
+                        returnty = None
                         value = self.context.get_terminal_vvar_value(vvar)
                         if isinstance(value, FunctionLikeMacro):
                             returnty = value.returnty
                         elif isinstance(value, Call):
                             returnty = value.prototype.returnty
-                    if isinstance(returnty, RustSimStruct) and returnty == String_ty.name:
-                        args.pop(0)
-                        new_args.append(vvar)
-                        changed = True
-                        continue
+                        if isinstance(returnty, RustSimStruct) and returnty.name == String_ty.name:
+                            arg1 = args.pop(0)
+                            if (
+                                isinstance(arg1, VirtualVariable)
+                                and arg1.was_stack
+                                and arg1.stack_offset - arg0.stack_offset == len_offset - ptr_offset
+                            ):
+                                new_args.append(vvar)
+                                changed = True
+                                continue
                 new_args.append(arg0)
 
             new_args.extend(args)
@@ -58,6 +54,48 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
                 new_stmt.args = new_args
                 return new_stmt
         return None
+
+    # def handle_Call(self, call: Call, stmt, block):
+    #     String_ty = self.context.project.kb.known_structs["alloc::string::String"]
+    #     ptr_offset = String_ty.get_field_offset("vec.buf.ptr.pointer")
+    #     len_offset = String_ty.get_field_offset("vec.len")
+    #     if call.args:
+    #         changed = False
+    #         args = list(call.args)
+    #         new_args = []
+    #         while len(args) >= 2:
+    #             arg0 = args.pop(0)
+    #             vvar = arg0
+    #             if isinstance(arg0, VirtualVariable) and vvar.was_stack:
+    #                 vvar = self.context.get_stack_vvar_by_insn(vvar.stack_offset - ptr_offset, stmt.ins_addr, block.idx)
+    #             # if isinstance(vvar, Load) and (vvar := unwrap_stack_vvar_reference(vvar.addr)):
+    #             #     vvar = self.context.get_stack_vvar_by_insn(
+    #             #         vvar.stack_offset - self.context.project.arch.bytes, stmt.ins_addr, block.idx
+    #             #     )
+    #             if isinstance(vvar, VirtualVariable) and vvar.was_stack:
+    #                 returnty = None
+    #                 if self.context.match_call(call, [STR_CMP_NE_FUNCTION], monopolize=False, use_trait_name=False):
+    #                     returnty = String_ty.with_arch(self.context.project.arch)
+    #                 elif self.context.match_call(call, [STR_CMP_EQ_FUNCTION], monopolize=False, use_trait_name=False):
+    #                     returnty = String_ty.with_arch(self.context.project.arch)
+    #                 else:
+    #                     value = self.context.get_terminal_vvar_value(vvar)
+    #                     if isinstance(value, FunctionLikeMacro):
+    #                         returnty = value.returnty
+    #                     elif isinstance(value, Call):
+    #                         returnty = value.prototype.returnty
+    #                 if isinstance(returnty, RustSimStruct) and returnty.name == String_ty.name:
+    #                     new_args.append(vvar)
+    #                     changed = True
+    #                     continue
+    #             new_args.append(arg0)
+    #
+    #         new_args.extend(args)
+    #         if changed:
+    #             new_stmt = call.copy()
+    #             new_stmt.args = new_args
+    #             return new_stmt
+    #     return None
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         final_stmt = self.handle_Call(stmt, stmt, block)
