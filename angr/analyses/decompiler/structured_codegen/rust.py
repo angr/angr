@@ -1437,6 +1437,9 @@ class RustFunctionCall(RustStatement, RustExpression):
         elif isinstance(self.callee_target, str):
             func_name = normalize(self.callee_target, monopolize=False, concise=self.receiver is not None)
             yield func_name, self
+        elif isinstance(self.callee_target, RustStringLiteral):
+            func_name = normalize(self.callee_target.data, monopolize=False, concise=self.receiver is not None)
+            yield func_name, self
         else:
             yield from RustExpression._try_c_repr_chunks(self.callee_target)
 

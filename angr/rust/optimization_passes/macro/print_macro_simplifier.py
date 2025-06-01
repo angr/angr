@@ -76,7 +76,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
         ):
             stack_defs = self.collect_callsite_stack_defs(block)
             arg_def = stack_defs.get(arg_vvar.stack_offset, None)
-            if arg_def and isinstance(arg_def.data, Struct) and arg_def.data.name == "Arguments":
+            if arg_def and isinstance(arg_def.data, Struct) and arg_def.data.name == "core::fmt::Arguments":
                 pieces = arg_def.data.get_field("pieces")
                 args = arg_def.data.get_field("args")
                 if (
@@ -88,7 +88,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
                         and arg.was_stack
                         and arg.stack_offset in stack_defs
                         and isinstance(stack_defs[arg.stack_offset].data, Struct)
-                        and stack_defs[arg.stack_offset].data.name == "Argument"
+                        and stack_defs[arg.stack_offset].data.name == "core::fmt::rt::Argument"
                         for arg in args.elements
                     )
                     and all(isinstance(piece, Const) for piece in pieces.elements)
@@ -108,7 +108,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
                     if returnty is not None:
                         returnty = returnty.with_arch(self.project.arch)
                     if macro_name and fmt_str:
-                        macro_args = [macro_arg.get_field("value") for macro_arg in macro_args]
+                        macro_args = [macro_arg.get_field("ty") for macro_arg in macro_args]
                         macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
                         macro = FunctionLikeMacro(
                             None,

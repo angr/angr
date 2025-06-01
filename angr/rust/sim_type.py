@@ -318,8 +318,24 @@ class RustSimStruct(RustSimType, SimStruct):
             self._arch
         )
 
-    def match(self, field_exprs, **kwargs) -> bool:
-        return False
+    def get_field_ty(self, name):
+        path = name.split(".")
+        field_ty = self.fields.get(path[0], None)
+        if len(path) == 1:
+            return field_ty
+        elif isinstance(field_ty, RustSimStruct):
+            return field_ty.get_field_ty(".".join(path[1:]))
+        return None
+
+    def get_field_offset(self, name):
+        path = name.split(".")
+        offsets = self.offsets
+        field_ty = self.fields.get(path[0], None)
+        if len(path) == 1:
+            return offsets[path[0]]
+        elif isinstance(field_ty, RustSimStruct):
+            return offsets[path[0]] + field_ty.get_field_offset(".".join(path[1:]))
+        return None
 
 
 class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):

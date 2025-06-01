@@ -104,5 +104,8 @@ class RustTypehoon(Typehoon):
         self.simtypes_solution = simtypes_solution
         self.structs = translator.structs
 
+    def _specialize_struct(self, tc, memo: set | None = None):
+        return None
+
 
 AnalysesHub.register_default("RustTypehoon", RustTypehoon)

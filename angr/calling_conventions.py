@@ -1628,6 +1628,8 @@ class SimCCSystemVAMD64(SimCC):
     def next_arg(self, session, arg_type):
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        if isinstance(arg_type, RustSimEnum):
+            arg_type = arg_type.as_struct_ty()
         state = session.getstate()
         classification = self._classify(arg_type)
         try:
@@ -1713,6 +1715,8 @@ class SimCCSystemVAMD64(SimCC):
             result = ["NO_CLASS"] * nchunks
             for offset, subty_list in flattened.items():
                 for subty in subty_list:
+                    if isinstance(subty, RustSimEnum):
+                        subty = subty.as_struct_ty()
                     assert subty.size
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)

@@ -22,8 +22,6 @@ class Librust(KnowledgeBasePlugin, SimLibrary):
 
     def regenerate(self):
         for name, prototype in generate_known_rust_prototypes(self.project).items():
-            if name not in self._name_to_func:
-                continue
             prototype = prototype.with_arch(self.project.arch)
             for func in self._name_to_func[name]:
                 func.prototype = prototype

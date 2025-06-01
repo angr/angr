@@ -2,13 +2,14 @@ from typing import Any, Tuple, Union
 
 from angr.ailment import Block, AILBlockWalker, Expression, UnaryOp, BinaryOp, Const
 from angr.ailment.expression import VirtualVariable
-from angr.ailment.statement import Call, Statement
+from angr.ailment.statement import Call, Statement, FunctionLikeMacro
 
 
 class CallFinder(AILBlockWalker):
-    def __init__(self):
+    def __init__(self, include_macro=False):
         super().__init__()
         self.call = None
+        self.include_macro = include_macro
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         if not self.call:
@@ -18,9 +19,19 @@ class CallFinder(AILBlockWalker):
         if not self.call:
             self.call = expr
 
+    def _handle_FunctionLikeMacroExpr(
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if not self.call and self.include_macro:
+            self.call = expr
 
-def find_call(obj: Union[Block, Statement, Expression]):
-    walker = CallFinder()
+    def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
+        if not self.call and self.include_macro:
+            self.call = stmt
+
+
+def find_call(obj: Union[Block, Statement, Expression], include_macro=False):
+    walker = CallFinder(include_macro)
     if isinstance(obj, Block):
         walker.walk(obj)
     elif isinstance(obj, Statement):
@@ -30,8 +41,8 @@ def find_call(obj: Union[Block, Statement, Expression]):
     return walker.call
 
 
-def has_call(obj: Union[Block, Statement, Expression]):
-    return find_call(obj) is not None
+def has_call(obj: Union[Block, Statement, Expression], include_macro=False):
+    return find_call(obj, include_macro) is not None
 
 
 def get_terminal_call(block: Block):

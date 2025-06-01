@@ -1,5 +1,5 @@
 from angr.ailment import AILBlockWalker, Block
-from angr.ailment.expression import Const, Struct
+from angr.ailment.expression import Const, Struct, StringLiteral
 from angr.ailment.statement import Assignment, Call
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 
@@ -8,7 +8,7 @@ class StringOutliner(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
-    NAME = "Outline String::new()"
+    NAME = "Outline functions call to `String::new`"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -19,13 +19,16 @@ class StringOutliner(OptimizationPass):
 
     def _analyze(self, cache=None):
         def callback(stmt_idx, stmt: Assignment, block):
-            if isinstance(stmt.src, Struct) and stmt.src.name == "String":
-                cnt = len(list(filter(lambda ele: isinstance(ele, Const) and ele.value == 0, stmt.src.fields.values())))
-                if cnt >= 2:
+            if isinstance(stmt.src, Struct) and stmt.src.name == "alloc::string::String":
+                cap = stmt.src.get_field("vec.buf.cap.__0")
+                _len = stmt.src.get_field("vec.len")
+                if isinstance(cap, Const) and cap.value == 0 and isinstance(_len, Const) and _len.value == 0:
                     call = Call(
                         idx=None,
-                        target="String::new",
-                        prototype=self.kb.librust.get_prototype("String::new").with_arch(self.project.arch).normalize(),
+                        target=StringLiteral(None, "String::new", self.project.arch.bits),
+                        prototype=self.kb.librust.get_prototype("alloc::string::String::new")
+                        .with_arch(self.project.arch)
+                        .normalize(),
                         args=[],
                         ret_expr=None,
                         **stmt.src.tags,

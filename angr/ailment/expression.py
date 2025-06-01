@@ -2113,8 +2113,14 @@ class Struct(Expression):
         self._bits = bits
 
     def get_field(self, name):
-        offset = self.field_offsets.get(name, None)
-        return self.fields.get(offset, None)
+        path = name.split(".")
+        offset = self.field_offsets.get(path[0], None)
+        field = self.fields.get(offset, None)
+        if len(path) == 1:
+            return field
+        elif isinstance(field, Struct):
+            return field.get_field(".".join(path[1:]))
+        return None
 
     @property
     def size(self):
