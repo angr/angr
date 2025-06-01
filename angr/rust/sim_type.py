@@ -211,10 +211,6 @@ class RustSimTypeReference(RustSimType, SimTypePointer):
     def size(self):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
-        # Normally the size of a reference type is arch.bits
-        # But if it's a reference to an array type, then the size will be arch.bits * 2
-        if isinstance(self.pts_to, RustSimTypeArray):
-            return self._arch.bits * 2
         return self._arch.bits
 
     def _with_arch(self, arch):

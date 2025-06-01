@@ -31,6 +31,8 @@ class FeatureCollector(AILBlockWalkerBase):
             "cond_uses": defaultdict(int),
         }
 
+        self.func = None
+
         self._srda: SRDAMixin | None = None
 
     @staticmethod
@@ -52,6 +54,10 @@ class FeatureCollector(AILBlockWalkerBase):
         vvar, offset = extract_vvar_and_offset(stmt.addr)
         vvar = self._srda.get_terminal_vvar(vvar)
         if vvar and vvar.was_parameter and vvar.varid == self.arg_idx:
+            if self.func.demangled_name == "alloc::string::String::push":
+                import ipdb
+
+                ipdb.set_trace()
             self.feature["writes"][offset] += 1
         super()._handle_Store(stmt_idx, stmt, block)
 
@@ -60,8 +66,16 @@ class FeatureCollector(AILBlockWalkerBase):
         vvar = self._srda.get_terminal_vvar(vvar)
         if vvar and vvar.was_parameter and vvar.varid == self.arg_idx:
             self.feature["reads"][offset] += 1
+            if self.func.demangled_name == "alloc::string::String::push":
+                import ipdb
+
+                ipdb.set_trace()
             if isinstance(stmt, ConditionalJump):
                 self.feature["cond_uses"][offset] += 1
+                if self.func.demangled_name == "alloc::string::String::push":
+                    import ipdb
+
+                    ipdb.set_trace()
         super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_call(self, call):
@@ -111,7 +125,7 @@ class FeatureCollector(AILBlockWalkerBase):
 
     def process(self, arg_idx, clinic):
         self.arg_idx = arg_idx
-        self._srda = SRDAMixin(clinic.func, clinic.graph, self.project)
+        self._srda = SRDAMixin(clinic.function, clinic.graph, self.project)
         for block in clinic.graph.nodes:
             self.walk(block)
 
