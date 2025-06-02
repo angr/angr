@@ -55,10 +55,11 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         return None
 
     def _collect_move_stmts(self, scrutinee: VirtualVariable, variant: EnumVariant, node):
-        if node.addr == 0x416C09:
-            import ipdb
+        # if node.addr == 0x416C09:
+        #     import ipdb
+        #
 
-            ipdb.set_trace()
+        #     ipdb.set_trace()
         # TODO: Support the case when scrutinee.was_combo_reg
         if not scrutinee.was_stack:
             return (None,) * len(variant.fields)
