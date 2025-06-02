@@ -18,6 +18,12 @@ def generate_known_rust_prototypes(project):
         #     args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeReference(known_structs["core::fmt::Arguments"])],
         #     returnty=None,
         # ),
+        "core::result::unwrap": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
+        ),
+        "core::option::unwrap": RustSimTypeFunction(
+            args=[RustSimTypeReference(RustSimTypeInt(64))], returnty=None, is_class_member_function=True
+        ),
         "std::io::Write::write_all": RustSimTypeFunction(
             args=[RustSimTypeReference(RustSimTypeBottom()), RustSimTypeArrayRef(RustSimTypeInt(8))],
             returnty=RustSimTypeResult(

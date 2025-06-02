@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable, Load
+from angr.ailment.expression import Const, BinaryOp, VirtualVariable, Load, StringLiteral
 from angr.ailment.statement import Assignment, Call, ConditionalJump
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.rust.sim_type import RustSimTypeResult, RustSimTypeOption
@@ -161,7 +161,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                         assert self.remove_block(unwrap_failed_block)
                         replacement = Call(
                             idx=last_stmt.idx,
-                            target=unwrap_func_name,
+                            target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
                             prototype=self.librust.get_prototype(unwrap_func_name)
                             .with_arch(self.project.arch)
                             .normalize(),
