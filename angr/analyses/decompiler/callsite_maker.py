@@ -251,7 +251,8 @@ class CallSiteMaker(Analysis):
 
                 if arg_expr is not None and dereference_size is not None:
                     arg_expr = Expr.Load(self._atom_idx(), arg_expr, dereference_size, endness=archinfo.Endness.BE)
-                args.append(arg_expr)
+                if arg_expr is not None:
+                    args.append(arg_expr)
 
         # Remove the old call statement
         new_stmts = self.block.statements[:-1]
