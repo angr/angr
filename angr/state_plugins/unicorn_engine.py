@@ -394,14 +394,14 @@ class _VexArchInfo(ctypes.Structure):
 
 def _load_native():
     if sys.platform == "darwin":
-        libfile = "angr_native.dylib"
+        libfile = "unicornlib.dylib"
     elif sys.platform in {"win32", "cygwin"}:
-        libfile = "angr_native.dll"
+        libfile = "unicornlib.dll"
     else:
-        libfile = "angr_native.so"
+        libfile = "unicornlib.so"
 
     try:
-        angr_path = str(importlib.resources.files("angr") / "lib" / libfile)
+        angr_path = str(importlib.resources.files("angr") / libfile)
         h = ctypes.CDLL(angr_path)
 
         VexArch = ctypes.c_int

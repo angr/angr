@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 rust-version = "1.86.0"
-members = ["crates/angr"]
+members = ["native/angr"]
 
 [workspace.package]
 license = "BSD-2-Clause"

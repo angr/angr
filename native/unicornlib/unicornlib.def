@@ -1,4 +1,4 @@
-LIBRARY angr_native.dll
+LIBRARY unicornlib.dll
 
 EXPORTS
   simunicorn_setup_imports

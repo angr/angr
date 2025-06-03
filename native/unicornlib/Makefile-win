@@ -1,0 +1,8 @@
+CC=cl
+INCFLAGS=/I "$(PYVEX_INCLUDE_PATH)" /I vendor
+CFLAGS=/EHsc /MD /LD /O2 $(INCFLAGS) /Zi
+LDFLAGS=/link "$(PYVEX_LIB_FILE)" /DEF:unicornlib.def /DEBUG
+
+unicornlib.dll: sim_unicorn.cpp unicornlib.def
+	$(CC) $(CFLAGS) sim_unicorn.cpp unicorn_dynamic.c $(LDFLAGS) /OUT:unicornlib.dll
+
