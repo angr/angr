@@ -1,15 +1,15 @@
 UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)
-	LIB_ANGR_NATIVE=angr_native.dylib
+	LIB_UNICORNLIB=unicornlib.dylib
 endif
 ifeq ($(UNAME), FreeBSD)
-	LIB_ANGR_NATIVE=angr_native.so
+	LIB_UNICORNLIB=unicornlib.so
 endif
 ifeq ($(UNAME), Linux)
-	LIB_ANGR_NATIVE=angr_native.so
+	LIB_UNICORNLIB=unicornlib.so
 endif
 ifeq ($(UNAME), OpenBSD)
-	LIB_ANGR_NATIVE=angr_native.so
+	LIB_UNICORNLIB=unicornlib.so
 endif
 
 CC ?= gcc
@@ -36,13 +36,13 @@ ifeq ($(UNAME), Linux)
 	LDLIBS += -ldl
 endif
 
-all: ${LIB_ANGR_NATIVE}
+all: ${LIB_UNICORNLIB}
 
 %.o: %.c
 	${CC} ${CFLAGS} -c -o $@ $<
 
-${LIB_ANGR_NATIVE}: ${OBJS} sim_unicorn.cpp
+${LIB_UNICORNLIB}: ${OBJS} sim_unicorn.cpp
 	${CXX} ${CXXFLAGS} ${CPPFLAGS} -o $@ $^ ${LDLIBS} ${LDFLAGS}
 
 clean:
-	rm -f "${LIB_ANGR_NATIVE}" *.o arch/*.o
+	rm -f "${LIB_UNICORNLIB}" *.o arch/*.o

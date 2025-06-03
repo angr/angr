@@ -83,14 +83,14 @@ exclude = ["tests*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-angr = ["py.typed", "lib/*", "rustylib.*"]
+angr = ["py.typed", "unicornlib.*", "rustylib.*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }
 
 [[tool.setuptools-rust.ext-modules]]
 target = "angr.rustylib"
-path = "crates/angr/Cargo.toml"
+path = "native/angr/Cargo.toml"
 debug = false
 
 [tool.uv]
