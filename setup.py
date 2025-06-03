@@ -81,7 +81,7 @@ class build(st_build):
         super().run(*args)
 
 
-class clean_unicornlib(Command):
+class clean(Command):
     user_options = []
 
     def initialize_options(self):
@@ -91,7 +91,7 @@ class clean_unicornlib(Command):
         pass
 
     def run(self):
-        self.execute(clean_unicornlib, (), msg="Cleaning unicornlib")
+        self.execute(clean, (), msg="Cleaning unicornlib")
 
 
 class develop(st_develop):
@@ -102,7 +102,7 @@ class develop(st_develop):
 
 cmdclass = {
     "build": build,
-    "clean_native": clean_unicornlib,
+    "clean_unicornlib": clean,
     "develop": develop,
 }
 
