@@ -441,7 +441,11 @@ class InterferenceChecker(SequenceWalker):
             # special case: we process the call arguments first, then the call itself. this is to allow more expression
             # folding opportunities.
             the_call = None
-            if isinstance(stmt, Assignment) and isinstance(stmt.src, ailment.Stmt.Call):
+            if (
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.src, ailment.Stmt.Call)
+                and not isinstance(stmt.src.target, str)
+            ):
                 the_call = stmt.src
             elif isinstance(stmt, ailment.Stmt.Call) and not isinstance(stmt.target, str):
                 the_call = stmt
