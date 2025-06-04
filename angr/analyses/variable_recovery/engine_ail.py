@@ -633,10 +633,7 @@ class SimEngineVRAIL(
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
             r = self.state.top(result_size)
-            return RichR(
-                r,
-                typevar=r0.typevar,
-            )
+            return RichR(r)
 
         shiftamount = r1.data.concrete_value
         return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
@@ -651,10 +648,7 @@ class SimEngineVRAIL(
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
             r = self.state.top(result_size)
-            return RichR(
-                r,
-                typevar=r0.typevar,
-            )
+            return RichR(r)
 
         shiftamount = r1.data.concrete_value
 
@@ -672,10 +666,7 @@ class SimEngineVRAIL(
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
             r = self.state.top(result_size)
-            return RichR(
-                r,
-                typevar=r0.typevar,
-            )
+            return RichR(r)
 
         shiftamount = r1.data.concrete_value
 
@@ -691,10 +682,7 @@ class SimEngineVRAIL(
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
             r = self.state.top(result_size)
-            return RichR(
-                r,
-                typevar=r0.typevar,
-            )
+            return RichR(r)
 
         shiftamount = r1.data.concrete_value
 
@@ -761,22 +749,22 @@ class SimEngineVRAIL(
     def _handle_binop_Rol(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
+        _ = self._expr_bv(arg0)
         _ = self._expr_bv(arg1)
         result_size = arg0.bits
 
         r = self.state.top(result_size)
-        return RichR(r, typevar=r0.typevar)
+        return RichR(r)
 
     def _handle_binop_Ror(self, expr):
         arg0, arg1 = expr.operands
 
-        r0 = self._expr_bv(arg0)
+        _ = self._expr_bv(arg0)
         _ = self._expr_bv(arg1)
         result_size = arg0.bits
 
         r = self.state.top(result_size)
-        return RichR(r, typevar=r0.typevar)
+        return RichR(r)
 
     def _handle_binop_Concat(self, expr):
         arg0, arg1 = expr.operands

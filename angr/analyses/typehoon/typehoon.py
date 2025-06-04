@@ -40,6 +40,7 @@ class Typehoon(Analysis):
         must_struct: set[TypeVariable] | None = None,
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
+        constraint_set_degradation_threshold: int = 150,
     ):
         """
 
@@ -57,6 +58,7 @@ class Typehoon(Analysis):
         self._must_struct = must_struct
         self._stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
         self._stack_offset_tvs = stack_offset_tvs if stack_offset_tvs is not None else {}
+        self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
 
         self.bits = self.project.arch.bits
         self.solution = None
@@ -193,7 +195,7 @@ class Typehoon(Analysis):
             self.simtypes_solution.update(self._ground_truth)
 
     @staticmethod
-    def _resolve_derived(tv):
+    def _resolve_derived(tv: TypeVariable | DerivedTypeVariable) -> TypeVariable:
         return tv.type_var if isinstance(tv, DerivedTypeVariable) else tv
 
     def _solve(self):
@@ -211,7 +213,13 @@ class Typehoon(Analysis):
                     if isinstance(constraint.super_type, TypeVariable):
                         typevars.add(self._resolve_derived(constraint.super_type))
 
-        solver = SimpleSolver(self.bits, self._constraints, typevars, stackvar_max_sizes=self._stackvar_max_sizes)
+        solver = SimpleSolver(
+            self.bits,
+            self._constraints,
+            typevars,
+            stackvar_max_sizes=self._stackvar_max_sizes,
+            constraint_set_degradation_threshold=self._constraint_set_degradation_threshold,
+        )
         self.solution = solver.solution
         self.processed_constraints_count = solver.processed_constraints_count
         self.eqclass_constraints_count = solver.eqclass_constraints_count
