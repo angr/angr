@@ -1,4 +1,4 @@
-# pylint:disable=missing-class-docstring
+# pylint:disable=missing-class-docstring,too-many-boolean-expressions
 from __future__ import annotations
 import enum
 from collections import defaultdict
@@ -588,16 +588,19 @@ class SimpleSolver:
                 solutions = {}
                 self.determine(sketches, tvs_with_primitive_constraints, solutions)
                 _l.debug("Determined solutions for %d type variable(s).", len(tvs_with_primitive_constraints))
-                if not solutions:
-                    break
 
                 leaf_solutions = 0
                 for tv_, ub_tv in ub_subtypes.items():
                     if ub_tv in solutions:
                         solutions[tv_] = solutions[ub_tv]
                         leaf_solutions += 1
+                    elif isinstance(ub_tv, TypeConstant):
+                        solutions[tv_] = ub_tv
+                        leaf_solutions += 1
                 _l.debug("Determined solutions for %d leaf type variable(s).", leaf_solutions)
 
+                if not solutions:
+                    break
                 self.solution |= solutions
 
                 tvs = {tv for tv in tvs if tv not in tvs_with_primitive_constraints}
@@ -1009,7 +1012,7 @@ class SimpleSolver:
             if len(components) == 1:
                 continue
             if any(tv in tv_to_degrade for tv in components):
-                components_lst = sorted(components, key=lambda x: str(x))
+                components_lst = sorted(components, key=str)
                 representative = components_lst[0]
                 for tv in components_lst[1:]:
                     replacements[tv] = representative
