@@ -562,13 +562,13 @@ class SimpleSolver:
                 constraint_subset = self._degrade_constraint_set(constraint_subset)
                 _l.debug("Degraded constraint subset to %d constraints.", len(constraint_subset))
 
-            while True:
+            while constraint_subset:
 
                 _l.debug("Working with %d constraints.", len(constraint_subset))
 
                 # remove constraints that are a <: b where a only appears once; in this case, the solution fo a is
                 # entirely determined by the solution of b (which is the upper bound of a)
-                filtered_constraint_subset, ub_subtypes = self._filter_leaf_typevars(constraint_subset)
+                filtered_constraint_subset, ub_subtypes = self._filter_leaf_typevars(constraint_subset, tvs)
                 _l.debug(
                     "Filtered %d leaf typevars; %d constraints remain.",
                     len(ub_subtypes),
@@ -603,7 +603,7 @@ class SimpleSolver:
                     break
                 self.solution |= solutions
 
-                tvs = {tv for tv in tvs if tv not in tvs_with_primitive_constraints}
+                tvs = {tv for tv in tvs if tv not in solutions}
                 if not tvs:
                     break
                 # rewrite existing constraints
@@ -952,7 +952,7 @@ class SimpleSolver:
 
     @staticmethod
     def _filter_leaf_typevars(
-        constraints: set[TypeConstraint],
+        constraints: set[TypeConstraint], tvs_to_solve: set[TypeVariable]
     ) -> tuple[set[TypeConstraint], dict[TypeVariable, TypeVariable]]:
         """
         Filter out leaf type variables that only appear once in the constraints. These type variables are not
@@ -974,7 +974,9 @@ class SimpleSolver:
         ub_subtypes: dict[TypeVariable, TypeVariable] = {}
         for tv, dtvs in tv_to_dtvs.items():
             if len(dtvs) == 1 and tv in sub_typevars and len(sub_typevars[tv]) == 1:
-                ub_subtypes[tv] = next(iter(sub_typevars[tv]))
+                ub = next(iter(sub_typevars[tv]))
+                if ub in tvs_to_solve:
+                    ub_subtypes[tv] = ub
 
         filtered_constraints = set()
         for constraint in constraints:
