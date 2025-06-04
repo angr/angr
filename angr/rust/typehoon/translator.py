@@ -131,6 +131,7 @@ class RustTypeTranslator(TypeTranslator):
             err_type,
             err_variant.discriminant,
             err_variant.discriminant_size,
+            name=tc.name,
         ).with_arch(self.arch)
 
     def _translate_Option(self, tc: typeconsts.Enum):
@@ -143,12 +144,13 @@ class RustTypeTranslator(TypeTranslator):
             some_type,
             some_variant.discriminant,
             some_variant.discriminant_size,
+            name=tc.name,
         ).with_arch(self.arch)
 
     def _translate_Enum(self, tc: typeconsts.Enum):
-        if tc.name.startswith("Result<"):
+        if tc.name.startswith("core::result::Result<") or tc.name.startswith("Result<"):
             return self._translate_Result(tc)
-        elif tc.name.startswith("Option<"):
+        elif tc.name.startswith("core::option::Option<") or tc.name.startswith("Option<"):
             return self._translate_Option(tc)
         else:
             pass

@@ -1,7 +1,7 @@
 import logging
 
 from angr.rust.sim_type import RustSimTypeReference
-from angr.rust.analyses.struct_memory_layout.constraints import IsNotConstraint
+from angr.rust.analyses.struct_memory_layout.constraints import IsNotConstraint, IsConstraint
 from angr.rust.utils.ail import extract_vvar_and_offset
 from angr.analyses.decompiler import Clinic
 from angr.rust.mixins import SRDAMixin
@@ -18,9 +18,11 @@ class ConstraintCollector(AILBlockWalkerBase):
         super().__init__()
 
         self.arg_vvar = None
-        self.constraints = set()
+        self.constraints = []
 
         self._srda: SRDAMixin | None = None
+        self._func = None
+        self._project = None
 
     def _is_target_vvar(self, expr):
         if isinstance(expr, VirtualVariable):
@@ -32,10 +34,22 @@ class ConstraintCollector(AILBlockWalkerBase):
         vvar, offset = extract_vvar_and_offset(stmt.addr)
         if self._is_target_vvar(vvar):
             if isinstance(stmt.data, Const) and stmt.data.value == 0:
-                # self.constraints[offset].add(IsNotConstraint(offset, stmt.data.size, RustSimTypeReference))
-                self.constraints.add(IsNotConstraint(offset, stmt.data.size, RustSimTypeReference))
-                l.info(f"Collect constraint from {stmt}")
+                constraint = IsNotConstraint(offset, self._project.arch.bytes, RustSimTypeReference)
+                self.constraints.append(constraint)
+                l.info(f"Collect constraint {constraint} from {stmt} in {self._func.demangled_name}")
         super()._handle_Store(stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
+        addr = expr.addr
+        if isinstance(addr, VirtualVariable):
+            addr = self._srda.get_terminal_vvar_value(addr)
+        if isinstance(addr, Load) and addr.size == self._project.arch.bytes:
+            vvar, offset = extract_vvar_and_offset(addr.addr)
+            if self._is_target_vvar(vvar):
+                constraint = IsConstraint(offset, addr.size, RustSimTypeReference)
+                self.constraints.append(constraint)
+                l.info(f"Collect constraint {constraint} from {expr} in {self._func.demangled_name}")
+        super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
         op0, op1 = expr.operands
@@ -47,13 +61,16 @@ class ConstraintCollector(AILBlockWalkerBase):
                 if not expr.op.startswith("Cmp") or (
                     expr.op.startswith("Cmp") and isinstance(op1, Const) and op1.value == 0
                 ):
-                    self.constraints.add(IsNotConstraint(offset, vvar.size, RustSimTypeReference))
-                    l.info(f"Collect constraint from {expr}")
+                    constraint = IsNotConstraint(offset, self._project.arch.bytes, RustSimTypeReference)
+                    self.constraints.append(constraint)
+                    l.info(f"Collect constraint {constraint} from {expr} in {self._func.demangled_name}")
         super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
     def collect(self, clinic: Clinic, arg_vvar):
         self.arg_vvar = arg_vvar
         self._srda = SRDAMixin(clinic.function, clinic.graph, clinic.project)
+        self._func = clinic.function
+        self._project = clinic.project
 
         for block in clinic.graph.nodes:
             self.walk(block)

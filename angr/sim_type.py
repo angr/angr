@@ -1670,14 +1670,15 @@ class SimStruct(NamedTypeMixin, SimType):
         offsets = {}
         offset_so_far = 0
         for name, ty in self.fields.items():
-            if ty.size is None:
+            ty_size = ty.size
+            if ty_size is None:
                 l.debug(
                     "Found a bottom field in struct %s. Ignore and increment the offset using the default "
                     "element size.",
                     self.name,
                 )
                 continue
-            if not self._pack and ty.size > 0:
+            if not self._pack and ty_size > 0:
                 align = ty.alignment
                 if align is NotImplemented:
                     # hack!
@@ -1685,10 +1686,10 @@ class SimStruct(NamedTypeMixin, SimType):
                 if offset_so_far % align != 0:
                     offset_so_far += align - offset_so_far % align
                 offsets[name] = offset_so_far
-                offset_so_far += ty.size // self._arch.byte_width
+                offset_so_far += ty_size // self._arch.byte_width
             else:
                 offsets[name] = offset_so_far
-                offset_so_far += ty.size // self._arch.byte_width
+                offset_so_far += ty_size // self._arch.byte_width
 
         return offsets
 

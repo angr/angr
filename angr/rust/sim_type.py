@@ -535,7 +535,7 @@ class RustSimEnum(RustSimType, SimType):
 
     @property
     def size(self) -> int:
-        self._size = self._size or max(variant.bits for variant in self.variants)
+        self._size = self._size or max([variant.bits for variant in self.variants], default=0)
         return self._size
 
     def copy(self):
@@ -547,7 +547,10 @@ class RustSimEnum(RustSimType, SimType):
         return out
 
     def repr(self, name=None, full=0, memo=None, indent=0):
-        return f"enum {self.name}"
+        return self.name
+
+    def __repr__(self):
+        return self.repr()
 
     def get_variant(self, discriminant) -> Optional[EnumVariant]:
         for variant in self.variants:
@@ -572,14 +575,16 @@ class RustSimEnum(RustSimType, SimType):
 
 
 class RustSimTypeOption(RustSimEnum):
-    def __init__(self, none_discriminant, none_discriminant_size, some_type, some_discriminant, some_discriminant_size):
+    def __init__(
+        self, none_discriminant, none_discriminant_size, some_type, some_discriminant, some_discriminant_size, name=None
+    ):
         self.none_discriminant = none_discriminant
         self.none_discriminant_size = none_discriminant_size
         self.some_type = some_type
         self.some_discriminant = some_discriminant
         self.some_discriminant_size = some_discriminant_size
 
-        name = f"Option<{self.some_type}>"
+        name = name or f"Option<{self.some_type}>"
         variants = [
             EnumVariant.from_no_data("None", none_discriminant, none_discriminant_size),
             EnumVariant.from_single_field_ty("Some", some_type, some_discriminant, some_discriminant_size),
@@ -593,6 +598,7 @@ class RustSimTypeOption(RustSimEnum):
             self.some_type,
             self.some_discriminant,
             self.some_discriminant_size,
+            self.name,
         ).with_arch(self._arch)
 
     def _with_arch(self, arch):
@@ -602,6 +608,7 @@ class RustSimTypeOption(RustSimEnum):
             self.some_type.with_arch(arch),
             self.some_discriminant,
             self.some_discriminant_size,
+            self.name,
         )
         out._arch = arch
         out.variants = [variant.with_arch(arch) for variant in out.variants]
@@ -616,7 +623,14 @@ class RustSimTypeOption(RustSimEnum):
 
 class RustSimTypeResult(RustSimEnum):
     def __init__(
-        self, ok_type, ok_discriminant, ok_discriminant_size, err_type, err_discriminant, err_discriminant_size
+        self,
+        ok_type,
+        ok_discriminant,
+        ok_discriminant_size,
+        err_type,
+        err_discriminant,
+        err_discriminant_size,
+        name=None,
     ):
         self.ok_type = ok_type
         self.ok_discriminant = ok_discriminant
@@ -625,7 +639,7 @@ class RustSimTypeResult(RustSimEnum):
         self.err_discriminant = err_discriminant
         self.err_discriminant_size = err_discriminant_size
 
-        name = f"Result<{self.ok_type}, {self.err_type}>"
+        name = name or f"Result<{self.ok_type}, {self.err_type}>"
         variants = [
             EnumVariant.from_single_field_ty("Ok", ok_type, ok_discriminant, ok_discriminant_size),
             EnumVariant.from_single_field_ty("Err", err_type, err_discriminant, err_discriminant_size),
@@ -640,6 +654,7 @@ class RustSimTypeResult(RustSimEnum):
             self.err_type,
             self.err_discriminant,
             self.err_discriminant_size,
+            self.name,
         ).with_arch(self._arch)
 
     def _with_arch(self, arch):
@@ -650,6 +665,7 @@ class RustSimTypeResult(RustSimEnum):
             self.err_type.with_arch(arch),
             self.err_discriminant,
             self.err_discriminant_size,
+            self.name,
         )
         out._arch = arch
         out.variants = [variant.with_arch(arch) for variant in out.variants]
