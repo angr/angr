@@ -56,7 +56,9 @@ class RustTypehoon(Typehoon):
                     and not isinstance(type_.pts_to, SimTypeArray)
                 ):
                     type_ = type_.pts_to
-                type_candidates.append(type_)
+                # FIXME: Why type_ is None?
+                if type_:
+                    type_candidates.append(type_)
 
             # determine the best type - this logic can be made better!
             if not type_candidates:

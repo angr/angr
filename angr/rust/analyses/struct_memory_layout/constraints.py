@@ -1,7 +1,5 @@
-from abc import abstractmethod, ABC
-
 from angr.ailment.utils import stable_hash
-from angr.rust.sim_type import RustSimStruct, RustSimType
+from angr.rust.sim_type import RustSimStruct
 
 
 def _resolve_possible_struct_field_types(struct_ty: RustSimStruct, offset, size):
@@ -18,11 +16,8 @@ def _resolve_possible_struct_field_types(struct_ty: RustSimStruct, offset, size)
     return result
 
 
-class Constraint(ABC):
-
-    @abstractmethod
-    def satisfy(self, ty: RustSimStruct) -> bool:
-        pass
+class Constraint:
+    pass
 
 
 class IsConstraint(Constraint):
@@ -46,10 +41,6 @@ class IsConstraint(Constraint):
             and self.ty_cls == other.ty_cls
         )
 
-    def satisfy(self, struct_ty) -> bool:
-        possible_types = _resolve_possible_struct_field_types(struct_ty, self.offset, self.size)
-        return any(ty.__class__ is self.ty_cls for ty in possible_types)
-
 
 class IsNotConstraint(Constraint):
 
@@ -71,7 +62,3 @@ class IsNotConstraint(Constraint):
             and self.size == other.size
             and self.ty_cls == other.ty_cls
         )
-
-    def satisfy(self, struct_ty) -> bool:
-        possible_types = _resolve_possible_struct_field_types(struct_ty, self.offset, self.size)
-        return all(ty.__class__ is not self.ty_cls for ty in possible_types)
