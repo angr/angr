@@ -1,6 +1,8 @@
 #ifndef SIM_UNICORN_HPP
 #define SIM_UNICORN_HPP
 
+#include <unicorn/unicorn.h>
+
 extern "C" {
 	#include <libvex_guest_offsets.h>
 }
@@ -481,7 +483,6 @@ struct caches_t {
 
 typedef taint_t PageBitmap[ANGR_PAGE_SIZE];
 typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
-std::map<uint64_t, caches_t> global_cache;
 
 typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
 typedef std::unordered_set<vex_tmp_id_t> TempSet;
