@@ -432,7 +432,14 @@ class SimpleSolver:
     improvements.
     """
 
-    def __init__(self, bits: int, constraints, typevars, stackvar_max_sizes: dict[TypeVariable, int] | None = None):
+    def __init__(
+        self,
+        bits: int,
+        constraints,
+        typevars,
+        constraint_set_degradation_threshold: int = 150,
+        stackvar_max_sizes: dict[TypeVariable, int] | None = None,
+    ):
         if bits not in (32, 64):
             raise ValueError(f"Pointer size {bits} is not supported. Expect 32 or 64.")
 
@@ -440,6 +447,7 @@ class SimpleSolver:
         self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
         self._typevars: set[TypeVariable] = typevars
         self.stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
+        self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
         self._base_lattice = BASE_LATTICES[bits]
         self._base_lattice_inverted = networkx.DiGraph()
         for src, dst in self._base_lattice.edges:
@@ -459,7 +467,11 @@ class SimpleSolver:
                 self.processed_constraints_count += len(self._constraints[typevar])
 
                 self._constraints[typevar] |= self._eq_constraints_from_add(typevar)
-                self._constraints[typevar] = self._handle_equivalence(typevar)
+                self._constraints[typevar] |= self._discover_equivalence(self._constraints[typevar])
+                new_constraints, replacements = self._handle_equivalence(self._constraints[typevar])
+                self._equivalence |= replacements
+                self._constraints[typevar] = new_constraints
+                self._constraints[typevar] = self._filter_constraints(self._constraints[typevar])
 
                 self.simplified_constraints_count += len(self._constraints[typevar])
 
@@ -517,11 +529,18 @@ class SimpleSolver:
 
         _, sketches = self.infer_shapes(typevars, constraints)
         constraintset2tvs = defaultdict(set)
+        tvs_seen = set()
         for idx, tv in enumerate(constrained_typevars):
             _l.debug("Collecting constraints for type variable %r (%d/%d)", tv, idx + 1, len(constrained_typevars))
+            if tv in tvs_seen:
+                continue
             # build a sub constraint set for the type variable
-            constraint_subset = frozenset(self._generate_constraint_subset(constraints, {tv}))
-            constraintset2tvs[constraint_subset].add(tv)
+            constraint_subset, related_tvs = self._generate_constraint_subset(constraints, {tv})
+            # drop all type vars outside constrained_typevars
+            related_tvs = related_tvs.intersection(constrained_typevars)
+            tvs_seen |= related_tvs
+            frozen_constraint_subset = frozenset(constraint_subset)
+            constraintset2tvs[frozen_constraint_subset] = related_tvs
 
         for idx, (constraint_subset, tvs) in enumerate(constraintset2tvs.items()):
             _l.debug(
@@ -534,8 +553,31 @@ class SimpleSolver:
             )
             self.eqclass_constraints_count.append(len(constraint_subset))
 
+            if len(constraint_subset) > self._constraint_set_degradation_threshold:
+                _l.debug(
+                    "Constraint subset contains %d constraints, which is over the limit of %d. Enter degradation.",
+                    len(constraint_subset),
+                    self._constraint_set_degradation_threshold,
+                )
+                constraint_subset = self._degrade_constraint_set(constraint_subset)
+                _l.debug("Degraded constraint subset to %d constraints.", len(constraint_subset))
+
             while True:
-                base_constraint_graph = self._generate_constraint_graph(constraint_subset, tvs | PRIMITIVE_TYPES)
+
+                _l.debug("Working with %d constraints.", len(constraint_subset))
+
+                # remove constraints that are a <: b where a only appears once; in this case, the solution fo a is
+                # entirely determined by the solution of b (which is the upper bound of a)
+                filtered_constraint_subset, ub_subtypes = self._filter_leaf_typevars(constraint_subset)
+                _l.debug(
+                    "Filtered %d leaf typevars; %d constraints remain.",
+                    len(ub_subtypes),
+                    len(filtered_constraint_subset),
+                )
+
+                base_constraint_graph = self._generate_constraint_graph(
+                    filtered_constraint_subset, tvs | PRIMITIVE_TYPES
+                )
                 primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
                 tvs_with_primitive_constraints = set()
                 for primitive_constraint in primitive_constraints:
@@ -549,6 +591,13 @@ class SimpleSolver:
                 if not solutions:
                     break
 
+                leaf_solutions = 0
+                for tv_, ub_tv in ub_subtypes.items():
+                    if ub_tv in solutions:
+                        solutions[tv_] = solutions[ub_tv]
+                        leaf_solutions += 1
+                _l.debug("Determined solutions for %d leaf type variable(s).", leaf_solutions)
+
                 self.solution |= solutions
 
                 tvs = {tv for tv in tvs if tv not in tvs_with_primitive_constraints}
@@ -559,7 +608,7 @@ class SimpleSolver:
                 for constraint in constraint_subset:
                     rewritten = self._rewrite_constraint(constraint, solutions)
                     new_constraint_subset.add(rewritten)
-                constraint_subset = new_constraint_subset
+                constraint_subset = self._filter_constraints(new_constraint_subset)
 
         # set the solution for missing type vars to TOP
         self.determine(sketches, set(sketches).difference(set(self.solution)), self.solution)
@@ -775,14 +824,45 @@ class SimpleSolver:
                     new_constraints.add(Equivalence(constraint.type_1, constraint.type_r))
         return new_constraints
 
-    def _handle_equivalence(self, typevar: TypeVariable):
+    @staticmethod
+    def _discover_equivalence(constraints: set[TypeConstraint]) -> set[Equivalence]:
+        """
+        a <:b && b <: a  ==>  a == b
+        """
+
+        new_eq_constraints: set[Equivalence] = set()
+        subtypes = defaultdict(set)
+        for constraint in constraints:
+            if isinstance(constraint, Subtype):
+                sub_type = constraint.sub_type
+                super_type = constraint.super_type
+                subtypes[sub_type].add(super_type)
+
+        # check everything
+        seen = set()
+        for tv, tv_supers in subtypes.items():
+            for tv_super in tv_supers:
+                if tv_super in subtypes and tv in subtypes[tv_super]:  # noqa: SIM102
+                    # we have a pair of subtypes that are equivalent
+                    if (tv, tv_super) not in seen and (tv_super, tv) not in seen:
+                        new_eq_constraints.add(Equivalence(tv, tv_super))
+                        seen.add((tv, tv_super))
+
+        _l.debug(
+            "Discovered %d equivalence constraints from %d constraints.", len(new_eq_constraints), len(constraints)
+        )
+        return new_eq_constraints
+
+    @staticmethod
+    def _handle_equivalence(
+        constraint_set: set[TypeConstraint],
+    ) -> tuple[set[TypeConstraint], dict[TypeVariable, TypeVariable | TypeConstant]]:
         graph = networkx.Graph()
 
-        replacements = {}
-        constraints = set()
+        replacements: dict[TypeVariable, TypeVariable | TypeConstant] = {}
 
         # collect equivalence relations
-        for constraint in self._constraints[typevar]:
+        for constraint in constraint_set:
             if isinstance(constraint, Equivalence):
                 # | type_a == type_b
                 # we apply unification and removes one of them
@@ -803,25 +883,7 @@ class SimpleSolver:
             for tv in components_lst[1:]:
                 replacements[tv] = representative
 
-        # replace
-        for constraint in self._constraints[typevar]:
-            if isinstance(constraint, Existence):
-                replaced, new_constraint = constraint.replace(replacements)
-
-                if replaced:
-                    constraints.add(new_constraint)
-                else:
-                    constraints.add(constraint)
-
-            elif isinstance(constraint, Subtype):
-                # subtype <: supertype
-                # replace type variables
-                replaced, new_constraint = constraint.replace(replacements)
-
-                if replaced:
-                    constraints.add(new_constraint)
-                else:
-                    constraints.add(constraint)
+        constraints = SimpleSolver._rewrite_constraints_with_replacements(constraint_set, replacements)
 
         # import pprint
         # print("Replacements")
@@ -829,8 +891,143 @@ class SimpleSolver:
         # print("Constraints (after replacement)")
         # pprint.pprint(constraints)
 
-        self._equivalence = replacements
-        return constraints
+        return constraints, replacements
+
+    @staticmethod
+    def _rewrite_constraints_with_replacements(
+        constraints: set[TypeConstraint], replacements: dict[TypeVariable, TypeVariable]
+    ) -> set[TypeConstraint]:
+        # replace constraints according to a dictionary of type variable replacements
+        replaced_constraints = set()
+        for constraint in constraints:
+            if isinstance(constraint, Existence):
+                replaced, new_constraint = constraint.replace(replacements)
+
+                if replaced:
+                    replaced_constraints.add(new_constraint)
+                else:
+                    replaced_constraints.add(constraint)
+
+            elif isinstance(constraint, Subtype):
+                # subtype <: supertype
+                # replace type variables
+                replaced, new_constraint = constraint.replace(replacements)
+
+                if replaced:
+                    replaced_constraints.add(new_constraint)
+                else:
+                    replaced_constraints.add(constraint)
+        return replaced_constraints
+
+    @staticmethod
+    def _filter_constraints(constraints: set[TypeConstraint]) -> set[TypeConstraint]:
+        """
+        Filter out constraints that we don't yet support.
+        """
+
+        filtered_constraints = set()
+        for constraint in constraints:
+            dropped = False
+            if isinstance(constraint, Subtype) and (
+                (isinstance(constraint.sub_type, TypeConstant) and isinstance(constraint.super_type, TypeConstant))
+                or (
+                    isinstance(constraint.sub_type, DerivedTypeVariable)
+                    and isinstance(constraint.sub_type.labels[-1], ConvertTo)
+                )
+                or (
+                    isinstance(constraint.sub_type, TypeVariable)
+                    and isinstance(constraint.super_type, TypeVariable)
+                    and constraint.sub_type == constraint.super_type
+                )
+            ):
+                dropped = True
+
+            if not dropped:
+                filtered_constraints.add(constraint)
+
+        return filtered_constraints
+
+    @staticmethod
+    def _filter_leaf_typevars(
+        constraints: set[TypeConstraint],
+    ) -> tuple[set[TypeConstraint], dict[TypeVariable, TypeVariable]]:
+        """
+        Filter out leaf type variables that only appear once in the constraints. These type variables are not
+        interesting and can be removed from the constraints.
+        """
+
+        sub_typevars = defaultdict(set)
+        tv_to_dtvs: dict[TypeVariable, set[TypeVariable | DerivedTypeVariable]] = defaultdict(set)
+        for constraint in constraints:
+            if isinstance(constraint, Subtype):
+                if isinstance(constraint.sub_type, TypeVariable):
+                    sub_typevars[constraint.sub_type].add(constraint.super_type)
+                for tv in [constraint.sub_type, constraint.super_type]:
+                    if isinstance(tv, DerivedTypeVariable):
+                        tv_to_dtvs[tv.type_var].add(constraint.sub_type)
+                    elif isinstance(tv, TypeVariable):
+                        tv_to_dtvs[tv].add(constraint.sub_type)
+
+        ub_subtypes: dict[TypeVariable, TypeVariable] = {}
+        for tv, dtvs in tv_to_dtvs.items():
+            if len(dtvs) == 1 and tv in sub_typevars and len(sub_typevars[tv]) == 1:
+                ub_subtypes[tv] = next(iter(sub_typevars[tv]))
+
+        filtered_constraints = set()
+        for constraint in constraints:
+            if isinstance(constraint, Subtype) and constraint.sub_type in ub_subtypes:
+                continue
+            filtered_constraints.add(constraint)
+
+        return filtered_constraints, ub_subtypes
+
+    def _degrade_constraint_set(self, constraints: set[TypeConstraint]) -> set[TypeConstraint]:
+        """
+        Degrade the constraint set to a smaller set of constraints to speed up the DFA generation process.
+        """
+
+        tv_with_ls = defaultdict(set)  # tv_with_ls are type variables with Loads or Stores
+        graph = networkx.Graph()
+
+        for constraint in constraints:
+            if isinstance(constraint, Subtype):
+                if isinstance(constraint.sub_type, DerivedTypeVariable) and isinstance(
+                    constraint.sub_type.labels[0], (Load, Store)
+                ):
+                    tv_with_ls[constraint.sub_type.type_var].add(constraint.sub_type)
+                if type(constraint.sub_type) is TypeVariable and type(constraint.super_type) is TypeVariable:
+                    graph.add_edge(constraint.sub_type, constraint.super_type)
+
+        tv_to_degrade = set()
+        for tv, dtvs in tv_with_ls.items():
+            if len(dtvs) > 5:
+                # degrade all subtype relationships involving this type variable to equivalence
+                tv_to_degrade.add(tv)
+
+        replacements = {}
+        for components in networkx.connected_components(graph):
+            if len(components) == 1:
+                continue
+            if any(tv in tv_to_degrade for tv in components):
+                components_lst = sorted(components, key=lambda x: str(x))
+                representative = components_lst[0]
+                for tv in components_lst[1:]:
+                    replacements[tv] = representative
+
+        degraded_constraints = self._rewrite_constraints_with_replacements(constraints, replacements)
+
+        # discover more equivalence relations
+        eq_constraints = self._discover_equivalence(degraded_constraints)
+        _l.debug("Discovered %d equivalence constraints from degraded constraints.", len(eq_constraints))
+        if eq_constraints:
+            degraded_constraints, eq_replacements = self._handle_equivalence(degraded_constraints | eq_constraints)
+            self._equivalence |= eq_replacements
+
+        # filter them
+        degraded_constraints = self._filter_constraints(degraded_constraints)
+
+        self._equivalence |= replacements
+        return degraded_constraints
 
     def _convert_arrays(self, constraints):
         for constraint in constraints:
@@ -860,7 +1057,7 @@ class SimpleSolver:
     @staticmethod
     def _generate_constraint_subset(
         constraints: set[TypeConstraint], typevars: set[TypeVariable]
-    ) -> set[TypeConstraint]:
+    ) -> tuple[set[TypeConstraint], set[TypeVariable]]:
         subset = set()
         related_typevars = set(typevars)
         while True:
@@ -890,7 +1087,7 @@ class SimpleSolver:
             if not new:
                 break
             subset |= new
-        return subset
+        return subset, related_typevars
 
     def _generate_constraint_graph(
         self, constraints: set[TypeConstraint], interesting_variables: set[DerivedTypeVariable]

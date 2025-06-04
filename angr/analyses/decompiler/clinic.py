@@ -143,7 +143,8 @@ class Clinic(Analysis):
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
         complete_successors: bool = False,
-        max_type_constraints: int = 4000,
+        max_type_constraints: int = 100_000,
+        type_constraint_set_degradation_threshold: int = 150,
         ail_graph: networkx.DiGraph | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
@@ -185,6 +186,7 @@ class Clinic(Analysis):
         self._cache = cache
         self._mode = mode
         self._max_type_constraints = max_type_constraints
+        self._type_constraint_set_degradation_threshold = type_constraint_set_degradation_threshold
         self.vvar_id_start = vvar_id_start
         self.vvar_to_vvar: dict[int, int] | None = None
         # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
@@ -1871,6 +1873,7 @@ class Clinic(Analysis):
                     must_struct=must_struct,
                     ground_truth=groundtruth,
                     stackvar_max_sizes=tv_max_sizes,
+                    constraint_set_degradation_threshold=self._type_constraint_set_degradation_threshold,
                 )
                 # tp.pp_constraints()
                 # tp.pp_solution()
