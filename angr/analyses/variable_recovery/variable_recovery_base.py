@@ -5,6 +5,8 @@ from collections.abc import Generator, Iterable
 import logging
 from collections import defaultdict
 
+import networkx
+
 import archinfo
 import claripy
 from claripy.annotation import Annotation
@@ -86,8 +88,16 @@ class VariableRecoveryBase(Analysis):
     The base class for VariableRecovery and VariableRecoveryFast.
     """
 
-    def __init__(self, func, max_iterations, store_live_variables: bool, vvar_to_vvar: dict[int, int] | None = None):
+    def __init__(
+        self,
+        func,
+        max_iterations,
+        store_live_variables: bool,
+        vvar_to_vvar: dict[int, int] | None = None,
+        func_graph: networkx.DiGraph | None = None,
+    ):
         self.function = func
+        self.func_graph = func_graph
         self.variable_manager = self.kb.variables
 
         self._max_iterations = max_iterations
@@ -120,7 +130,10 @@ class VariableRecoveryBase(Analysis):
 
     def initialize_dominance_frontiers(self):
         # Computer the dominance frontier for each node in the graph
-        df = self.project.analyses.DominanceFrontier(self.function)
+        func_entry = None
+        if self.func_graph is not None:
+            func_entry = next(iter(node for node in self.func_graph if node.addr == self.function.addr))
+        df = self.project.analyses.DominanceFrontier(self.function, func_graph=self.func_graph, entry=func_entry)
         self._dominance_frontiers = defaultdict(set)
         for b0, domfront in df.frontiers.items():
             for d in domfront:
