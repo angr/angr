@@ -149,33 +149,6 @@ class TypeWalker:
         return ty
 
 
-class TypeUpdater(TypeWalker):
-
-    def __init__(self, known_structs):
-        super().__init__()
-        self.known_structs = known_structs
-
-    def _handle_Struct(self, ty: RustSimStruct):
-        if ty.name in self.known_structs:
-            ty = self.known_structs.known_struct_types[ty.name]
-        return super()._handle_Struct(ty)
-
-    def _handle_Option(self, ty: RustSimTypeOption):
-        if ty.name in self.known_structs:
-            ty = self.known_structs.known_struct_types[ty.name]
-        return super()._handle_Option(ty)
-
-    def _handle_Result(self, ty: RustSimTypeResult):
-        if ty.name in self.known_structs:
-            ty = self.known_structs.known_struct_types[ty.name]
-        return super()._handle_Result(ty)
-
-    def _handle_Enum(self, ty: RustSimEnum):
-        if ty.name in self.known_structs:
-            ty = self.known_structs.known_struct_types[ty.name]
-        return super()._handle_Enum(ty)
-
-
 class KnownStructs(KnowledgeBasePlugin):
 
     def __init__(self, kb):
@@ -184,8 +157,6 @@ class KnownStructs(KnowledgeBasePlugin):
             (struct_name, struct_ty.with_arch(self._kb._project.arch))
             for struct_name, struct_ty in default_structs.items()
         )
-        self._updated_structs = set()
-        self._updater = TypeUpdater(self)
 
     def __iter__(self):
         return iter(self.known_struct_types)
@@ -194,19 +165,10 @@ class KnownStructs(KnowledgeBasePlugin):
         self.known_struct_types[key] = value
 
     def __getitem__(self, item):
-        # return self._updater.walk(self.known_struct_types.get(item, None))
         return self.known_struct_types.get(item, None)
 
     def __contains__(self, item):
         return item in self.known_struct_types
-
-    def is_updated(self, struct_name):
-        return struct_name in self._updated_structs
-
-    def update(self, struct_name, struct_ty):
-        walker = TypeWalker()
-        self._updated_structs.add(struct_name)
-        self.known_struct_types[struct_name] = struct_ty
 
     def match_with_known_structs(self, fields) -> Optional[RustSimStruct]:
         return StructMatcher(self._kb._project).match(fields)
