@@ -538,7 +538,22 @@ class Dominators:
 
         if self._ancestor[v.index] is None:
             return v
-        self._pd_compress(v)
+
+        # pd_compress without recursion
+        queue = []
+        greatest_ancestor = self._ancestor[v.index]
+        while self._ancestor[greatest_ancestor.index] is not None:
+            queue.append(greatest_ancestor)
+            greatest_ancestor = self._ancestor[greatest_ancestor.index]
+
+        for vv in reversed(queue):
+            if (
+                self._semi[self._label[self._ancestor[vv.index].index].index].index
+                < self._semi[self._label[vv.index].index].index
+            ):
+                self._label[vv.index] = self._label[self._ancestor[vv.index].index]
+            self._ancestor[vv.index] = self._ancestor[self._ancestor[vv.index].index]
+
         return self._label[v.index]
 
     def _pd_compress(self, v):
