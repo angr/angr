@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 from os.path import dirname, join
 
 import pyvex
@@ -23,6 +24,9 @@ setup(
             library_dirs=[PYVEX_LIB_DIR],
             libraries=["pyvex"],
             cxx_std=17,
+            # FIXME: This is a workaround for duplicate symbols originating from
+            # sim_unicorn.hpp, included in both sim_unicorn.cpp and pymodule.cpp.
+            extra_link_args=["/FORCE:MULTIPLE" if platform.system() == "Windows" else ""],
         ),
     ],
 )
