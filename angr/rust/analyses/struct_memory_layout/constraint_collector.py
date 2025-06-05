@@ -41,6 +41,8 @@ class ConstraintCollector(AILBlockWalkerBase):
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
         addr = expr.addr
+        while isinstance(addr, BinaryOp) and addr.op == "Add":
+            addr = addr.operands[0]
         if isinstance(addr, VirtualVariable):
             addr = self._srda.get_terminal_vvar_value(addr)
         if isinstance(addr, Load) and addr.size == self._project.arch.bytes:
@@ -58,12 +60,13 @@ class ConstraintCollector(AILBlockWalkerBase):
         if isinstance(op0, Load):
             vvar, offset = extract_vvar_and_offset(op0.addr)
             if self._is_target_vvar(vvar) and expr.op != "Add":
-                if not expr.op.startswith("Cmp") or (
-                    expr.op.startswith("Cmp") and isinstance(op1, Const) and op1.value == 0
-                ):
-                    constraint = IsNotConstraint(offset, self._project.arch.bytes, RustSimTypeReference)
+                constraint = IsNotConstraint(offset, self._project.arch.bytes, RustSimTypeReference)
+                # if not expr.op.startswith("Cmp") or (expr.op.startswith("Cmp") and isinstance(op1, Const)):
+                if expr.op.startswith("Cmp"):
+                    self.constraints += [constraint] * 5
+                else:
                     self.constraints.append(constraint)
-                    l.info(f"Collect constraint {constraint} from {expr} in {self._func.demangled_name}")
+                l.info(f"Collect constraint {constraint} from {expr} in {self._func.demangled_name}")
         super()._handle_BinaryOp(expr_idx, expr, stmt_idx, stmt, block)
 
     def collect(self, clinic: Clinic, arg_vvar):

@@ -21,7 +21,7 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
     This analysis aims to recover the memory layouts (field orders) of Rust standard library structs.
     """
 
-    def __init__(self, max_analyzing_functions=10, max_struct_size=48, struct_prefixes=("std::", "alloc::", "core::")):
+    def __init__(self, max_analyzing_functions=20, max_struct_size=48, struct_prefixes=("std::", "alloc::", "core::")):
         CFAMixin.__init__(self, None, self.project)
         DFAMixin.__init__(self, None)
         self.max_analyzing_functions = max_analyzing_functions

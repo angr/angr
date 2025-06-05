@@ -25,8 +25,11 @@ class ConstraintSolver:
         self._struct_perm_vals: Dict[str, List[DatatypeRef]] = {}
 
         self._constrained_structs = set()
+        self._z3_constraints_and_weight = []
+        self._cost_expr = None
 
     def _generate_z3_constraints(self, struct_ty, constraint: Constraint):
+        self._constrained_structs.add(struct_ty.name)
         var = self._struct_vars[struct_ty.name]
         candidates = self._struct_candidates[struct_ty.name]
         perm_vals = self._struct_perm_vals[struct_ty.name]
@@ -52,7 +55,7 @@ class ConstraintSolver:
                     elif isinstance(constraint, IsConstraint):
                         if not isinstance(field_ty, (RustSimStruct, RustSimEnum)):
                             if type(field_ty) is not constraint.ty_cls:
-                                z3_constraints_and_weights.append((Not(var == perm_val), 20))
+                                z3_constraints_and_weights.append((Not(var == perm_val), 10))
                         elif isinstance(field_ty, RustSimStruct):
                             new_constraint = IsConstraint(
                                 constraint.offset - field_offset, constraint.size, constraint.ty_cls
@@ -88,7 +91,8 @@ class ConstraintSolver:
                 term = If(var == perm_vals[i], cost, 0, ctx=self.context)
                 total_cost_terms.append(term)
 
-        self._solver.minimize(Sum(total_cost_terms))
+        self._cost_expr = Sum(total_cost_terms)
+        self._solver.minimize(self._cost_expr)
 
     def _permute_fields(self, fields):
         zero_sized_fields = []
@@ -107,8 +111,6 @@ class ConstraintSolver:
 
     def _constrain_struct_ty(self, struct_ty: RustSimStruct, constraints: List[Constraint]):
         name = struct_ty.name
-        if len(constraints):
-            self._constrained_structs.add(name)
         candidates = []
         for fields in self._permute_fields(list(struct_ty.fields.items())):
             candidate = struct_ty.copy()
@@ -121,9 +123,13 @@ class ConstraintSolver:
         self._struct_vars[name] = var
         self._struct_candidates[name] = candidates
         self._struct_perm_vals[name] = perm_vals
+        z3_constraint = var == perm_vals[0]
+        self._z3_constraints_and_weight.append((z3_constraint, 3))
+        self._solver.add_soft(z3_constraint, 3)
         for constraint, weight in Counter(constraints).items():
             z3_constraints_and_weights = self._generate_z3_constraints(struct_ty, constraint)
             for z3_constraint, z3_weight in z3_constraints_and_weights:
+                self._z3_constraints_and_weight.append((z3_constraint, weight * z3_weight))
                 self._solver.add_soft(z3_constraint, weight=weight * z3_weight)
 
     def _populate_solution(self, struct_types: List[RustSimStruct | RustSimEnum]):
