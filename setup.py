@@ -16,9 +16,10 @@ setup(
             [
                 "native/unicornlib/pymodule.cpp",
                 "native/unicornlib/sim_unicorn.cpp",
-                "native/unicornlib/unicorn_dynamic.c",
+                "native/unicornlib/unicorn_dynamic.cpp",
             ],
             include_dirs=[PYVEX_INCLUDE_DIR, VENDOR_INCLUDE_DIR],
+            cxx_std=17,
         ),
     ],
 )
