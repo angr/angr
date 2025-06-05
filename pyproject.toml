@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "angr"
 description = "A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries"
-license = { text = "BSD-2-Clause" }
+license = "BSD-2-Clause"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
@@ -75,7 +75,7 @@ extras = ["angr[angrdb,keystone]"]
 
 [tool.setuptools]
 include-package-data = true
-license-files = ["LICENSE"]
+license-files = ["COPYRIGHT", "LICENSE"]
 
 [tool.setuptools.packages.find]
 exclude = ["tests*"]
