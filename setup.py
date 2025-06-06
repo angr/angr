@@ -3,12 +3,17 @@ from __future__ import annotations
 import platform
 from os.path import dirname, join
 
-import pyvex
 from pybind11.setup_helpers import Pybind11Extension
 from setuptools import setup
 
-PYVEX_INCLUDE_DIR = join(dirname(pyvex.__file__), "include")
-PYVEX_LIB_DIR = join(dirname(pyvex.__file__), "lib")
+try:
+    import pyvex
+    PYVEX_LIB_DIR = join(dirname(pyvex.__file__), "lib")
+    PYVEX_INCLUDE_DIR = join(dirname(pyvex.__file__), "include")
+except ImportError:
+    PYVEX_LIB_DIR = None
+    PYVEX_INCLUDE_DIR = None
+
 VENDOR_INCLUDE_DIR = join(dirname(__file__), "native", "unicornlib", "vendor")
 
 setup(
@@ -26,7 +31,7 @@ setup(
             cxx_std=17,
             # FIXME: This is a workaround for duplicate symbols originating from
             # sim_unicorn.hpp, included in both sim_unicorn.cpp and pymodule.cpp.
-            extra_link_args=["/FORCE:MULTIPLE" if platform.system() == "Windows" else ""],
+            extra_link_args=["/FORCE:MULTIPLE"] if platform.system() == "Windows" else [],
         ),
     ],
 )
