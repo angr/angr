@@ -8,6 +8,7 @@ from setuptools import setup
 
 try:
     import pyvex
+
     PYVEX_LIB_DIR = join(dirname(pyvex.__file__), "lib")
     PYVEX_INCLUDE_DIR = join(dirname(pyvex.__file__), "include")
 except ImportError:
