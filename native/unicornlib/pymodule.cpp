@@ -6,9 +6,40 @@
 
 #include <pybind11/pybind11.h>
 #include <pyvex.h>
-#include "./sim_unicorn.hpp"
 
-namespace py = pybind11;
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__) || defined(__OpenBSD__)
+#include <dlfcn.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#else
+#error "Unsupported platform - need dlopen equivalent"
+#endif
+
+#define ANGR_UNICORN_API
+#include "sim_unicorn.hpp"
+
+bool simunicorn_setup_imports(char *uc_path) {
+
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__) || defined(__OpenBSD__)
+	void *handle = dlopen(uc_path, RTLD_NOW | RTLD_GLOBAL);
+	if (!handle) {
+		return false;
+	}
+#define XX(x) *((void**)&x) = (void*)dlsym(handle, #x); if (!x) { return false; }
+#include "uc_macro.h"
+
+#elif defined(_WIN32)
+	HMODULE handle = LoadLibraryA(uc_path);
+	if (!handle) {
+		return false;
+	}
+#define XX(x) *((void**)&x) = (void*)GetProcAddress(handle, #x); if (!x) { return false; }
+#include "uc_macro.h"
+
+#endif
+
+	return true;
+}
 
 
 State *simunicorn_alloc(void *uc, uint64_t cache_key, simos_t simos, bool handle_symbolic_addrs,
@@ -305,6 +336,7 @@ PYBIND11_MODULE(unicornlib, m) {
 
     pybind11::class_<State>(m, "State");
 
+	m.def("setup_imports", &simunicorn_setup_imports);
     m.def("alloc", &simunicorn_alloc, pybind11::return_value_policy::reference);
     m.def("dealloc", &simunicorn_dealloc);
     m.def("bbl_addrs", &simunicorn_bbl_addrs, pybind11::return_value_policy::reference);
