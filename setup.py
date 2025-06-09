@@ -6,6 +6,10 @@ from os.path import dirname, join
 from pybind11.setup_helpers import Pybind11Extension
 from setuptools import setup
 
+# This try-except block is a workaround for older versions of setuptools which
+# will attempt to import setup.py without all build dependencies installed. It
+# should be able to be removed once the minimum required version of setuptools
+# is new enough.
 try:
     import pyvex
 
