@@ -288,6 +288,31 @@ class VEXLifter(SimEngine):
                 l.debug("Using bytes: %r", pyvex.ffi.buffer(buff, size))
             raise SimTranslationError("Unable to translate bytecode") from e
 
+    def lift_vex_multi(
+        self, addr: int, *, max_blocks: int | None = None, collect_data_refs: bool = False, skip_stmts: bool = False
+    ) -> list[pyvex.IRSB]:
+        """
+        Lift a sequence of VEX blocks starting at the given address.
+
+        We do not cache the lifted IRSBs because they are usually created during CFG creation and most likely not going
+        to be reused.
+
+        :param addr:            The address at which to start the block.
+        :param max_blocks:      The maximum number of blocks to lift. If None, lift until no more blocks are found.
+        :param collect_data_refs: Whether to collect data references in the lifted blocks.
+        :param skip_stmts:      Whether to skip statements in the lifted blocks.
+        :return:                A list of lifted IRSBs.
+        """
+
+        irsb_list: list[pyvex.IRSB] = pyvex.lift_multi(
+            addr,
+            max_blocks=max_blocks,
+            collect_data_refs=collect_data_refs,
+            load_from_ro_regions=True,
+            skip_stmt=skip_stmts,
+        )
+        return irsb_list
+
     def _load_bytes(
         self, addr, max_size, state=None, clemory: cle.Clemory | cle.ClemoryReadOnlyView | None = None
     ) -> tuple[bytes, int, int]:

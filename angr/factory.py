@@ -398,6 +398,35 @@ class AngrObjectFactory:
     def fresh_block(self, addr, size, backup_state=None):
         return Block(addr, project=self.project, size=size, backup_state=backup_state)
 
+    def multi_blocks(
+        self, addr, *, max_blocks: int | None = 100, collect_data_refs: bool = False, skip_stmts: bool = False
+    ) -> list[Block]:
+        """
+        Lifts multiple blocks starting at a given address. After lifting one block, the lifter will attempt to lift
+        more blocks following branch targets, until it reaches the maximum number of blocks specified.
+
+        :param addr:                The address to start at
+        :param max_blocks:          The maximum number of blocks to lift. If None, there is no limit.
+        :param collect_data_refs:   Whether to collect data references in the blocks
+        :param skip_stmts:          Whether to skip statements in the blocks
+        :return:                    A list of Block objects
+        """
+
+        vex_engine = self.project.factory.default_engine  # type: ignore
+
+        # TODO: Ensure that the engine supports multi-block lifting
+
+        irsbs = vex_engine.lift_vex_multi(
+            addr, max_blocks=max_blocks, collect_data_refs=collect_data_refs, skip_stmts=skip_stmts
+        )
+
+        blocks = []
+        for irsb in irsbs:
+            block = Block(irsb.addr, project=self.project, size=irsb.size)
+            blocks.append(block)
+
+        return blocks
+
     cc.SimRegArg = SimRegArg
     cc.SimStackArg = SimStackArg
     callable.PointerWrapper = PointerWrapper
