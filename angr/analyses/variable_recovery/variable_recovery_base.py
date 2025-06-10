@@ -95,9 +95,11 @@ class VariableRecoveryBase(Analysis):
         store_live_variables: bool,
         vvar_to_vvar: dict[int, int] | None = None,
         func_graph: networkx.DiGraph | None = None,
+        entry_node_addr: int | tuple[int, int | None] | None = None,
     ):
         self.function = func
         self.func_graph = func_graph
+        self.entry_node_addr = entry_node_addr
         self.variable_manager = self.kb.variables
 
         self._max_iterations = max_iterations
@@ -132,7 +134,20 @@ class VariableRecoveryBase(Analysis):
         # Computer the dominance frontier for each node in the graph
         func_entry = None
         if self.func_graph is not None:
-            func_entry = next(iter(node for node in self.func_graph if node.addr == self.function.addr))
+            entry_node_addr = self.entry_node_addr if self.entry_node_addr is not None else self.function.addr
+            assert entry_node_addr is not None
+            if isinstance(entry_node_addr, int):
+                func_entry = next(iter(node for node in self.func_graph if node.addr == entry_node_addr))
+            elif isinstance(entry_node_addr, tuple):
+                func_entry = next(
+                    iter(
+                        node
+                        for node in self.func_graph
+                        if node.addr == entry_node_addr[0] and node.idx == entry_node_addr[1]
+                    )
+                )
+            else:
+                raise TypeError(f"Unsupported entry node address type: {type(entry_node_addr)}")
         df = self.project.analyses.DominanceFrontier(self.function, func_graph=self.func_graph, entry=func_entry)
         self._dominance_frontiers = defaultdict(set)
         for b0, domfront in df.frontiers.items():

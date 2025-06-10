@@ -1816,6 +1816,7 @@ class Clinic(Analysis):
             self.function,  # pylint:disable=unused-variable
             fail_fast=self._fail_fast,  # type:ignore
             func_graph=ail_graph,
+            entry_node_addr=self.entry_node_addr,
             kb=tmp_kb,  # type:ignore
             track_sp=False,
             func_args=arg_list,

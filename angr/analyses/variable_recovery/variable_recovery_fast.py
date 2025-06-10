@@ -237,6 +237,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self,
         func: Function | str | int,
         func_graph: networkx.DiGraph | None = None,
+        entry_node_addr: int | tuple[int, int | None] | None = None,
         max_iterations: int = 2,
         low_priority=False,
         track_sp=True,
@@ -269,6 +270,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             store_live_variables,
             vvar_to_vvar=vvar_to_vvar,
             func_graph=func_graph_with_calls,
+            entry_node_addr=entry_node_addr,
         )
         ForwardAnalysis.__init__(
             self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=function_graph_visitor
