@@ -334,6 +334,78 @@ void simunicorn_set_fp_regs_fp_ops_vex_codes(State *state, uint64_t start_offset
 PYBIND11_MODULE(unicornlib, m) {
     m.doc() = "C++ bits for unicorn integration";
 
+	pybind11::enum_<simos_t>(m, "SimOS")
+		.value("CGC", SIMOS_CGC)
+		.value("LINUX", SIMOS_LINUX)
+		.value("OTHER", SIMOS_OTHER)
+		.export_values();
+
+    pybind11::enum_<stop_t>(m, "StopReason")
+        .value("NORMAL", STOP_NORMAL)
+        .value("STOPPOINT", STOP_STOPPOINT)
+        .value("ERROR", STOP_ERROR)
+        .value("SYSCALL", STOP_SYSCALL)
+        .value("EXECNONE", STOP_EXECNONE)
+        .value("ZEROPAGE", STOP_ZEROPAGE)
+        .value("NOSTART", STOP_NOSTART)
+        .value("SEGFAULT", STOP_SEGFAULT)
+        .value("ZERO_DIV", STOP_ZERO_DIV)
+        .value("NODECODE", STOP_NODECODE)
+        .value("HLT", STOP_HLT)
+        .value("VEX_LIFT_FAILED", STOP_VEX_LIFT_FAILED)
+        .value("SYMBOLIC_PC", STOP_SYMBOLIC_PC)
+        .value("SYMBOLIC_READ_ADDR", STOP_SYMBOLIC_READ_ADDR)
+        .value("SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED", STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED)
+        .value("SYMBOLIC_WRITE_ADDR", STOP_SYMBOLIC_WRITE_ADDR)
+        .value("SYMBOLIC_BLOCK_EXIT_CONDITION", STOP_SYMBOLIC_BLOCK_EXIT_CONDITION)
+        .value("SYMBOLIC_BLOCK_EXIT_TARGET", STOP_SYMBOLIC_BLOCK_EXIT_TARGET)
+        .value("UNSUPPORTED_STMT_PUTI", STOP_UNSUPPORTED_STMT_PUTI)
+        .value("UNSUPPORTED_STMT_STOREG", STOP_UNSUPPORTED_STMT_STOREG)
+        .value("UNSUPPORTED_STMT_LOADG", STOP_UNSUPPORTED_STMT_LOADG)
+        .value("UNSUPPORTED_STMT_CAS", STOP_UNSUPPORTED_STMT_CAS)
+        .value("UNSUPPORTED_STMT_LLSC", STOP_UNSUPPORTED_STMT_LLSC)
+        .value("UNSUPPORTED_STMT_DIRTY", STOP_UNSUPPORTED_STMT_DIRTY)
+        .value("UNSUPPORTED_STMT_UNKNOWN", STOP_UNSUPPORTED_STMT_UNKNOWN)
+        .value("UNSUPPORTED_EXPR_GETI", STOP_UNSUPPORTED_EXPR_GETI)
+        .value("UNSUPPORTED_EXPR_UNKNOWN", STOP_UNSUPPORTED_EXPR_UNKNOWN)
+        .value("UNKNOWN_MEMORY_WRITE_SIZE", STOP_UNKNOWN_MEMORY_WRITE_SIZE)
+        .value("SYSCALL_ARM", STOP_SYSCALL_ARM)
+        .value("X86_CPUID", STOP_X86_CPUID)
+        .export_values();
+
+    pybind11::class_<stop_details_t>(m, "StopDetails")
+        .def_readwrite("stop_reason", &stop_details_t::stop_reason)
+        .def_readwrite("block_addr", &stop_details_t::block_addr)
+        .def_readwrite("block_size", &stop_details_t::block_size);
+
+    pybind11::class_<register_value_t>(m, "RegisterValue")
+        .def_readwrite("offset", &register_value_t::offset)
+		// FIXME: fixed-sized arrays can't be used with pybind11, need to use
+		// a property instead to do a runtime check
+        // .def_readwrite("value", &register_value_t::value)
+        .def_readwrite("size", &register_value_t::size);
+
+    pybind11::class_<sym_vex_stmt_details_t>(m, "SymVexStmtDetails")
+        .def_readwrite("stmt_idx", &sym_vex_stmt_details_t::stmt_idx)
+        .def_readwrite("has_memory_dep", &sym_vex_stmt_details_t::has_memory_dep)
+        .def_readwrite("memory_values", &sym_vex_stmt_details_t::memory_values)
+        .def_readwrite("memory_values_count", &sym_vex_stmt_details_t::memory_values_count);
+
+    pybind11::class_<sym_block_details_ret_t>(m, "SymBlockDetailsRet")
+        .def_readwrite("block_addr", &sym_block_details_ret_t::block_addr)
+        .def_readwrite("block_size", &sym_block_details_ret_t::block_size)
+        .def_readwrite("block_trace_ind", &sym_block_details_ret_t::block_trace_ind)
+        .def_readwrite("has_symbolic_exit", &sym_block_details_ret_t::has_symbolic_exit)
+        .def_readwrite("symbolic_stmts", &sym_block_details_ret_t::symbolic_stmts)
+        .def_readwrite("symbolic_stmts_count", &sym_block_details_ret_t::symbolic_stmts_count)
+        .def_readwrite("register_values", &sym_block_details_ret_t::register_values)
+        .def_readwrite("register_values_count", &sym_block_details_ret_t::register_values_count);
+
+    pybind11::class_<transmit_record_t>(m, "TransmitRecord")
+        .def_readwrite("fd", &transmit_record_t::fd)
+        .def_readwrite("data", &transmit_record_t::data)
+        .def_readwrite("count", &transmit_record_t::count);
+
     pybind11::class_<State>(m, "State");
 
 	m.def("setup_imports", &simunicorn_setup_imports);
