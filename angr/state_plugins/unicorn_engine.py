@@ -242,7 +242,7 @@ class StopDetails(ctypes.Structure):
     ]
 
 
-class SimOSEnum:
+class SimOSEnum(IntEnum):
     """
     enum simos_t
     """

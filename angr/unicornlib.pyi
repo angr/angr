@@ -1,6 +1,75 @@
 from collections.abc import Sequence
+from enum import Enum
 
 class State: ...
+
+class SimOS(Enum):
+    CGC: int
+    LINUX: int
+    OTHER: int
+
+class StopReason(Enum):
+    NORMAL: int
+    STOPPOINT: int
+    ERROR: int
+    SYSCALL: int
+    EXECNONE: int
+    ZEROPAGE: int
+    NOSTART: int
+    SEGFAULT: int
+    ZERO_DIV: int
+    NODECODE: int
+    HLT: int
+    VEX_LIFT_FAILED: int
+    SYMBOLIC_PC: int
+    SYMBOLIC_READ_ADDR: int
+    SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED: int
+    SYMBOLIC_WRITE_ADDR: int
+    SYMBOLIC_BLOCK_EXIT_CONDITION: int
+    SYMBOLIC_BLOCK_EXIT_TARGET: int
+    UNSUPPORTED_STMT_PUTI: int
+    UNSUPPORTED_STMT_STOREG: int
+    UNSUPPORTED_STMT_LOADG: int
+    UNSUPPORTED_STMT_CAS: int
+    UNSUPPORTED_STMT_LLSC: int
+    UNSUPPORTED_STMT_DIRTY: int
+    UNSUPPORTED_STMT_UNKNOWN: int
+    UNSUPPORTED_EXPR_GETI: int
+    UNSUPPORTED_EXPR_UNKNOWN: int
+    UNKNOWN_MEMORY_WRITE_SIZE: int
+    SYSCALL_ARM: int
+    X86_CPUID: int
+
+class StopDetails:
+    stop_reason: int
+    block_addr: int
+    block_size: int
+
+class RegisterValue:
+    offset: int
+    # value: bytes  # Not exposed due to pybind11 limitation
+    size: int
+
+class SymVexStmtDetails:
+    stmt_idx: int
+    has_memory_dep: bool
+    memory_values: object  # pointer/array, not directly exposed
+    memory_values_count: int
+
+class SymBlockDetailsRet:
+    block_addr: int
+    block_size: int
+    block_trace_ind: int
+    has_symbolic_exit: bool
+    symbolic_stmts: object  # pointer/array, not directly exposed
+    symbolic_stmts_count: int
+    register_values: object  # pointer/array, not directly exposed
+    register_values_count: int
+
+class TransmitRecord:
+    fd: int
+    data: object  # pointer/array, not directly exposed
+    count: int
 
 def alloc(
     uc: object,
