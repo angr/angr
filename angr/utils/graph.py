@@ -534,11 +534,30 @@ class Dominators:
 
     def _pd_eval(self, v):
         assert self._ancestor is not None
+        assert self._semi is not None
         assert self._label is not None
 
         if self._ancestor[v.index] is None:
             return v
-        self._pd_compress(v)
+
+        # pd_compress without recursion
+        queue = []
+        current = v
+        ancestor = self._ancestor[current.index]
+        greater_ancestor = self._ancestor[ancestor.index]
+        while greater_ancestor is not None:
+            queue.append(current)
+            current, ancestor = ancestor, greater_ancestor
+            greater_ancestor = self._ancestor[ancestor.index]
+
+        for vv in reversed(queue):
+            if (
+                self._semi[self._label[self._ancestor[vv.index].index].index].index
+                < self._semi[self._label[vv.index].index].index
+            ):
+                self._label[vv.index] = self._label[self._ancestor[vv.index].index]
+            self._ancestor[vv.index] = self._ancestor[self._ancestor[vv.index].index]
+
         return self._label[v.index]
 
     def _pd_compress(self, v):
