@@ -555,7 +555,7 @@ class SimEngineVRBase(
 
         if isinstance(stack_offset, int):
             expr = data.data
-            if expr.size() > 1024:
+            if isinstance(expr, claripy.ast.Bits) and expr.size() > 1024:
                 # we don't write more than 256 bytes to the stack at a time for performance reasons
                 expr = expr[expr.size() - 1 : expr.size() - 1024]
             expr = self.state.annotate_with_variables(expr, [(variable_offset, variable)])
