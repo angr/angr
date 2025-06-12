@@ -343,7 +343,7 @@ class TestTypes(unittest.TestCase):
         ty = angr.types.parse_type(code)
         assert isinstance(ty, SimStruct)
         ty = ty.with_arch(archinfo.ArchAArch64())
-        assert [(t.size, t.offset) for t in list(ty.fields.values())[1:-1]] == [
+        assert [(t.size, t.offset) for t in list(ty.fields.values())[1:-1]] == [  # type: ignore
             (36, 0),
             (8, 4),
             (7, 4),
@@ -356,8 +356,9 @@ class TestTypes(unittest.TestCase):
         variant_type = angr.SIM_TYPE_COLLECTIONS["win32"].get("VARIANT")
         assert isinstance(variant_type, SimStruct)
         assert isinstance(variant_type.fields["Anonymous"], SimUnion)
-        assert variant_type.fields["Anonymous"].members["Anonymous"].anonymous is True
+        assert variant_type.fields["Anonymous"].members["Anonymous"].anonymous is True  # type: ignore
         t = dereference_simtype(variant_type, [angr.SIM_TYPE_COLLECTIONS["win32"]]).with_arch(archinfo.ArchX86())
+        assert t.size is not None
         assert t.size > 0  # an exception is raised if anonymous structs are not handled correctly
 
     def test_simunion_size_bottom_types(self):
