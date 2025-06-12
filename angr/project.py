@@ -297,11 +297,18 @@ class Project:
 
         # Step 1: get the set of libraries we are allowed to use to resolve unresolved symbols
         missing_libs = []
+        missing_wincore_dlls = False
         for lib_name in self.loader.missing_dependencies:
             try:
                 missing_libs.extend(SIM_LIBRARIES[lib_name])
             except KeyError:
                 l.info("There are no simprocedures for missing library %s :(", lib_name)
+                if lib_name.startswith("api-ms-win-"):
+                    missing_wincore_dlls = True
+        if missing_wincore_dlls and "kernel32.dll" not in self.loader.missing_dependencies:
+            # some of the missing api-ms-win-*.dll libraries are actually provided by kernel32.dll
+            missing_libs.extend(SIM_LIBRARIES["kernel32.dll"])
+
         # additionally provide libraries we _have_ loaded as a fallback fallback
         # this helps in the case that e.g. CLE picked up a linux arm libc to satisfy an android arm binary
         for lib in self.loader.all_objects:
