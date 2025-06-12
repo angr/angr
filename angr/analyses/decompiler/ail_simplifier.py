@@ -226,6 +226,15 @@ class AILSimplifier(Analysis):
             # reaching definition analysis results are no longer reliable
             self._clear_cache()
 
+        _l.debug("Rewriting constant expressions with phi variables")
+        phi_const_rewritten = self._rewrite_phi_const_exprs()
+        self.simplified |= phi_const_rewritten
+        if phi_const_rewritten:
+            _l.debug("... constant expressions with phi variables rewritten")
+            self._rebuild_func_graph()
+            # reaching definition analysis results are no longer reliable
+            self._clear_cache()
+
         if self._only_consts:
             return
 
@@ -698,6 +707,11 @@ class AILSimplifier(Analysis):
         if not replacements_by_block_addrs_and_idx:
             return False
 
+        return self._replace_exprs_in_blocks(replacements_by_block_addrs_and_idx)
+
+    def _replace_exprs_in_blocks(
+        self, replacements: dict[tuple[int, int | None], dict[CodeLocation, dict[Expression, Expression]]]
+    ) -> bool:
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
 
         if self._stack_arg_offsets:
@@ -706,7 +720,7 @@ class AILSimplifier(Analysis):
             insn_addrs_using_stack_args = None
 
         replaced = False
-        for (block_addr, block_idx), reps in replacements_by_block_addrs_and_idx.items():
+        for (block_addr, block_idx), reps in replacements.items():
             block = blocks_by_addr_and_idx[(block_addr, block_idx)]
 
             # only replace loads if there are stack arguments in this block
@@ -786,6 +800,72 @@ class AILSimplifier(Analysis):
                     changed = True
 
         return changed
+
+    #
+    # Rewriting constant expressions with phi variables
+    #
+
+    def _rewrite_phi_const_exprs(self) -> bool:
+        """
+        Rewrite phi variables that are definitely constant expressions to constants.
+        """
+
+        # gather constant assignments
+
+        vvar_values: dict[int, tuple[int, int]] = {}
+        for block in self.func_graph:
+            for stmt in block.statements:
+                if (
+                    isinstance(stmt, Assignment)
+                    and isinstance(stmt.dst, VirtualVariable)
+                    and isinstance(stmt.src, Const)
+                    and isinstance(stmt.src.value, int)
+                ):
+                    vvar_values[stmt.dst.varid] = stmt.src.value, stmt.src.bits
+
+        srda = self._compute_reaching_definitions()
+        # compute vvar reachability for phi variables
+        # ensure that each phi variable is fully defined, i.e., all its source variables are defined
+        g = networkx.Graph()
+        for phi_vvar_id, vvar_ids in srda.phivarid_to_varids_with_unknown.items():
+            for vvar_id in vvar_ids:
+                # we cannot store None to networkx graph, so we use -1 to represent unknown source vvars
+                g.add_edge(phi_vvar_id, vvar_id if vvar_id is not None else -1)
+
+        phi_vvar_ids = srda.phi_vvar_ids
+        to_replace = {}
+        for cc in networkx.algorithms.connected_components(g):
+            if -1 in cc:
+                continue
+            normal_vvar_ids = cc.difference(phi_vvar_ids)
+            # ensure there is at least one phi variable and all remaining vvars are constant non-phi variables
+            if len(normal_vvar_ids) < len(cc) and len(normal_vvar_ids.intersection(vvar_values)) == len(
+                normal_vvar_ids
+            ):
+                all_values = {vvar_values[vvar_id] for vvar_id in normal_vvar_ids}
+                if len(all_values) == 1:
+                    # found it!
+                    value, bits = next(iter(all_values))
+                    for var_id in cc:
+                        to_replace[var_id] = value, bits
+
+        # build the replacement dictionary
+        blocks_dict = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
+        replacements: dict[tuple[int, int | None], dict[CodeLocation, dict[Expression, Expression]]] = defaultdict(dict)
+        for vvar_id, (value, bits) in to_replace.items():
+            for expr, use_loc in srda.all_vvar_uses[vvar_id]:
+                if expr is None:
+                    continue
+                assert use_loc.block_addr is not None
+                key = use_loc.block_addr, use_loc.block_idx
+                stmt = blocks_dict[key].statements[use_loc.stmt_idx]
+                if is_phi_assignment(stmt):
+                    continue
+                if use_loc not in replacements[key]:
+                    replacements[key][use_loc] = {}
+                replacements[key][use_loc][expr] = Const(None, None, value, bits, **expr.tags)
+
+        return self._replace_exprs_in_blocks(replacements) if replacements else False
 
     #
     # Unifying local variables
