@@ -5215,6 +5215,21 @@ class TestDecompiler(unittest.TestCase):
         assert len(var_ids) == 2, f"Expected two equivalence checks, found {len(var_ids)}: {var_ids}"
         assert len(set(var_ids)) == 1, f"Expected the same variable in both equivalence checks, found {var_ids}"
 
+    def test_decompiling_fauxware_wide_scrt_release_startup_lock(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "windows", "fauxware-wide.exe")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+
+        f = proj.kb.functions[0x140001AC0]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        self._print_decompilation_result(dec)
+
+        # BlockSimplifier should not remove statements with calls inside
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert "InterlockedExchange(" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

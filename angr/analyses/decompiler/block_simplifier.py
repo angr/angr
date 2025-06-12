@@ -330,18 +330,20 @@ class BlockSimplifier(Analysis):
         for idx, stmt in enumerate(block.statements):
             if type(stmt) is Assignment:
                 # tmps can't execute new code
-                if type(stmt.dst) is Tmp and stmt.dst.tmp_idx not in used_tmps:
-                    continue
+                if (type(stmt.dst) is Tmp and stmt.dst.tmp_idx not in used_tmps) or idx in dead_defs_stmt_idx:
+                    # is it assigning to an unused tmp or a dead virgin?
 
-                # is it a dead virgin?
-                if idx in dead_defs_stmt_idx:
                     # does .src involve any Call expressions? if so, we cannot remove it
                     walker = HasCallExprWalker()
                     walker.walk_expression(stmt.src)
                     if not walker.has_call_expr:
                         continue
 
-                if stmt.src == stmt.dst:
+                    if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
+                        # eliminate the assignment and replace it with the call
+                        stmt = stmt.src
+
+                if isinstance(stmt, Assignment) and stmt.src == stmt.dst:
                     continue
 
             new_statements.append(stmt)
