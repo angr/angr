@@ -824,14 +824,18 @@ class AILSimplifier(Analysis):
 
         srda = self._compute_reaching_definitions()
         # compute vvar reachability for phi variables
+        # ensure that each phi variable is fully defined, i.e., all its source variables are defined
         g = networkx.Graph()
-        for phi_vvar_id, vvar_ids in srda.phivarid_to_varids.items():
+        for phi_vvar_id, vvar_ids in srda.phivarid_to_varids_with_unknown.items():
             for vvar_id in vvar_ids:
-                g.add_edge(phi_vvar_id, vvar_id)
+                # we cannot store None to networkx graph, so we use -1 to represent unknown source vvars
+                g.add_edge(phi_vvar_id, vvar_id if vvar_id is not None else -1)
 
         phi_vvar_ids = srda.phi_vvar_ids
         to_replace = {}
         for cc in networkx.algorithms.connected_components(g):
+            if -1 in cc:
+                continue
             normal_vvar_ids = cc.difference(phi_vvar_ids)
             # ensure there is at least one phi variable and all remaining vvars are constant non-phi variables
             if len(normal_vvar_ids) < len(cc) and len(normal_vvar_ids.intersection(vvar_values)) == len(

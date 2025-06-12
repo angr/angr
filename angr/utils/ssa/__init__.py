@@ -100,7 +100,7 @@ def get_vvar_deflocs(
                 )
                 if phi_vvars is not None and isinstance(stmt.src, Phi):
                     phi_vvars[stmt.dst.varid] = {
-                        vvar_.varid for src, vvar_ in stmt.src.src_and_vvars if vvar_ is not None
+                        vvar_.varid if vvar_ is not None else None for src, vvar_ in stmt.src.src_and_vvars
                     }
             elif isinstance(stmt, Call):
                 if isinstance(stmt.ret_expr, VirtualVariable):

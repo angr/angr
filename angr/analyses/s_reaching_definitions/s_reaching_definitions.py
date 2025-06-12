@@ -87,7 +87,10 @@ class SReachingDefinitionsAnalysis(Analysis):
         self.model.phi_vvar_ids = set(phi_vvars)
         self.model.phivarid_to_varids = {}
         for vvar_id, src_vvars in phi_vvars.items():
-            self.model.phivarid_to_varids[vvar_id] = src_vvars
+            self.model.phivarid_to_varids_with_unknown[vvar_id] = src_vvars
+            self.model.phivarid_to_varids[vvar_id] = (
+                {vvar_id for vvar_id in src_vvars if vvar_id is not None} if None in src_vvars else src_vvars
+            )
 
         if self.mode == "function":
 
