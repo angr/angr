@@ -11,7 +11,7 @@ import networkx
 import claripy
 from angr.ailment.block import Block
 from angr.ailment.statement import Statement, ConditionalJump, Jump, Label, Return
-from angr.ailment.expression import Const, UnaryOp, MultiStatementExpression
+from angr.ailment.expression import Const, UnaryOp, MultiStatementExpression, BinaryOp
 
 from angr.utils.graph import GraphUtils
 from angr.utils.ail import is_phi_assignment, is_head_controlled_loop_block
@@ -2174,20 +2174,17 @@ class PhoenixStructurer(StructurerBase):
         if r is not None:
             left, left_cond, right, left_right_cond, succ = r
             # create the condition node
-            memo = {}
+            left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
+            left_cond_expr_neg = UnaryOp(None, "Not", left_cond_expr, ins_addr=start_node.addr)
+            left_right_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_right_cond)
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
                     return False
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
-                mstmt_expr = MultiStatementExpression(
-                    None, stmts, self.cond_proc.convert_claripy_bool_ast(left_right_cond), ins_addr=left.addr
-                )
-                memo[left_right_cond._hash] = mstmt_expr
-            cond = self.cond_proc.convert_claripy_bool_ast(
-                claripy.Or(claripy.Not(left_cond), left_right_cond), memo=memo
-            )
+                left_right_cond_expr = MultiStatementExpression(None, stmts, left_right_cond_expr, ins_addr=left.addr)
+            cond = BinaryOp(None, "LogicalOr", [left_cond_expr_neg, left_right_cond_expr], ins_addr=start_node.addr)
             cond_jump = ConditionalJump(
                 None,
                 cond,
@@ -2212,18 +2209,16 @@ class PhoenixStructurer(StructurerBase):
         if r is not None:
             left, left_cond, right, right_left_cond, else_node = r
             # create the condition node
-            memo = {}
+            left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
+            right_left_cond_expr = self.cond_proc.convert_claripy_bool_ast(right_left_cond)
             if not self._is_single_statement_block(right):
                 if not self._should_use_multistmtexprs(right):
                     return False
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(right)
                 assert stmts is not None
-                mstmt_expr = MultiStatementExpression(
-                    None, stmts, self.cond_proc.convert_claripy_bool_ast(right_left_cond), ins_addr=left.addr
-                )
-                memo[right_left_cond._hash] = mstmt_expr
-            cond = self.cond_proc.convert_claripy_bool_ast(claripy.Or(left_cond, right_left_cond), memo=memo)
+                right_left_cond_expr = MultiStatementExpression(None, stmts, right_left_cond_expr, ins_addr=left.addr)
+            cond = BinaryOp(None, "LogicalOr", [left_cond_expr, right_left_cond_expr], ins_addr=start_node.addr)
             cond_jump = ConditionalJump(
                 None,
                 cond,
@@ -2248,20 +2243,17 @@ class PhoenixStructurer(StructurerBase):
         if r is not None:
             left, left_cond, succ, left_succ_cond, right = r
             # create the condition node
-            memo = {}
+            left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
+            left_succ_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_succ_cond)
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
                     return False
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
-                mstmt_expr = MultiStatementExpression(
-                    None, stmts, self.cond_proc.convert_claripy_bool_ast(left_succ_cond), ins_addr=left.addr
-                )
-                memo[left_succ_cond._hash] = mstmt_expr
-            cond = self.cond_proc.convert_claripy_bool_ast(
-                claripy.And(left_cond, claripy.Not(left_succ_cond)), memo=memo
-            )
+                left_succ_cond_expr = MultiStatementExpression(None, stmts, left_succ_cond_expr, ins_addr=left.addr)
+            left_succ_cond_expr_neg = UnaryOp(None, "Not", left_succ_cond_expr, ins_addr=start_node.addr)
+            cond = BinaryOp(None, "LogicalAnd", [left_cond_expr, left_succ_cond_expr_neg], ins_addr=start_node.addr)
             cond_jump = ConditionalJump(
                 None,
                 cond,
@@ -2285,21 +2277,16 @@ class PhoenixStructurer(StructurerBase):
         if r is not None:
             left, left_cond, right, right_left_cond, else_node = r
             # create the condition node
-            memo = {}
+            left_cond_expr = self.cond_proc.convert_claripy_bool_ast(left_cond)
+            left_right_cond_expr = self.cond_proc.convert_claripy_bool_ast(right_left_cond)
             if not self._is_single_statement_block(left):
                 if not self._should_use_multistmtexprs(left):
                     return False
                 # create a MultiStatementExpression for left_right_cond
                 stmts = self._build_multistatementexpr_statements(left)
                 assert stmts is not None
-                mstmt_expr = MultiStatementExpression(
-                    None, stmts, self.cond_proc.convert_claripy_bool_ast(right_left_cond), ins_addr=left.addr
-                )
-                memo[right_left_cond._hash] = mstmt_expr
-            cond = self.cond_proc.convert_claripy_bool_ast(
-                claripy.And(left_cond, right_left_cond),
-                memo=memo,
-            )
+                left_right_cond_expr = MultiStatementExpression(None, stmts, left_right_cond_expr, ins_addr=left.addr)
+            cond = BinaryOp(None, "LogicalAnd", [left_cond_expr, left_right_cond_expr], ins_addr=start_node.addr)
             cond_jump = ConditionalJump(
                 None,
                 cond,
