@@ -525,6 +525,10 @@ class SimEngineVRBase(
     def _store_to_stack(
         self, stack_offset, data: RichR[claripy.ast.BV | claripy.ast.FP], size, offset=0, atom=None, endness=None
     ):
+        """
+        Store data to a stack location. We limit the size of the data to store to 256 bytes for performance reasons.
+        """
+
         if atom is None:
             existing_vars = self.state.variable_manager[self.func_addr].find_variables_by_stmt(
                 self.block.addr, self.stmt_idx, "memory"
@@ -550,7 +554,11 @@ class SimEngineVRBase(
             variable, variable_offset = next(iter(existing_vars))
 
         if isinstance(stack_offset, int):
-            expr = self.state.annotate_with_variables(data.data, [(variable_offset, variable)])
+            expr = data.data
+            if expr.size() > 1024:
+                # we don't write more than 256 bytes to the stack at a time for performance reasons
+                expr = expr[expr.size() - 1 : expr.size() - 1024]
+            expr = self.state.annotate_with_variables(expr, [(variable_offset, variable)])
             stack_addr = self.state.stack_addr_from_offset(stack_offset)
             self.state.stack_region.store(stack_addr, expr, endness=endness)
 
