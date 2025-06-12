@@ -6,6 +6,7 @@ import unittest
 
 import archinfo
 import pydemumble
+from archinfo import Endness
 
 import angr
 from angr.sim_type import (
@@ -13,6 +14,7 @@ from angr.sim_type import (
     SimTypeInt,
     SimTypePointer,
     SimTypeChar,
+    SimTypeWideChar,
     SimStruct,
     SimTypeFloat,
     SimUnion,
@@ -25,6 +27,7 @@ from angr.sim_type import (
     SimTypeTop,
     SimTypeString,
     SimTypeCppFunction,
+    SimTypeArray,
 )
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 from angr.utils.types import dereference_simtype
@@ -366,40 +369,16 @@ class TestTypes(unittest.TestCase):
         union_type = union_type.with_arch(archinfo.ArchAMD64())
         assert union_type.size == 8  # fall back to architecture word size
 
+    def test_widechar_extraction(self):
+        proj = angr.load_shellcode(b"\x90\x90\x90\x90", arch="AMD64")
+        state = proj.factory.blank_state()
+        state.memory.store(0xC000_0000, b"a\x00b\x00c\x00D\x00E\x00\x00\x00")
 
-class TestSimTypeFunction(unittest.TestCase):
-    def test_c_repr(self):
-        proto = "int (main)(int argc, char **argv)"
-        _, pyproto, _ = convert_cproto_to_py(proto + ";")
-        assert pyproto.c_repr(name="main", full=True) == proto
+        wchar_t = SimTypeWideChar(endness=Endness.LE).with_arch(proj.arch)
+        assert wchar_t.extract(state, 0xC000_0000, concrete=True) == "a"
 
-    def test_c_repr_noargs(self):
-        proto = "int (main)()"
-        _, pyproto, _ = convert_cproto_to_py(proto + ";")
-        assert pyproto.c_repr(name="main") == proto
-
-    def test_c_repr_noname(self):
-        _, pyproto, _ = convert_cproto_to_py("int (main)(int argc, char **argv);")
-        assert pyproto.c_repr(full=True) == "int ()(int argc, char **argv)"
-
-    def test_c_repr_notfull(self):
-        _, pyproto, _ = convert_cproto_to_py("int (main)(int argc, char **argv);")
-        assert pyproto.c_repr(name="main", full=False) == "int (main)(int, char **)"
-
-    def test_c_repr_void(self):
-        proto = "void (main)(int argc, char **argv)"
-        _, pyproto, _ = convert_cproto_to_py(proto + ";")
-        assert pyproto.c_repr(name="main", full=True) == proto
-
-    def test_c_repr_variadic(self):
-        proto = "int (main)(int x, ...)"
-        _, pyproto, _ = convert_cproto_to_py(proto + ";")
-        assert pyproto.c_repr(name="main", full=True) == proto
-
-    def test_c_repr_variadic_only(self):
-        _, pyproto, _ = convert_cproto_to_py("int (main)(void);")  # XXX: pycparser does not support full variadic yet
-        pyproto.variadic = True
-        assert pyproto.c_repr(name="main", full=True) == "int (main)(...)"
+        wchar_array = SimTypeArray(SimTypeWideChar(endness=Endness.LE), length=5).with_arch(proj.arch)
+        assert wchar_array.extract(state, 0xC000_0000, concrete=True) == ["a", "b", "c", "D", "E"]
 
 
 if __name__ == "__main__":

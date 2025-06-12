@@ -609,33 +609,41 @@ class SimTypeWideChar(SimTypeReg):
 
     _base_name = "char"
 
-    def __init__(self, signed=True, label=None):
+    def __init__(self, signed=True, label=None, endness: Endness = Endness.BE):
         """
         :param label: the type label.
         """
         SimTypeReg.__init__(self, 16, label=label)
         self.signed = signed
+        self.endness = endness
 
     def __repr__(self):
         return "wchar"
 
     def store(self, state, addr, value: StoreType):
-        self._size = state.arch.byte_width
         try:
             super().store(state, addr, value)
         except TypeError:
             if isinstance(value, bytes) and len(value) == 2:
-                value = claripy.BVV(value[0], state.arch.byte_width)
+                inner = (
+                    ((value[0] << state.arch.byte_width) | value[1])
+                    if self.endness == Endness.BE
+                    else ((value[1] << state.arch.byte_width) | value[0])
+                )
+                value = claripy.BVV(inner, state.arch.byte_width * 2)
                 super().store(state, addr, value)
             else:
                 raise
 
     def extract(self, state, addr, concrete=False) -> Any:
-        self._size = state.arch.byte_width
-
-        out = super().extract(state, addr, concrete)
+        out = state.memory.load(addr, 2)
         if concrete:
-            return bytes([out])
+            data = state.solver.eval(out, cast_to=bytes)
+            fmt_str = "utf-16be" if self.endness == Endness.BE else "utf-16le"
+            try:
+                return data.decode(fmt_str)
+            except UnicodeDecodeError:
+                return data
         return out
 
     def _init_str(self):
@@ -645,7 +653,7 @@ class SimTypeWideChar(SimTypeReg):
         )
 
     def copy(self):
-        return self.__class__(signed=self.signed, label=self.label)
+        return self.__class__(signed=self.signed, label=self.label, endness=self.endness)
 
 
 class SimTypeBool(SimTypeReg):
