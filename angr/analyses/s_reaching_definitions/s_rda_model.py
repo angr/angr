@@ -25,6 +25,7 @@ class SRDAModel:
         self.all_tmp_definitions: dict[CodeLocation, dict[atoms.Tmp, int]] = defaultdict(dict)
         self.all_tmp_uses: dict[CodeLocation, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
         self.phi_vvar_ids: set[int] = set()
+        self.phivarid_to_varids_with_unknown: dict[int, set[int | None]] = {}
         self.phivarid_to_varids: dict[int, set[int]] = {}
         self.vvar_uses_by_loc: dict[CodeLocation, list[int]] = {}
 
