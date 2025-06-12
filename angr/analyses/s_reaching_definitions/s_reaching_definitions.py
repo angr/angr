@@ -63,7 +63,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             case _:
                 raise NotImplementedError
 
-        phi_vvars: dict[int, set[int]] = {}
+        phi_vvars: dict[int, set[int | None]] = {}
         # find all vvar definitions
         vvar_deflocs = get_vvar_deflocs(blocks.values(), phi_vvars=phi_vvars)
         # find all explicit vvar uses
@@ -88,7 +88,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         self.model.phivarid_to_varids = {}
         for vvar_id, src_vvars in phi_vvars.items():
             self.model.phivarid_to_varids_with_unknown[vvar_id] = src_vvars
-            self.model.phivarid_to_varids[vvar_id] = (
+            self.model.phivarid_to_varids[vvar_id] = (  # type: ignore
                 {vvar_id for vvar_id in src_vvars if vvar_id is not None} if None in src_vvars else src_vvars
             )
 

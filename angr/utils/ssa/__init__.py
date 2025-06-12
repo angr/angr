@@ -89,7 +89,7 @@ def get_reg_offset_base(reg_offset, arch, size=None, resilient=True):
 
 
 def get_vvar_deflocs(
-    blocks, phi_vvars: dict[int, set[int]] | None = None
+    blocks, phi_vvars: dict[int, set[int | None]] | None = None
 ) -> dict[int, tuple[VirtualVariable, CodeLocation]]:
     vvar_to_loc: dict[int, tuple[VirtualVariable, CodeLocation]] = {}
     for block in blocks:
@@ -161,7 +161,7 @@ def get_tmp_uselocs(blocks) -> dict[CodeLocation, dict[atoms.Tmp, set[tuple[Tmp,
     return tmp_to_loc
 
 
-def is_const_assignment(stmt: Statement) -> tuple[bool, Const | None]:
+def is_const_assignment(stmt: Statement) -> tuple[bool, Const | StackBaseOffset | None]:
     if isinstance(stmt, Assignment) and isinstance(stmt.src, (Const, StackBaseOffset)):
         return True, stmt.src
     return False, None

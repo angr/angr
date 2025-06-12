@@ -819,6 +819,7 @@ class AILSimplifier(Analysis):
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
                     and isinstance(stmt.src, Const)
+                    and isinstance(stmt.src.value, int)
                 ):
                     vvar_values[stmt.dst.varid] = stmt.src.value, stmt.src.bits
 
@@ -855,6 +856,7 @@ class AILSimplifier(Analysis):
             for expr, use_loc in srda.all_vvar_uses[vvar_id]:
                 if expr is None:
                     continue
+                assert use_loc.block_addr is not None
                 key = use_loc.block_addr, use_loc.block_idx
                 stmt = blocks_dict[key].statements[use_loc.stmt_idx]
                 if is_phi_assignment(stmt):
