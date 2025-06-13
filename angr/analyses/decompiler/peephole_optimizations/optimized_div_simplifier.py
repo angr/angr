@@ -17,7 +17,9 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
     NAME = "Simplify optimized division expressions, e.g., (N * a) >> M => a / N1"
     expr_classes = (Convert, BinaryOp)
 
-    def optimize(self, expr: Convert | BinaryOp, **kwargs):
+    def optimize(  # pylint:disable=unused-argument
+        self, expr: Convert | BinaryOp, stmt_idx: int | None = None, block=None, **kwargs
+    ):
         r = None
 
         if isinstance(expr, Convert):
@@ -38,11 +40,13 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             # try to unify if both operands are wrapped with Convert()
             conv_expr = self._unify_conversion(original_expr)
             expr = original_expr if conv_expr is None else conv_expr.operand
+            assert isinstance(expr, BinaryOp)
 
             if expr.op == "Shr" and isinstance(expr.operands[1], Const):
                 r = self._match_case_b(expr)
                 if r is not None:
                     return self._reconvert(r, conv_expr) if conv_expr is not None else r
+                assert isinstance(expr.operands[1].value, int)
                 r = self._match_case_c(expr.operands[0], expr.operands[1].value)
                 if r is not None:
                     return self._reconvert(r, conv_expr) if conv_expr is not None else r
@@ -106,13 +110,13 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
 
         return None
 
-    def _match_case_a(self, expr0: Expression, expr1_op: Convert) -> BinaryOp | None:
+    def _match_case_a(self, expr0: Expression, expr1: Convert) -> BinaryOp | None:
         # (
         #   (((Conv(32->64, vvar_44{reg 32}) * 0x4325c53f<64>) >>a 0x24<8>) & 0xffffffff<64>) -
         #   Conv(32->s64, (vvar_44{reg 32} >>a 0x1f<8>))
         # )
 
-        expr1_op = expr1_op.operand
+        expr1_op = expr1.operand
 
         if (
             isinstance(expr0, BinaryOp)
@@ -175,7 +179,7 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
         return None
 
     @staticmethod
-    def _match_case_b(expr: BinaryOp) -> BinaryOp | None:
+    def _match_case_b(expr: BinaryOp) -> BinaryOp | Convert | None:
         """
         A more complex (but general) case for unsigned 32-bit division by a constant integer.
 

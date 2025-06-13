@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 from angr.ailment.expression import BinaryOp, Const, Convert
 
@@ -5,12 +6,18 @@ from .base import PeepholeOptimizationExprBase
 
 
 class ModuloSimplifier(PeepholeOptimizationExprBase):
+    """
+    Simplify division and multiplication expressions that can be reduced to a modulo operation.
+    """
+
     __slots__ = ()
 
     NAME = "a - (a / N) * N => a % N"
     expr_classes = (BinaryOp,)
 
-    def optimize(self, expr: BinaryOp, **kwargs):
+    def optimize(  # pylint:disable=unused-argument
+        self, expr: BinaryOp, stmt_idx: int | None = None, block=None, **kwargs
+    ):
         if expr.op == "Sub" and len(expr.operands) == 2:
             sub0, sub1 = expr.operands
             # unpack Conversions
