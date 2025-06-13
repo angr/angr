@@ -5,17 +5,16 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
+from typing_extensions import override
 
-import claripy
 import pypcode
 from archinfo import Arch, Endness
 
+from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
-from angr.engines.successors import SuccessorsEngine
 from angr.engines.syscall import SimEngineSyscall
 from angr.rustylib.icicle import Icicle, VmExit, ExceptionCode
-from angr.sim_state import SimState
 
 log = logging.getLogger(__name__)
 
@@ -30,12 +29,13 @@ class IcicleStateTranslationData:
     to an angr state.
     """
 
-    base_state: SimState
+    base_state: HeavyConcreteState
     registers: set[str]
     writable_pages: set[int]
+    initial_cpu_icount: int
 
 
-class IcicleEngine(SuccessorsEngine):
+class IcicleEngine(ConcreteEngine):
     """
     An angr engine that uses Icicle to execute concrete states. The purpose of
     this implementation is to provide a high-performance concrete execution
@@ -54,6 +54,16 @@ class IcicleEngine(SuccessorsEngine):
     For a more complete implementation, use the UberIcicleEngine class, which
     intends to provide a more complete set of features, such as hooks and syscalls.
     """
+
+    breakpoints: set[int]
+
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize the IcicleEngine. This sets up the breakpoints set and
+        initializes the parent class.
+        """
+        super().__init__(*args, **kwargs)
+        self.breakpoints = set()
 
     @staticmethod
     def __make_icicle_arch(arch: Arch) -> str | None:
@@ -81,7 +91,7 @@ class IcicleEngine(SuccessorsEngine):
         return IcicleEngine.__is_arm(icicle_arch) and addr & 1 == 1
 
     @staticmethod
-    def __get_pages(state: SimState) -> set[int]:
+    def __get_pages(state: HeavyConcreteState) -> set[int]:
         """
         Unfortunately, the memory model doesn't have a way to get all pages.
         Instead, we can get all of the backers from the loader, then all of the
@@ -104,7 +114,7 @@ class IcicleEngine(SuccessorsEngine):
         return pages
 
     @staticmethod
-    def __convert_angr_state_to_icicle(state: SimState) -> tuple[Icicle, IcicleStateTranslationData]:
+    def __convert_angr_state_to_icicle(state: HeavyConcreteState) -> tuple[Icicle, IcicleStateTranslationData]:
         icicle_arch = IcicleEngine.__make_icicle_arch(state.arch)
         if icicle_arch is None:
             raise ValueError("Unsupported architecture")
@@ -161,12 +171,15 @@ class IcicleEngine(SuccessorsEngine):
             base_state=state,
             registers=copied_registers,
             writable_pages=writable_pages,
+            initial_cpu_icount=emu.cpu_icount,
         )
 
         return (emu, translation_data)
 
     @staticmethod
-    def __convert_icicle_state_to_angr(emu: Icicle, translation_data: IcicleStateTranslationData) -> SimState:
+    def __convert_icicle_state_to_angr(
+        emu: Icicle, translation_data: IcicleStateTranslationData, status: VmExit
+    ) -> HeavyConcreteState:
         state = translation_data.base_state.copy()
 
         # 1. Copy the register values
@@ -181,20 +194,8 @@ class IcicleEngine(SuccessorsEngine):
             addr = page_num * state.memory.page_size
             state.memory.store(addr, emu.mem_read(addr, state.memory.page_size))
 
-        return state
-
-    def process_successors(self, successors, *, num_inst=0, **kwargs):
-        if len(kwargs) > 0:
-            log.warning("IcicleEngine.process_successors received unknown kwargs: %s", kwargs)
-
-        emu, translation_data = self.__convert_angr_state_to_icicle(self.state)
-
-        if num_inst > 0:
-            emu.icount_limit = num_inst
-
-        status = emu.run()  # pylint: ignore=assignment-from-no-return (pylint bug)
+        # 3. Set history.jumpkind
         exc = emu.exception_code
-
         if status == VmExit.UnhandledException:
             if exc in (
                 ExceptionCode.ReadUnmapped,
@@ -203,22 +204,57 @@ class IcicleEngine(SuccessorsEngine):
                 ExceptionCode.WritePerm,
                 ExceptionCode.ExecViolation,
             ):
-                jumpkind = "Ijk_SigSEGV"
+                state.history.jumpkind = "Ijk_SigSEGV"
             elif exc == ExceptionCode.Syscall:
-                jumpkind = "Ijk_Syscall"
+                state.history.jumpkind = "Ijk_Syscall"
             elif exc == ExceptionCode.Halt:
-                jumpkind = "Ijk_Exit"
+                state.history.jumpkind = "Ijk_Exit"
             elif exc == ExceptionCode.InvalidInstruction:
-                jumpkind = "Ijk_NoDecode"
+                state.history.jumpkind = "Ijk_NoDecode"
             else:
-                jumpkind = "Ijk_EmFail"
+                state.history.jumpkind = "Ijk_EmFail"
         else:
-            jumpkind = "Ijk_Boring"
+            state.history.jumpkind = "Ijk_Boring"
 
-        successor_state = IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data)
-        successors.add_successor(successor_state, successor_state.ip, claripy.true(), jumpkind, add_guard=False)
+        # 4. Set history.recent_instruction_count
+        state.history.recent_instruction_count = emu.cpu_icount - translation_data.initial_cpu_icount
 
-        successors.processed = True
+        return state
+
+    @override
+    def get_breakpoints(self) -> set[int]:
+        """Return the set of currently set breakpoints."""
+        return self.breakpoints
+
+    @override
+    def add_breakpoint(self, addr: int) -> None:
+        """Add a breakpoint at the given address."""
+        self.breakpoints.add(addr)
+
+    @override
+    def remove_breakpoint(self, addr: int) -> None:
+        """Remove a breakpoint at the given address, if present."""
+        self.breakpoints.discard(addr)
+
+    @override
+    def process_concrete(self, state: HeavyConcreteState, num_inst: int | None = None) -> HeavyConcreteState:
+        emu, translation_data = self.__convert_angr_state_to_icicle(state)
+
+        # Set breakpoints, skip the current PC. This assumes that if running
+        # with a breakpoint at the current PC, then the user has already done
+        # the necessary handling and is resuming execution.
+        for addr in self.breakpoints:
+            if emu.pc != addr:
+                emu.add_breakpoint(addr)
+
+        # Set the instruction count limit
+        if num_inst is not None and num_inst > 0:
+            emu.icount_limit = num_inst
+
+        # Run it
+        status = emu.run()
+
+        return IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 
 
 class UberIcicleEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, IcicleEngine):

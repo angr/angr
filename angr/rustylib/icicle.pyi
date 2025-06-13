@@ -79,6 +79,8 @@ class Icicle:
     isa_mode: int
     # Instruction count limit for the next run
     icount_limit: int
+    # Number of instructions executed on the cpu
+    cpu_icount: int
 
     def __init__(self, architecture: str, processors_path: str) -> None: ...
     @property
