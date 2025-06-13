@@ -170,6 +170,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
                 return UnaryOp(expr.idx, "Neg", expr.operands[1], **expr.tags)
 
+            r = EagerEvaluation._combine_like_terms(expr)
+            if r is not None:
+                return r
+
             if isinstance(expr.operands[0], StackBaseOffset) and isinstance(expr.operands[1], StackBaseOffset):
                 assert isinstance(expr.operands[0].offset, int) and isinstance(expr.operands[1].offset, int)
                 return Const(expr.idx, None, expr.operands[0].offset - expr.operands[1].offset, expr.bits, **expr.tags)
@@ -352,6 +356,55 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                         expr.idx, None, 1 if expr.operands[0].value > expr.operands[1].value else 0, 1, **expr.tags
                     )
 
+        return None
+
+    @staticmethod
+    def _combine_like_terms(expr: BinaryOp) -> BinaryOp | None:
+        """
+        Combine like terms for binary operations.
+        """
+
+        op = expr.op
+        assert op in {"Add", "Sub"}
+
+        expr0, expr1 = expr.operands
+
+        conv = None
+        if isinstance(expr0, Convert) and expr0.from_bits < expr0.to_bits:
+            conv = expr0.from_bits, expr0.to_bits, expr0.is_signed
+            expr0 = expr0.operand
+
+        if isinstance(expr0, BinaryOp) and expr0.op == "Mul" and isinstance(expr0.operands[1], Const):
+            n = expr0.operands[0]
+
+            if isinstance(n, Convert) and n.from_bits > n.to_bits:
+                if conv is not None and (n.to_bits, n.from_bits, n.is_signed) != conv:
+                    return None
+                n = n.operand
+
+            if n.likes(expr1):
+                # (n * C) - n  ==>  (C - 1) * n
+                coeff_0 = expr0.operands[1]
+                coeff = Const(coeff_0.idx, None, coeff_0.value - 1, expr.bits, **coeff_0.tags)
+                return BinaryOp(
+                    expr.idx, "Mul", [n, coeff], expr.signed, variable=expr.variable, bits=expr.bits, **expr.tags
+                )
+            if isinstance(expr1, BinaryOp) and expr1.op == "Mul" and isinstance(expr.operands[1].operands[1], Const):
+                n1 = expr.operands[1].operands[0]
+                if n.likes(n1):
+                    # (n * C) - (n1 * C1)  ==>  n * (C - C1)
+                    coeff_0 = expr0.operands[1]
+                    coeff_1 = expr1.operands[1]
+                    coeff = Const(coeff_0.idx, None, coeff_0.value - coeff_1.value, expr.bits, **coeff_0.tags)
+                    return BinaryOp(
+                        expr.idx,
+                        "Mul",
+                        [n, coeff],
+                        expr.signed,
+                        variable=expr.variable,
+                        bits=expr.bits,
+                        **expr.tags,
+                    )
         return None
 
     @staticmethod
