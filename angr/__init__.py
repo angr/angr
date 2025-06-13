@@ -261,7 +261,7 @@ __all__ = (
     "Blade",
     "Block",
     "Emulator",
-    "EmulatorResult",
+    "EmulatorStopReason",
     "ExplorationTechnique",
     "KnowledgeBase",
     "PTChunk",
