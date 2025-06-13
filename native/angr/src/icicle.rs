@@ -193,7 +193,6 @@ struct Icicle {
     #[pyo3(get)]
     architecture: String,
     vm: icicle_vm::Vm,
-    // regs: HashMap<String, NamedRegister>,
 }
 
 #[pymethods]
@@ -363,6 +362,11 @@ impl Icicle {
     #[getter]
     pub fn get_icount_limit(&self) -> u64 {
         self.vm.icount_limit
+    }
+
+    #[getter]
+    pub fn get_cpu_icount(&self) -> u64 {
+        self.vm.cpu.icount
     }
 
     pub fn run(&mut self) -> VmExit {

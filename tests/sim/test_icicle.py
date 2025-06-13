@@ -312,3 +312,157 @@ class TestFauxware(TestCase):
 
     def test_fauxware_mipsel(self):
         self._run_fauxware("mipsel")
+
+
+class TestBreakpoints(TestCase):
+    """Unit tests for breakpoint functionality in the Icicle engine."""
+
+    def test_add_breakpoint(self):
+        """Test adding and hitting a breakpoint."""
+        shellcode = "mov x0, 0x1; mov x1, 0x2; add x2, x0, x1; mov x3, 0x3"
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        # Add breakpoint at the third instruction (add x2, x0, x1)
+        breakpoint_addr = project.entry + 8
+        engine.add_breakpoint(breakpoint_addr)
+
+        # Process up to the breakpoint
+        successors = engine.process(init_state)
+        assert len(successors.successors) == 1
+        state_after_bp = successors.successors[0]
+        assert state_after_bp.addr == breakpoint_addr
+        assert state_after_bp.regs.x0.concrete_value == 1
+        assert state_after_bp.regs.x1.concrete_value == 2
+
+        # Continue execution
+        successors2 = engine.process(state_after_bp)
+        assert len(successors2.successors) == 1
+        final_state = successors2.successors[0]
+        assert final_state.regs.x2.concrete_value == 3
+        assert final_state.regs.x3.concrete_value == 3
+
+    def test_remove_breakpoint(self):
+        """Test removing a breakpoint."""
+        shellcode = "mov x0, 0x1; mov x1, 0x2; add x2, x0, x1; mov x3, 0x3"
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        breakpoint_addr = project.entry + 8  # add x2, x0, x1
+        engine.add_breakpoint(breakpoint_addr)
+        engine.remove_breakpoint(breakpoint_addr)
+
+        # Process all instructions, breakpoint should not be hit
+        successors = engine.process(init_state, num_inst=4)
+        assert len(successors.successors) == 1
+        final_state = successors.successors[0]
+        assert final_state.regs.x2.concrete_value == 3
+        assert final_state.regs.x3.concrete_value == 3
+        assert final_state.addr == project.entry + 16  # After last instruction
+
+    def test_multiple_breakpoints(self):
+        """Test multiple breakpoints."""
+        shellcode = "mov x0, 0x1; mov x1, 0x2; add x2, x0, x1; mov x3, 0x3; sub x4, x3, x0"  # 5 instructions
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        bp1_addr = project.entry + 4  # mov x1, 0x2
+        bp2_addr = project.entry + 12  # mov x3, 0x3
+        engine.add_breakpoint(bp1_addr)
+        engine.add_breakpoint(bp2_addr)
+
+        # Process to first breakpoint
+        succ1 = engine.process(init_state)
+        assert len(succ1.successors) == 1
+        state1 = succ1.successors[0]
+        assert state1.addr == bp1_addr
+        assert state1.regs.x0.concrete_value == 1
+
+        # Process to second breakpoint
+        succ2 = engine.process(state1)
+        assert len(succ2.successors) == 1
+        state2 = succ2.successors[0]
+        assert state2.addr == bp2_addr
+        assert state2.regs.x1.concrete_value == 2
+        assert state2.regs.x2.concrete_value == 3
+
+        # Process to end
+        succ3 = engine.process(state2)
+        assert len(succ3.successors) == 1
+        state3 = succ3.successors[0]
+        assert state3.regs.x3.concrete_value == 3
+        assert state3.regs.x4.concrete_value == 2  # 3 - 1
+        assert state3.addr == project.entry + 20  # After last instruction
+
+    def test_breakpoint_at_start(self):
+        """Test that a breakpoint at the very first instruction is ignored (execution resumes immediately)."""
+        shellcode = "mov x0, 0x1; mov x1, 0x2"
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        engine.add_breakpoint(project.entry)
+
+        # The breakpoint at the entry should be ignored, so execution should proceed as normal
+        successors = engine.process(init_state)
+        assert len(successors.successors) == 1
+        final_state = successors.successors[0]
+        assert final_state.regs.x0.concrete_value == 1
+        assert final_state.regs.x1.concrete_value == 2
+        assert final_state.addr == project.entry + 8  # After both instructions
+
+    def test_breakpoint_simprocedure(self):
+        """Test that breakpoints on SimProcedure locations work."""
+        shellcode = "mov x0, 0x1; nop; mov x1, 0x2"  # nop will be hooked
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        # Hook the nop instruction
+        @project.hook(project.entry + 4, length=4)
+        def hook_nop(state):
+            state.regs.x0 = 0x1337
+
+        engine = UberIcicleEngine(project)  # UberIcicleEngine needed for hooks
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        # Breakpoint is automatically added by UberIcicleEngine at hook_nop
+        # Process up to the hook (which is also a breakpoint)
+        succ1 = engine.process(init_state)  # Runs first mov
+        assert len(succ1.successors) == 1
+        state1 = succ1.successors[0]
+        assert state1.addr == project.entry + 4  # At the hook
+        assert state1.regs.x0.concrete_value == 1
+
+        # Execute the hook
+        succ2 = engine.process(state1)
+        assert len(succ2.successors) == 1
+        state2 = succ2.successors[0]
+        assert state2.addr == project.entry + 8  # After the hook
+        assert state2.regs.x0.concrete_value == 0x1337  # Value changed by hook
+
+        # Execute the final mov
+        succ3 = engine.process(state2)
+        assert len(succ3.successors) == 1
+        state3 = succ3.successors[0]
+        assert state3.regs.x1.concrete_value == 2
