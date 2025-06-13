@@ -33,6 +33,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     def _optimize_BinaryOp(self, expr: BinaryOp):
         # And(expr, full_N_bitmask) ==> expr
         # And(SHR(expr, N), bitmask)) ==> SHR(expr, N)
+        # And(Div(Conv(M->N, expr), P), 2 ** M - 1) ==> Div(Conv(M->N, expr), P)  where M < N
         # And(Conv(1->N, expr), bitmask) ==> Conv(1->N, expr)
         # And(Conv(1->N, bool_expr), bitmask) ==> Conv(1->N, bool_expr)
         # And(ITE(?, const_expr, const_expr), bitmask) ==> ITE(?, const_expr, const_expr)
@@ -41,15 +42,23 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             if expr.operands[1].value == _MASKS.get(inner_expr.bits, None):
                 return inner_expr
 
-            if isinstance(inner_expr, BinaryOp) and inner_expr.op == "Shr":
-                mask = expr.operands[1]
-                shift_val = inner_expr.operands[1]
-                if (
-                    isinstance(shift_val, Const)
-                    and shift_val.value in _MASKS
-                    and mask.value == _MASKS.get(int(64 - shift_val.value), None)
-                ):
-                    return inner_expr
+            if isinstance(inner_expr, BinaryOp):
+                if inner_expr.op == "Shr":
+                    mask = expr.operands[1]
+                    shift_val = inner_expr.operands[1]
+                    if (
+                        isinstance(shift_val, Const)
+                        and shift_val.value in _MASKS
+                        and mask.value == _MASKS.get(int(64 - shift_val.value), None)
+                    ):
+                        return inner_expr
+                if inner_expr.op == "Div" and isinstance(inner_expr.operands[0], Convert):
+                    from_bits = inner_expr.operands[0].from_bits
+                    to_bits = inner_expr.operands[0].to_bits
+                    if from_bits < to_bits:
+                        mask = expr.operands[1]
+                        if mask.value == _MASKS.get(from_bits):
+                            return inner_expr
 
             if isinstance(inner_expr, Convert) and self.is_bool_expr(inner_expr.operand):
                 # useless masking

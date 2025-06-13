@@ -1644,6 +1644,18 @@ class TestDecompiler(unittest.TestCase):
         mul7 = [line for line in lines if re.match(retexpr + r" = [av]\d+ \* 7;", line.strip(" ")) is not None]
         assert len(mul7) == 1, f"Cannot find statement {retexpr} = v0 * 7."
 
+    def test_decompiling_modulo_7ffffff(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "divisions_gcc_O1.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        proj.analyses.CFGFast(normalize=True)
+
+        d = proj.analyses.Decompiler(proj.kb.functions["lehmer_rng"], options=decompiler_options)
+        assert d.codegen is not None and isinstance(d.codegen.text, str)
+
+        self._print_decompilation_result(d)
+        assert re.search(r"\([av]\d \* 48271\) % 2147483647;", d.codegen.text) is not None
+
     # @for_all_structuring_algos
     @structuring_algo("dream")
     def test_decompiling_dirname_quotearg_n_options(self, decompiler_options=None):

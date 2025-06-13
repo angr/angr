@@ -4,14 +4,14 @@ from .a_div_const_add_a_mul_n_div_const import ADivConstAddAMulNDivConst
 from .a_mul_const_div_shr_const import AMulConstDivShrConst
 from .a_shl_const_sub_a import AShlConstSubA
 from .a_sub_a_div import ASubADiv
-from .a_sub_a_div_const_mul_const import ASubADivConstMulConst
+from .modulo_simplifier import ModuloSimplifier
 from .a_sub_a_shr_const_shr_const import ASubAShrConstShrConst
 from .arm_cmpf import ARMCmpF
 from .bswap import Bswap
 from .cas_intrinsics import CASIntrinsics
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .constant_derefs import ConstantDereferences
-from .const_mull_a_shift import ConstMullAShift
+from .optimized_div_simplifier import OptimizedDivisionSimplifier
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .remove_empty_if_body import RemoveEmptyIfBody
 from .remove_redundant_ite_branch import RemoveRedundantITEBranches
@@ -61,14 +61,14 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     AShlConstSubA,
     AMulConstSubA,
     ASubADiv,
-    ASubADivConstMulConst,
+    ModuloSimplifier,
     ASubAShrConstShrConst,
     ARMCmpF,
     Bswap,
     CASIntrinsics,
     CoalesceSameCascadingIfs,
     ConstantDereferences,
-    ConstMullAShift,
+    OptimizedDivisionSimplifier,
     ExtendedByteAndMask,
     RemoveEmptyIfBody,
     RemoveRedundantITEBranches,
