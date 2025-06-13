@@ -230,6 +230,10 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
             n_minus_q = t.operands[1]
         else:
             return None
+        if isinstance(q, Convert) and q.from_bits == 64 and q.to_bits == 32:
+            q = q.operand
+        if isinstance(n_minus_q, Convert) and n_minus_q.from_bits == 64 and n_minus_q.to_bits == 32:
+            n_minus_q = n_minus_q.operand
 
         # unmask
         if isinstance(n_minus_q, BinaryOp) and n_minus_q.op == "And":
@@ -267,7 +271,10 @@ class OptimizedDivisionSimplifier(PeepholeOptimizationExprBase):
         if divisor == 0:
             return None
         divisor_expr = Const(None, None, divisor, n.bits)
-        return BinaryOp(expr.idx, "Div", [n, divisor_expr], signed=False, **expr.tags)
+        div = BinaryOp(expr.idx, "Div", [n, divisor_expr], signed=False, **expr.tags)
+        if expr.bits != div.bits:
+            div = Convert(expr.idx, div.bits, expr.bits, False, div, **expr.tags)
+        return div
 
     def _match_case_c(self, inner, m: int) -> BinaryOp | None:
         # (N * a) >> M  ==>  a / N1
