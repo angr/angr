@@ -15,6 +15,8 @@ from angr.emulator import Emulator, EmulatorStopReason
 from angr.engines.icicle import UberIcicleEngine
 from tests.common import bin_location
 
+# pylint: disable=no-self-use
+
 
 class TestFauxware(TestCase):
     """Integration tests executing the fauxware binary using the Emulator class."""
@@ -57,8 +59,6 @@ class TestFauxware(TestCase):
 
 class TestBreakpoints(TestCase):
     """Unit tests for breakpoint functionality in the Emulator class."""
-
-    # pylint: disable=no-self-use
 
     def test_add_breakpoint(self):
         """Test adding and hitting a breakpoint."""
