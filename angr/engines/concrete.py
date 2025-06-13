@@ -63,4 +63,4 @@ class ConcreteEngine(SuccessorsEngine, metaclass=ABCMeta):
         successors.processed = True
 
 
-__all__ = ["ConcreteEngine"]
+__all__ = ["ConcreteEngine", "HeavyConcreteState"]
