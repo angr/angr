@@ -31,8 +31,6 @@ class TestFauxware(TestCase):
         emulator = Emulator(engine, init_state.copy())
 
         stop_reason = emulator.run()
-        assert stop_reason != EmulatorStopReason.MEMORY_ERROR
-        assert stop_reason != EmulatorStopReason.NO_SUCCESSORS
         assert stop_reason == EmulatorStopReason.EXIT
 
         # Check that the program has printed the expected output
