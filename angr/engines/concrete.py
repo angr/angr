@@ -42,7 +42,9 @@ class ConcreteEngine(SuccessorsEngine, metaclass=ABCMeta):
         """
 
     @override
-    def process_successors(self, successors: SimSuccessors, *, num_inst: int | None = None, **kwargs: dict[str, typing.Any]):
+    def process_successors(
+        self, successors: SimSuccessors, *, num_inst: int | None = None, **kwargs: dict[str, typing.Any]
+    ):
         if len(kwargs) > 0:
             log.warning("ConcreteEngine.process_successors received unknown kwargs: %s", kwargs)
 

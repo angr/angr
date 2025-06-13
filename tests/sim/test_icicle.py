@@ -368,11 +368,11 @@ class TestBreakpoints(TestCase):
         final_state = successors.successors[0]
         assert final_state.regs.x2.concrete_value == 3
         assert final_state.regs.x3.concrete_value == 3
-        assert final_state.addr == project.entry + 16 # After last instruction
+        assert final_state.addr == project.entry + 16  # After last instruction
 
     def test_multiple_breakpoints(self):
         """Test multiple breakpoints."""
-        shellcode = "mov x0, 0x1; mov x1, 0x2; add x2, x0, x1; mov x3, 0x3; sub x4, x3, x0" # 5 instructions
+        shellcode = "mov x0, 0x1; mov x1, 0x2; add x2, x0, x1; mov x3, 0x3; sub x4, x3, x0"  # 5 instructions
         project = angr.load_shellcode(shellcode, "aarch64")
 
         engine = IcicleEngine(project)
@@ -382,7 +382,7 @@ class TestBreakpoints(TestCase):
         )
 
         bp1_addr = project.entry + 4  # mov x1, 0x2
-        bp2_addr = project.entry + 12 # mov x3, 0x3
+        bp2_addr = project.entry + 12  # mov x3, 0x3
         engine.add_breakpoint(bp1_addr)
         engine.add_breakpoint(bp2_addr)
 
@@ -406,8 +406,8 @@ class TestBreakpoints(TestCase):
         assert len(succ3.successors) == 1
         state3 = succ3.successors[0]
         assert state3.regs.x3.concrete_value == 3
-        assert state3.regs.x4.concrete_value == 2 # 3 - 1
-        assert state3.addr == project.entry + 20 # After last instruction
+        assert state3.regs.x4.concrete_value == 2  # 3 - 1
+        assert state3.addr == project.entry + 20  # After last instruction
 
     def test_breakpoint_at_start(self):
         """Test that a breakpoint at the very first instruction is ignored (execution resumes immediately)."""
@@ -432,7 +432,7 @@ class TestBreakpoints(TestCase):
 
     def test_breakpoint_simprocedure(self):
         """Test that breakpoints on SimProcedure locations work."""
-        shellcode = "mov x0, 0x1; nop; mov x1, 0x2" # nop will be hooked
+        shellcode = "mov x0, 0x1; nop; mov x1, 0x2"  # nop will be hooked
         project = angr.load_shellcode(shellcode, "aarch64")
 
         # Hook the nop instruction
@@ -440,7 +440,7 @@ class TestBreakpoints(TestCase):
         def hook_nop(state):
             state.regs.x0 = 0x1337
 
-        engine = UberIcicleEngine(project) # UberIcicleEngine needed for hooks
+        engine = UberIcicleEngine(project)  # UberIcicleEngine needed for hooks
         init_state = project.factory.blank_state(
             remove_options={*o.symbolic},
             add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
@@ -448,18 +448,18 @@ class TestBreakpoints(TestCase):
 
         # Breakpoint is automatically added by UberIcicleEngine at hook_nop
         # Process up to the hook (which is also a breakpoint)
-        succ1 = engine.process(init_state) # Runs first mov
+        succ1 = engine.process(init_state)  # Runs first mov
         assert len(succ1.successors) == 1
         state1 = succ1.successors[0]
-        assert state1.addr == project.entry + 4 # At the hook
+        assert state1.addr == project.entry + 4  # At the hook
         assert state1.regs.x0.concrete_value == 1
 
         # Execute the hook
         succ2 = engine.process(state1)
         assert len(succ2.successors) == 1
         state2 = succ2.successors[0]
-        assert state2.addr == project.entry + 8 # After the hook
-        assert state2.regs.x0.concrete_value == 0x1337 # Value changed by hook
+        assert state2.addr == project.entry + 8  # After the hook
+        assert state2.regs.x0.concrete_value == 0x1337  # Value changed by hook
 
         # Execute the final mov
         succ3 = engine.process(state2)

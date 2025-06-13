@@ -125,7 +125,7 @@ class TestBreakpoints(TestCase):
         emulator = Emulator(engine, init_state.copy())
 
         bp1_addr = project.entry + 4  # mov x1, 0x2
-        bp2_addr = project.entry + 12 # mov x3, 0x3
+        bp2_addr = project.entry + 12  # mov x3, 0x3
         emulator.add_breakpoint(bp1_addr)
         emulator.add_breakpoint(bp2_addr)
 
