@@ -19,6 +19,8 @@ from tests.common import bin_location
 class TestFauxware(TestCase):
     """Integration tests executing the fauxware binary using the Emulator class."""
 
+    # pylint: disable=no-self-use
+
     def _run_fauxware(self, arch):
         project = angr.Project(os.path.join(bin_location, "tests", arch, "fauxware"), auto_load_libs=False)
         init_state = project.factory.entry_state(
