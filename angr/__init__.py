@@ -192,6 +192,7 @@ from . import concretization_strategies
 from .distributed import Server
 from .knowledge_base import KnowledgeBase
 from .procedures.definitions import load_external_definitions
+from .emulator import Emulator, EmulatorStopReason
 
 # for compatibility reasons
 from . import sim_manager as manager
@@ -259,6 +260,8 @@ __all__ = (
     "AngrVaultError",
     "Blade",
     "Block",
+    "Emulator",
+    "EmulatorResult",
     "ExplorationTechnique",
     "KnowledgeBase",
     "PTChunk",
