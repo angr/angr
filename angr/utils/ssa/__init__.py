@@ -42,7 +42,7 @@ def get_reg_offset_base_and_size(
 
 def get_reg_offset_base_and_size(
     reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: bool = True
-) -> tuple[int, int] | None:
+) -> tuple[int, int | None] | None:
     """
     Translate a given register offset into the offset of its full register and obtain the size of the full register.
 
