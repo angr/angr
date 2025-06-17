@@ -10,7 +10,16 @@ import networkx
 
 from angr.ailment import AILBlockWalker
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, Assignment, Store, Call, ConditionalJump, DirtyStatement, WeakAssignment
+from angr.ailment.statement import (
+    Statement,
+    Assignment,
+    Store,
+    Call,
+    ConditionalJump,
+    DirtyStatement,
+    WeakAssignment,
+    Return,
+)
 from angr.ailment.expression import (
     Register,
     Convert,
@@ -1643,8 +1652,10 @@ class AILSimplifier(Analysis):
         stackarg_offsets = (
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
         )
-        endpoints: set[tuple[int, int]] = {
-            (node.addr, node.idx) for node in self.func_graph if self.func_graph.out_degree[node] == 0
+        retpoints: set[tuple[int, int]] = {
+            (node.addr, node.idx)
+            for node in self.func_graph
+            if node.statements and isinstance(node.statements[-1], Return) and self.func_graph.out_degree[node] == 0
         }
 
         while True:
@@ -1679,7 +1690,7 @@ class AILSimplifier(Analysis):
                             elif vvar_id in self._secondary_stackvars:
                                 # secondary stack variables are potentially removable
                                 pass
-                            elif (def_codeloc.block_addr, def_codeloc.block_idx) in endpoints:
+                            elif (def_codeloc.block_addr, def_codeloc.block_idx) in retpoints:
                                 # slack variable assignments in endpoint blocks are potentially removable.
                                 # note that this is a hack! we should rely on more reliable stack variable
                                 # eliminatability detection.
