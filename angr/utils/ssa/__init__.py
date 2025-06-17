@@ -6,7 +6,7 @@ from typing import Any, Literal, overload
 import networkx
 
 import archinfo
-from angr.ailment import Expression, Block
+from angr.ailment import Expression, Block, UnaryOp
 from angr.ailment.expression import (
     VirtualVariable,
     Const,
@@ -276,6 +276,31 @@ def has_tmp_expr(expr: Expression) -> bool:
     walker = AILBlacklistExprTypeWalker((Tmp,))
     walker.walk_expression(expr)
     return walker.has_blacklisted_exprs
+
+
+class AILReferenceFinder(AILBlockWalkerBase):
+    """
+    Walks an AIL expression or statement and finds if it contains references to certain expressions.
+    """
+
+    def __init__(self, vvar_id: int):
+        super().__init__()
+        self.vvar_id = vvar_id
+        self.has_references_to_vvar = False
+
+    def _handle_UnaryOp(
+        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Any:
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.varid == self.vvar_id:
+            self.has_references_to_vvar = True
+            return None
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
+    walker = AILReferenceFinder(vvar_id)
+    walker.walk_statement(stmt)
+    return walker.has_references_to_vvar
 
 
 def check_in_between_stmts(
