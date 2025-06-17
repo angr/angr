@@ -1643,6 +1643,9 @@ class AILSimplifier(Analysis):
         stackarg_offsets = (
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
         )
+        endpoints: set[tuple[int, int]] = {
+            (node.addr, node.idx) for node in self.func_graph if self.func_graph.out_degree[node] == 0
+        }
 
         while True:
             new_dead_vars_found = False
@@ -1675,6 +1678,11 @@ class AILSimplifier(Analysis):
                                 pass
                             elif vvar_id in self._secondary_stackvars:
                                 # secondary stack variables are potentially removable
+                                pass
+                            elif (def_codeloc.block_addr, def_codeloc.block_idx) in endpoints:
+                                # slack variable assignments in endpoint blocks are potentially removable.
+                                # note that this is a hack! we should rely on more reliable stack variable
+                                # eliminatability detection.
                                 pass
                             elif stackarg_offsets is not None:
                                 # we always remove definitions for stack arguments
