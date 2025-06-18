@@ -6,7 +6,7 @@ from typing import Any, Literal, overload
 import networkx
 
 import archinfo
-from angr.ailment import Expression, Block
+from angr.ailment import Expression, Block, UnaryOp
 from angr.ailment.expression import (
     VirtualVariable,
     Const,
@@ -42,7 +42,7 @@ def get_reg_offset_base_and_size(
 
 def get_reg_offset_base_and_size(
     reg_offset: int, arch: archinfo.Arch, size: int | None = None, resilient: bool = True
-) -> tuple[int, int] | None:
+) -> tuple[int, int | None] | None:
     """
     Translate a given register offset into the offset of its full register and obtain the size of the full register.
 
@@ -278,6 +278,31 @@ def has_tmp_expr(expr: Expression) -> bool:
     return walker.has_blacklisted_exprs
 
 
+class AILReferenceFinder(AILBlockWalkerBase):
+    """
+    Walks an AIL expression or statement and finds if it contains references to certain expressions.
+    """
+
+    def __init__(self, vvar_id: int):
+        super().__init__()
+        self.vvar_id = vvar_id
+        self.has_references_to_vvar = False
+
+    def _handle_UnaryOp(
+        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Any:
+        if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.varid == self.vvar_id:
+            self.has_references_to_vvar = True
+            return None
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+
+def has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
+    walker = AILReferenceFinder(vvar_id)
+    walker.walk_statement(stmt)
+    return walker.has_references_to_vvar
+
+
 def check_in_between_stmts(
     graph: networkx.DiGraph,
     blocks: dict[tuple[int, int | None], Block],
@@ -356,6 +381,33 @@ def has_load_expr_in_between_stmts(
     return check_in_between_stmts(
         graph, blocks, defloc, useloc, lambda stmt: has_load_expr(stmt, skip_if_contains_vvar=skip_if_contains_vvar)
     )
+
+
+def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
+    if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
+        return True
+    if vvar.was_stack and isinstance(def_stmt, Assignment):
+        if isinstance(def_stmt.src, Const):
+            return True
+        if (
+            isinstance(def_stmt.src, VirtualVariable)
+            and def_stmt.src.was_stack
+            and def_stmt.src.stack_offset == vvar.stack_offset
+        ):
+            # special case: the following block
+            #   ## Block 401e98
+            #   00 | 0x401e98 | LABEL_401e98:
+            #   01 | 0x401e98 | vvar_227{stack -12} = 𝜙@32b [((4202088, None), vvar_277{stack -12}), ((4202076, None),
+            #                   vvar_278{stack -12})]
+            #   02 | 0x401ea0 | return Conv(32->64, vvar_227{stack -12});
+            # might be simplified to the following block after return duplication
+            #   ## Block 401e98.1
+            #   00 | 0x401e98 | LABEL_401e98__1:
+            #   01 | 0x401e98 | vvar_279{stack -12} = vvar_277{stack -12}
+            #   02 | 0x401ea0 | return Conv(32->64, vvar_279{stack -12});
+            # in this case, vvar_279 is eliminatable.
+            return True
+    return False
 
 
 def is_vvar_eliminatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
