@@ -398,7 +398,12 @@ class AILSimplifier(Analysis):
                 # only do this for general purpose register
                 skip_def = False
                 for reg in self.project.arch.register_list:
-                    if not reg.artificial and reg.vex_offset == def_.atom.reg_offset and not reg.general_purpose:
+                    if (
+                        not reg.artificial
+                        and reg.vex_offset == def_.atom.reg_offset
+                        and not reg.general_purpose
+                        and not reg.vector
+                    ):
                         skip_def = True
                         break
 
