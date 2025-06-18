@@ -3810,7 +3810,7 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
         text = d.codegen.text
         # should not simplify away the bitwise-or operation
-        assert text.count(" |= ") == 1
+        assert text.count(" |= ") == 1 or text.count("0x5e20000 | a") == 1
 
     @structuring_algo("sailr")
     def test_simplifying_string_transformation_loops(self, decompiler_options=None):

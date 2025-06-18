@@ -5,15 +5,14 @@ from typing import TYPE_CHECKING
 from collections.abc import Iterable, Mapping
 
 from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
-from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression
+from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
 from angr.ailment import AILBlockWalkerBase
-
 from angr.code_location import ExternalCodeLocation, CodeLocation
-
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
 from angr.analyses import Analysis, register_analysis
+from angr.utils.ssa import has_reference_to_vvar
 from .peephole_optimizations import (
     MULTI_STMT_OPTS,
     STMT_OPTS,
@@ -245,6 +244,10 @@ class BlockSimplifier(Analysis):
 
                     if not replace_registers and isinstance(old, Register):
                         # don't replace
+                        r = False
+                        new_stmt = None
+                    elif isinstance(old, VirtualVariable) and has_reference_to_vvar(stmt, old.varid):
+                        # never replace an l-value with an r-value
                         r = False
                         new_stmt = None
                     elif isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
