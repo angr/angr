@@ -2566,7 +2566,11 @@ class CFGBase(Analysis):
         """
 
         if arch.name == "X86" or arch.name == "AMD64":
-            if set(block.bytes) == {0x90}:
+            block_bytes_set = set(block.bytes)
+            if block_bytes_set == {0x90}:
+                return True
+            if block_bytes_set == {0xCC}:
+                # technically this is not a no-op, but for our purposes we can settle for now
                 return True
         elif arch.name == "MIPS32":
             if arch.memory_endness == "Iend_BE":
