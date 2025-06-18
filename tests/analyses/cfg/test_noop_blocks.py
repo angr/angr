@@ -21,6 +21,16 @@ class TestNoopBlocks(unittest.TestCase):
         block = p.factory.block(0x400000, opt_level=1, cross_insn_opt=True)
         assert CFGBase._is_noop_block(arch, block) is True
 
+    def test_x86_noop_blocks_int3(self):
+        # int3
+        arch = archinfo.arch_from_id("x86")
+        b = b"\xcc\xcc\xcc"
+        p = angr.load_shellcode(b, arch, load_address=0x400000)
+        block = p.factory.block(0x400000, opt_level=1, cross_insn_opt=False)
+        assert CFGBase._is_noop_block(arch, block) is True
+        block = p.factory.block(0x400000, opt_level=1, cross_insn_opt=True)
+        assert CFGBase._is_noop_block(arch, block) is True
+
     def test_x86_noop_block_extra_bytes(self):
         arch = archinfo.arch_from_id("x86")
         b = b"\x90\xbc\x97\n\x00"
