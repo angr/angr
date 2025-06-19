@@ -55,7 +55,7 @@ def inverted_idoms(graph: networkx.DiGraph) -> tuple[networkx.DiGraph, dict | No
 
 
 def to_acyclic_graph(
-    graph: networkx.DiGraph, ordered_nodes: list | None = None, loop_heads: list | None = None
+    graph: networkx.DiGraph, node_order: dict[Any, int] | None = None, loop_heads: list | None = None
 ) -> networkx.DiGraph:
     """
     Convert a given DiGraph into an acyclic graph.
@@ -66,21 +66,22 @@ def to_acyclic_graph(
     :return:                The converted acyclic graph.
     """
 
-    if ordered_nodes is None:
+    if node_order is None:
         # take the quasi-topological order of the graph
         ordered_nodes = GraphUtils.quasi_topological_sort_nodes(graph, loop_heads=loop_heads)
-
-    acyclic_graph = networkx.DiGraph()
+        node_order = {n: i for i, n in enumerate(ordered_nodes)}
 
     # add each node and its edge into the graph
-    visited = set()
-    for node in ordered_nodes:
-        visited.add(node)
-        acyclic_graph.add_node(node)
-        for successor in graph.successors(node):
-            if successor not in visited:
-                acyclic_graph.add_edge(node, successor)
+    edges_to_remove = []
+    for src, dst in graph.edges():
+        src_order = node_order[src]
+        dst_order = node_order[dst]
+        if src_order > dst_order:
+            # this is a back edge, we need to remove it
+            edges_to_remove.append((src, dst))
 
+    acyclic_graph = graph.copy()
+    acyclic_graph.remove_edges_from(edges_to_remove)
     return acyclic_graph
 
 
