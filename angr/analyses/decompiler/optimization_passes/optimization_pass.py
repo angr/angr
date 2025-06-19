@@ -432,12 +432,13 @@ class StructuringOptimizationPass(OptimizationPass):
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
 
     _initial_gotos: set[Goto]
-    _goto_manager: GotoManager
+    _goto_manager: GotoManager | None
     _prev_graph: networkx.DiGraph
 
     def __init__(
         self,
         func,
+        require_structurable_graph: bool = True,
         prevent_new_gotos: bool = True,
         strictly_less_gotos: bool = False,
         recover_structure_fails: bool = True,
@@ -450,6 +451,7 @@ class StructuringOptimizationPass(OptimizationPass):
         **kwargs,
     ):
         super().__init__(func, **kwargs)
+        self._require_structurable_graph = require_structurable_graph
         self._prevent_new_gotos = prevent_new_gotos
         self._strictly_less_gotos = strictly_less_gotos
         self._recover_structure_fails = recover_structure_fails
@@ -459,6 +461,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._must_improve_rel_quality = must_improve_rel_quality
         self._readd_labels = readd_labels
         self._edges_to_remove = edges_to_remove or []
+        self._goto_manager = None
 
         # relative quality metrics (excludes gotos)
         self._initial_structure_counter = None
@@ -476,12 +479,18 @@ class StructuringOptimizationPass(OptimizationPass):
         if not ret:
             return
 
-        if not self._graph_is_structurable(self._graph, initial=True):
+        # only initialize self._goto_manager if this optimization requires a structurable graph or gotos
+        initial_structurable: bool | None = None
+        if self._require_structurable_graph or self._require_gotos or self._prevent_new_gotos:
+            initial_structurable = self._graph_is_structurable(self._graph, initial=True)
+
+        if self._require_structurable_graph and initial_structurable is False:
             return
 
-        self._initial_gotos = self._goto_manager.gotos.copy()
-        if self._require_gotos and not self._initial_gotos:
-            return
+        if self._require_gotos:
+            self._initial_gotos = self._goto_manager.gotos.copy()
+            if not self._initial_gotos:
+                return
 
         # setup for the very first analysis
         self.out_graph = networkx.DiGraph(self._graph)
@@ -500,7 +509,13 @@ class StructuringOptimizationPass(OptimizationPass):
         if self._readd_labels:
             self.out_graph = add_labels(self.out_graph)
 
-        if not self._graph_is_structurable(self.out_graph, readd_labels=False):
+        if (
+            self._require_structurable_graph
+            and self._max_opt_iters <= 1
+            and not self._graph_is_structurable(self.out_graph, readd_labels=False)
+        ):
+            # fixed-point analysis ensures that the output graph is always structurable, otherwise it clears the output
+            # graph. so we only check the structurability of the graph when fixed-point analysis did not run.
             self.out_graph = None
             return
 
