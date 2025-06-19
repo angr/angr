@@ -27,6 +27,42 @@ STEP_LIMIT_FIND = 500
 STEP_LIMIT_ANALYSIS = 5000
 
 
+ALL_X64_XMM_REGS = {
+    capstone.x86.X86_REG_XMM0,
+    capstone.x86.X86_REG_XMM1,
+    capstone.x86.X86_REG_XMM2,
+    capstone.x86.X86_REG_XMM3,
+    capstone.x86.X86_REG_XMM4,
+    capstone.x86.X86_REG_XMM5,
+    capstone.x86.X86_REG_XMM6,
+    capstone.x86.X86_REG_XMM7,
+    capstone.x86.X86_REG_XMM8,
+    capstone.x86.X86_REG_XMM9,
+    capstone.x86.X86_REG_XMM10,
+    capstone.x86.X86_REG_XMM11,
+    capstone.x86.X86_REG_XMM12,
+    capstone.x86.X86_REG_XMM13,
+    capstone.x86.X86_REG_XMM14,
+    capstone.x86.X86_REG_XMM15,
+    capstone.x86.X86_REG_XMM16,
+    capstone.x86.X86_REG_XMM17,
+    capstone.x86.X86_REG_XMM18,
+    capstone.x86.X86_REG_XMM19,
+    capstone.x86.X86_REG_XMM20,
+    capstone.x86.X86_REG_XMM21,
+    capstone.x86.X86_REG_XMM22,
+    capstone.x86.X86_REG_XMM23,
+    capstone.x86.X86_REG_XMM24,
+    capstone.x86.X86_REG_XMM25,
+    capstone.x86.X86_REG_XMM26,
+    capstone.x86.X86_REG_XMM27,
+    capstone.x86.X86_REG_XMM28,
+    capstone.x86.X86_REG_XMM29,
+    capstone.x86.X86_REG_XMM30,
+    capstone.x86.X86_REG_XMM31,
+}
+
+
 class StringDeobFuncDescriptor:
     """
     Describes a string deobfuscation function.
@@ -598,16 +634,16 @@ class StringObfuscationFinder(Analysis):
         type3_functions = []
 
         for func in function_candidates:
-            if not 8 <= len(func.block_addrs_set) < 14:
+            if not 1 <= len(func.block_addrs_set) < 14:
                 continue
 
             # if it has a prototype recovered, it must have four arguments
-            if func.prototype is not None and len(func.prototype.args) != 4:
+            if func.prototype is not None and len(func.prototype.args) not in {3, 4}:
                 continue
 
             # the function must call some other functions
-            if callgraph_digraph.out_degree[func.addr] == 0:
-                continue
+            # if callgraph_digraph.out_degree[func.addr] == 0:
+            #     continue
 
             # take a look at its call sites
             func_node = cfg.get_any_node(func.addr)
@@ -635,30 +671,34 @@ class StringObfuscationFinder(Analysis):
                 continue
             if dec.codegen is None or not dec.codegen.text:
                 continue
+
             if not self._like_type3_deobfuscation_function(dec.codegen.text):
                 continue
 
             # examine the first 100 call sites and see if any of them returns a valid string
             valid = False
+            guessed_size = False
             for i in range(min(100, len(call_sites))):
                 call_site_block = self.project.factory.block(call_sites[i].addr)
                 if not self._is_block_setting_constants_to_stack(call_site_block):
                     continue
 
                 # simulate an execution to see if it really works
-                data = self._type3_prepare_and_execute(
+                data, guessed_size = self._type3_prepare_and_execute(
                     func.addr, call_sites[i].addr, call_sites[i].function_address, cfg
                 )
                 if data is None:
                     continue
-                if len(data) > 3 and all(chr(x) in string.printable for x in data):
-                    valid = True
-                    break
+                if len(data) > 3:
+                    consecutive_printable_strs = self._consecutive_printable_substrings(data, min_length=4)
+                    if consecutive_printable_strs:
+                        valid = True
+                        break
 
             if valid:
                 desc = StringDeobFuncDescriptor()
                 desc.string_output_arg_idx = 0
-                desc.string_length_arg_idx = 1
+                desc.string_length_arg_idx = 1 if not guessed_size else None
                 desc.string_null_terminating = False
                 type3_functions.append((func.addr, desc))
 
@@ -691,7 +731,7 @@ class StringObfuscationFinder(Analysis):
         callinsn2content = {}
         for idx, call_site in enumerate(call_sites):
             _l.debug("Analyzing type 3 candidate call site %#x (%d/%d)...", call_site.addr, idx + 1, len(call_sites))
-            data = self._type3_prepare_and_execute(func_addr, call_site.addr, call_site.function_address, cfg)
+            data, _ = self._type3_prepare_and_execute(func_addr, call_site.addr, call_site.function_address, cfg)
             if data:
                 callinsn2content[call_site.instruction_addrs[-1]] = data
             # print(hex(call_site.addr), data)
@@ -722,12 +762,14 @@ class StringObfuscationFinder(Analysis):
 
     @staticmethod
     def _like_type3_deobfuscation_function(code: str) -> bool:
-        return bool(
-            ("^" in code or ">>" in code or "<<" in code or "~" in code)
-            and ("do" in code or "while" in code or "for" in code)
-        )
+        has_bitwise_ops = "^" in code or ">>" in code or "<<" in code or "~" in code
+        has_loops = "do" in code or "while" in code or "for" in code
+        has_many_bitwise_ops = code.count("^") + code.count(">>") + code.count("<<") + code.count("~") > 5
+        return has_bitwise_ops and (has_loops or has_many_bitwise_ops)
 
-    def _type3_prepare_and_execute(self, func_addr: int, call_site_addr: int, call_site_func_addr: int, cfg):
+    def _type3_prepare_and_execute(
+        self, func_addr: int, call_site_addr: int, call_site_func_addr: int, cfg
+    ) -> tuple[bytes, bool]:
         blocks_at_callsite = [call_site_addr]
 
         # backtrack from call site to include all previous consecutive blocks
@@ -827,27 +869,56 @@ class StringObfuscationFinder(Analysis):
 
         # figure out what was written
         ptr = out_state.memory.load(ret_value, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+        if out_state.memory.load(ptr, size=4).concrete_value == 0:
+            # fall back to using the return value as the pointer
+            ptr = ret_value
+        if out_state.memory.load(ptr, size=4).concrete_value == 0:
+            # can't find a valid pointer
+            return None
+
         size = out_state.memory.load(ret_value + 8, size=4, endness=self.project.arch.memory_endness)
+        guessed_size = False
+        if size.symbolic or size.concrete_value == 0 or size.concrete_value >= 1024:
+            size = 64
+            guessed_size = True
         # TODO: Support lists with varied-length elements
         data = out_state.memory.load(ptr, size=size, endness="Iend_BE")
         if data.symbolic:
             return None
 
-        return out_state.solver.eval(data, cast_to=bytes)
+        return out_state.solver.eval(data, cast_to=bytes), guessed_size
 
     @staticmethod
     def _is_block_setting_constants_to_stack(block, threshold: int = 5) -> bool:
-        insn_setting_consts = 0
+        insn_setting_const_bytes = 0
+        xmm_has_const = False
         for insn in block.capstone.insns:
-            if (
-                insn.mnemonic.startswith("mov")
-                and len(insn.operands) == 2
-                and insn.operands[0].type == capstone.x86.X86_OP_MEM
-                and insn.operands[0].mem.base in {capstone.x86.X86_REG_RSP, capstone.x86.X86_REG_RBP}
-                and insn.operands[1].type == capstone.x86.X86_OP_IMM
-            ):
-                insn_setting_consts += 1
-        return insn_setting_consts >= threshold
+            if insn.mnemonic.startswith("mov") and len(insn.operands) == 2:
+                if (
+                    insn.operands[0].type == capstone.x86.X86_OP_MEM
+                    and insn.operands[0].mem.base in {capstone.x86.X86_REG_RSP, capstone.x86.X86_REG_RBP}
+                    and insn.operands[1].type == capstone.x86.X86_OP_IMM
+                ):
+                    # mov [rsp|rbp + offset], imm
+                    insn_setting_const_bytes += 1  # FIXME: How to get the size of the mov in capstone?
+                if (
+                    insn.operands[0].type == capstone.x86.X86_OP_REG
+                    and insn.operands[0].reg in ALL_X64_XMM_REGS
+                    and insn.operands[1].type == capstone.x86.X86_OP_MEM
+                    and insn.operands[1].mem.base == capstone.x86.X86_REG_RIP
+                ):
+                    xmm_has_const = True
+                if (
+                    xmm_has_const
+                    and insn.operands[0].type == capstone.x86.X86_OP_MEM
+                    and insn.operands[0].mem.base in {capstone.x86.X86_REG_RSP, capstone.x86.X86_REG_RBP}
+                    and insn.operands[1].type == capstone.x86.X86_OP_REG
+                    and insn.operands[1].reg in ALL_X64_XMM_REGS
+                ):
+                    # mov [rsp|rbp + offset], xmm0 - 31
+                    insn_setting_const_bytes += 16
+
+        return insn_setting_const_bytes >= threshold
 
     @staticmethod
     def _is_string_reasonable(s: bytes) -> bool:
@@ -856,6 +927,25 @@ class StringObfuscationFinder(Analysis):
         # TODO: Ask a local LLM
         s = s.replace(b"\x00", b"")
         return all(chr(ch) in string.printable for ch in s)
+
+    @staticmethod
+    def _consecutive_printable_substrings(s: bytes, min_length: int = 3) -> list[bytes]:
+        """
+        Find all consecutive printable substrings in a string.
+        """
+        substrings = []
+        current_substring = b""
+        for ch in s:
+            if chr(ch) in string.printable:
+                current_substring += bytes([ch])
+            else:
+                if current_substring:
+                    if len(current_substring) >= min_length:
+                        substrings.append(current_substring)
+                    current_substring = b""
+        if current_substring:
+            substrings.append(current_substring)
+        return substrings
 
 
 AnalysesHub.register_default("StringObfuscationFinder", StringObfuscationFinder)
