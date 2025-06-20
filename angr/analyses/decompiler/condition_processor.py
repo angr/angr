@@ -247,23 +247,18 @@ class ConditionProcessor:
         condition translation if possible.
         """
 
-        # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
-        if isinstance(src, ailment.Block) and src.statements and is_head_controlled_loop_block(src):
-            last_stmt = next(
-                iter(stmt for stmt in src.statements[:-1] if isinstance(stmt, ailment.Stmt.ConditionalJump)), None
-            )
-            assert last_stmt is not None
-        else:
-            last_stmt = self.get_last_statement(src)
+        if src in graph and graph.out_degree[src] == 2 and graph.has_edge(src, dst0) and graph.has_edge(src, dst1):
+            # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
+            if isinstance(src, ailment.Block) and src.statements and is_head_controlled_loop_block(src):
+                last_stmt = next(
+                    iter(stmt for stmt in src.statements[:-1] if isinstance(stmt, ailment.Stmt.ConditionalJump)), None
+                )
+                assert last_stmt is not None
+            else:
+                last_stmt = self.get_last_statement(src)
 
-        if (
-            isinstance(last_stmt, ailment.Stmt.ConditionalJump)
-            and isinstance(last_stmt.true_target, ailment.Expr.Const)
-            and isinstance(last_stmt.false_target, ailment.Expr.Const)
-        ):
-            true_target_addr = last_stmt.true_target.value
-            false_target_addr = last_stmt.false_target.value
-            return {true_target_addr, false_target_addr} == {dst0.addr, dst1.addr}
+            if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                return True
 
         # fallback
         edge_cond_left = self.recover_edge_condition(graph, src, dst0)
