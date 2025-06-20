@@ -26,7 +26,9 @@ class SAILRStructurer(PhoenixStructurer):
 
     NAME = "sailr"
 
-    def __init__(self, region, improve_phoenix=True, **kwargs):
+    def __init__(self, region, improve_phoenix=True, postdom_max_edges=10, postdom_max_graph_size=50, **kwargs):
+        self._postdom_max_edges = postdom_max_edges
+        self._postdom_max_graph_size = postdom_max_graph_size
         super().__init__(
             region,
             improve_algorithm=improve_phoenix,
@@ -49,27 +51,14 @@ class SAILRStructurer(PhoenixStructurer):
         edges = sorted(edges, key=lambda edge: (edge[0].addr, edge[1].addr))
         best_edges = edges
         if entry_node is not None:
-            # the first few heuristics are based on the post-dominator count of the edge
-            # so we collect them for each candidate edge
-            edge_postdom_count = {}
+            # collect sibling counts for edges
             edge_sibling_count = {}
-            graph_copy = networkx.DiGraph(graph)
             for edge in edges:
                 _, dst = edge
-                graph_copy.remove_edge(*edge)
-                sibling_cnt = graph_copy.in_degree(dst)
+                sibling_cnt = graph.in_degree[dst] - 1
                 if sibling_cnt == 0:
                     continue
-
                 edge_sibling_count[edge] = sibling_cnt
-                post_dom_graph = PostDominators(graph_copy, entry_node).post_dom
-                post_doms = set()
-                for postdom_node, dominatee in post_dom_graph.edges():
-                    if not isinstance(postdom_node, TemporaryNode) and not isinstance(dominatee, TemporaryNode):
-                        post_doms.add((postdom_node, dominatee))
-                edge_postdom_count[edge] = len(post_doms)
-                # add back the edge
-                graph_copy.add_edge(*edge)
 
             # H1: the edge that has the least amount of sibling edges should be virtualized first
             # this is believed to reduce the amount of virtualization needed in future rounds and increase
@@ -80,6 +69,22 @@ class SAILRStructurer(PhoenixStructurer):
                 if len(best_edges) == 1:
                     return best_edges
 
+            if len(edges) <= self._postdom_max_edges and len(graph) <= self._postdom_max_graph_size:
+                # dominator analysis is expensive, so we only do it for small graphs
+                edge_postdom_count = {}
+                graph_copy = networkx.DiGraph(graph)
+                for edge in edges:
+                    _, dst = edge
+                    graph_copy.remove_edge(*edge)
+                    post_dom_graph = PostDominators(graph_copy, entry_node).post_dom
+                    post_doms = set()
+                    for postdom_node, dominatee in post_dom_graph.edges():
+                        if not isinstance(postdom_node, TemporaryNode) and not isinstance(dominatee, TemporaryNode):
+                            post_doms.add((postdom_node, dominatee))
+                    edge_postdom_count[edge] = len(post_doms)
+                    # add back the edge
+                    graph_copy.add_edge(*edge)
+
                 # create the next heuristic based on the best edges from the previous heuristic
                 filtered_edge_postdom_count = edge_postdom_count.copy()
                 for edge in list(edge_postdom_count.keys()):
@@ -88,14 +93,14 @@ class SAILRStructurer(PhoenixStructurer):
                 if filtered_edge_postdom_count:
                     edge_postdom_count = filtered_edge_postdom_count
 
-            # H2: the edge, when removed, that causes the most post-dominators of the graph should be virtualized
-            # first. this is believed to make the code more linear looking be reducing the amount of scopes.
-            # informally, we believe post-dominators to be an inverse indicator of the number of scopes present
-            if edge_postdom_count:
-                max_postdom_count = max(edge_postdom_count.values())
-                best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_postdom_count]
-                if len(best_edges) == 1:
-                    return best_edges
+                # H2: the edge, when removed, that causes the most post-dominators of the graph should be virtualized
+                # first. this is believed to make the code more linear looking be reducing the amount of scopes.
+                # informally, we believe post-dominators to be an inverse indicator of the number of scopes present
+                if edge_postdom_count:
+                    max_postdom_count = max(edge_postdom_count.values())
+                    best_edges = [edge for edge, cnt in edge_postdom_count.items() if cnt == max_postdom_count]
+                    if len(best_edges) == 1:
+                        return best_edges
 
             # H3: the edge that goes directly to a return statement should be virtualized first
             # this is believed to be good because it can be corrected in later optimization by duplicating
