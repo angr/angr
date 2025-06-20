@@ -159,6 +159,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
     def __init__(self, func, min_distinct_cases=2, **kwargs):
         super().__init__(
             func,
+            require_structurable_graph=False,
             require_gotos=False,
             prevent_new_gotos=False,
             simplify_ail=False,

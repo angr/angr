@@ -43,7 +43,7 @@ class RecursiveStructurer(Analysis):
         self.structurer_cls = structurer_cls if structurer_cls is not None else DreamStructurer
         self.structurer_options = kwargs
 
-        self.result = None
+        self.result: BaseNode | None = None
         self.result_incomplete: bool = False
 
         self._analyze()
@@ -161,6 +161,7 @@ class RecursiveStructurer(Analysis):
         for jump_table_head_addr, jumptable in jump_tables.items():
             if jump_table_head_addr not in func_block_addrs:
                 continue
+            assert jumptable.jumptable_entries is not None
             for entry_addr in jumptable.jumptable_entries:
                 entries[entry_addr] = jump_table_head_addr
 
@@ -178,7 +179,7 @@ class RecursiveStructurer(Analysis):
                 continue
             if node.addr == self.function.addr:
                 return node
-            if min_node is None or min_node.addr < node.addr:
+            if min_node is None or (min_node.addr is not None and node.addr is not None and min_node.addr < node.addr):
                 min_node = node
 
         return min_node
