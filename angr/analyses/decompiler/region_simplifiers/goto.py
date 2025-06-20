@@ -170,7 +170,7 @@ class GotoSimplifier(SequenceWalker):
             dst_target = goto_stmt.true_target
         # false branch of a conditional jump
         else:
-            dst_target = goto_stmt.true_target
+            dst_target = goto_stmt.false_target
 
         src_ins_addr = goto_stmt.ins_addr if "ins_addr" in goto_stmt.tags else block.addr
         goto = Goto(block.addr, dst_target.value, src_idx=block.idx, dst_idx=None, src_ins_addr=src_ins_addr)
