@@ -922,7 +922,7 @@ class Value(OperandPiece):
             if func is not None and lbl == func.name and func.name != func.demangled_name:
                 # see if lbl == func.name and func.demangled_name != func.name. if so, we prioritize the
                 # demangled name
-                normalized_name = get_cpp_function_name(func.demangled_name, specialized=False, qualified=True)
+                normalized_name = get_cpp_function_name(func.demangled_name)
                 return [normalized_name]
             return [("+" if self.render_with_sign else "") + lbl]
         if func is not None:

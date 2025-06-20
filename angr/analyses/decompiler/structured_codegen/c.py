@@ -581,7 +581,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield " ", None
         # function name
         if self.demangled_name and self.show_demangled_name:
-            normalized_name = get_cpp_function_name(self.demangled_name, specialized=False, qualified=True)
+            normalized_name = get_cpp_function_name(self.demangled_name)
         else:
             normalized_name = self.name
         yield normalized_name, self
@@ -1357,7 +1357,7 @@ class CFunctionCall(CStatement, CExpression):
 
         if self.callee_func is not None:
             if self.callee_func.demangled_name and self.show_demangled_name:
-                func_name = get_cpp_function_name(self.callee_func.demangled_name, specialized=False, qualified=True)
+                func_name = get_cpp_function_name(self.callee_func.demangled_name)
             else:
                 func_name = self.callee_func.name
             if (
@@ -2240,7 +2240,7 @@ class CConstant(CExpression):
                     yield CConstant.str_to_c_str(v.content.decode("utf-8")), self
                     return
                 elif isinstance(v, Function):
-                    yield get_cpp_function_name(v.demangled_name, specialized=False, qualified=True), self
+                    yield get_cpp_function_name(v.demangled_name), self
                     return
                 elif isinstance(v, str):
                     yield CConstant.str_to_c_str(v), self
