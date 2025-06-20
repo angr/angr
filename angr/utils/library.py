@@ -196,6 +196,16 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
 
 
 def get_cpp_function_name(demangled_name: str) -> str:
+    """
+    Parse a demangled C++ declaration into a function name.
+
+    Note that the extracted name may include template instantiation, for example:
+
+        example_func<int>
+
+    :param demangled_name: The demangled C++ function name.
+    :return:               The qualified function name, excluding return type and parameters.
+    """
     func_decls, _ = parse_cpp_file(demangled_name)
     if func_decls and len(func_decls) == 1:
         return next(iter(func_decls))
