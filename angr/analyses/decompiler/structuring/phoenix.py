@@ -2373,7 +2373,7 @@ class PhoenixStructurer(StructurerBase):
         if len(succs) == 2:
             left, right = succs
 
-            if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] == 2:
+            if full_graph.in_degree[left] == 1 and full_graph.in_degree[right] >= 2:
                 left, right = right, left
 
             # ensure left and right nodes are not the head of a switch-case construct
@@ -2384,7 +2384,7 @@ class PhoenixStructurer(StructurerBase):
 
             if (
                 self._is_sequential_statement_block(right)
-                and full_graph.in_degree[left] == 2
+                and full_graph.in_degree[left] >= 2
                 and full_graph.in_degree[right] == 1
             ):
                 edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
