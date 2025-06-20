@@ -196,15 +196,7 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
 
 
 def get_cpp_function_name(demangled_name: str) -> str:
-    # remove "<???>"s
-    name = normalize_cpp_function_name(demangled_name)
-
-    # remove leading namespaces
-    chunks = name.split("::")
-    name = "::".join(chunks[2:])
-
-    # remove arguments
-    if "(" in name:
-        name = name[: name.find("(")]
-
-    return name
+    func_decls, _ = parse_cpp_file(demangled_name)
+    if func_decls and len(func_decls) == 1:
+        return next(iter(func_decls))
+    return normalize_cpp_function_name(demangled_name)
