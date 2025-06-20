@@ -1910,11 +1910,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert (
-            d.codegen.text.count("if (!v0)") == 3
-            or d.codegen.text.count("if (v0)") == 3
-            or (d.codegen.text.count("if (!v0)") == 2 and d.codegen.text.count("if (!a0)") == 1)
-        )
+        assert d.codegen.text.count("goto") == 0
         assert d.codegen.text.count("break;") > 0
 
     @structuring_algo("sailr")
