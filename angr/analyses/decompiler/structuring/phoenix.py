@@ -2162,15 +2162,15 @@ class PhoenixStructurer(StructurerBase):
         # We reduce it into if (cond && next_cond) { body } else { else }
 
         # fast-path check to reject nodes that definitely do not work
-        if graph.out_degree[start_node] != 2:
+        if full_graph.out_degree[start_node] != 2:
             return False
-        next_cond_candidates = list(graph.successors(start_node))
+        next_cond_candidates = list(full_graph.successors(start_node))
         check_passed = False
         for next_cond in next_cond_candidates:
-            if graph.out_degree[next_cond] != 2:
+            if full_graph.out_degree[next_cond] != 2:
                 continue
-            for next_cond_succ in graph.successors(next_cond):
-                if graph.has_edge(start_node, next_cond_succ):
+            for next_cond_succ in full_graph.successors(next_cond):
+                if full_graph.has_edge(start_node, next_cond_succ):
                     check_passed = True
                     break
             if check_passed:
