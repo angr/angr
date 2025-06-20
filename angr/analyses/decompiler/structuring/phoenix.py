@@ -1261,6 +1261,8 @@ class PhoenixStructurer(StructurerBase):
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node_a, SequenceNode) and node_a.nodes and isinstance(node_a.nodes[0], IncompleteSwitchCaseNode):
             _, new_seq_node = self._unpack_sequencenode_head(graph, node_a)
+            if new_seq_node is not None and self._node_order is not None:
+                self._node_order[new_seq_node] = self._node_order[node_a]
             self._unpack_sequencenode_head(full_graph, node_a, new_seq=new_seq_node)
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
@@ -1271,6 +1273,8 @@ class PhoenixStructurer(StructurerBase):
             self._unpack_incompleteswitchcasenode(full_graph, node_a)  # this shall not fail
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
+            if self._node_order is not None:
+                self._generate_node_order()
 
         better_node_a = node_a
         if isinstance(node_a, SequenceNode) and is_empty_or_label_only_node(node_a.nodes[0]) and len(node_a.nodes) == 2:
