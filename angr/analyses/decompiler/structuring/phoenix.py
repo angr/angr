@@ -510,6 +510,7 @@ class PhoenixStructurer(StructurerBase):
 
         if self._node_order is not None:
             self._node_order[loop_node] = self._node_order[node]
+            self._node_order[successor_node] = self._node_order[loop_node]
 
         return True, loop_node, successor_node
 
@@ -2934,7 +2935,7 @@ class PhoenixStructurer(StructurerBase):
             src, dst = edge_
             dst_in_degree = graph.in_degree[dst]
             src_out_degree = graph.out_degree[src]
-            return -node_seq.get(dst), dst_in_degree, src_out_degree, -src.addr, -dst.addr  # type: ignore
+            return -node_seq[dst], dst_in_degree, src_out_degree, -src.addr, -dst.addr  # type: ignore
 
         return sorted(edges, key=_sort_edge, reverse=True)
 
