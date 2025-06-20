@@ -15,7 +15,7 @@ from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.goto_manager import Goto, GotoManager
 from angr.analyses.decompiler.structuring import RecursiveStructurer, SAILRStructurer
-from angr.analyses.decompiler.utils import add_labels, remove_edges_in_ailgraph
+from angr.analyses.decompiler.utils import add_labels, remove_edges_in_ailgraph, is_empty_node
 from angr.analyses.decompiler.counters import ControlFlowStructureCounter
 from angr.project import Project
 
@@ -462,6 +462,7 @@ class StructuringOptimizationPass(OptimizationPass):
         self._readd_labels = readd_labels
         self._edges_to_remove = edges_to_remove or []
         self._goto_manager = None
+        self._initial_gotos = set()
 
         # relative quality metrics (excludes gotos)
         self._initial_structure_counter = None
@@ -488,6 +489,7 @@ class StructuringOptimizationPass(OptimizationPass):
             return
 
         if self._require_gotos:
+            assert self._goto_manager is not None
             self._initial_gotos = self._goto_manager.gotos.copy()
             if not self._initial_gotos:
                 return
@@ -538,13 +540,16 @@ class StructuringOptimizationPass(OptimizationPass):
             return
 
     def _get_new_gotos(self):
+        assert self._goto_manager is not None
         return self._goto_manager.gotos
 
     def _fixed_point_analyze(self, cache=None):
         had_any_changes = False
         for _ in range(self._max_opt_iters):
-            if self._require_gotos and not self._goto_manager.gotos:
-                break
+            if self._require_gotos:
+                assert self._goto_manager is not None
+                if not self._goto_manager.gotos:
+                    break
 
             # backup the graph before the optimization
             if self._recover_structure_fails and self.out_graph is not None:
@@ -605,7 +610,7 @@ class StructuringOptimizationPass(OptimizationPass):
             _l.warning("Internal structuring failed for OptimizationPass on %s", self._func.name)
             rs = None
 
-        if not rs or not rs.result or not rs.result.nodes or rs.result_incomplete:
+        if not rs or not rs.result or is_empty_node(rs.result) or rs.result_incomplete:
             return False
 
         rs = self.project.analyses.RegionSimplifier(self._func, rs.result, arg_vvars=self._arg_vvars, kb=self.kb)
@@ -663,7 +668,7 @@ class StructuringOptimizationPass(OptimizationPass):
         # Gotos play an important part in readability and control flow structure. We already count gotos in other parts
         # of the analysis, so we don't need to count them here. However, some gotos are worse than others. Much
         # like loops, trading gotos (keeping the same total, but getting worse types), is bad for decompilation.
-        if len(self._initial_gotos) == len(self._goto_manager.gotos) != 0:
+        if self._goto_manager is not None and len(self._initial_gotos) == len(self._goto_manager.gotos) != 0:
             prev_labels = self._initial_structure_counter.goto_targets
             curr_labels = self._current_structure_counter.goto_targets
 
