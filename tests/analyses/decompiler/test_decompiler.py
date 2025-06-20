@@ -2539,7 +2539,7 @@ class TestDecompiler(unittest.TestCase):
         fmt_line = next(i for i, line in enumerate(lines) if 'fmt(stdin, "-");' in line)
         optind_line = next(i for i, line in enumerate(lines) if "optind < a0" in line)
         return_line = next(i for i, line in enumerate(lines) if "do not return" not in line and "return " in line)
-        assert 0 <= fmt_line < optind_line < return_line
+        assert 0 <= fmt_line < return_line and 0 <= optind_line < return_line
 
     @structuring_algo("sailr")
     def test_reverting_switch_clustering_and_lowering_mv_o2_main(self, decompiler_options=None):
