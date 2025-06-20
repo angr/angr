@@ -195,7 +195,7 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
     return parsedcprotos2py(parsed_cprotos, fd_spots=fd_spots, remove_sys_prefix=remove_sys_prefix)
 
 
-def get_cpp_function_name(demangled_name):
+def get_cpp_function_name(demangled_name: str) -> str:
     # remove "<???>"s
     name = normalize_cpp_function_name(demangled_name)
 
