@@ -2546,7 +2546,18 @@ class PhoenixStructurer(StructurerBase):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     other_edges.append((src, dst))
 
-        ordered_nodes = list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, head))
+        # acyclic graph may contain more than one entry node, so we may add a temporary head node to ensure all nodes
+        # are accounted for in node_seq
+        graph_entries = [nn for nn in acyclic_graph if acyclic_graph.in_degree[nn] == 0]
+        postorder_head = head
+        if len(graph_entries) > 1:
+            postorder_head = Block(0, 0)
+            for nn in graph_entries:
+                acyclic_graph.add_edge(postorder_head, nn)
+        ordered_nodes = list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, postorder_head))
+        if len(graph_entries) > 1:
+            ordered_nodes.remove(postorder_head)
+            acyclic_graph.remove_node(postorder_head)
         node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
 
         if all_edges_wo_dominance:
