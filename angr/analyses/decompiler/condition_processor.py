@@ -241,6 +241,30 @@ class ConditionProcessor:
         self.guarding_conditions = {}
         self._ast2annotations = {}
 
+    def have_opposite_edge_conditions(self, graph: networkx.DiGraph, src, dst0, dst1) -> bool:
+        """
+        Check if the edge conditions of two edges (src, dst0) and (src, dst1) are opposite to each other. Try to avoid
+        condition translation if possible.
+        """
+
+        if src in graph and graph.out_degree[src] == 2 and graph.has_edge(src, dst0) and graph.has_edge(src, dst1):
+            # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
+            if isinstance(src, ailment.Block) and src.statements and is_head_controlled_loop_block(src):
+                last_stmt = next(
+                    iter(stmt for stmt in src.statements[:-1] if isinstance(stmt, ailment.Stmt.ConditionalJump)), None
+                )
+                assert last_stmt is not None
+            else:
+                last_stmt = self.get_last_statement(src)
+
+            if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                return True
+
+        # fallback
+        edge_cond_left = self.recover_edge_condition(graph, src, dst0)
+        edge_cond_right = self.recover_edge_condition(graph, src, dst1)
+        return claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right)  # type: ignore
+
     def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
         edge = src, dst
         edge_data = graph.get_edge_data(*edge)
