@@ -2641,6 +2641,8 @@ class PhoenixStructurer(StructurerBase):
             self.virtualized_edges.add((src, dst))
         if new_src is not None:
             self.replace_nodes(graph, src, new_src)
+            if self._node_order is not None:
+                self._node_order[new_src] = self._node_order[src]
         if full_graph is not None:
             self.virtualized_edges.add((src, dst))
             full_graph.remove_edge(src, dst)
@@ -2955,13 +2957,13 @@ class PhoenixStructurer(StructurerBase):
         return sorted(edges, key=_sort_edge, reverse=True)
 
     def _generate_node_order(self):
+        the_graph = (
+            self._region.graph_with_successors if self._region.graph_with_successors is not None else self._region.graph
+        )
+        the_head = self._region.head
         ordered_nodes = GraphUtils.quasi_topological_sort_nodes(
-            (
-                self._region.graph_with_successors
-                if self._region.graph_with_successors is not None
-                else self._region.graph
-            ),
-            loop_heads=[self._region.head],
+            the_graph,
+            loop_heads=[the_head],
         )
         self._node_order = {n: i for i, n in enumerate(ordered_nodes)}
 
