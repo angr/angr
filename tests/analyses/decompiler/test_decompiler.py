@@ -2275,11 +2275,7 @@ class TestDecompiler(unittest.TestCase):
         )
         self._print_decompilation_result(d)
 
-        assert d.codegen.text.count("goto ") == 3
-        # `LABEL_400d08` is the label `try_bracketed_repeat` found in the source, which is jumped to twice
-        assert d.codegen.text.count("goto LABEL_400d08;") == 2
-        # this goto may go away in the future if the loops are structured correctly
-        assert d.codegen.text.count("goto LABEL_400d2a;") == 1
+        assert d.codegen.text.count("goto") == 0
 
     @structuring_algo("sailr")
     def test_decompiling_sha384sum_digest_bsd_split_3(self, decompiler_options=None):
