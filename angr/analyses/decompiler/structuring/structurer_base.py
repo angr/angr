@@ -6,9 +6,9 @@ import logging
 
 import networkx
 
-import angr.ailment as ailment
 import claripy
 
+from angr import ailment
 from angr.analyses import Analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
@@ -971,8 +971,7 @@ class StructurerBase(Analysis):
                     new_sequences.append(new_seq_)
         self._new_sequences = new_sequences
 
-    @staticmethod
-    def replace_nodes(graph, old_node_0, new_node, old_node_1=None, self_loop=True):
+    def replace_nodes(self, graph, old_node_0, new_node, old_node_1=None, self_loop=True):  # pylint:disable=no-self-use
         in_edges = list(graph.in_edges(old_node_0, data=True))
         out_edges = list(graph.out_edges(old_node_0, data=True))
         if old_node_1 is not None:

@@ -674,6 +674,21 @@ class GraphUtils:
         return list(widening_addrs)
 
     @staticmethod
+    def dfs_postorder_nodes_deterministic(graph: networkx.DiGraph, source):
+        visited = set()
+        stack = [source]
+        while stack:
+            node = stack[-1]
+            if node not in visited:
+                visited.add(node)
+                for succ in sorted(graph.successors(node), key=GraphUtils._sort_node):
+                    if succ not in visited:
+                        stack.append(succ)
+            else:
+                yield node
+                stack.pop()
+
+    @staticmethod
     def reverse_post_order_sort_nodes(graph, nodes=None):
         """
         Sort a given set of nodes in reverse post ordering.
