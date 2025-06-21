@@ -2558,7 +2558,9 @@ class PhoenixStructurer(StructurerBase):
             postorder_head = Block(0, 0)
             for nn in graph_entries:
                 acyclic_graph.add_edge(postorder_head, nn)
-        ordered_nodes = list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, postorder_head))
+        ordered_nodes = list(
+            reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, postorder_head)))
+        )
         if len(graph_entries) > 1:
             ordered_nodes.remove(postorder_head)
             acyclic_graph.remove_node(postorder_head)
