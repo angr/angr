@@ -255,7 +255,7 @@ class SimJavaVM(SimOS):
                     upper = native_arg_value.get_bytes(0, 4)
                     lower = native_arg_value.get_bytes(4, 4)
                     idx = args.index(arg)
-                    args = (*args[:idx], SootArgument(upper, "int"), SootArgument(lower, "int"), *args[idx + 1:])
+                    args = (*args[:idx], SootArgument(upper, "int"), SootArgument(lower, "int"), *args[idx + 1 :])
                     native_arg_values += [upper, lower]
                     continue
                 if type(arg.value) is BV and len(arg.value) > arg_ty.size:

@@ -466,7 +466,7 @@ class DreamStructurer(StructurerBase):
                     self._merge_nodes(node_0.node, node_1.node),
                     node_0.reaching_condition,
                 )
-                seq.nodes = [*seq.nodes[:i], new_node, *seq.nodes[i + 2:]]
+                seq.nodes = [*seq.nodes[:i], new_node, *seq.nodes[i + 2 :]]
                 continue
             i += 1
 
