@@ -90,7 +90,7 @@ class StringObfType3Rewriter(OptimizationPass):
         else:
             new_stmt = new_call
 
-        statements = block.statements[:-1] + [new_stmt]
+        statements = [*block.statements[:-1], new_stmt]
 
         # remove N-2 continuous stack assignment
         if len(deobf_content) > 2:
