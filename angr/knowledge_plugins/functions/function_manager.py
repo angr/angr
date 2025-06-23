@@ -154,8 +154,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         :return:            None
         """
         with open(filepath, "w", encoding="utf-8") as f:
-            for src, dst in self.callgraph.edges():
-                f.write(f"{src:#x}\tDirectEdge\t{dst:#x}\n")
+            f.writelines(f"{src:#x}\tDirectEdge\t{dst:#x}\n" for src, dst in self.callgraph.edges())
 
     def _addr_in_plt_cached_ranges(self, addr: int) -> bool:
         if self._rplt_cache_ranges is None:

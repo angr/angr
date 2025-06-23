@@ -44,7 +44,7 @@ class IfSimplifier(SequenceWalker):
         :return:
         """
 
-        for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
+        for n0, n1 in zip(node.nodes, [*node.nodes[1:], successor]):
             self._handle(n0, successor=n1)
 
     def _handle_codenode(self, node, successor=None, **kwargs):
@@ -92,7 +92,7 @@ class IfSimplifier(SequenceWalker):
         :return:
         """
 
-        for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
+        for n0, n1 in zip(node.nodes, [*node.nodes[1:], successor]):
             self._handle(n0, successor=n1)
 
     def _handle_block(self, block, successor=None, **kwargs):  # pylint:disable=no-self-use

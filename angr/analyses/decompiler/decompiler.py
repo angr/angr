@@ -618,7 +618,9 @@ class Decompiler(Analysis):
                     new_type = var_manager.get_variable_type(var)
                     if new_type is not None:
                         self.func.prototype.args = (
-                            self.func.prototype.args[:i] + (new_type,) + self.func.prototype.args[i + 1 :]
+                            *self.func.prototype.args[:i],
+                            new_type,
+                            *self.func.prototype.args[i + 1 :],
                         )
         except Exception:  # pylint:disable=broad-except
             if self._fail_fast:

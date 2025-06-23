@@ -313,7 +313,7 @@ class ConstPropOptReverter(OptimizationPass):
 
                 # construct new constant block
                 new_const_block = const_block.copy()
-                new_const_block.statements = new_const_block.statements[:-1] + [reg_assign] + [symb_return_stmt.copy()]
+                new_const_block.statements = [*new_const_block.statements[:-1], reg_assign, symb_return_stmt.copy()]
                 self._update_block(const_block, new_const_block)
                 self.resolution = True
         else:
