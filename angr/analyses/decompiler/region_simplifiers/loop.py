@@ -47,7 +47,7 @@ class LoopSimplifier(SequenceWalker):
         )
 
     def _handle_sequencenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
-        for n0, n1, n2 in zip(node.nodes, node.nodes[1:] + [successor], [predecessor] + node.nodes[:-1]):
+        for n0, n1, n2 in zip(node.nodes, [*node.nodes[1:], successor], [predecessor, *node.nodes[:-1]]):
             self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
 
     def _handle_codenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
@@ -126,7 +126,7 @@ class LoopSimplifier(SequenceWalker):
             predecessor.statements = predecessor.statements[:-1]
 
     def _handle_multinode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
-        for n0, n1, n2 in zip(node.nodes, node.nodes[1:] + [successor], [predecessor] + node.nodes[:-1]):
+        for n0, n1, n2 in zip(node.nodes, [*node.nodes[1:], successor], [predecessor, *node.nodes[:-1]]):
             self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
 
     def _handle_block(
