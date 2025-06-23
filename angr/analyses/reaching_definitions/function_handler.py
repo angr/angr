@@ -584,6 +584,7 @@ class FunctionHandler:
         # migrate data from sub_rda to its parent
         state.analysis.function_calls.update(sub_rda.function_calls)
         state.analysis.model.observed_results.update(sub_rda.model.observed_results)
+        state.all_definitions |= sub_rda.all_definitions
 
         sub_ld = get_exit_livedefinitions(data.function, sub_rda.model)
         if sub_ld is not None:
