@@ -1,7 +1,7 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
 
-__package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
+__package__ = __package__ or "tests.gui.decompilation_workflows"  # pylint:disable=redefined-builtin
 
 import os
 import unittest
