@@ -10,25 +10,15 @@ import archinfo
 import angr
 
 
-def nasm(asm: str) -> bytes:
+def keystone(asm: str) -> bytes:
     """
-    Use NASM to assemble `asm` and return the machine code.
+    Use keystone to assemble `asm` and return the machine code.
     """
-    with tempfile.NamedTemporaryFile(suffix=".nasm", delete=False) as f_in:
-        path_out = f_in.name + ".bin"
-        try:
-            f_in.write(asm.encode("utf-8"))
-            f_in.close()
-
-            try:
-                subprocess.check_call(["nasm", "-fbin", "-o" + path_out, f_in.name])
-            except FileNotFoundError as e:
-                raise unittest.SkipTest("nasm is not installed") from e
-            with open(path_out, "rb") as f_out:
-                data = f_out.read()
-            os.unlink(path_out)
-        finally:
-            os.unlink(f_in.name)
+    try:
+        ks = Ks(KS_ARCH_X86, KS_MOD_64)
+        data, count = ks.asm(asm)
+    except KsError as e:
+        raise unittest.SkipTest("keystone error (%s)" %e) from e
     return data
 
 
@@ -60,7 +50,7 @@ class TestTraceClassifier(unittest.TestCase):
         """
         Simple not-self-modifying shellcode.
         """
-        code_bytes = nasm(
+        code_bytes = keystone(
             """
                         bits 64
                         default rel
@@ -76,7 +66,7 @@ class TestTraceClassifier(unittest.TestCase):
         """
         Simple self-modifying shellcode.
         """
-        code_bytes = nasm(
+        code_bytes = keystone(
             """
                         bits 64
                         default rel
