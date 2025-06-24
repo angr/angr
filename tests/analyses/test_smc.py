@@ -39,8 +39,6 @@ class TestTraceClassifier(unittest.TestCase):
         Simple not-self-modifying shellcode.
         """
         code_src = """
-                        bits 64
-                        default rel
                         mov rax, 0xdeadbeef
                         ret
                    """
@@ -53,8 +51,6 @@ class TestTraceClassifier(unittest.TestCase):
         Simple self-modifying shellcode.
         """
         code_src = """
-                        bits 64
-                        default rel
                         inc dword [here+1]
                         here:
                         mov rax, 0xdeadbeef
