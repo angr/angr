@@ -9,20 +9,6 @@ import archinfo
 
 import angr
 
-from keystone import *
-
-
-def keystone(asm: str) -> bytes:
-    """
-    Use keystone to assemble `asm` and return the machine code.
-    """
-    try:
-        ks = Ks(KS_ARCH_X86, KS_MOD_64)
-        data, count = ks.asm(asm)
-    except KsError as e:
-        raise unittest.SkipTest("keystone error (%s)" %e) from e
-    return data
-
 
 def gcc(c: str) -> str:
     """
@@ -52,15 +38,13 @@ class TestTraceClassifier(unittest.TestCase):
         """
         Simple not-self-modifying shellcode.
         """
-        code_bytes = keystone(
-            """
+        code_src = """
                         bits 64
                         default rel
                         mov rax, 0xdeadbeef
                         ret
-                        """
-        )
-        p = angr.load_shellcode(code_bytes, "amd64", selfmodifying_code=True)
+                   """
+        p = angr.load_shellcode(code_src, "amd64", selfmodifying_code=True)
         is_smc = p.analyses.SMC(p.entry).result
         assert not is_smc
 
@@ -68,17 +52,15 @@ class TestTraceClassifier(unittest.TestCase):
         """
         Simple self-modifying shellcode.
         """
-        code_bytes = keystone(
-            """
+        code_src = """
                         bits 64
                         default rel
                         inc dword [here+1]
                         here:
                         mov rax, 0xdeadbeef
                         ret
-                        """
-        )
-        p = angr.load_shellcode(code_bytes, "amd64", selfmodifying_code=True)
+                   """
+        p = angr.load_shellcode(code_src, "amd64", selfmodifying_code=True)
         is_smc = p.analyses.SMC(p.entry).result
         assert is_smc
 
