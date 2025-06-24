@@ -5,7 +5,7 @@
 ///
 /// This module is adapted from the `icicle-python` project, which can be found at:
 /// https://github.com/icicle-emu/icicle-python
-use std::{collections::HashMap, ffi::c_void, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 use icicle_vm::cpu::{
     Cpu, ValueSource,
