@@ -375,9 +375,7 @@ impl Icicle {
         // allow other threads to run while the VM is executing. This allows
         // using multiple engines in parallel within a single Python process.
         let mut wrapped = SendWrapper::new(&mut self.vm);
-        py.allow_threads(|| {
-            (*wrapped).run().into()
-        })
+        py.allow_threads(|| (*wrapped).run().into())
     }
 
     #[getter]
