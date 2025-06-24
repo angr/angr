@@ -9,6 +9,8 @@ import archinfo
 
 import angr
 
+from keystone import *
+
 
 def keystone(asm: str) -> bytes:
     """
