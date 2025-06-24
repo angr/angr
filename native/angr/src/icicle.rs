@@ -5,7 +5,7 @@
 ///
 /// This module is adapted from the `icicle-python` project, which can be found at:
 /// https://github.com/icicle-emu/icicle-python
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, ffi::c_void, path::PathBuf};
 
 use icicle_vm::cpu::{
     Cpu, ValueSource,
@@ -16,6 +16,7 @@ use pyo3::{
     exceptions::{PyKeyError, PyRuntimeError},
     prelude::*,
 };
+use send_wrapper::SendWrapper;
 use target_lexicon::Architecture;
 
 struct X86FlagsRegHandler {
@@ -369,8 +370,14 @@ impl Icicle {
         self.vm.cpu.icount
     }
 
-    pub fn run(&mut self) -> VmExit {
-        self.vm.run().into()
+    pub fn run(&mut self, py: Python) -> VmExit {
+        // By calling `py.allow_threads`, we allow Python to release the GIL and
+        // allow other threads to run while the VM is executing. This allows
+        // using multiple engines in parallel within a single Python process.
+        let mut wrapped = SendWrapper::new(&mut self.vm);
+        py.allow_threads(|| {
+            (*wrapped).run().into()
+        })
     }
 
     #[getter]
