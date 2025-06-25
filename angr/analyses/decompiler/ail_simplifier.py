@@ -397,9 +397,11 @@ class AILSimplifier(Analysis):
             if isinstance(def_.atom, atoms.VirtualVariable) and (def_.atom.was_reg or def_.atom.was_parameter):
                 # only do this for general purpose register
                 skip_def = False
+                reg = None
                 for reg in self.project.arch.register_list:
-                    if not reg.artificial and reg.vex_offset == def_.atom.reg_offset and not reg.general_purpose:
-                        skip_def = True
+                    if reg.vex_offset == def_.atom.reg_offset:
+                        if not reg.artificial and not reg.general_purpose and not reg.vector:
+                            skip_def = True
                         break
 
                 if skip_def:
@@ -659,6 +661,10 @@ class AILSimplifier(Analysis):
             first_op = ops[0]
         if isinstance(first_op, Convert) and first_op.to_bits >= self.project.arch.byte_width:
             # we need at least one byte!
+            if len(ops) > 1:
+                # there are more operations; it's probably because there are multiple expressions involving the same
+                # core expr. just give up (for now)
+                return None, None
             return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
