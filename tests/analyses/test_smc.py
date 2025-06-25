@@ -10,28 +10,6 @@ import archinfo
 import angr
 
 
-def nasm(asm: str) -> bytes:
-    """
-    Use NASM to assemble `asm` and return the machine code.
-    """
-    with tempfile.NamedTemporaryFile(suffix=".nasm", delete=False) as f_in:
-        path_out = f_in.name + ".bin"
-        try:
-            f_in.write(asm.encode("utf-8"))
-            f_in.close()
-
-            try:
-                subprocess.check_call(["nasm", "-fbin", "-o" + path_out, f_in.name])
-            except FileNotFoundError as e:
-                raise unittest.SkipTest("nasm is not installed") from e
-            with open(path_out, "rb") as f_out:
-                data = f_out.read()
-            os.unlink(path_out)
-        finally:
-            os.unlink(f_in.name)
-    return data
-
-
 def gcc(c: str) -> str:
     """
     Use GCC compile `c` and return path to the binary.
@@ -60,15 +38,11 @@ class TestTraceClassifier(unittest.TestCase):
         """
         Simple not-self-modifying shellcode.
         """
-        code_bytes = nasm(
-            """
-                        bits 64
-                        default rel
+        code_src = """
                         mov rax, 0xdeadbeef
                         ret
-                        """
-        )
-        p = angr.load_shellcode(code_bytes, "amd64", selfmodifying_code=True)
+                   """
+        p = angr.load_shellcode(code_src, "amd64", selfmodifying_code=True)
         is_smc = p.analyses.SMC(p.entry).result
         assert not is_smc
 
@@ -76,17 +50,13 @@ class TestTraceClassifier(unittest.TestCase):
         """
         Simple self-modifying shellcode.
         """
-        code_bytes = nasm(
-            """
-                        bits 64
-                        default rel
+        code_src = """
                         inc dword [here+1]
                         here:
                         mov rax, 0xdeadbeef
                         ret
-                        """
-        )
-        p = angr.load_shellcode(code_bytes, "amd64", selfmodifying_code=True)
+                   """
+        p = angr.load_shellcode(code_src, "amd64", selfmodifying_code=True)
         is_smc = p.analyses.SMC(p.entry).result
         assert is_smc
 
