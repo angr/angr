@@ -43,6 +43,7 @@ from .sar_to_signed_div import SarToSignedDiv
 from .tidy_stack_addr import TidyStackAddr
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .rol_ror import RolRorRewriter
+from .inlined_memcpy import InlinedMemcpy
 from .inlined_strcpy import InlinedStrcpy
 from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
 from .inlined_wstrcpy import InlinedWstrcpy
@@ -99,6 +100,7 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     TidyStackAddr,
     InvertNegatedLogicalConjunctionsAndDisjunctions,
     RolRorRewriter,
+    InlinedMemcpy,
     InlinedStrcpy,
     InlinedStrcpyConsolidation,
     InlinedWstrcpy,
