@@ -1910,11 +1910,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
-        assert (
-            d.codegen.text.count("if (!v0)") == 3
-            or d.codegen.text.count("if (v0)") == 3
-            or (d.codegen.text.count("if (!v0)") == 2 and d.codegen.text.count("if (!a0)") == 1)
-        )
+        assert d.codegen.text.count("goto") == 0
         assert d.codegen.text.count("break;") > 0
 
     @structuring_algo("sailr")
@@ -2279,11 +2275,7 @@ class TestDecompiler(unittest.TestCase):
         )
         self._print_decompilation_result(d)
 
-        assert d.codegen.text.count("goto ") == 3
-        # `LABEL_400d08` is the label `try_bracketed_repeat` found in the source, which is jumped to twice
-        assert d.codegen.text.count("goto LABEL_400d08;") == 2
-        # this goto may go away in the future if the loops are structured correctly
-        assert d.codegen.text.count("goto LABEL_400d2a;") == 1
+        assert d.codegen.text.count("goto") == 0
 
     @structuring_algo("sailr")
     def test_decompiling_sha384sum_digest_bsd_split_3(self, decompiler_options=None):
@@ -2543,7 +2535,7 @@ class TestDecompiler(unittest.TestCase):
         fmt_line = next(i for i, line in enumerate(lines) if 'fmt(stdin, "-");' in line)
         optind_line = next(i for i, line in enumerate(lines) if "optind < a0" in line)
         return_line = next(i for i, line in enumerate(lines) if "do not return" not in line and "return " in line)
-        assert 0 <= fmt_line < optind_line < return_line
+        assert 0 <= fmt_line < return_line and 0 <= optind_line < return_line
 
     @structuring_algo("sailr")
     def test_reverting_switch_clustering_and_lowering_mv_o2_main(self, decompiler_options=None):
@@ -3535,7 +3527,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["parse_str"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
-        d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         self._print_decompilation_result(d)
 
         line_count = d.codegen.text.count("\n")
@@ -3588,6 +3580,8 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
         f = proj.kb.functions["iread"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        self._print_decompilation_result(d)
         text = d.codegen.text
 
         assert "{\n}" not in text

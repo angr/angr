@@ -168,7 +168,7 @@ def parsedcprotos2py(
                 proto_.returnty = SimTypeFd(label=proto_.returnty.label)
             for i, arg in enumerate(proto_.args):
                 if (func_name, i) in fd_spots:
-                    proto_.args = proto_.args[:i] + (SimTypeFd(label=arg.label),) + proto_.args[i + 1 :]
+                    proto_.args = (*proto_.args[:i], SimTypeFd(label=arg.label), *proto_.args[i + 1 :])
 
         line1 = " " * 8 + "#" + ((" " + decl) if decl else "") + "\n"
         line2 = " " * 8 + repr(func_name) + ": " + (proto_._init_str() if proto_ is not None else "None") + "," + "\n"
@@ -195,17 +195,18 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
     return parsedcprotos2py(parsed_cprotos, fd_spots=fd_spots, remove_sys_prefix=remove_sys_prefix)
 
 
-def get_cpp_function_name(demangled_name, specialized=True, qualified=True):
-    # remove "<???>"s
-    name = normalize_cpp_function_name(demangled_name) if not specialized else demangled_name
+def get_cpp_function_name(demangled_name: str) -> str:
+    """
+    Parse a demangled C++ declaration into a function name.
 
-    if not qualified:
-        # remove leading namespaces
-        chunks = name.split("::")
-        name = "::".join(chunks[2:])
+    Note that the extracted name may include template instantiation, for example:
 
-    # remove arguments
-    if "(" in name:
-        name = name[: name.find("(")]
+        example_func<int>
 
-    return name
+    :param demangled_name: The demangled C++ function name.
+    :return:               The qualified function name, excluding return type and parameters.
+    """
+    func_decls, _ = parse_cpp_file(demangled_name)
+    if func_decls and len(func_decls) == 1:
+        return next(iter(func_decls))
+    return normalize_cpp_function_name(demangled_name)

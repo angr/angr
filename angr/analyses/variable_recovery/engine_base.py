@@ -179,6 +179,14 @@ class SimEngineVRBase(
                                     existing_vars.append((var, var_stack_offset))
 
                     if not existing_vars:
+                        existing_vars = [
+                            (v, 0)
+                            for v in self.state.variable_manager[self.func_addr].find_variables_by_stack_offset(
+                                stack_offset
+                            )
+                        ]
+
+                    if not existing_vars:
                         # no variables exist
                         lea_size = 1
                         variable = SimStackVariable(

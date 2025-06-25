@@ -1666,7 +1666,7 @@ class Function(Serializable):
         if self.is_rust_function():
             ast = pydemumble.demangle(self.name)
             return Function._rust_fmt_node(ast.split("::")[-2])
-        func_name = get_cpp_function_name(self.demangled_name, specialized=False, qualified=True)
+        func_name = get_cpp_function_name(self.demangled_name)
         return func_name.split("::")[-1]
 
     def get_unambiguous_name(self, display_name: str | None = None) -> str:
