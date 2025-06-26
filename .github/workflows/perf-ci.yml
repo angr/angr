@@ -3,11 +3,6 @@ name: Performance Benchmarking CI
 on:
   schedule:
   - cron: "0 0 * * *"
-  pull_request:
-    branches:
-      - master
-    paths:
-      - ".github/workflows/perf-ci.yml"
   workflow_dispatch:
 
 jobs:
@@ -47,3 +42,11 @@ jobs:
           for f in perf_*.py; do
             python -m perfharness viz --since '2 weeks ago' --save $f.png $f
           done
+    - name: Upload
+      run: |
+          formArgs=""
+          idx=0
+          for f in perf_*.py.png; do
+            formArgs="$formArgs --form files[$idx]=@$f"
+          done
+          curl '{{ secrets.PERFCI_DISCORD_WEBHOOK }}?wait=true' $formArgs
