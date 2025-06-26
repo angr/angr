@@ -51,7 +51,7 @@ class TestTraceClassifier(unittest.TestCase):
         Simple self-modifying shellcode.
         """
         code_src = """
-                        inc dword [here+1]
+                        inc dword ptr [here+1]
                         here:
                         mov rax, 0xdeadbeef
                         ret
