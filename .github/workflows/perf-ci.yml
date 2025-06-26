@@ -22,7 +22,7 @@ jobs:
           python3 -mvirtualenv venv && . venv/bin/activate
           pip install perfharness[viz] pg8000
           git clone https://github.com/angr/angr.git
-          git -C angr switch ${{ github.ref }}
+          git -C angr fetch origin ${{ github.ref }} && git -C angr switch --detach FETCH_HEAD
           ./extremely-simple-setup.sh
     - name: Test
       run: |
