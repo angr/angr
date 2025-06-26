@@ -44,11 +44,13 @@ jobs:
           done
     - name: Render
       run: |
+          cd angr/tests/perf
           for f in perf_*.py; do
             ../../../venv/bin/python -m perfharness viz --since '2 weeks ago' --save $f.png $f
           done
     - name: Upload
       run: |
+          cd angr/tests/perf
           formArgs=""
           idx=0
           for f in perf_*.py.png; do
