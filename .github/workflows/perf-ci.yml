@@ -19,7 +19,7 @@ jobs:
         repository: angr/angr-dev
     - name: Install
       run: |
-          python -m venv venv && . venv/bin/activate
+          python3 -m venv venv && . venv/bin/activate
           pip install perfharness[viz]
           ./extremely-simple-setup.sh
     - name: Test
@@ -49,5 +49,6 @@ jobs:
           idx=0
           for f in perf_*.py.png; do
             formArgs="$formArgs --form files[$idx]=@$f"
+            idx=$((idx + 1))
           done
           curl '{{ secrets.PERFCI_DISCORD_WEBHOOK }}?wait=true' $formArgs
