@@ -36,12 +36,12 @@ jobs:
           echo "{{ secrets.PERFCI_CLIENT_KEY }}" >/ca/client.key
           cd angr/tests/perf
           for f in perf_*.py; do
-            python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f
+            ../../../venv/bin/python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f
           done
     - name: Render
       run: |
           for f in perf_*.py; do
-            python -m perfharness viz --since '2 weeks ago' --save $f.png $f
+            ../../../venv/bin/python -m perfharness viz --since '2 weeks ago' --save $f.png $f
           done
     - name: Upload
       run: |
