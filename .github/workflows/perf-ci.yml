@@ -25,15 +25,15 @@ jobs:
     - name: Test
       run: |
           echo "[perfharness]" > .perfharness.ini
-          echo "database = {{ secrets.PERFCI_DATABASE_URL }}" >> .perfharness.ini
+          echo "database = ${{ secrets.PERFCI_DATABASE_URL }}" >> .perfharness.ini
           echo "database_ssl_param = ssl_context" >> .perfharness.ini
           echo "database_ssl_rootcrt = /ca/root.crt" >> .perfharness.ini
           echo "database_ssl_clientcrt = /ca/client.crt" >> .perfharness.ini
           echo "database_ssl_clientkey = /ca/client.key" >> .perfharness.ini
           mkdir /ca/
-          echo "{{ secrets.PERFCI_ROOT_CRT }}" >/ca/root.crt
-          echo "{{ secrets.PERFCI_CLIENT_CRT }}" >/ca/client.crt
-          echo "{{ secrets.PERFCI_CLIENT_KEY }}" >/ca/client.key
+          echo "${{ secrets.PERFCI_ROOT_CRT }}" >/ca/root.crt
+          echo "${{ secrets.PERFCI_CLIENT_CRT }}" >/ca/client.crt
+          echo "${{ secrets.PERFCI_CLIENT_KEY }}" >/ca/client.key
           cd angr/tests/perf
           for f in perf_*.py; do
             ../../../venv/bin/python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f
@@ -51,4 +51,4 @@ jobs:
             formArgs="$formArgs --form files[$idx]=@$f"
             idx=$((idx + 1))
           done
-          curl '{{ secrets.PERFCI_DISCORD_WEBHOOK }}?wait=true' $formArgs
+          curl '${{ secrets.PERFCI_DISCORD_WEBHOOK }}?wait=true' $formArgs
