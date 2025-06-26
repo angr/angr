@@ -19,7 +19,7 @@ jobs:
         repository: angr/angr-dev
     - name: Install
       run: |
-          python3 -m venv venv && . venv/bin/activate
+          python3 -mvirtualenv venv && . venv/bin/activate
           pip install perfharness[viz]
           ./extremely-simple-setup.sh
     - name: Test
