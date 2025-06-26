@@ -20,7 +20,7 @@ jobs:
     - name: Install
       run: |
           python3 -mvirtualenv venv && . venv/bin/activate
-          pip install perfharness[viz]
+          pip install perfharness[viz] pg8000
           ./extremely-simple-setup.sh
     - name: Test
       run: |
