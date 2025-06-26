@@ -38,7 +38,9 @@ jobs:
           echo "${{ secrets.PERFCI_CLIENT_KEY }}" >/ca/client.key
           cd angr/tests/perf
           for f in perf_*.py; do
-            ../../../venv/bin/python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f
+            if ! ../../../venv/bin/python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f; then
+              echo "$f failed" >>failed.txt
+            fi
           done
     - name: Render
       run: |
@@ -53,4 +55,7 @@ jobs:
             formArgs="$formArgs --form files[$idx]=@$f"
             idx=$((idx + 1))
           done
-          curl '${{ secrets.PERFCI_DISCORD_WEBHOOK }}?wait=true' $formArgs
+          if [[ ! -e failed.txt ]]; then
+            echo "All performance tests finished" >failed.txt
+          fi
+          curl '${{ secrets.PERFCI_DISCORD_WEBHOOK }}?wait=true' $formArgs --form "content=<failed.txt"
