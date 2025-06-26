@@ -34,6 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1
+        with:
+          components: clippy, rustfmt
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo fmt --all -- --check
 
