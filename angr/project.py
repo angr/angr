@@ -32,7 +32,10 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     if not isinstance(arch, archinfo.Arch):
         arch = archinfo.arch_from_id(arch)
     if isinstance(shellcode, str):
-        shellcode_bytes: bytes = arch.asm(shellcode, load_address, thumb=thumb)
+        shellcode_bytes = arch.asm(shellcode, load_address, thumb=thumb)
+        if shellcode_bytes is None:
+            raise ValueError("Could not assemble shellcode")
+        assert isinstance(shellcode_bytes, bytes)
     else:
         shellcode_bytes = shellcode
     if thumb:
