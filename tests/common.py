@@ -12,6 +12,7 @@ from unittest import skipIf, skipUnless, skip, SkipTest
 
 from angr import load_shellcode, Project
 from angr.analyses import CongruencyCheck
+from angr.misc.testing import is_testing
 import angr.sim_options as so
 
 l = logging.getLogger("angr.tests.common")
@@ -23,6 +24,10 @@ except ImportError:
 
 bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries")
 bin_priv_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries-private")
+
+WORKER = is_testing or bool(
+    os.environ.get("WORKER", False)
+)  # this variable controls whether we print the decompilation code or not
 
 if not os.path.isdir(bin_location) and not os.getenv("CI", "") == "true":
     raise Exception(
@@ -155,3 +160,9 @@ def run_simple_unicorn_congruency_check(thing: Project | bytes | str, arch: str 
         },
     )
     ca.run(depth=depth)
+
+
+def print_decompilation_result(dec):
+    if not WORKER:
+        print("Decompilation result:")
+        print(dec.codegen.text)
