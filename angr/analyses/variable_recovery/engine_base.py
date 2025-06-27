@@ -142,6 +142,8 @@ class SimEngineVRBase(
     ) -> list[tuple[SimVariable, int]]:
         data = richr_addr.data
 
+        variable: SimVariable | None = None
+
         if self.state.is_stack_address(data):
             # this is a stack address
             # extract stack offset
@@ -157,7 +159,6 @@ class SimEngineVRBase(
             for candidate, offset in var_candidates:
                 if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
                     existing_vars.append((candidate, offset))
-            variable = None
             if existing_vars:
                 variable, _ = existing_vars[0]
 
@@ -179,12 +180,7 @@ class SimEngineVRBase(
                                     existing_vars.append((var, var_stack_offset))
 
                     if not existing_vars:
-                        existing_vars = [
-                            (v, 0)
-                            for v in self.state.variable_manager[self.func_addr].find_variables_by_stack_offset(
-                                stack_offset
-                            )
-                        ]
+                        existing_vars = [(v, 0) for v in variable_manager.find_variables_by_stack_offset(stack_offset)]
 
                     if not existing_vars:
                         # no variables exist
@@ -193,10 +189,10 @@ class SimEngineVRBase(
                             stack_offset,
                             lea_size,
                             base="bp",
-                            ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
+                            ident=variable_manager.next_variable_ident("stack"),
                             region=self.func_addr,
                         )
-                        self.state.variable_manager[self.func_addr].add_variable("stack", stack_offset, variable)
+                        variable_manager.add_variable("stack", stack_offset, variable)
                         l.debug("Identified a new stack variable %s at %#x.", variable, self.ins_addr)
                         existing_vars.append((variable, 0))
 
@@ -563,7 +559,7 @@ class SimEngineVRBase(
 
         if isinstance(stack_offset, int):
             expr = data.data
-            if isinstance(expr, claripy.ast.Bits) and expr.size() > 1024:
+            if isinstance(expr, claripy.ast.BV) and expr.size() > 1024:
                 # we don't write more than 256 bytes to the stack at a time for performance reasons
                 expr = expr[expr.size() - 1 : expr.size() - 1024]
             expr = self.state.annotate_with_variables(expr, [(variable_offset, variable)])
