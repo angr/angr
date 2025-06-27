@@ -146,7 +146,7 @@ class FlirtSignatureParsed:
         name_lst = []
         name_end = False  # in case the function name is too long...
         for _ in range(1024):  # max length of a function name
-            if next_byte < 0x20:
+            if next_byte < 0x20 or next_byte >= 0x80:
                 name_end = True
                 break
             name_lst.append(next_byte)
@@ -347,7 +347,10 @@ class FlirtSignatureParsed:
         # is it compressed?
         if obj.features & FlirtFeatureFlag.FEATURE_COMPRESSED:
             data = file_obj.read()
-            decompressed = BytesIO(zlib.decompress(data))
+            try:
+                decompressed = BytesIO(zlib.decompress(data))
+            except zlib.error as ex:
+                raise FlirtSignatureError(f"Failed to decompress FLIRT signature: {ex}") from ex
             file_obj = decompressed
 
         root = obj.parse_tree(file_obj, root=True)
