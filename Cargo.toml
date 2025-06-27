@@ -1,6 +1,5 @@
 [workspace]
 resolver = "3"
-rust-version = "1.86.0"
 members = ["native/angr"]
 
 [workspace.package]

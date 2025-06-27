@@ -15,7 +15,7 @@ fn import_submodule<'py>(
 
     // Add the submodule to sys.modules
     let sys_modules = PyModule::import(py, "sys")?.getattr("modules")?;
-    sys_modules.set_item(format!("{}.{}", package, name), submodule.clone())?;
+    sys_modules.set_item(format!("{package}.{name}"), submodule.clone())?;
 
     m.add_submodule(&submodule)?;
     Ok(())

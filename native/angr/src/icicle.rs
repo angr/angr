@@ -201,10 +201,10 @@ impl Icicle {
     #[new]
     pub fn new(architecture: String, processors_path: String) -> PyResult<Self> {
         let mut config =
-            icicle_vm::cpu::Config::from_target_triple(format!("{}-none", architecture).as_str());
+            icicle_vm::cpu::Config::from_target_triple(format!("{architecture}-none").as_str());
         config.enable_shadow_stack = false;
         let mut vm = icicle_vm::build_with_path(&config, &PathBuf::from(processors_path))
-            .map_err(|e| PyRuntimeError::new_err(format!("Failed to build VM: {}", e)))?;
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to build VM: {e}")))?;
 
         // Populate the lowercase register map
         let mut regs = HashMap::new();
@@ -258,8 +258,7 @@ impl Icicle {
             },
         ) {
             return Err(PyRuntimeError::new_err(format!(
-                "Failed to map memory at {:#x} with size {}",
-                addr, size
+                "Failed to map memory at {addr:#x} with size {size}"
             )));
         }
         Ok(())
@@ -268,8 +267,7 @@ impl Icicle {
     pub fn mem_unmap(&mut self, addr: u64, size: u64) -> PyResult<()> {
         if !self.vm.cpu.mem.unmap_memory_len(addr, size) {
             return Err(PyRuntimeError::new_err(format!(
-                "Failed to unmap memory at {:#x} with size {}",
-                addr, size
+                "Failed to unmap memory at {addr:#x} with size {size}"
             )));
         }
         Ok(())
@@ -282,8 +280,7 @@ impl Icicle {
             .update_perm(addr, size, perms_to_icicle(perms))
             .map_err(|e| {
                 PyRuntimeError::new_err(format!(
-                    "Failed to protect memory at {:#x} with size {}: {}",
-                    addr, size, e
+                    "Failed to protect memory at {addr:#x} with size {size}: {e}"
                 ))
             })?;
         Ok(())
@@ -295,7 +292,7 @@ impl Icicle {
             .cpu
             .mem
             .read_bytes(addr, &mut buf, perm::NONE)
-            .map_err(|e| PyRuntimeError::new_err(format!("Failed to read memory: {}", e)))?;
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to read memory: {e}")))?;
         Ok(buf)
     }
 
@@ -304,7 +301,7 @@ impl Icicle {
             .cpu
             .mem
             .write_bytes(addr, &data, perm::NONE)
-            .map_err(|e| PyRuntimeError::new_err(format!("Failed to write memory: {}", e)))?;
+            .map_err(|e| PyRuntimeError::new_err(format!("Failed to write memory: {e}")))?;
         Ok(())
     }
 
@@ -338,8 +335,7 @@ impl Icicle {
     pub fn add_breakpoint(&mut self, addr: u64) -> PyResult<()> {
         if !self.vm.add_breakpoint(addr) {
             return Err(PyRuntimeError::new_err(format!(
-                "Failed to add breakpoint at {:#x}",
-                addr
+                "Failed to add breakpoint at {addr:#x}"
             )));
         }
         Ok(())
@@ -348,8 +344,7 @@ impl Icicle {
     pub fn remove_breakpoint(&mut self, addr: u64) -> PyResult<()> {
         if !self.vm.remove_breakpoint(addr) {
             return Err(PyRuntimeError::new_err(format!(
-                "Failed to remove breakpoint at {:#x}",
-                addr
+                "Failed to remove breakpoint at {addr:#x}"
             )));
         }
         Ok(())
@@ -398,10 +393,9 @@ fn get_reg_varnode(vm: &icicle_vm::Vm, name: &str) -> PyResult<pcode::VarNode> {
         .get_reg(name)
         .or_else(|| vm.cpu.arch.sleigh.get_reg(&name.to_uppercase()));
     let reg =
-        lookup.ok_or_else(|| PyKeyError::new_err(format!("Could not find register {}", name)))?;
+        lookup.ok_or_else(|| PyKeyError::new_err(format!("Could not find register {name}")))?;
     reg.get_var().ok_or(PyKeyError::new_err(format!(
-        "Register {} does not have a variable node",
-        name
+        "Register {name} does not have a variable node"
     )))
 }
 
