@@ -4,7 +4,6 @@ on:
   schedule:
   - cron: "0 0 * * *"
   workflow_dispatch:
-  push:
 
 jobs:
   perf:
@@ -37,7 +36,6 @@ jobs:
           echo "${{ secrets.PERFCI_CLIENT_CRT }}" >/ca/client.crt
           echo "${{ secrets.PERFCI_CLIENT_KEY }}" >/ca/client.key
           cd angr/tests/perf
-          set -x
           for f in perf_*.py; do
             if ../../../venv/bin/python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f; then
               ../../../venv/bin/python -m perfharness viz --since '2 weeks ago' --note 'GitHub Actions' --save $f.png $f
