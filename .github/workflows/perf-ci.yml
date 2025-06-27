@@ -38,16 +38,16 @@ jobs:
           echo "${{ secrets.PERFCI_CLIENT_KEY }}" >/ca/client.key
           cd angr/tests/perf
           for f in perf_*.py; do
-            if ! ../../../venv/bin/python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f; then
+            if ../../../venv/bin/python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f; then
+              ../../../venv/bin/python -m perfharness viz --since '2 weeks ago' --note 'GitHub Actions' --save $f.png $f
+            else
               echo "$f failed" >>failed.txt
             fi
           done
-    - name: Render
-      run: |
-          cd angr/tests/perf
-          for f in perf_*.py; do
-            ../../../venv/bin/python -m perfharness viz --since '2 weeks ago' --save $f.png $f
-          done
+          if [[ ! -e failed.txt ]]; then
+            echo "All performance tests finished" >>failed.txt
+          fi
+          cat failed.txt
     - name: Upload
       run: |
           cd angr/tests/perf
@@ -57,7 +57,4 @@ jobs:
             formArgs="$formArgs --form files[$idx]=@$f"
             idx=$((idx + 1))
           done
-          if [[ ! -e failed.txt ]]; then
-            echo "All performance tests finished" >failed.txt
-          fi
           curl '${{ secrets.PERFCI_DISCORD_WEBHOOK }}?wait=true' $formArgs --form "content=<failed.txt"
