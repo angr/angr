@@ -343,16 +343,17 @@ class FastConstantPropagation(Analysis):
             engine.process(state, block=block)
 
             # if the node ends with a function call, call _handle_function
-            succs = list(func_graph_with_callees.successors(node))
-            if any(isinstance(succ, (Function, HookNode)) for succ in succs):
-                callee = next(succ for succ in succs if isinstance(succ, (Function, HookNode)))
-                if isinstance(callee, HookNode):
-                    # attempt to convert it into a function
-                    if self.kb.functions.contains_addr(callee.addr):
-                        callee = self.kb.functions.get_by_addr(callee.addr)
-                    else:
-                        callee = None
-                state = self._handle_function(state, callee)
+            if node in func_graph_with_callees:
+                succs = list(func_graph_with_callees.successors(node))
+                if any(isinstance(succ, (Function, HookNode)) for succ in succs):
+                    callee = next(succ for succ in succs if isinstance(succ, (Function, HookNode)))
+                    if isinstance(callee, HookNode):
+                        # attempt to convert it into a function
+                        if self.kb.functions.contains_addr(callee.addr):
+                            callee = self.kb.functions.get_by_addr(callee.addr)
+                        else:
+                            callee = None
+                    state = self._handle_function(state, callee)
 
             states[node] = state
 
