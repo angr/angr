@@ -4227,11 +4227,11 @@ class TestDecompiler(unittest.TestCase):
         arg0_type = arg0.type
         arg1_type = arg1.type
         arg2_type = arg2.type
-        assert isinstance(arg0_type, SimTypePointer)
-        assert isinstance(arg0_type.pts_to, SimTypeBottom)
-        assert isinstance(arg1_type, SimTypePointer)
-        assert isinstance(arg1_type.pts_to, SimTypeBottom)
-        assert isinstance(arg2_type, SimTypeLongLong)
+        assert isinstance(arg0_type, SimTypePointer), f"Unexpected arg0 type: {arg0_type}"
+        assert isinstance(arg0_type.pts_to, SimTypeBottom), f"Unexpected arg0 pointer type: {arg0_type.pts_to}"
+        assert isinstance(arg1_type, SimTypePointer), f"Unexpected arg1 type: {arg1_type}"
+        assert isinstance(arg1_type.pts_to, SimTypeBottom), f"Unexpected arg1 pointer type: {arg1_type.pts_to}"
+        assert isinstance(arg2_type, SimTypeLongLong), f"Unexpected arg2 type: {arg2_type}"
         assert arg2_type.signed is False
 
     def test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump(self, decompiler_options=None):
