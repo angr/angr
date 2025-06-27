@@ -108,8 +108,7 @@ impl SegmentList {
             .map(|(r, sort)| Segment::new(r.start, r.end, sort.clone()))
             .ok_or_else(|| {
                 PyErr::new::<pyo3::exceptions::PyIndexError, _>(format!(
-                    "Index {} out of range",
-                    idx
+                    "Index {idx} out of range"
                 ))
             })
     }
