@@ -103,6 +103,18 @@ class Const(Atom):
         self.bits = bits
 
     @property
+    def value_int(self) -> int:
+        if isinstance(self.value, int):
+            return self.value
+        raise TypeError(f"Incorrect value type; expect int, got {type(self.value)}")
+
+    @property
+    def value_float(self) -> float:
+        if isinstance(self.value, float):
+            return self.value
+        raise TypeError(f"Incorrect value type; expect float, got {type(self.value)}")
+
+    @property
     def size(self):
         return self.bits // 8
 
