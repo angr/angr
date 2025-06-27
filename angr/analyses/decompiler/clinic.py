@@ -1216,6 +1216,7 @@ class Clinic(Analysis):
                 ):
                     # found a single successor - replace the last statement
                     new_last_stmt = last_stmt.copy()
+                    assert isinstance(successors[0].addr, int)
                     new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
                     block.statements[-1] = new_last_stmt
 
@@ -2156,9 +2157,9 @@ class Clinic(Analysis):
                 }
             else:
                 # global variable?
-                global_vars = global_variables.get_global_variables(expr.value)
+                global_vars = global_variables.get_global_variables(expr.value_int)
                 # detect if there is a related symbol
-                if not global_vars and self.project.loader.find_object_containing(expr.value):
+                if not global_vars and self.project.loader.find_object_containing(expr.value_int):
                     symbol = self.project.loader.find_symbol(expr.value)
                     if symbol is not None:
                         # Create a new global variable if there isn't one already
@@ -3039,12 +3040,12 @@ class Clinic(Analysis):
             op0, op1 = addr.operands
             if (
                 isinstance(op0, ailment.Expr.Const)
-                and self.project.loader.find_object_containing(op0.value) is not None
+                and self.project.loader.find_object_containing(op0.value_int) is not None
             ):
                 return op0, op1
             if (
                 isinstance(op1, ailment.Expr.Const)
-                and self.project.loader.find_object_containing(op1.value) is not None
+                and self.project.loader.find_object_containing(op1.value_int) is not None
             ):
                 return op1, op0
             return op0, op1  # best-effort guess
@@ -3277,6 +3278,7 @@ class Clinic(Analysis):
                         )
                     ):
                         # found it!
+                        assert self.project.arch.sp_offset is not None
                         alloca_node = node
                         sp_equal_to = ailment.Expr.BinaryOp(
                             None,

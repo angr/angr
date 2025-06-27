@@ -7,7 +7,7 @@ import os
 import unittest
 
 import angr
-from angr.sim_type import SimTypeInt
+from angr.sim_type import SimTypeInt, TypeRef
 from tests.common import bin_location, print_decompilation_result
 
 
@@ -46,11 +46,14 @@ class TestDecompilationWorkflows(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
+        assert dec._variable_kb is not None
         types = dec._variable_kb.variables["main"].types
         # let's rename a struct field
         new_type_name = "my_awesome_type"
-        assert len(types["struct_0"].type.fields) == 2
-        types["struct_0"].type.name = new_type_name
+        t = types["struct_0"]
+        assert isinstance(t, TypeRef)
+        assert len(t.type.fields) == 2
+        t.type.name = new_type_name
 
         # decompile again, using decompilation cache
         dec_2 = proj.analyses.Decompiler(func, cfg=proj.kb.cfgs["CFGFast"])
@@ -69,12 +72,15 @@ class TestDecompilationWorkflows(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
+        assert dec._variable_kb is not None
         types = dec._variable_kb.variables["main"].types
         # let's rename a struct field
-        assert len(types["struct_0"].type.fields) == 2
+        t = types["struct_0"]
+        assert isinstance(t, TypeRef)
+        assert len(t.type.fields) == 2
         new_field_name = "my_new_field_120"
-        types["struct_0"].type.fields[new_field_name] = types["struct_0"].type.fields["field_120"]
-        del types["struct_0"].type.fields["field_120"]
+        t.type.fields[new_field_name] = t.type.fields["field_120"]
+        del t.type.fields["field_120"]
 
         # decompile again, using decompilation cache
         dec_2 = proj.analyses.Decompiler(func, cfg=proj.kb.cfgs["CFGFast"])
@@ -94,11 +100,14 @@ class TestDecompilationWorkflows(unittest.TestCase):
         print_decompilation_result(dec)
         assert "struct struct_1 *field_120;" in dec.codegen.text
 
+        assert dec._variable_kb is not None
         types = dec._variable_kb.variables["main"].types
         # let's type a struct field
-        assert len(types["struct_0"].type.fields) == 2
-        assert "field_120" in types["struct_0"].type.fields
-        types["struct_0"].type.fields["field_120"] = SimTypeInt(signed=True).with_arch(proj.arch)
+        t = types["struct_0"]
+        assert isinstance(t, TypeRef)
+        assert len(t.type.fields) == 2
+        assert "field_120" in t.type.fields
+        t.type.fields["field_120"] = SimTypeInt(signed=True).with_arch(proj.arch)
 
         # decompile again, using decompilation cache
         dec_2 = proj.analyses.Decompiler(func, cfg=proj.kb.cfgs["CFGFast"])
