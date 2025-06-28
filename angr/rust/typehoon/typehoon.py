@@ -24,9 +24,17 @@ class RustTypehoon(Typehoon):
         must_struct: Optional[Set["TypeVariable"]] = None,
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
+        constraint_set_degradation_threshold: int = 150,
     ):
         super().__init__(
-            constraints, func_var, ground_truth, var_mapping, must_struct, stackvar_max_sizes, stack_offset_tvs
+            constraints,
+            func_var,
+            ground_truth,
+            var_mapping,
+            must_struct,
+            stackvar_max_sizes,
+            stack_offset_tvs,
+            constraint_set_degradation_threshold,
         )
 
     def update_variable_types(

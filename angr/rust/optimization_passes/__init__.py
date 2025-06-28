@@ -46,5 +46,5 @@ def get_rust_optimization_passes():
         RedundantBlockRemover,
         # AFTER_STRUCTURING
         PatternMatchSimplifier,
-        # ErrorPropagationSimplifier,
+        ErrorPropagationSimplifier,
     ]
