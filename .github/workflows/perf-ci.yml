@@ -4,6 +4,7 @@ on:
   schedule:
   - cron: "0 0 * * *"
   workflow_dispatch:
+  pull_request:
 
 jobs:
   perf:
@@ -19,41 +20,15 @@ jobs:
     - name: Install
       run: |
           python3 -mvirtualenv venv && . venv/bin/activate
-          pip install perfharness[viz] pg8000
+          pip install pytest-codspeed
           git clone https://github.com/angr/angr.git
           git -C angr fetch origin ${{ github.ref }} && git -C angr switch --detach FETCH_HEAD
           ./extremely-simple-setup.sh
     - name: Test
-      run: |
-          echo "[perfharness]" > .perfharness.ini
-          echo "database = ${{ secrets.PERFCI_DATABASE_URL }}" >> .perfharness.ini
-          echo "database_ssl_param = ssl_context" >> .perfharness.ini
-          echo "database_ssl_rootcrt = /ca/root.crt" >> .perfharness.ini
-          echo "database_ssl_clientcrt = /ca/client.crt" >> .perfharness.ini
-          echo "database_ssl_clientkey = /ca/client.key" >> .perfharness.ini
-          mkdir /ca/
-          echo "${{ secrets.PERFCI_ROOT_CRT }}" >/ca/root.crt
-          echo "${{ secrets.PERFCI_CLIENT_CRT }}" >/ca/client.crt
-          echo "${{ secrets.PERFCI_CLIENT_KEY }}" >/ca/client.key
-          cd angr/tests/perf
-          for f in perf_*.py; do
-            if ../../../venv/bin/python -m perfharness run -n 5 -w 1 --note 'GitHub Actions' $f; then
-              ../../../venv/bin/python -m perfharness viz --since '2 weeks ago' --note 'GitHub Actions' --save $f.png $f
-            else
-              echo "$f failed" >>failed.txt
-            fi
-          done
-          if [[ ! -e failed.txt ]]; then
-            echo "All performance tests finished" >>failed.txt
-          fi
-          cat failed.txt
-    - name: Upload
-      run: |
-          cd angr/tests/perf
-          formArgs=""
-          idx=0
-          for f in perf_*.py.png; do
-            formArgs="$formArgs --form files[$idx]=@$f"
-            idx=$((idx + 1))
-          done
-          curl '${{ secrets.PERFCI_DISCORD_WEBHOOK }}?wait=true' $formArgs --form "content=<failed.txt"
+      uses: CodSpeedHQ/action@v3
+      with:
+        run: |
+          . venv/bin/activate
+          cd angr
+          pytest $(find tests -name 'perf_*.py') --codspeed
+        token: ${{ secrets.CODSPEED_TOKEN }}
