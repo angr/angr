@@ -676,8 +676,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         return None if isinstance(lifted, (BottomType, TopType)) else lifted
 
     def _collect_rust_type_hints(self, graph):
-        type_hints = self.project.analyses.RustTypeHints(self.function, graph).vvar_type_hints
-        self.vvar_type_hints.update(type_hints)
+        self.project.analyses.RustTypeHints(self.function, graph)
+        self.vvar_type_hints.update(self.project.kb.type_hints.vvar_type_hints)
 
 
 AnalysesHub.register_default("VariableRecoveryFast", VariableRecoveryFast)

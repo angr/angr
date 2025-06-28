@@ -21,11 +21,13 @@ class Librust(KnowledgeBasePlugin, SimLibrary):
         self.regenerate()
 
     def regenerate(self):
-        for name, prototype in generate_known_rust_prototypes(self.project).items():
+        prototypes = generate_known_rust_prototypes(self.project)
+        for name, prototype in prototypes.items():
             prototype = prototype.with_arch(self.project.arch)
             for func in self._name_to_func[name]:
                 func.prototype = prototype
             self.set_prototype(name, prototype)
+        return prototypes
 
 
 KnowledgeBasePlugin.register_default("librust", Librust)

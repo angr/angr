@@ -133,13 +133,13 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
             stmt = pending_stmts.pop(0)
             if isinstance(stmt, Label):
                 continue
-            if (
-                isinstance(stmt, Assignment)
-                and isinstance(stmt.dst, VirtualVariable)
-                and stmt.dst.was_stack
-                and isinstance(stmt.src, Load)
-                and ((src_vvar := unwrap_stack_vvar_reference(stmt.src.addr)) and src_vvar.was_stack)
-            ):
+            src_vvar = None
+            if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
+                if isinstance(stmt.src, Load):
+                    src_vvar = unwrap_stack_vvar_reference(stmt.src.addr)
+                elif isinstance(stmt.src, VirtualVariable):
+                    src_vvar = stmt.src
+            if isinstance(src_vvar, VirtualVariable) and src_vvar.was_stack:
                 if src_vvar.stack_offset == scrutinee.stack_offset + variant.first_field_offset + cur_size:
                     cur_size += stmt.dst.size
                     move_stmts.append(stmt)
@@ -151,9 +151,15 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
                     failed_stmts.append(stmt)
             else:
                 break
-        if not failed_stmts and len(move_stmts) >= 2 and cur_size == expected_size:
-            dst_offset = move_stmts[0].dst.stacK_offset
-            # TODO: Group move stmts
+        if not failed_stmts and cur_size == expected_size:
+            move_stmt = None
+            if len(move_stmts) >= 2:
+                dst_offset = move_stmts[0].dst.stacK_offset
+                # TODO: Group move stmts
+            elif len(move_stmts) == 1:
+                move_stmt = move_stmts[0]
+            if move_stmt:
+                self.project.kb.type_hints.add_type_hint(move_stmt.dst, variant.fields[0][0])
 
     def _group_move_stmts(self):
         for block in self._graph.nodes:
@@ -163,7 +169,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
                 and isinstance(jmp.true_target, Const)
                 and isinstance(jmp.false_target, Const)
             ):
-                scrutinee, discriminant, cmp_op = self.extract_scrutinee_and_discriminant(jmp.condition)
+                scrutinee, discriminant, cmp_op, leftover = self.extract_scrutinee_and_discriminant(jmp.condition)
                 if scrutinee and (
                     (enum_ty := scrutinee.tags.get("type", None))
                     and isinstance(enum_ty, (RustSimTypeOption, RustSimTypeResult))
@@ -186,4 +192,4 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase):
         self._ri = self._recover_regions(graph_copy)
         if self._analyze_core(graph_copy):
             self.out_graph = self._simplify_graph(graph_copy)
-        # self._group_move_stmts()
+        self._group_move_stmts()
