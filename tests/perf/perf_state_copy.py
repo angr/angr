@@ -18,7 +18,8 @@ def cycle(s):
 
 
 class TestPerfStateCopy(unittest.TestCase):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.state = angr.Project(
             os.path.join(test_location, "tests", "x86_64", "fauxware"),
             main_opts={"base_addr": 0x400000},

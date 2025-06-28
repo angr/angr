@@ -9,7 +9,8 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..
 
 
 class TestPerfCFGFast(unittest.TestCase):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.p = angr.Project(os.path.join(test_location, "tests", "x86_64", "libc.so.6"), auto_load_libs=False)
 
     @pytest.mark.benchmark
