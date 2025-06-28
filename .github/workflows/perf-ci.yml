@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-22.04
     container:
       image: angr/ci:3
+      options: --privileged
     steps:
     - name: Checkout
       uses: actions/checkout@v4
