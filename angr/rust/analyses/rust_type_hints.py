@@ -11,12 +11,10 @@ class RustTypeHintsAnalysis(Analysis):
     def __init__(self, func, graph):
         self._func = func
         self._graph = graph
-        self.vvar_type_hints = {}
 
         self._analyze()
 
     def _analyze(self):
-        lifter = RustTypeLifter(self.project.arch.bits)
         for block in self._graph.nodes:
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -32,8 +30,7 @@ class RustTypeHintsAnalysis(Analysis):
                         elif isinstance(call, FunctionLikeMacro) and is_composite_type(call.returnty):
                             returnty = call.returnty
                         if returnty:
-                            ty_const = lifter.lift(returnty)
-                            self.vvar_type_hints[stmt.dst.varid] = ty_const
+                            self.project.kb.type_hints.add_type_hint(stmt.dst, returnty)
 
 
 AnalysesHub.register_default("RustTypeHints", RustTypeHintsAnalysis)

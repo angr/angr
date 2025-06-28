@@ -35,10 +35,21 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
         stmts = block.statements[:-1] if len(block.statements) > 0 else []
         return all(isinstance(stmt, Label) for stmt in stmts)
 
+    def _collect_type_hints(self, block):
+        call = self.terminal_call(block)
+        func_name = self.kb.functions[call.target.value].demangled_name
+        if func_name.startswith("core::ptr::drop_in_place<") and func_name.endswith(">"):
+            struct_name = func_name[25:-1].replace(",", ", ")
+            struct_ty = self.kb.known_structs[struct_name]
+            # import ipdb
+            #
+            # ipdb.set_trace()
+
     def _remove_cleanup_calls(self):
         blocks_to_remove = set()
         for block in self._graph.nodes:
             if self.match_call(block, CLEANUP_FUNCTIONS):
+                self._collect_type_hints(block)
                 if isinstance(block.statements[-1], Return):
                     block.statements[-1].ret_exprs = []
                 elif not self._is_simple_block(block):
