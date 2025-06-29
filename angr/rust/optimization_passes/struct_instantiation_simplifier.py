@@ -1,9 +1,9 @@
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 import claripy
 from archinfo import Endness
 
-from angr.ailment.expression import Const, VirtualVariable, Struct, Array
+from angr.ailment.expression import Const, VirtualVariable, Struct, Array, Load
 from angr.ailment.statement import Assignment
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
 from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef
@@ -117,6 +117,7 @@ class StructBuilder:
             else:
                 if field_offset in field_exprs:
                     fields[field_offset] = field_exprs[field_offset]
+        fields = OrderedDict(sorted(fields.items(), key=lambda t: t[0]))
         return Struct(0, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
 
 
@@ -141,6 +142,33 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
     def _check(self):
         return self.project.is_rust_binary, None
 
+    def _convert_to_stack_vvar(self, struct: Struct):
+        src_offset = None
+        expected_offset = None
+        for field in struct.fields.values():
+            src_vvar = None
+            if isinstance(field, Load) and (
+                (vvar := unwrap_stack_vvar_reference(field.addr))
+                and isinstance(vvar, VirtualVariable)
+                and vvar.was_stack
+                and (expected_offset is None or vvar.stack_offset == expected_offset)
+            ):
+                src_vvar = vvar
+            elif (
+                isinstance(field, VirtualVariable)
+                and field.was_stack
+                and (expected_offset is None or field.stack_offset == expected_offset)
+            ):
+                src_vvar = field
+            if src_vvar:
+                if expected_offset is None:
+                    src_offset = src_vvar.stack_offset
+                    expected_offset = src_offset
+                expected_offset += field.size
+            else:
+                return None
+        return self.new_stack_vvar(src_offset, struct.bits, {})
+
     def _simplify_struct_instantiation(self, callsite_block, vvar: VirtualVariable, struct_ty: RustSimStruct):
         # If we can find all definitions of struct fields, let's create a struct instantiation
         # Otherwise just bind the offset and head variable to each field definition
@@ -159,7 +187,8 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         if struct and used_defs:
             first_stack_def = used_defs[0]
             new_vvar = self.new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
-            new_stmt = Assignment(None, new_vvar, struct, **first_stack_def.stmt.tags)
+            src = self._convert_to_stack_vvar(struct) or struct
+            new_stmt = Assignment(None, new_vvar, src, **first_stack_def.stmt.tags)
 
             for expr, struct_ty in builder.pending_potential_structs:
                 self._simplify_struct_instantiation(callsite_block, expr, struct_ty)
