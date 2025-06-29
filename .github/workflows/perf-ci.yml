@@ -14,22 +14,19 @@ jobs:
       image: angr/ci:3
       options: --privileged
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       with:
-        repository: angr/angr-dev
+        path: angr
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      with:
+        repository: angr/binaries
+        path: binaries
+    - uses: astral-sh/setup-uv@445689ea25e0de0a23313031f5fe577c74ae45a1 # v6
     - name: Install
-      run: |
-          python3 -mvirtualenv venv && . venv/bin/activate
-          pip install pytest-codspeed
-          git clone https://github.com/angr/angr.git
-          git -C angr fetch origin ${{ github.ref }} && git -C angr switch --detach FETCH_HEAD
-          ./extremely-simple-setup.sh
+      run: uv --directory angr sync -p 3.12
     - name: Test
       uses: CodSpeedHQ/action@v3
       with:
         run: |
-          . venv/bin/activate
-          cd angr
-          pytest $(find tests -name 'perf_*.py') --codspeed
+          uv --directory angr run pytest --codspeed $(find tests -name 'perf_*.py')
         token: ${{ secrets.CODSPEED_TOKEN }}
