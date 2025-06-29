@@ -25,5 +25,5 @@ jobs:
       uses: CodSpeedHQ/action@v3
       with:
         run: |
-          uv --directory angr run pytest --codspeed $(find tests -name 'perf_*.py')
+          uv --directory angr run pytest --codspeed $(find angr/tests -name 'perf_*.py')
         token: ${{ secrets.CODSPEED_TOKEN }}
