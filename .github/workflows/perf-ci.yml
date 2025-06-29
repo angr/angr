@@ -10,9 +10,6 @@ jobs:
   perf:
     name: Perfharness
     runs-on: codspeed-macro
-    container:
-      image: angr/ci:3
-      options: --privileged
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       with:
