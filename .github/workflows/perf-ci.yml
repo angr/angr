@@ -9,7 +9,7 @@ on:
 jobs:
   perf:
     name: Perfharness
-    runs-on: ubuntu-22.04
+    runs-on: codspeed-macro
     container:
       image: angr/ci:3
       options: --privileged
