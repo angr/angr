@@ -15,7 +15,7 @@ if(NOT DEFINED PYVEX_LIB_PATH)
 endif()
 
 # Add the library
-add_library(unicornlib SHARED log.c unicorn_dynamic.c sim_unicorn.cpp)
+add_library(unicornlib SHARED unicorn_dynamic.c sim_unicorn.cpp)
 set_target_properties(unicornlib PROPERTIES OUTPUT_NAME "unicornlib")
 
 # Set include directories and link libraries
