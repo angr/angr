@@ -176,7 +176,7 @@ class Project:
 
         # It doesn't make any sense to have auto_load_libs
         # if you have the concrete target, let's warn the user about this.
-        if self.concrete_target and load_options.get("auto_load_libs", None):
+        if self.concrete_target and load_options.get("auto_load_libs"):
             l.critical(
                 "Incompatible options selected for this project, please disable auto_load_libs if "
                 "you want to use a concrete target."
