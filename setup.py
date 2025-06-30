@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import os.path
 import importlib
 import importlib.resources
+import os.path
 
 from setuptools import setup
 
@@ -13,8 +13,12 @@ except ImportError as err:
     raise Exception("angr requires setuptools-rust to build") from err
 
 
-PYVEX_INCLUDE_PATH = str(importlib.resources.files("pyvex").joinpath("include"))
-PYVEX_LIB_PATH = str(importlib.resources.files("pyvex").joinpath("lib"))
+try:
+    PYVEX_INCLUDE_PATH = str(importlib.resources.files("pyvex").joinpath("include"))
+    PYVEX_LIB_PATH = str(importlib.resources.files("pyvex").joinpath("lib"))
+except ImportError:
+    PYVEX_INCLUDE_PATH = ""
+    PYVEX_LIB_PATH = ""
 
 CMAKE_SOURCE_DIR = str(os.path.join(os.path.dirname(__file__), "native", "unicornlib"))
 CMAKE_ARGS = [f"-DPYVEX_INCLUDE_PATH={PYVEX_INCLUDE_PATH}", f"-DPYVEX_LIB_PATH={PYVEX_LIB_PATH}"]
