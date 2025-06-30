@@ -2,7 +2,7 @@ from __future__ import annotations
 import binascii
 import copy
 import ctypes
-import importlib.resources
+import importlib
 import itertools
 import logging
 import sys
@@ -242,7 +242,7 @@ class StopDetails(ctypes.Structure):
     ]
 
 
-class SimOSEnum:
+class SimOSEnum(IntEnum):
     """
     enum simos_t
     """
@@ -392,176 +392,10 @@ class _VexArchInfo(ctypes.Structure):
     ]
 
 
-def _load_native():
-    if sys.platform == "darwin":
-        libfile = "unicornlib.dylib"
-    elif sys.platform in {"win32", "cygwin"}:
-        libfile = "unicornlib.dll"
-    else:
-        libfile = "unicornlib.so"
-
-    try:
-        angr_path = str(importlib.resources.files("angr") / libfile)
-        h = ctypes.CDLL(angr_path)
-
-        VexArch = ctypes.c_int
-        uc_err = ctypes.c_int
-        state_t = ctypes.c_void_p
-        stop_t = ctypes.c_int
-        uc_engine_t = ctypes.c_void_p
-
-        def _setup_prototype(handle, func, restype, *argtypes):
-            realname = "simunicorn_" + func
-            _setup_prototype_explicit(handle, realname, restype, *argtypes)
-            setattr(handle, func, getattr(handle, realname))
-
-        def _setup_prototype_explicit(handle, func, restype, *argtypes):
-            getattr(handle, func).restype = restype
-            getattr(handle, func).argtypes = argtypes
-
-        # _setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
-        _setup_prototype(h, "setup_imports", ctypes.c_bool, ctypes.c_char_p)
-        _setup_prototype(
-            h,
-            "alloc",
-            state_t,
-            uc_engine_t,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-            ctypes.c_bool,
-            ctypes.c_bool,
-            ctypes.c_bool,
-        )
-        _setup_prototype(h, "dealloc", None, state_t)
-        _setup_prototype(h, "hook", None, state_t)
-        _setup_prototype(h, "unhook", None, state_t)
-        _setup_prototype(h, "start", uc_err, state_t, ctypes.c_uint64, ctypes.c_uint64)
-        _setup_prototype(h, "stop", None, state_t, stop_t)
-        _setup_prototype(h, "sync", ctypes.POINTER(MEM_PATCH), state_t)
-        _setup_prototype(h, "bbl_addrs", ctypes.POINTER(ctypes.c_uint64), state_t)
-        _setup_prototype(h, "stack_pointers", ctypes.POINTER(ctypes.c_uint64), state_t)
-        _setup_prototype(h, "bbl_addr_count", ctypes.c_uint64, state_t)
-        _setup_prototype(h, "syscall_count", ctypes.c_uint64, state_t)
-        _setup_prototype(h, "step", ctypes.c_uint64, state_t)
-        _setup_prototype(h, "activate_page", None, state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_void_p)
-        _setup_prototype(h, "set_last_block_details", None, state_t, ctypes.c_uint64, ctypes.c_int64, ctypes.c_int64)
-        _setup_prototype(h, "set_stops", None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(
-            h, "cache_page", ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64
-        )
-        _setup_prototype(h, "uncache_pages_touching_region", None, state_t, ctypes.c_uint64, ctypes.c_uint64)
-        _setup_prototype(h, "clear_page_cache", None, state_t)
-        _setup_prototype(h, "enable_symbolic_reg_tracking", None, state_t, VexArch, _VexArchInfo)
-        _setup_prototype(h, "disable_symbolic_reg_tracking", None, state_t)
-        _setup_prototype(h, "symbolic_register_data", None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(h, "get_symbolic_registers", ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(h, "is_interrupt_handled", ctypes.c_bool, state_t)
-        _setup_prototype(
-            h,
-            "set_cgc_syscall_details",
-            None,
-            state_t,
-            ctypes.c_uint32,
-            ctypes.c_uint64,
-            ctypes.c_uint32,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-            ctypes.c_uint32,
-            ctypes.c_uint64,
-        )
-        _setup_prototype(h, "process_transmit", ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
-        _setup_prototype(h, "set_tracking", None, state_t, ctypes.c_bool, ctypes.c_bool)
-        _setup_prototype(h, "executed_pages", ctypes.c_uint64, state_t)
-        _setup_prototype(h, "in_cache", ctypes.c_bool, state_t, ctypes.c_uint64)
-        if unicorn is not None:
-            _setup_prototype(h, "set_map_callback", None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
-        _setup_prototype(
-            h,
-            "set_vex_to_unicorn_reg_mappings",
-            None,
-            state_t,
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.c_uint64,
-        )
-        _setup_prototype(h, "set_artificial_registers", None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
-        _setup_prototype(h, "get_count_of_blocks_with_symbolic_vex_stmts", ctypes.c_uint64, state_t)
-        _setup_prototype(
-            h, "get_details_of_blocks_with_symbolic_vex_stmts", None, state_t, ctypes.POINTER(BlockDetails)
-        )
-        _setup_prototype(h, "get_stop_details", StopDetails, state_t)
-        _setup_prototype(h, "set_register_blacklist", None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
-        _setup_prototype(
-            h,
-            "set_cpu_flags_details",
-            None,
-            state_t,
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.c_uint64,
-        )
-        _setup_prototype(
-            h,
-            "set_fd_bytes",
-            state_t,
-            ctypes.c_uint64,
-            ctypes.c_void_p,
-            ctypes.c_void_p,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-        )
-        _setup_prototype(
-            h,
-            "set_random_syscall_data",
-            None,
-            state_t,
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.c_uint64,
-        )
-        _setup_prototype(
-            h,
-            "set_vex_cc_reg_data",
-            None,
-            state_t,
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.c_uint64,
-        )
-        _setup_prototype(h, "get_count_of_writes_to_reexecute", ctypes.c_uint64, state_t)
-        _setup_prototype(
-            h,
-            "get_concrete_writes_to_reexecute",
-            None,
-            state_t,
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.POINTER(ctypes.c_uint8),
-        )
-        _setup_prototype(
-            h,
-            "set_fp_regs_fp_ops_vex_codes",
-            None,
-            state_t,
-            ctypes.c_uint64,
-            ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_uint64),
-            ctypes.c_uint32,
-        )
-
-        l.info("native plugin is enabled")
-
-        return h
-    except (OSError, AttributeError) as e:
-        l.error('failed loading "%s", unicorn support disabled (%s)', libfile, e)
-        raise ImportError("Unable to import native SimUnicorn support") from e
-
-
 try:
-    _UC_NATIVE = _load_native()
-    # _UC_NATIVE.logSetLogLevel(2)
+    _UC_NATIVE = importlib.import_module("angr.unicornlib")
 except ImportError:
+    print("Unable to import native unicorn support", file=sys.stderr)
     _UC_NATIVE = None
 
 if _uc is not None and _UC_NATIVE is not None and not _UC_NATIVE.setup_imports(_uc._name.encode()):
