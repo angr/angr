@@ -3342,7 +3342,7 @@ def _decl_to_type(
 
         if decl.name is not None:
             key = "struct " + decl.name
-            struct = extra_types.get(key, None)
+            struct = extra_types.get(key)
             from_global = False
             if struct is None:
                 struct = ALL_TYPES.get(key)
@@ -3378,7 +3378,7 @@ def _decl_to_type(
 
         if decl.name is not None:
             key = "union " + decl.name
-            union = extra_types.get(key, None)
+            union = extra_types.get(key)
             from_global = False
             if union is None and key in ALL_TYPES:
                 union = ALL_TYPES[key]
