@@ -156,14 +156,14 @@ class LibcStdioHandlers(FunctionHandler):
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_fread(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         size = state.get_concrete_value(data.args_atoms[1]) or 1
-        nmemb = state.get_concrete_value(data.args_atoms[1]) or 2
+        nmemb = state.get_concrete_value(data.args_atoms[2]) or 2
         dst_atom = state.deref(data.args_atoms[0], size * nmemb)
         data.depends(dst_atom, StdinAtom("fread", size * nmemb))
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_fwrite(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         size = state.get_concrete_value(data.args_atoms[1]) or 1
-        nmemb = state.get_concrete_value(data.args_atoms[1]) or 2
+        nmemb = state.get_concrete_value(data.args_atoms[2]) or 2
         src_atom = state.deref(data.args_atoms[0], size * nmemb)
         data.depends(StdoutAtom("fwrite", size * nmemb), src_atom, value=state.get_values(src_atom))
 
@@ -206,8 +206,8 @@ def handle_printf(
         elif fmt == "%u":
             buf_atoms = atom
             buf_data = state.get_concrete_value(buf_atoms)
-            if buf_data is not None:
-                buf_data = str(buf_data).encode()
+            buf_data = str(buf_data).encode() if buf_data else b"0"
+
         elif fmt == "%d":
             buf_atoms = atom
             buf_data = state.get_concrete_value(buf_atoms)
@@ -215,11 +215,12 @@ def handle_printf(
                 if buf_data >= 2**31:
                     buf_data -= 2**32
                 buf_data = str(buf_data).encode()
+            else:
+                buf_data = b"0"
         elif fmt == "%c":
             buf_atoms = atom
             buf_data = state.get_concrete_value(atom)
-            if buf_data is not None:
-                buf_data = chr(buf_data).encode()
+            buf_data = chr(buf_data).encode() if buf_data else b"0"
         else:
             _l.warning("Unimplemented printf format string %s", fmt)
             buf_atoms = set()
