@@ -218,8 +218,8 @@ class IcicleEngine(ConcreteEngine):
             state.history.jumpkind = "Ijk_Boring"
 
         # 3.2 history.recent_bbl_addrs
-        print("Recent blocks:", emu.recent_blocks)
-        state.history.recent_bbl_addrs.extend([b[0] for b in emu.recent_blocks][1:])
+        # Skip the last block, because it will be added by Successors
+        state.history.recent_bbl_addrs.extend([b[0] for b in emu.recent_blocks][:-1])
 
         # 4. Set history.recent_instruction_count
         state.history.recent_instruction_count = emu.cpu_icount - translation_data.initial_cpu_icount

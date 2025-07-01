@@ -19,6 +19,7 @@ import cle
 
 import angr
 from angr import sim_options as o
+from angr.emulator import EmulatorStopReason
 from angr.engines.icicle import IcicleEngine, UberIcicleEngine
 from tests.common import bin_location
 
@@ -466,3 +467,86 @@ class TestBreakpoints(TestCase):
         assert len(succ3.successors) == 1
         state3 = succ3.successors[0]
         assert state3.regs.x1.concrete_value == 2
+
+class TestTracing(TestCase):
+    def test_tracing(self):
+        project = angr.Project(os.path.join(bin_location, "tests", "x86_64", "fauxware"), auto_load_libs=False)
+        init_state = project.factory.entry_state(
+            stdin=b"username\nSOSNEAKY\n",
+            args=["fauxware"],
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        emulator = angr.Emulator(UberIcicleEngine(project), init_state)
+
+        stop_reason = emulator.run()
+
+        assert stop_reason == EmulatorStopReason.EXIT
+        assert list(emulator.state.history.bbl_addrs) == [
+            0x400580,
+            0x400580,
+            0x400540,
+            0x700018,
+            0x4007e0,
+            0x4007e0,
+            0x4004e0,
+            0x4005ac,
+            0x4005be,
+            0x4004e9,
+            0x400640,
+            0x400660,
+            0x4004ee,
+            0x400880,
+            0x4008af,
+            0x4004f3,
+            0x400825,
+            0x400846,
+            0x801050,
+            0x40071d,
+            0x40071d,
+            0x400510,
+            0x700000,
+            0x40073e,
+            0x40073e,
+            0x400530,
+            0x700010,
+            0x400754,
+            0x400754,
+            0x400530,
+            0x700010,
+            0x40076a,
+            0x40076a,
+            0x400510,
+            0x700000,
+            0x400774,
+            0x400774,
+            0x400530,
+            0x700010,
+            0x40078a,
+            0x40078a,
+            0x400530,
+            0x700010,
+            0x4007a0,
+            0x4007a0,
+            0x400664,
+            0x400550,
+            0x700020,
+            0x40068e,
+            0x40068e,
+            0x400692,
+            0x4006eb,
+            0x4007b3,
+            0x4007bd,
+            0x4006ed,
+            0x400510,
+            0x700000,
+            0x4006fb,
+            0x4006fb,
+            0x4007c7,
+            0x4007d3,
+            0x801058,
+        ]
+
+
+
