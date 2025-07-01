@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.2", "setuptools-rust", "pyvex==9.2.163.dev0"]
-build-backend = "setuptools.build_meta"
+requires = ["setuptools>=61.2", "setuptools-rust", "scikit-build-core==0.11.5", "pyvex==9.2.163.dev0"]
+build-backend = "scikit_build_core.setuptools.build_meta"
 
 [project]
 name = "angr"
