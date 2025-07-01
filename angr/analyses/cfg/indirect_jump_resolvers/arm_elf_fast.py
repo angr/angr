@@ -125,7 +125,17 @@ class ArmElfFastResolver(IndirectJumpResolver):
         # Note that this function assumes the IRSB is optimized (opt_level > 0)
         # the logic will be vastly different if the IRSB is not optimized (opt_level == 0)
 
-        b = Blade(cfg.graph, addr, -1, cfg=cfg, project=self.project, ignore_sp=True, ignore_bp=True, max_level=2)
+        b = Blade(
+            cfg.graph,
+            addr,
+            -1,
+            cfg=cfg,
+            project=self.project,
+            ignore_sp=True,
+            ignore_bp=True,
+            max_level=2,
+            control_dependence=False,
+        )
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
         if not sources:
             return False, []

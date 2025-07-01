@@ -19,6 +19,7 @@ class PropagationModel(Serializable):
         "_initial_state",
         "block_initial_reg_values",
         "equivalence",
+        "function_block_count",
         "graph_visitor",
         "input_states",
         "key",
@@ -37,6 +38,7 @@ class PropagationModel(Serializable):
         equivalence: set | None = None,
         function: Function | None = None,
         input_states: dict | None = None,
+        function_block_count: int | None = None,
     ):
         self.key = prop_key
         self.node_iterations = node_iterations if node_iterations is not None else defaultdict(int)
@@ -49,6 +51,11 @@ class PropagationModel(Serializable):
         self.graph_visitor = None
         self._initial_state = None
         self._function = function
+        self.function_block_count = (
+            function_block_count
+            if function_block_count is not None
+            else len(function.block_addrs_set) if function is not None else None
+        )
 
     def downsize(self):
         self.node_iterations = None
