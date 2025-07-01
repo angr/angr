@@ -2007,6 +2007,7 @@ class CFGBase(Analysis):
                         outedge_src.addr == cfgnode_0.addr
                         and outedge_src.size == cfgnode_0.size
                         and outedge_dst.addr == cfgnode_1.addr
+                        and cfgnode_0.addr + cfgnode_0.size == cfgnode_1.addr
                         and outedge_data.get("type", None) == "transition"
                         and outedge_data.get("stmt_idx", None) == DEFAULT_STATEMENT
                     ):
