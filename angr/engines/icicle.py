@@ -123,7 +123,7 @@ class IcicleEngine(ConcreteEngine):
         if proj is None:
             raise ValueError("IcicleEngine requires a project to be set")
 
-        emu = Icicle(icicle_arch, PROCESSORS_DIR)
+        emu = Icicle(icicle_arch, PROCESSORS_DIR, True)
 
         copied_registers = set()
 
@@ -194,7 +194,8 @@ class IcicleEngine(ConcreteEngine):
             addr = page_num * state.memory.page_size
             state.memory.store(addr, emu.mem_read(addr, state.memory.page_size))
 
-        # 3. Set history.jumpkind
+        # 3. Set history
+        # 3.1 history.jumpkind
         exc = emu.exception_code
         if status == VmExit.UnhandledException:
             if exc in (
@@ -215,6 +216,10 @@ class IcicleEngine(ConcreteEngine):
                 state.history.jumpkind = "Ijk_EmFail"
         else:
             state.history.jumpkind = "Ijk_Boring"
+
+        # 3.2 history.recent_bbl_addrs
+        # Skip the last block, because it will be added by Successors
+        state.history.recent_bbl_addrs.extend([b[0] for b in emu.recent_blocks][:-1])
 
         # 4. Set history.recent_instruction_count
         state.history.recent_instruction_count = emu.cpu_icount - translation_data.initial_cpu_icount

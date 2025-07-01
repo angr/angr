@@ -7,9 +7,12 @@
 /// https://github.com/icicle-emu/icicle-python
 use std::{collections::HashMap, path::PathBuf};
 
-use icicle_vm::cpu::{
-    Cpu, ValueSource,
-    mem::{Mapping, perm},
+use icicle_vm::{
+    cpu::{
+        Cpu, ValueSource,
+        mem::{Mapping, perm},
+    },
+    injector::{PathTracerRef, add_path_tracer},
 };
 
 use pyo3::{
@@ -194,12 +197,17 @@ struct Icicle {
     #[pyo3(get)]
     architecture: String,
     vm: icicle_vm::Vm,
+    path_tracer: Option<PathTracerRef>,
 }
 
 #[pymethods]
 impl Icicle {
     #[new]
-    pub fn new(architecture: String, processors_path: String) -> PyResult<Self> {
+    pub fn new(
+        architecture: String,
+        processors_path: String,
+        enable_tracing: bool,
+    ) -> PyResult<Self> {
         let mut config =
             icicle_vm::cpu::Config::from_target_triple(format!("{architecture}-none").as_str());
         config.enable_shadow_stack = false;
@@ -232,7 +240,20 @@ impl Icicle {
             _ => {}
         }
 
-        Ok(Self { architecture, vm })
+        let path_tracer =
+            if enable_tracing {
+                Some(add_path_tracer(&mut vm).map_err(|e| {
+                    PyRuntimeError::new_err(format!("Failed to add path tracer: {e}"))
+                })?)
+            } else {
+                None
+            };
+
+        Ok(Self {
+            architecture,
+            vm,
+            path_tracer,
+        })
     }
 
     // Basic state accessors
@@ -381,6 +402,17 @@ impl Icicle {
     #[getter]
     pub fn get_exception_value(&self) -> u64 {
         self.vm.cpu.exception.value
+    }
+
+    // Tracing
+
+    #[getter]
+    pub fn get_recent_blocks(&mut self) -> Vec<(u64, u64)> {
+        if let Some(path_tracer) = self.path_tracer {
+            path_tracer.get_last_blocks(&mut self.vm)
+        } else {
+            Vec::new()
+        }
     }
 }
 
