@@ -1952,10 +1952,10 @@ class CFGBase(Analysis):
                     # skip empty blocks (that are usually caused by lifting failures)
                     continue
                 block = func_0.get_block(block_node.addr, block_node.size)
-                if block.vex_nostmt.jumpkind not in ("Ijk_Boring", "Ijk_InvalICache"):
-                    continue
                 # Skip alignment blocks
                 if self._is_noop_block(self.project.arch, block):
+                    continue
+                if block.vex_nostmt.jumpkind not in ("Ijk_Boring", "Ijk_InvalICache"):
                     continue
 
                 # does the first block transition to the next function?
@@ -2001,17 +2001,19 @@ class CFGBase(Analysis):
 
                 cfgnode_1_merged = False
                 # we only merge two CFG nodes if the first one does not end with a branch instruction
-                if (
-                    len(func_0.block_addrs_set) == 1
-                    and len(out_edges) == 1
-                    and out_edges[0][0].addr == cfgnode_0.addr
-                    and out_edges[0][0].size == cfgnode_0.size
-                    and self.project.factory.block(cfgnode_0.addr, strict_block_end=True).size > cfgnode_0.size
-                ):
-                    cfgnode_1_merged = True
-                    self._merge_cfgnodes(cfgnode_0, cfgnode_1)
-                    adjusted_cfgnodes.add(cfgnode_0)
-                    adjusted_cfgnodes.add(cfgnode_1)
+                if len(func_0.block_addrs_set) == 1 and len(out_edges) == 1:
+                    outedge_src, outedge_dst, outedge_data = out_edges[0]
+                    if (
+                        outedge_src.addr == cfgnode_0.addr
+                        and outedge_src.size == cfgnode_0.size
+                        and outedge_dst.addr == cfgnode_1.addr
+                        and outedge_data.get("type", None) == "transition"
+                        and outedge_data.get("stmt_idx", None) == DEFAULT_STATEMENT
+                    ):
+                        cfgnode_1_merged = True
+                        self._merge_cfgnodes(cfgnode_0, cfgnode_1)
+                        adjusted_cfgnodes.add(cfgnode_0)
+                        adjusted_cfgnodes.add(cfgnode_1)
 
                 # Merge it
                 func_1 = functions[addr_1]
