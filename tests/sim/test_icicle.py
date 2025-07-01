@@ -182,6 +182,8 @@ class TestIcicle(TestCase):
 
 
 class TestThumb(TestCase):
+    """Thumb-specific tests for the Icicle engine."""
+
     def test_thumb(self):
         """Test that the Icicle engine can handle Thumb instructions."""
 
@@ -470,6 +472,8 @@ class TestBreakpoints(TestCase):
 
 
 class TestTracing(TestCase):
+    """Tracing accuracy tests for the Icicle engine."""
+
     def test_tracing(self):
         project = angr.Project(os.path.join(bin_location, "tests", "x86_64", "fauxware"), auto_load_libs=False)
         init_state = project.factory.entry_state(
