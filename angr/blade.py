@@ -40,6 +40,7 @@ class Blade:
         cross_insn_opt=False,
         max_predecessors: int = 10,
         include_imarks: bool = True,
+        control_dependence: bool = True,
     ):
         """
         :param graph:                   A graph representing the control flow graph. Note that it does not take
@@ -56,6 +57,8 @@ class Blade:
         :param stop_at_calls:           Limit slicing within a single function. Do not proceed when encounters a call
                                         edge.
         :param include_imarks:          Should IMarks (instruction boundaries) be included in the slice.
+        :param control_dependence:      Whether to consider control dependencies. If True, the temps controlling
+                                        conditional exits will be added to the tainting set.
         :return: None
         """
 
@@ -70,6 +73,7 @@ class Blade:
         self._cross_insn_opt = cross_insn_opt
         self._max_predecessors = max_predecessors
         self._include_imarks = include_imarks
+        self._control_dependence = control_dependence
 
         self._slice = networkx.DiGraph()
 
@@ -347,7 +351,7 @@ class Blade:
         except (SimTranslationError, BadJumpkindNotification):
             return
 
-        if exit_stmt_idx is None or exit_stmt_idx == DEFAULT_STATEMENT:
+        if self._control_dependence and (exit_stmt_idx is None or exit_stmt_idx == DEFAULT_STATEMENT):
             # Initialize the temps set with whatever in the `next` attribute of this irsb
             next_expr = self._get_irsb(run).next
             if type(next_expr) is pyvex.IRExpr.RdTmp:
@@ -357,20 +361,21 @@ class Blade:
         self._inslice_callback(DEFAULT_STATEMENT, None, {"irsb_addr": irsb_addr, "prev": prev})
         prev = irsb_addr, DEFAULT_STATEMENT
 
-        # if there are conditional exits, we *always* add them into the slice (so if they should not be taken, we do not
-        # lose the condition)
-        for stmt_idx_, s_ in enumerate(self._get_irsb(run).statements):
-            if type(s_) is not pyvex.IRStmt.Exit:
-                continue
-            if s_.jumpkind != "Ijk_Boring":
-                continue
+        if self._control_dependence:
+            # if there are conditional exits, we *always* add them into the slice (so if they should not be taken, we do not
+            # lose the condition)
+            for stmt_idx_, s_ in enumerate(self._get_irsb(run).statements):
+                if type(s_) is not pyvex.IRStmt.Exit:
+                    continue
+                if s_.jumpkind != "Ijk_Boring":
+                    continue
 
-            if type(s_.guard) is pyvex.IRExpr.RdTmp:
-                temps.add(s_.guard.tmp)
+                if type(s_.guard) is pyvex.IRExpr.RdTmp:
+                    temps.add(s_.guard.tmp)
 
-            # Put it in our slice
-            self._inslice_callback(stmt_idx_, s_, {"irsb_addr": irsb_addr, "prev": prev})
-            prev = (irsb_addr, stmt_idx_)
+                # Put it in our slice
+                self._inslice_callback(stmt_idx_, s_, {"irsb_addr": irsb_addr, "prev": prev})
+                prev = (irsb_addr, stmt_idx_)
 
         infodict = {"irsb_addr": irsb_addr, "prev": prev, "has_statement": False}
 

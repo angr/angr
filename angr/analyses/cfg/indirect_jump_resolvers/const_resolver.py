@@ -130,6 +130,7 @@ class ConstantResolver(IndirectJumpResolver):
                 max_level=3,
                 stop_at_calls=True,
                 cross_insn_opt=True,
+                control_dependence=False,
             )
             stmt_loc = addr, DEFAULT_STATEMENT
             if self._check_jump_target_is_loaded_from_dynamic_addr(b, stmt_loc):
@@ -196,12 +197,12 @@ class ConstantResolver(IndirectJumpResolver):
         return False, []
 
     def _check_jump_target_is_loaded_from_dynamic_addr(self, b, stmt_loc) -> bool:
-        queue = []
-        seen = set()
+        queue: list[tuple[int, int, int]] = []  # depth, block_addr, stmt_idx
+        seen_locs: set[tuple[int, int]] = set()
         for block_addr, stmt_idx in b.slice.predecessors(stmt_loc):
-            if (block_addr, stmt_idx) in seen:
+            if (block_addr, stmt_idx) in seen_locs:
                 continue
-            seen.add((block_addr, stmt_idx))
+            seen_locs.add((block_addr, stmt_idx))
             queue.append((0, block_addr, stmt_idx))
         while queue:
             depth, pred_addr, stmt_idx = queue.pop(0)
@@ -214,9 +215,9 @@ class ConstantResolver(IndirectJumpResolver):
                 stmt = block.statements[stmt_idx]
                 if isinstance(stmt, pyvex.IRStmt.IMark):
                     for succ_addr, succ_stmt_idx in b.slice.predecessors((pred_addr, stmt_idx)):
-                        if (succ_addr, succ_stmt_idx) in seen:
+                        if (succ_addr, succ_stmt_idx) in seen_locs:
                             continue
-                        seen.add((succ_addr, succ_stmt_idx))
+                        seen_locs.add((succ_addr, succ_stmt_idx))
                         queue.append((depth + 1 if succ_addr != pred_addr else depth, succ_addr, succ_stmt_idx))
                     continue
 
@@ -229,9 +230,9 @@ class ConstantResolver(IndirectJumpResolver):
                     return True
 
             for succ_addr, succ_stmt_idx in b.slice.predecessors((pred_addr, stmt_idx)):
-                if (succ_addr, succ_stmt_idx) in seen:
+                if (succ_addr, succ_stmt_idx) in seen_locs:
                     continue
-                seen.add((succ_addr, succ_stmt_idx))
+                seen_locs.add((succ_addr, succ_stmt_idx))
                 queue.append((depth + 1 if succ_addr != pred_addr else depth, succ_addr, succ_stmt_idx))
 
         return False
