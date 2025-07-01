@@ -1868,7 +1868,7 @@ class CFGBase(Analysis):
             should_merge = True
             functions_to_merge = set()
             i = func_pos + 1
-            while i < len(all_func_addrs):
+            while i < len(all_func_addrs) and all_func_addrs[i] < endpoint_addr:
                 f_addr = all_func_addrs[i]
                 i += 1
                 f = functions[f_addr]
