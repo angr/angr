@@ -572,10 +572,11 @@ class FunctionHandler:
             for block in data.function.ret_sites
         ]
 
+        state.analysis._observation_points = list(state.analysis._observation_points or []) + return_observation_points
         sub_rda = state.analysis.project.analyses.ReachingDefinitions(
             data.function,
             observe_all=state.analysis._observe_all,
-            observation_points=list(state.analysis._observation_points or []).extend(return_observation_points),
+            observation_points=state.analysis._observation_points,
             observe_callback=state.analysis._observe_callback,
             dep_graph=state.dep_graph,
             function_handler=self,

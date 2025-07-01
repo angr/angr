@@ -30,7 +30,7 @@ class LibcStringHandlers(FunctionHandler):
             dest_value = src0_value.concat(MultiValues(top_val))
             dest_atom = state.deref(data.args_atoms[0], len(dest_value) // 8, endness=archinfo.Endness.BE)
         else:
-            dest_value = None
+            dest_value = state.top(state.arch.bits)
             dest_atom = src0_atom
         if src0_atom is not None and src1_atom is not None:
             data.depends(dest_atom, src0_atom, src1_atom, value=dest_value)
@@ -109,7 +109,8 @@ class LibcStringHandlers(FunctionHandler):
             src_str = state.get_values(src_atom)
             malloc_size = len(src_str) // 8 if src_str is not None else 1
             heap_ptr = state.heap_allocator.allocate(malloc_size)
-            dst_atom = state.deref(heap_ptr, malloc_size)
+            heap_addr = state.heap_address(heap_ptr)
+            dst_atom = state.deref(heap_addr, malloc_size)
             data.depends(dst_atom, src_atom, value=src_str)
         data.depends(data.ret_atoms, data.args_atoms[0], value=state.get_values(data.args_atoms[0]))
 
@@ -121,6 +122,16 @@ class LibcStringHandlers(FunctionHandler):
             dst_atom = state.deref(data.args_atoms[0], size)
             if src_atom is not None:
                 data.depends(dst_atom, src_atom, value=state.get_values(src_atom))
+        else:
+            # When size is unknown, use default size and create TOP value
+            default_size = state.arch.bytes
+            src_atom = state.deref(data.args_atoms[1], default_size)
+            dst_atom = state.deref(data.args_atoms[0], default_size)
+            if src_atom is not None:
+                top_val = state.top(default_size * 8)
+                for defn in state.get_definitions(src_atom):
+                    top_val = state.annotate_with_def(top_val, defn)
+                data.depends(dst_atom, src_atom, value=MultiValues(top_val))
         data.depends(data.ret_atoms, data.args_atoms[0], value=state.get_values(data.args_atoms[0]))
 
     @FunctionCallDataUnwrapped.decorate
