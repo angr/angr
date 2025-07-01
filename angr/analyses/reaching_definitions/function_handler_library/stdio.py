@@ -206,10 +206,8 @@ def handle_printf(
         elif fmt == "%u":
             buf_atoms = atom
             buf_data = state.get_concrete_value(buf_atoms)
-            if buf_data is not None:
-                buf_data = str(buf_data).encode()
-            else:
-                buf_data = b"0"
+            buf_data = str(buf_data).encode() if buf_data else b"0"
+
         elif fmt == "%d":
             buf_atoms = atom
             buf_data = state.get_concrete_value(buf_atoms)
@@ -222,10 +220,7 @@ def handle_printf(
         elif fmt == "%c":
             buf_atoms = atom
             buf_data = state.get_concrete_value(atom)
-            if buf_data is not None:
-                buf_data = chr(buf_data).encode()
-            else:
-                buf_data = b"0"
+            buf_data = chr(buf_data).encode() if buf_data else b"0"
         else:
             _l.warning("Unimplemented printf format string %s", fmt)
             buf_atoms = set()
