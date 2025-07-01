@@ -82,7 +82,7 @@ class Icicle:
     # Number of instructions executed on the cpu
     cpu_icount: int
 
-    def __init__(self, architecture: str, processors_path: str) -> None: ...
+    def __init__(self, architecture: str, processors_path: str, enable_tracing: bool) -> None: ...
     @property
     def architecture(self) -> str:
         """The architecture of the VM, e.g., 'x86_64', 'armv7', etc."""
@@ -164,3 +164,7 @@ class Icicle:
     @property
     def exception_value(self) -> int:
         """The exception code from the last run, if any."""
+
+    @property
+    def recent_blocks(self) -> list[tuple[int, int]]:
+        """The addresses of recently executed basic blocks, if available."""
