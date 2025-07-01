@@ -64,21 +64,25 @@ class LibcStdlibHandlers(FunctionHandler):
                 buf_value = int(buf_value.decode().strip("\0"))
             except ValueError:
                 buf_value = 0
+        else:
+            buf_value = 0  # Make the value concrete if it cannot be parsed
         data.depends(data.ret_atoms, buf_atoms, value=buf_value)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_malloc(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         malloc_size = state.get_concrete_value(data.args_atoms[0]) or 48
         heap_ptr = state.heap_allocator.allocate(malloc_size)
-        data.depends(data.ret_atoms, value=state.heap_address(heap_ptr))
+        heap_addr = state.heap_address(heap_ptr)
+        data.depends(data.ret_atoms, value=heap_addr)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_calloc(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         nmemb = state.get_concrete_value(data.args_atoms[0]) or 48
         size = state.get_concrete_value(data.args_atoms[1]) or 1
-        heap_ptr = state.heap_address(state.heap_allocator.allocate(nmemb * size))
-        data.depends(state.deref(heap_ptr, nmemb * size), value=0)
-        data.depends(data.ret_atoms, value=heap_ptr)
+        heap_ptr = state.heap_allocator.allocate(nmemb * size)
+        heap_addr = state.heap_address(heap_ptr)
+        data.depends(state.deref(heap_addr, nmemb * size), value=0)
+        data.depends(data.ret_atoms, value=heap_addr)
 
     @FunctionCallDataUnwrapped.decorate
     def handle_impl_getenv(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
@@ -156,6 +160,8 @@ class LibcStdlibHandlers(FunctionHandler):
     def handle_impl_execve(self, state: ReachingDefinitionsState, data: FunctionCallDataUnwrapped):
         argv_value = state.get_one_value(data.args_atoms[1])
         if argv_value is None:
+            # Model execve with unknown argv - still has system effects
+            data.depends(SystemAtom(1), data.args_atoms[0], value=state.get_values(data.args_atoms[0]))
             return
 
         nonce = random.randint(1, 999999999)

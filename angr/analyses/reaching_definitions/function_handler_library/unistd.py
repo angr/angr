@@ -32,6 +32,9 @@ class LibcUnistdHandlers(FunctionHandler):
         buf_data = state.top(size * 8) if size is not None else state.top(state.arch.bits)
 
         data.depends(dst_atom, fd_atom, value=buf_data)
+        # Model return value - number of bytes read (could be 0 to size, or -1 for error)
+        ret_val = state.top(state.arch.bits)  # Unknown number of bytes read
+        data.depends(data.ret_atoms, fd_atom, value=ret_val)
 
     handle_impl_recv = handle_impl_recvfrom = handle_impl_read
 
@@ -40,5 +43,9 @@ class LibcUnistdHandlers(FunctionHandler):
         size = state.get_concrete_value(data.args_atoms[2]) or 1
         src_atom = state.deref(data.args_atoms[1], size)
         data.depends(StdoutAtom(data.function.name, size), src_atom, value=state.get_values(src_atom))
+
+        # Model return value - number of bytes written (could be 0 to size, or -1 for error)
+        ret_val = state.top(state.arch.bits)  # Unknown number of bytes written
+        data.depends(data.ret_atoms, value=ret_val)
 
     handle_impl_send = handle_impl_write
