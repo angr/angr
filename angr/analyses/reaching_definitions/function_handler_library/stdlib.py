@@ -65,7 +65,7 @@ class LibcStdlibHandlers(FunctionHandler):
             except ValueError:
                 buf_value = 0
         else:
-            buf_value = 0 # Make the value concrete if it cannot be parsed
+            buf_value = 0  # Make the value concrete if it cannot be parsed
         data.depends(data.ret_atoms, buf_atoms, value=buf_value)
 
     @FunctionCallDataUnwrapped.decorate
