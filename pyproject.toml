@@ -163,6 +163,6 @@ minversion = "6.0"
 markers = [
     "slow: mark test as too slow to run in every CI run",
 ]
-testdirs = [
+testpaths = [
     "tests",
 ]
