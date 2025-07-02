@@ -245,7 +245,9 @@ class Struct(TypeConstant):
         if not self.fields:
             return 0
         max_field_off = max(self.fields.keys())
-        return max_field_off + self.fields[max_field_off].size
+        return max_field_off + (
+            self.fields[max_field_off].size if not isinstance(self.fields[max_field_off], BottomType) else 1
+        )
 
     @memoize
     def __repr__(self, memo=None):
