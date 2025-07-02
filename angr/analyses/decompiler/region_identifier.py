@@ -131,6 +131,7 @@ class RegionIdentifier(Analysis):
         if the_component is None:
             the_component = largest_component
 
+        assert the_component is not None
         return digraph.subgraph(the_component).to_directed()
 
     @staticmethod

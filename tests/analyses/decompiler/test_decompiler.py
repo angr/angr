@@ -4171,6 +4171,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
         f = proj.kb.functions[0x41D560]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
         # should not crash, and should generate a switch-case construct
         assert d.codegen.text.count("switch") == 1
@@ -4189,6 +4190,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
         f = proj.kb.functions[0x41DCE0]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
         # should not crash, and should generate two switch-case constructs
         assert d.codegen.text.count("switch") == 2
@@ -4204,6 +4206,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
         f = proj.kb.functions[0x42CCA0]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
         # should not crash, and should generate at least six switch-case contructs
         assert d.codegen.text.count("switch") == 7
