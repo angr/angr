@@ -76,7 +76,7 @@ def to_acyclic_graph(
     for src, dst in graph.edges():
         src_order = node_order[src]
         dst_order = node_order[dst]
-        if src_order > dst_order:
+        if src_order >= dst_order:
             # this is a back edge, we need to remove it
             edges_to_remove.append((src, dst))
 
