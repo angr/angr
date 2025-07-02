@@ -7,8 +7,9 @@ import subprocess
 from functools import lru_cache
 from collections.abc import Sequence
 from tempfile import NamedTemporaryFile
-
 from unittest import skipIf, skipUnless, skip, SkipTest
+
+import pytest
 
 from angr import load_shellcode, Project
 from angr.analyses import CongruencyCheck
@@ -50,6 +51,7 @@ def requires_binaries_private(func):
 
 
 def slow_test(func):
+    pytest.mark.slow(func)
     func.speed = "slow"
     slow_test_env = os.environ["SKIP_SLOW_TESTS"].lower() if "SKIP_SLOW_TESTS" in os.environ else ""
     return skipIf(slow_test_env == "true" or slow_test_env == "1", "Skipping slow test")(func)
