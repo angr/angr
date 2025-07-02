@@ -158,10 +158,14 @@ def switch_extract_cmp_bounds(
         return None
 
     # TODO: Add more operations
-    if isinstance(last_stmt.condition, ailment.Expr.BinaryOp) and last_stmt.condition.op == "CmpLE":
+    if isinstance(last_stmt.condition, ailment.Expr.BinaryOp) and last_stmt.condition.op in {"CmpLE", "CmpLT"}:
         if not isinstance(last_stmt.condition.operands[1], ailment.Expr.Const):
             return None
-        cmp_ub = last_stmt.condition.operands[1].value
+        cmp_ub = (
+            last_stmt.condition.operands[1].value
+            if last_stmt.condition.op == "CmpLE"
+            else last_stmt.condition.operands[1].value - 1
+        )
         cmp_lb = 0
         cmp = last_stmt.condition.operands[0]
         if (
@@ -250,6 +254,10 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
              size=4, endness=Iend_LE) + 0x4530e4<32>))
     )
 
+    Another example:
+
+    Load(addr=(((vvar_9{reg 36} & 0x3<32>) * 0x4<32>) + 0x42cd28<32>), size=4, endness=Iend_LE)
+
     :param last_stmt:   The last statement of the switch-case header node.
     :return:            A tuple of (index expression, lower bound, upper bound), or None
     """
@@ -269,16 +277,20 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
             continue
         if isinstance(target, ailment.Expr.BinaryOp) and target.op == "Add":
             if isinstance(target.operands[0], ailment.Expr.Const) and isinstance(target.operands[1], ailment.Expr.Load):
-                jump_addr_offset = target.operands[0]
+                jump_addr_offset = target.operands[0].value
                 jumptable_load_addr = target.operands[1].addr
                 break
             if isinstance(target.operands[1], ailment.Expr.Const) and isinstance(target.operands[0], ailment.Expr.Load):
-                jump_addr_offset = target.operands[1]
+                jump_addr_offset = target.operands[1].value
                 jumptable_load_addr = target.operands[0].addr
                 break
             return None
         if isinstance(target, ailment.Expr.Const):
             return None
+        if isinstance(target, ailment.Expr.Load):
+            jumptable_load_addr = target.addr
+            jump_addr_offset = 0
+            break
         break
 
     if jump_addr_offset is None or jumptable_load_addr is None:
