@@ -60,7 +60,7 @@ class DeadblockRemover(OptimizationPass):
             blk
             for blk in self._graph.nodes()
             if (blk.addr != self._func.addr and self._graph.in_degree(blk) == 0)
-            or claripy.is_false(cond_proc.reaching_conditions[blk])
+            or claripy.is_false(cond_proc.reaching_conditions.get(blk, claripy.true()))
         }
 
         # fix up predecessors

@@ -4171,6 +4171,7 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
         f = proj.kb.functions[0x41D560]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
         # should not crash, and should generate a switch-case construct
         assert d.codegen.text.count("switch") == 1
@@ -4189,11 +4190,26 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
         f = proj.kb.functions[0x41DCE0]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
         # should not crash, and should generate two switch-case constructs
         assert d.codegen.text.count("switch") == 2
         for i in range(10):
             assert f"case {i}:" in d.codegen.text
+
+    def test_decompiling_optimized_memcpy(self, decompiler_options=None):
+        bin_path = os.path.join(
+            test_location, "i386", "windows", "736cb27201273f6c4f83da362c9595b50d12333362e02bc7a77dd327cc6b045a"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        f = proj.kb.functions[0x42CCA0]
+        d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+        # should not crash, and should generate at least six switch-case contructs
+        assert d.codegen.text.count("switch") == 7
 
     def test_decompiling_abnormal_switch_case_case3(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "msvcr120.dll")
