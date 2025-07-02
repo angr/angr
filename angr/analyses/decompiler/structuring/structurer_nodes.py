@@ -392,6 +392,9 @@ class IncompleteSwitchCaseNode(BaseNode):
         self.head = head
         self.cases: list = cases
 
+    def __repr__(self):
+        return f"<IncompleteSwitchCase {self.addr:#x} with {len(self.cases)} cases>"
+
 
 #
 # The following classes are custom AIL statements (not nodes, unfortunately)

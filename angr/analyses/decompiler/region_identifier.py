@@ -99,7 +99,7 @@ class RegionIdentifier(Analysis):
 
     def _analyze(self):
         # make a copy of the graph
-        graph = networkx.DiGraph(self._graph)
+        graph = self._pick_one_connected_component(self._graph, as_copy=True)
 
         # preprocess: make it a super graph
         self._make_supergraph(graph)
@@ -112,6 +112,26 @@ class RegionIdentifier(Analysis):
 
         # make regions into block address lists
         self.regions_by_block_addrs = self._make_regions_by_block_addrs()
+
+    def _pick_one_connected_component(self, digraph: networkx.DiGraph, as_copy: bool = False) -> networkx.DiGraph:
+        g = networkx.Graph(digraph)
+        components = list(networkx.connected_components(g))
+        if len(components) <= 1:
+            return networkx.DiGraph(digraph) if as_copy else digraph
+
+        the_component = None
+        largest_component = None
+        for component in components:
+            if largest_component is None or len(component) > len(largest_component):
+                largest_component = component
+            if any((block.addr, block.idx) == self.entry_node_addr for block in component):
+                the_component = component
+                break
+
+        if the_component is None:
+            the_component = largest_component
+
+        return digraph.subgraph(the_component).to_directed()
 
     @staticmethod
     def _compute_node_order(graph: networkx.DiGraph) -> dict[Any, tuple[int, int]]:
