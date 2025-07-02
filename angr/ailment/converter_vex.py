@@ -606,7 +606,7 @@ class VEXStmtConverter(Converter):
         expd_hi = VEXExprConverter.convert(stmt.expdHi, manager) if stmt.expdHi is not None else None
         old_lo = VEXExprConverter.tmp(stmt.oldLo, manager.tyenv.sizeof(stmt.oldLo), manager)
         old_hi = (
-            VEXExprConverter.tmp(stmt.oldHi, stmt.oldHi.result_size(manager.tyenv), manager)
+            VEXExprConverter.tmp(stmt.oldHi, manager.tyenv.sizeof(stmt.oldHi), manager)
             if stmt.oldHi != 0xFFFFFFFF
             else None
         )
