@@ -17,7 +17,15 @@ from angr.sim_type import (
     SimTypeFunction,
     SimTypeLongLong,
 )
-from angr.calling_conventions import SimReferenceArgument, SimRegArg, SimStackArg, SimCC, SimStructArg, SimComboArg
+from angr.calling_conventions import (
+    SimReferenceArgument,
+    SimRegArg,
+    SimStackArg,
+    SimCC,
+    SimStructArg,
+    SimComboArg,
+    SimFunctionArgument,
+)
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.s_reaching_definitions import SRDAView
@@ -137,22 +145,7 @@ class CallSiteMaker(Analysis):
                         arg_locs = cc.arg_locs(callsite_ty)
 
         if arg_locs is not None and cc is not None:
-            expanded_arg_locs: list[SimStackArg | SimRegArg | SimReferenceArgument] = []
-            for arg_loc in arg_locs:
-                if isinstance(arg_loc, SimComboArg):
-                    # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
-                    # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
-                    # have no way to know that until later down the pipeline.
-                    expanded_arg_locs += arg_loc.locations
-                elif isinstance(arg_loc, SimStructArg):
-                    expanded_arg_locs += [  # type: ignore
-                        arg_loc.locs[field_name] for field_name in arg_loc.struct.fields if field_name in arg_loc.locs
-                    ]
-                elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
-                    expanded_arg_locs.append(arg_loc)
-                else:
-                    raise NotImplementedError("Not implemented yet.")
-
+            expanded_arg_locs = self._expand_arglocs(arg_locs)
             for arg_loc in expanded_arg_locs:
                 if isinstance(arg_loc, SimReferenceArgument):
                     if not isinstance(arg_loc.ptr_loc, (SimRegArg, SimStackArg)):
@@ -547,6 +540,29 @@ class CallSiteMaker(Analysis):
         if not specifiers:
             return None
         return len(specifiers)
+
+    def _expand_arglocs(
+        self, arg_locs: list[SimFunctionArgument]
+    ) -> list[SimStackArg | SimRegArg | SimReferenceArgument]:
+        expanded_arg_locs: list[SimStackArg | SimRegArg | SimReferenceArgument] = []
+
+        for arg_loc in arg_locs:
+            if isinstance(arg_loc, SimComboArg):
+                # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
+                # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
+                # have no way to know that until later down the pipeline.
+                expanded_arg_locs += arg_loc.locations
+            elif isinstance(arg_loc, SimStructArg):
+                for field_name in arg_loc.struct.fields:
+                    if field_name not in arg_loc.locs:
+                        continue
+                    expanded_arg_locs += self._expand_arglocs([arg_loc.locs[field_name]])
+            elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
+                expanded_arg_locs.append(arg_loc)
+            else:
+                raise NotImplementedError("Not implemented yet.")
+
+        return expanded_arg_locs
 
     def _atom_idx(self) -> int | None:
         return self._ail_manager.next_atom() if self._ail_manager is not None else None
