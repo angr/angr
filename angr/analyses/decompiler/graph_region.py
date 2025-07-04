@@ -271,6 +271,13 @@ class GraphRegion:
         else:
             replace_with_graph_with_successors = replace_with.graph_with_successors
 
+        # if complete_successors is True for RegionIdentifier, replace_with.graph_with_successors may include nodes
+        # and edges that are *only* reachable from immediate successors. we will want to remove these nodes and edges,
+        # otherwise we may end up structuring the same region twice!
+        replace_with_graph_with_successors = self._cleanup_graph_with_successors(
+            replace_with.graph, replace_with_graph_with_successors
+        )
+
         self._replace_node_in_graph_with_subgraph(
             self.graph,
             self.successors,
@@ -288,6 +295,18 @@ class GraphRegion:
                 replace_with_graph_with_successors,
                 replace_with.head,
             )
+
+    @staticmethod
+    def _cleanup_graph_with_successors(
+        graph: networkx.DiGraph, graph_with_successors: networkx.DiGraph
+    ) -> networkx.DiGraph:
+        expected_nodes = set(graph)
+        for n in list(expected_nodes):
+            for succ in graph_with_successors.successors(n):
+                expected_nodes.add(succ)
+        if all(n in expected_nodes for n in graph_with_successors):
+            return graph_with_successors
+        return graph_with_successors.subgraph(expected_nodes).to_directed()
 
     @staticmethod
     def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with, removed_edges: set):

@@ -3,8 +3,6 @@ import itertools
 from typing import TYPE_CHECKING
 import logging
 
-import networkx
-
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.graph_region import GraphRegion
@@ -12,6 +10,7 @@ from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTabl
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
+from angr.utils.graph import GraphUtils
 from .structurer_nodes import BaseNode
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
@@ -61,7 +60,7 @@ class RecursiveStructurer(Analysis):
             current_region = stack[-1]
 
             has_region = False
-            for node in networkx.dfs_postorder_nodes(current_region.graph, current_region.head):
+            for node in GraphUtils.dfs_postorder_nodes_deterministic(current_region.graph, current_region.head):
                 subnodes = []
                 if type(node) is GraphRegion:
                     if node.cyclic:
