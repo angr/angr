@@ -176,7 +176,7 @@ class RecursiveStructurer(Analysis):
         for node in region.graph.nodes:
             if not isinstance(node, BaseNode):
                 continue
-            if node.addr == self.function.addr:
+            if self.function is not None and node.addr == self.function.addr:
                 return node
             if min_node is None or (min_node.addr is not None and node.addr is not None and min_node.addr < node.addr):
                 min_node = node
