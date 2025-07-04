@@ -334,6 +334,23 @@ class TestStructurer(unittest.TestCase):
         # it should not raise any exceptions
         assert dec.codegen is not None and dec.codegen.text is not None
 
+    def test_phoenix_switch_cases_address_loaded_from_memory_node_a_being_region_head(self):
+        proj = angr.Project(
+            os.path.join(
+                test_location, "x86_64", "windows", "7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb"
+            ),
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[(0x1400326C0, 0x1400326C0 + 0x1000)],
+            start_at_entry=False,
+        )
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x1400326C0, cfg=cfg.model)
+        # it should not raise any exceptions
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert dec.codegen.text.count("switch (") == 1
+
 
 if __name__ == "__main__":
     unittest.main()
