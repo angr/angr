@@ -1219,6 +1219,10 @@ class PhoenixStructurer(StructurerBase):
         node_a = next(iter(nn for nn in graph.nodes if nn.addr == target), None)
         if node_a is None:
             return False
+        if node_a is self._region.head:
+            # avoid structuring if node_a is the region head; this means the current node is a duplicated switch-case
+            # head (instead of the original one), which is not something we want to structure
+            return False
 
         # the default case
         node_b_addr = next(iter(t for t in successor_addrs if t != target), None)
