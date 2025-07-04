@@ -322,6 +322,18 @@ class TestStructurer(unittest.TestCase):
         # WE SHOULD BE ABLE TO UNCOMMENT THIS
         # assert '<= 7' not in dec.codegen.text
 
+    def test_complete_successor_causing_structuring_a_node_twice(self):
+        proj = angr.Project(
+            os.path.join(
+                test_location, "x86_64", "windows", "1309c8993adeb587e629615eb6838a280f0a1faa6ac74fdb11b80d5bddc1c94f"
+            ),
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFGFast(normalize=True, force_smart_scan=False)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x140071D40, cfg=cfg.model)
+        # it should not raise any exceptions
+        assert dec.codegen is not None and dec.codegen.text is not None
+
 
 if __name__ == "__main__":
     unittest.main()
