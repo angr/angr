@@ -1789,6 +1789,7 @@ class SimCppClass(SimStruct):
         vtable_ptrs=None,
         pack: bool = False,
         align=None,
+        size: int | None = None,
     ):
         super().__init__(members or {}, name=name, pack=pack, align=align)
         self.unique_name = unique_name
@@ -1797,6 +1798,10 @@ class SimCppClass(SimStruct):
         # this should also be added to the fields once we know the offsets of the members of this object
         self.vtable_ptrs = [] if vtable_ptrs is None else vtable_ptrs
 
+        # we can force the size (in bits) of a class because sometimes the class can be opaque and we don't know its
+        # layout
+        self._size = size
+
     @property
     def members(self):
         return self.fields
@@ -1804,6 +1809,12 @@ class SimCppClass(SimStruct):
     @members.setter
     def members(self, value):
         self.fields = value
+
+    @property
+    def size(self):
+        if self._size is not None:
+            return self._size
+        return super().size
 
     def __repr__(self):
         return f"class {self.name}" if not self.name.startswith("class") else self.name
@@ -1848,6 +1859,7 @@ class SimCppClass(SimStruct):
             vtable_ptrs=self.vtable_ptrs,
             pack=self._pack,
             align=self._align,
+            size=self._size,
         )
         out._arch = arch
         self._arch_memo[arch.name] = out
@@ -1877,6 +1889,7 @@ class SimCppClass(SimStruct):
             align=self._align,
             function_members=self.function_members,
             vtable_ptrs=self.vtable_ptrs,
+            size=self._size,
         )
 
 
@@ -2029,6 +2042,8 @@ BASIC_TYPES: dict[str, SimType] = {
     "long long int": SimTypeLongLong(True),
     "signed long long int": SimTypeLongLong(True),
     "unsigned long long int": SimTypeLongLong(False),
+    "__int32": SimTypeInt(True),
+    "__int64": SimTypeLongLong(True),
     "__int128": SimTypeNum(128, True),
     "unsigned __int128": SimTypeNum(128, False),
     "__int256": SimTypeNum(256, True),
@@ -3563,7 +3578,7 @@ def _cpp_decl_to_type(
             t = ALL_TYPES[lbl]
         elif opaque_classes is True:
             # create a class without knowing the internal members
-            t = SimCppClass(unique_name=lbl, name=lbl, members={})
+            t = SimCppClass(unique_name=lbl, name=lbl, members={}, size=32)
         else:
             raise TypeError(f'Unknown type "{lbl}"')
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+__package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
+
 import os
 import unittest
 
@@ -46,3 +48,7 @@ class TestDogboltRegressions(unittest.TestCase):
         See: https://github.com/angr/angr/pull/4953
         """
         self._run_dogbolt_test("megatest-arm64-freebsd")
+
+
+if __name__ == "__main__":
+    unittest.main()
