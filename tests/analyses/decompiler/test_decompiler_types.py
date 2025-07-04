@@ -33,10 +33,14 @@ class TestDecompilerTypes(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
 
         # these prototypes are created when decompiling the function above (their caller)
-        assert proj.kb.functions[0x1402004F8].prototype.args
-        assert proj.kb.functions[0x1402004F8].prototype.args[0].size > 0
-        assert proj.kb.functions[0x140200518].prototype.args
-        assert proj.kb.functions[0x140200518].prototype.args[-1].size > 0
+        proto_0 = proj.kb.functions[0x1402004F8].prototype
+        assert proto_0 is not None
+        assert proto_0.args
+        assert proto_0.args[0].size is not None and proto_0.args[0].size > 0
+        proto_1 = proj.kb.functions[0x140200518].prototype
+        assert proto_1 is not None
+        assert proto_1.args
+        assert proto_1.args[-1].size is not None and proto_1.args[-1].size > 0
 
 
 if __name__ == "__main__":
