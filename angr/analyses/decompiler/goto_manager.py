@@ -3,6 +3,8 @@ import angr.ailment as ailment
 from angr.ailment.block import Block
 import networkx
 
+from angr.ailment.expression import Const
+from angr.ailment.statement import ConditionalJump
 from .utils import find_block_by_addr
 
 
@@ -67,11 +69,29 @@ class GotoManager:
 
     def is_goto_edge(self, src: ailment.Block, dst: ailment.Block):
         src_gotos = self.gotos_in_block(src)
-        for goto in src_gotos:
-            if goto.dst_addr == dst.addr:
+        src_goto_dst_addrs = {goto.dst_addr for goto in src_gotos}
+
+        if isinstance(src, Block):
+            last_stmt = src.statements[-1] if src.statements else None
+            if isinstance(last_stmt, ConditionalJump):
+                if (
+                    isinstance(last_stmt.true_target, Const)
+                    and last_stmt.true_target.value in src_goto_dst_addrs
+                    and isinstance(last_stmt.false_target, Const)
+                ):
+                    src_goto_dst_addrs.add(last_stmt.false_target.value)
+                elif (
+                    isinstance(last_stmt.false_target, Const)
+                    and last_stmt.false_target.value in src_goto_dst_addrs
+                    and isinstance(last_stmt.true_target, Const)
+                ):
+                    src_goto_dst_addrs.add(last_stmt.true_target.value)
+
+        for goto_dst_addr in src_goto_dst_addrs:
+            if goto_dst_addr == dst.addr:
                 return True
             block_addrs = {stmt.ins_addr for stmt in dst.statements if "ins_addr" in stmt.tags}
-            if goto.dst_addr in block_addrs:
+            if goto_dst_addr in block_addrs:
                 return True
 
         return False
