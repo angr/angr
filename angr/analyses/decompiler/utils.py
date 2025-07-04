@@ -667,7 +667,7 @@ def _flatten_structured_node(packed_node: SequenceNode | MultiNode) -> list[ailm
 
 def _find_node_in_graph(node: ailment.Block, graph: networkx.DiGraph) -> ailment.Block | None:
     for bb in graph:
-        if bb.addr == node.addr and bb.idx == node.idx:
+        if isinstance(bb, ailment.Block) and bb.addr == node.addr and bb.idx == node.idx:
             return bb
     return None
 
