@@ -37,7 +37,8 @@ class RegVVarPredicate:
         if cc is not None:
             reg_list = cc.CALLER_SAVED_REGS
             if isinstance(cc.RETURN_VAL, SimRegArg):
-                reg_list.append(cc.RETURN_VAL.reg_name)
+                # do not update reg_list directly, otherwise you may update cc.CALLER_SAVED_REGS!
+                reg_list = [*reg_list, cc.RETURN_VAL.reg_name]
             return {self.arch.registers[reg_name][0] for reg_name in reg_list}
         log.warning("Cannot determine registers that are clobbered by call statement %r.", stmt)
         return set()
