@@ -13,7 +13,7 @@ from angr.ailment.block import Block
 from angr.ailment.statement import Statement, ConditionalJump, Jump, Label, Return
 from angr.ailment.expression import Const, UnaryOp, MultiStatementExpression, BinaryOp
 
-from angr.utils.graph import GraphUtils
+from angr.utils.graph import GraphUtils, Dominators, compute_dominance_frontier
 from angr.utils.ail import is_phi_assignment, is_head_controlled_loop_block
 from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
@@ -669,7 +669,7 @@ class PhoenixStructurer(StructurerBase):
         continue_node = loop_head
 
         is_while, result_while = self._refine_cyclic_is_while_loop(graph, fullgraph, loop_head, head_succs)
-        is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head, head_succs)
+        is_dowhile, result_dowhile = self._refine_cyclic_is_dowhile_loop(graph, fullgraph, loop_head)
 
         continue_edges: list[tuple[BaseNode, BaseNode]] = []
         outgoing_edges: list = []
@@ -702,22 +702,12 @@ class PhoenixStructurer(StructurerBase):
 
         if loop_type is None:
             # natural loop. select *any* exit edge to determine the successor
-            # well actually, to maintain determinism, we select the successor with the highest address
-            successor_candidates = set()
-            for node in networkx.descendants(graph, loop_head):
-                for succ in fullgraph.successors(node):
-                    if succ not in graph:
-                        successor_candidates.add(succ)
-                    if loop_head is succ:
-                        continue_edges.append((node, succ))
-            if successor_candidates:
-                successor_candidates = sorted(successor_candidates, key=lambda x: x.addr)
-                successor = successor_candidates[0]
-                # virtualize all other edges
-                for succ in successor_candidates:
-                    for pred in fullgraph.predecessors(succ):
-                        if pred in graph:
-                            outgoing_edges.append((pred, succ))
+            is_natural, result_natural = self._refine_cyclic_make_natural_loop(graph, fullgraph, loop_head)
+            if not is_natural:
+                # cannot refine this loop
+                return False
+            assert result_natural is not None
+            continue_edges, outgoing_edges, successor = result_natural
 
         if outgoing_edges:
             # if there is a single successor, we convert all out-going edges into breaks;
@@ -963,8 +953,8 @@ class PhoenixStructurer(StructurerBase):
                 return True, (continue_edges, outgoing_edges, loop_head, successor)
         return False, None
 
-    def _refine_cyclic_is_dowhile_loop(  # pylint:disable=unused-argument
-        self, graph, fullgraph, loop_head, head_succs
+    def _refine_cyclic_is_dowhile_loop(
+        self, graph, fullgraph, loop_head
     ) -> tuple[bool, tuple[list, list, BaseNode, BaseNode] | None]:
         # check if there is an out-going edge from the loop tail
         head_preds = list(fullgraph.predecessors(loop_head))
@@ -995,6 +985,64 @@ class PhoenixStructurer(StructurerBase):
 
                     return True, (continue_edges, outgoing_edges, continue_node, successor)
         return False, None
+
+    def _refine_cyclic_make_natural_loop(
+        self, graph, fullgraph, loop_head
+    ) -> tuple[bool, tuple[list, list, Any] | None]:
+        continue_edges = []
+        outgoing_edges = []
+
+        # find dominance frontier
+        doms = Dominators(fullgraph, self._region.head)
+        dom_frontiers = compute_dominance_frontier(fullgraph, doms.dom)
+
+        if loop_head not in dom_frontiers:
+            return False, None
+        dom_frontier = dom_frontiers[loop_head]
+
+        # now this is a little complex
+        dom_frontier = {node for node in dom_frontier if node is not loop_head}
+        if len(dom_frontier) == 0:
+            # the dominance frontier is empty (the loop head dominates all nodes in the full graph). however, this does
+            # not mean that the loop head must dominate all the nodes, because we only have a limited view of the full
+            # graph (e.g., some predecessors of the successor may not be in this full graph). as such, successors are
+            # the ones that are in the fullgraph but not in the graph.
+            successor_candidates = set()
+            for node in networkx.descendants(graph, loop_head):
+                for succ in fullgraph.successors(node):
+                    if succ not in graph:
+                        successor_candidates.add(succ)
+                    if loop_head is succ:
+                        continue_edges.append((node, succ))
+
+        else:
+            # this loop has a single successor
+            successor_candidates = dom_frontier
+            # traverse the loop body to find all continue edges
+            tmp_graph = networkx.DiGraph(graph)
+            tmp_graph.remove_nodes_from(successor_candidates)
+            for node in networkx.descendants(tmp_graph, loop_head):
+                if tmp_graph.has_edge(node, loop_head):
+                    continue_edges.append((node, loop_head))
+
+        if len(successor_candidates) == 0:
+            successor = None
+        else:
+            # one or multiple successors; try to pick a successor in graph, and prioritize the one with the lowest
+            # address
+            successor_candidates_in_graph = {nn for nn in successor_candidates if nn in graph}
+            if successor_candidates_in_graph:
+                # pick the one with the lowest address
+                successor = next(iter(sorted(successor_candidates_in_graph, key=lambda x: x.addr)))
+            else:
+                successor = next(iter(sorted(successor_candidates, key=lambda x: x.addr)))
+            # mark all edges as outgoing edges so they will be virtualized if they don't lead to the successor
+            for node in successor_candidates:
+                for pred in fullgraph.predecessors(node):
+                    if networkx.has_path(doms.dom, loop_head, pred):
+                        outgoing_edges.append((pred, node))
+
+        return True, (continue_edges, outgoing_edges, successor)
 
     def _analyze_acyclic(self) -> bool:
         # match against known schemas
