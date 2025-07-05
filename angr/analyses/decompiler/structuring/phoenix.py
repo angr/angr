@@ -706,6 +706,7 @@ class PhoenixStructurer(StructurerBase):
             if not is_natural:
                 # cannot refine this loop
                 return False
+            assert result_natural is not None
             continue_edges, outgoing_edges, successor = result_natural
 
         if outgoing_edges:
