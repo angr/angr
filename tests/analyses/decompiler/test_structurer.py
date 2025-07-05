@@ -351,6 +351,18 @@ class TestStructurer(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         assert dec.codegen.text.count("switch (") == 1
 
+    def test_phoenix_loop_refinement_natural_loop_creation_logic(self):
+        proj = angr.Project(
+            os.path.join(
+                test_location, "i386", "windows", "0c694dfa7ad465bded90c4faf63100c7008b5efc4bc49b38644a9770b42669b0"
+            ),
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFG(force_smart_scan=False, normalize=True)
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x408060, cfg=cfg.model)
+        # it should not raise any exceptions
+        assert dec.codegen is not None and dec.codegen.text is not None
+
 
 if __name__ == "__main__":
     unittest.main()
