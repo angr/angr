@@ -1816,13 +1816,11 @@ class AILSimplifier(Analysis):
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
                             simplified = True
-                            self._assignments_to_remove.discard(codeloc)
                             continue
 
                         if self._statement_has_call_exprs(stmt):
                             if codeloc in self._calls_to_remove:
                                 # it has a call and must be removed
-                                self._calls_to_remove.discard(codeloc)
                                 simplified = True
                                 continue
                             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -1845,7 +1843,6 @@ class AILSimplifier(Analysis):
                         codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
-                            self._calls_to_remove.discard(codeloc)
                             simplified = True
                             continue
 
@@ -1864,6 +1861,11 @@ class AILSimplifier(Analysis):
             new_block = block.copy()
             new_block.statements = new_statements
             self.blocks[old_block] = new_block
+
+        # we can only use calls_to_remove and assignments_to_remove once; if any statements in blocks are removed, then
+        # the statement IDs in calls_to_remove and assignments_to_remove no longer match!
+        self._calls_to_remove.clear()
+        self._assignments_to_remove.clear()
 
         return simplified
 
