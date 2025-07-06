@@ -1077,12 +1077,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # no wide string is found
         return 0
 
-    def _scan_for_repeating_bytes(self, start_addr: int, repeating_byte: int, threshold: int = 2) -> int:
+    def _scan_for_repeating_bytes(self, start_addr: int, repeating_byte: int | None, threshold: int = 2) -> int:
         """
         Scan from a given address and determine the occurrences of a given byte.
 
         :param start_addr:      The address in memory to start scanning.
-        :param repeating_byte:  The repeating byte to scan for.
+        :param repeating_byte:  The repeating byte to scan for; None for *any* repeating byte.
         :param threshold:       The minimum occurrences.
         :return:                The occurrences of a given byte.
         """
@@ -1090,12 +1090,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         addr = start_addr
 
         repeating_length = 0
+        last_byte = repeating_byte
 
         while self._inside_regions(addr):
             val = self._load_a_byte_as_int(addr)
             if val is None:
                 break
-            if val == repeating_byte:
+            if last_byte is None:
+                last_byte = val
+            elif val == last_byte:
                 repeating_length += 1
             else:
                 break
@@ -1249,6 +1252,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 self.model.memory_data[start_addr] = MemoryData(start_addr, zeros_length, MemoryDataSort.Alignment)
                 start_addr += zeros_length
 
+            # we consider over 16 bytes of any repeated bytes to be bad
+            repeating_byte_length = self._scan_for_repeating_bytes(start_addr, None, threshold=16)
+            if repeating_byte_length:
+                matched_something = True
+                self._seg_list.occupy(start_addr, repeating_byte_length, "nodecode")
+                self.model.memory_data[start_addr] = MemoryData(
+                    start_addr, repeating_byte_length, MemoryDataSort.Unknown
+                )
+                start_addr += repeating_byte_length
+
             if not matched_something:
                 # umm now it's probably code
                 break
@@ -1259,7 +1272,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if start_addr % instr_alignment > 0:
             # occupy those few bytes
             size = instr_alignment - (start_addr % instr_alignment)
-            self._seg_list.occupy(start_addr, size, "alignment")
+
+            # to avoid extremely fragmented segmentation, we mark the current segment as the same type as the previous
+            # adjacent segment if its type is nodecode
+            segment_sort = "alignment"
+            if start_addr >= 1:
+                previous_segment_sort = self._seg_list.occupied_by_sort(start_addr - 1)
+                if previous_segment_sort == "nodecode":
+                    segment_sort = "nodecode"
+
+            self._seg_list.occupy(start_addr, size, segment_sort)
             self.model.memory_data[start_addr] = MemoryData(start_addr, size, MemoryDataSort.Unknown)
             start_addr = start_addr - start_addr % instr_alignment + instr_alignment
             # trickiness: aligning the start_addr may create a new address that is outside any mapped region.
@@ -4504,6 +4526,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
                 if not self._arch_options.has_arm_code and addr % 2 == 0:
                     # No ARM code for this architecture!
+                    self._seg_list.occupy(real_addr, 2, "nodecode")
                     return None, None, None, None
 
             initial_regs = self._get_initial_registers(addr, cfg_job, current_function_addr)
