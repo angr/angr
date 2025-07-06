@@ -28,6 +28,7 @@ from angr.errors import (
     AngrCFGError,
     AngrError,
     AngrSkipJobNotice,
+    AngrSyscallError,
     SimError,
     SimValueError,
     SimSolverModeError,
@@ -1806,7 +1807,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         # Fix target_addr for syscalls
         if suc_jumpkind.startswith("Ijk_Sys"):
-            syscall_proc = self.project.simos.syscall(new_state)
+            try:
+                syscall_proc = self.project.simos.syscall(new_state)
+            except AngrSyscallError:
+                syscall_proc = None
             if syscall_proc is not None:
                 target_addr = syscall_proc.addr
 
