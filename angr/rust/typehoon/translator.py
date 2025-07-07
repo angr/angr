@@ -14,6 +14,8 @@ from angr.rust.sim_type import (
     RustSimStruct,
     RustSimTypeResult,
     RustSimTypeOption,
+    RustSimEnum,
+    EnumVariant,
 )
 
 
@@ -153,7 +155,18 @@ class RustTypeTranslator(TypeTranslator):
         elif tc.name.startswith("core::option::Option<") or tc.name.startswith("Option<"):
             return self._translate_Option(tc)
         else:
-            pass
+            return RustSimEnum(
+                tc.name,
+                [
+                    EnumVariant(
+                        variant.name,
+                        [(self._tc2simtype(field_ty), field_name) for field_ty, field_name in variant.fields],
+                        variant.discriminant,
+                        variant.discriminant_size,
+                    )
+                    for variant in tc.variants
+                ],
+            )
 
     def _tc2simtype(self, tc):
         if tc is None:
