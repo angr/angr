@@ -38,7 +38,7 @@ class TestJava(unittest.TestCase):
         # create project
         binary_path = os.path.join(self.test_location, "fauxware_java_jni", "fauxware.jar")
         jni_options = {"jni_libs": ["libfauxware.so"]}
-        project = angr.Project(binary_path, main_opts=jni_options)
+        project = angr.Project(binary_path, main_opts=jni_options, auto_load_libs=True)
         entry = project.factory.entry_state()
         simgr = project.factory.simgr(entry)
 
@@ -634,9 +634,9 @@ class TestJava(unittest.TestCase):
         jar_path = os.path.join(self.test_location, binary_dir, "mixedjava.jar")
         if load_native_libs:
             jni_options = {"jni_libs": ["libmixedjava.so"]}
-            project = angr.Project(jar_path, main_opts=jni_options)
+            project = angr.Project(jar_path, main_opts=jni_options, auto_load_libs=True)
         else:
-            project = angr.Project(jar_path)
+            project = angr.Project(jar_path, auto_load_libs=True)
         return project
 
     def load_string(self, state, local_name):
