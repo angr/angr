@@ -111,3 +111,7 @@ class TestSegmentList(unittest.TestCase):
         assert seg_list[1].start == 11
         assert seg_list[1].end == 30
         assert seg_list[1].sort == "code"
+
+
+if __name__ == "__main__":
+    unittest.main()
