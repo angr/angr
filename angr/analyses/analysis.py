@@ -316,7 +316,9 @@ class Analysis:
                 raise
             else:
                 error = AnalysisLogEntry("exception occurred", exc_info=True)
-                l.error("Caught and logged %s with resilience: %s", error.exc_type.__name__, error.exc_value)
+                l.error(
+                    "Caught and logged %s with resilience: %s", error.exc_type.__name__, error.exc_value  # type:ignore
+                )
                 if name is None:
                     self.errors.append(error)
                 else:
@@ -347,10 +349,12 @@ class Analysis:
             if self._progressbar is None:
                 self._initialize_progressbar()
 
+            assert self._task is not None
+            assert self._progressbar is not None
             self._progressbar.update(self._task, completed=percentage)
 
-        if text is not None and self._progressbar:
-            self._progressbar.update(self._task, description=text)
+            if text is not None and self._progressbar:
+                self._progressbar.update(self._task, description=text)
 
         if self._progress_callback is not None:
             self._progress_callback(percentage, text=text, **kwargs)  # pylint:disable=not-callable
@@ -365,6 +369,7 @@ class Analysis:
             if self._progressbar is None:
                 self._initialize_progressbar()
             if self._progressbar is not None:
+                assert self._task is not None
                 self._progressbar.update(self._task, completed=100)
                 self._progressbar.stop()
                 self._progressbar = None
@@ -400,7 +405,7 @@ class Analysis:
             proc = psutil.Process(os.getpid())
             meminfo = proc.memory_info()
             self._ram_usage = meminfo.rss
-        return self._ram_usage
+        return self._ram_usage if self._ram_usage is not None else -0.1
 
     def __getstate__(self):
         d = dict(self.__dict__)
