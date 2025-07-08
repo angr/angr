@@ -846,6 +846,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         # exception handling
         self._exception_handling_by_endaddr = SortedDict()
 
+        self.stage: str = ""
+
         #
         # Variables used during analysis
         #
@@ -1361,6 +1363,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         return job.addr
 
     def _pre_analysis(self):
+        self.stage = "Pre-analysis"
+
         # Create a read-only memory view in loader for faster data loading
         self.project.loader.gen_ro_memview()
 
@@ -1446,6 +1450,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         self._job_ctr = 0
 
+        self.stage = "Analysis (Stage 1)"
+
     def _pre_job_handling(self, job: CFGJob):  # pylint:disable=arguments-differ
         """
         Some pre job-processing tasks, like update progress bar.
@@ -1481,7 +1487,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             percentage = min(
                 self._seg_list.occupied_size * max_percentage_stage_1 / self._regions_size, max_percentage_stage_1
             )
-            self._update_progress(percentage, cfg=self)
+            ram_usage = self.ram_usage / (1024 * 1024)
+            text = (
+                f"{self.stage} | {len(self.functions)} funcs, {len(self.graph)} blocks | "
+                f"{len(self._indirect_jumps_to_resolve)}/{len(self.indirect_jumps)} IJs | "
+                f"{ram_usage:0.2f} MB RAM"
+            )
+            self._update_progress(percentage, text=text, cfg=self)
 
     def _intra_analysis(self):
         pass
@@ -1780,6 +1792,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._model.edges_to_repair = remaining_edges_to_repair
 
     def _post_analysis(self):
+
+        self.stage = "Analysis (Stage 2)"
+
         self._repair_edges()
 
         self._make_completed_functions()
