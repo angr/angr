@@ -1,5 +1,6 @@
 from __future__ import annotations
 import functools
+import os
 import sys
 import contextlib
 from collections import defaultdict
@@ -13,6 +14,8 @@ from traceback import format_exception
 import logging
 import time
 import typing
+
+import psutil
 
 from rich import progress
 
@@ -287,6 +290,8 @@ class Analysis:
     _name: str
     errors: list[AnalysisLogEntry] = []
     named_errors: defaultdict[str, list[AnalysisLogEntry]] = defaultdict(list)
+    _ram_usage: float | None = None
+    _last_ramusage_update: float = 0.0
     _progress_callback = None
     _show_progressbar = False
     _progressbar = None
@@ -295,7 +300,7 @@ class Analysis:
     _PROGRESS_WIDGETS = [
         progress.TaskProgressColumn(),
         progress.BarColumn(),
-        progress.TextColumn("Elapsed Time:"),
+        progress.TextColumn("Elapsed:"),
         progress.TimeElapsedColumn(),
         progress.TextColumn("Time:"),
         progress.TimeRemainingColumn(),
@@ -383,6 +388,19 @@ class Analysis:
 
         if ctr != 0 and ctr % freq == 0:
             time.sleep(sleep_time)
+
+    @property
+    def ram_usage(self) -> float:
+        """
+        Return the current RAM usage of the Python process, in bytes. The value is updated at most once per second.
+        """
+
+        if time.time() - self._last_ramusage_update > 1:
+            self._last_ramusage_update = time.time()
+            proc = psutil.Process(os.getpid())
+            meminfo = proc.memory_info()
+            self._ram_usage = meminfo.rss
+        return self._ram_usage
 
     def __getstate__(self):
         d = dict(self.__dict__)
