@@ -11,6 +11,7 @@ from typing import Literal, Any, cast, overload
 
 from archinfo import Endness, Arch
 import claripy
+import cle.backends.elf.variable_type as variable_type
 import cxxheaderparser.simple
 import cxxheaderparser.errors
 import cxxheaderparser.types
@@ -160,6 +161,55 @@ class SimType:
         """
         raise NotImplementedError(f"extract_claripy is not implemented for {self}")
 
+    @staticmethod
+    def from_cle(cle_types: list[variable_type.VariableType]) -> list[SimType]:
+        mapping: dict[variable_type.VariableType, SimType] = dict()
+        constructed_types: list[SimType] = []
+        # Perform the conversion in two passes. Once to construct all of the type objects, and the second
+        # to resolve all members of these types. This is done to ensure that types that recursively
+        # refer to themselves have pointers to themselves
+        for cle_typ in cle_types:
+            if isinstance(cle_typ, variable_type.BaseType):
+                match cle_typ.encoding:
+                    case variable_type.BaseTypeEncoding.SIGNED:
+                        typ = SimTypeNum(cle_typ.byte_size * 8, True, label=cle_typ.name)
+                    case variable_type.BaseTypeEncoding.UNSIGNED:
+                        typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name)
+                    case variable_type.BaseTypeEncoding.FLOAT:
+                        typ = SimTypeFloat()
+                    case variable_type.BaseTypeEncoding.UTF:
+                        if cle_typ.byte_size == 4:
+                            typ = SimTypeWideChar(label=cle_typ.name)
+                        else:
+                            typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name)
+            elif isinstance(cle_typ, variable_type.StructType):
+                typ: SimType = SimStruct(OrderedDict(), name=cle_typ.name)
+            elif isinstance(cle_typ, variable_type.PointerType):
+                typ: SimType = SimTypePointer(None, label=cle_typ.name)
+            elif isinstance(cle_typ, variable_type.ArrayType):
+                typ: SimType = SimTypeArray(None, cle_typ.count, label=cle_typ.name)
+            elif cle_typ is None:
+                typ: SimType = SimTypeBottom()
+            mapping[cle_typ] = typ
+            constructed_types.append(typ)
+        # At this point we have created all the objects for each type. On this second pass we now hook up
+        # all fields of the members
+        for cle_typ in cle_types:
+            if isinstance(cle_typ, variable_type.BaseType):
+                pass
+            elif isinstance(cle_typ, variable_type.StructType):
+                typ: SimStruct = mapping[cle_typ]
+                for field in cle_typ.members:
+                    typ.fields[field.name] = mapping[field.type]
+            elif isinstance(cle_typ, variable_type.PointerType):
+                typ: SimTypePointer = mapping[cle_typ]
+                typ.pts_to = mapping[cle_typ.referenced_type]
+            elif isinstance(cle_typ, variable_type.ArrayType):
+                typ: SimTypeArray = mapping[cle_typ]
+                typ.elem_type = mapping[cle_typ.element_type]
+            elif cle_typ is None:
+                pass
+        return constructed_types
 
 class TypeRef(SimType):
     """
