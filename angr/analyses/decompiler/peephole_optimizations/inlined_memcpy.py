@@ -62,6 +62,7 @@ class InlinedMemcpy(PeepholeOptimizationStmtBase):
         if should_replace:
             assert dst_offset is not None and src_offset is not None and store_size is not None
             # replace it with a call to memcpy
+            assert self.project is not None
             return Call(
                 stmt.idx,
                 "memcpy",
