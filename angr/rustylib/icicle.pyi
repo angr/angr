@@ -82,7 +82,9 @@ class Icicle:
     # Number of instructions executed on the cpu
     cpu_icount: int
 
-    def __init__(self, architecture: str, processors_path: str, enable_tracing: bool) -> None: ...
+    def __init__(
+        self, architecture: str, processors_path: str, enable_tracing: bool, enable_edge_hitmap: bool
+    ) -> None: ...
     @property
     def architecture(self) -> str:
         """The architecture of the VM, e.g., 'x86_64', 'armv7', etc."""
@@ -168,3 +170,11 @@ class Icicle:
     @property
     def recent_blocks(self) -> list[tuple[int, int]]:
         """The addresses of recently executed basic blocks, if available."""
+    
+    @property
+    def edge_hitmap(self) -> bytes | None:
+        """The edge hitmap from the most recent run, if edge hitmap is enabled."""
+
+    @edge_hitmap.setter
+    def edge_hitmap(self, value: bytes | None) -> None:
+        """Set the edge hitmap for the current run."""
