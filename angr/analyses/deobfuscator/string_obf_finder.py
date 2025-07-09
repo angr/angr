@@ -514,10 +514,12 @@ class StringObfuscationFinder(Analysis):
                     actual_addrs = action.actual_addrs
                 if action.type == "mem":
                     if action.action == "read":
+                        assert action.size is not None
                         for a in actual_addrs:
                             for size in range(action.size.ast // 8):
                                 all_global_reads.append(a + size)
                     elif action.action == "write":
+                        assert action.size is not None
                         for a in actual_addrs:
                             for size in range(action.size.ast // 8):
                                 all_global_writes.append(a + size)
@@ -685,7 +687,7 @@ class StringObfuscationFinder(Analysis):
 
                 # simulate an execution to see if it really works
                 data, guessed_size = self._type3_prepare_and_execute(
-                    func.addr, call_sites[i].addr, call_sites[i].function_address, cfg
+                    func.addr, call_sites[i].addr, call_sites[i].function_address, cfg  # type:ignore
                 )
                 if data is None:
                     continue
@@ -727,10 +729,14 @@ class StringObfuscationFinder(Analysis):
         if cfg is None:
             raise AngrAnalysisError("StringObfuscationFinder needs a CFG for the analysis")
 
-        call_sites = cfg.get_predecessors(cfg.get_any_node(func_addr))
+        cfg_node = cfg.get_any_node(func_addr)
+        if cfg_node is None:
+            raise AngrAnalysisError(f"Cannot find the CFG node for function {func_addr:#x}")
+        call_sites = cfg.get_predecessors(cfg_node)
         callinsn2content = {}
         for idx, call_site in enumerate(call_sites):
             _l.debug("Analyzing type 3 candidate call site %#x (%d/%d)...", call_site.addr, idx + 1, len(call_sites))
+            assert call_site.function_address is not None
             data, _ = self._type3_prepare_and_execute(func_addr, call_site.addr, call_site.function_address, cfg)
             if data:
                 callinsn2content[call_site.instruction_addrs[-1]] = data
@@ -769,7 +775,7 @@ class StringObfuscationFinder(Analysis):
 
     def _type3_prepare_and_execute(
         self, func_addr: int, call_site_addr: int, call_site_func_addr: int, cfg
-    ) -> tuple[bytes, bool]:
+    ) -> tuple[bytes | None, bool]:
         blocks_at_callsite = [call_site_addr]
 
         # backtrack from call site to include all previous consecutive blocks
@@ -815,6 +821,7 @@ class StringObfuscationFinder(Analysis):
         # setup sp and bp, just in case
         state.regs._sp = 0x7FFF0000
         bp_set = False
+        assert prop.model.input_states is not None
         prop_state = prop.model.input_states.get(call_site_addr, None)
         if prop_state is not None:
             for reg_offset, reg_width in reg_reads:
@@ -840,7 +847,7 @@ class StringObfuscationFinder(Analysis):
             else:
                 simgr.step()
             if not simgr.active:
-                return None
+                return None, False
 
         in_state = simgr.active[0]
 
@@ -863,18 +870,19 @@ class StringObfuscationFinder(Analysis):
         try:
             ret_value = callable_0()
         except (AngrCallableMultistateError, AngrCallableError):
-            return None
+            return None, False
 
         out_state = callable_0.result_state
 
         # figure out what was written
+        assert out_state is not None
         ptr = out_state.memory.load(ret_value, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
         if out_state.memory.load(ptr, size=4).concrete_value == 0:
             # fall back to using the return value as the pointer
             ptr = ret_value
         if out_state.memory.load(ptr, size=4).concrete_value == 0:
             # can't find a valid pointer
-            return None
+            return None, False
 
         size = out_state.memory.load(ret_value + 8, size=4, endness=self.project.arch.memory_endness)
         guessed_size = False
@@ -884,7 +892,7 @@ class StringObfuscationFinder(Analysis):
         # TODO: Support lists with varied-length elements
         data = out_state.memory.load(ptr, size=size, endness="Iend_BE")
         if data.symbolic:
-            return None
+            return None, False
 
         return out_state.solver.eval(data, cast_to=bytes), guessed_size
 
