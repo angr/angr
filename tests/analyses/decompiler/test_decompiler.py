@@ -5040,10 +5040,10 @@ class TestDecompiler(unittest.TestCase):
         assert ".c_str()" in dec.codegen.text
         # assert there exists a stack-based buffer that is 12-byte long
         # this is to test the type hint that strncpy provides
-        m = re.search(r"char (v\d+)\[12];", dec.codegen.text)
+        m = re.search(r"char (v\d+)\[16];", dec.codegen.text)
         assert m is not None
         bufvar = m.group(1)
-        assert f'strncpy({bufvar}, "FWe#JID%WkOC", 12);' in dec.codegen.text
+        assert f'strncpy({bufvar}, "FWe#JID%WkOCZy7", 15);' in dec.codegen.text
         # ensure the stack argument for sub_401a90 is correct
         assert "sub_401a90(2406527224);" in dec.codegen.text
         # ensure the stack argument for the first indirect call is incorrect

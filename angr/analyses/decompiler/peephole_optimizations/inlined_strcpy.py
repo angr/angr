@@ -1,4 +1,4 @@
-# pylint:disable=arguments-differ
+# pylint:disable=arguments-differ,too-many-boolean-expressions
 from __future__ import annotations
 import string
 
@@ -30,6 +30,9 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         inlined_strcpy_candidate = False
         src: Const | None = None
         strcpy_dst: StackBaseOffset | UnaryOp | None = None
+
+        assert self.project is not None
+
         if (
             isinstance(stmt, Assignment)
             and isinstance(stmt.dst, VirtualVariable)
@@ -54,9 +57,14 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
             strcpy_dst = stmt.addr
 
         if inlined_strcpy_candidate:
-            assert src is not None
+            assert src is not None and strcpy_dst is not None
+            assert isinstance(src.value, int)
+            assert self.kb is not None
+
             r, s = self.is_integer_likely_a_string(src.value, src.size, self.project.arch.memory_endness)
             if r:
+                assert s is not None
+
                 # replace it with a call to strncpy
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
                 return Call(
@@ -100,9 +108,11 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
                     integer, size = self.stride_to_int(stride)
                     prev_stmt = None if stmt_idx == 0 else block.statements[stmt_idx - 1]
-                    min_str_length = 1 if self.is_inlined_strcpy(prev_stmt) else 4
+                    min_str_length = 1 if prev_stmt is not None and self.is_inlined_strcpy(prev_stmt) else 4
                     r, s = self.is_integer_likely_a_string(integer, size, Endness.BE, min_length=min_str_length)
                     if r:
+                        assert s is not None
+
                         # we remove all involved statements whose statement IDs are greater than the current one
                         for _, stmt_idx_, _ in reversed(stride):
                             if stmt_idx_ <= stmt_idx:
@@ -133,10 +143,13 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         for _, _, v in stride:
             size += v.size
             n <<= v.bits
+            assert isinstance(v.value, int)
             n |= v.value
         return n, size
 
     def collect_constant_stores(self, block, starting_stmt_idx: int) -> dict[int, tuple[int, Const | None]]:
+        assert self.project is not None
+
         r = {}
         for idx, stmt in enumerate(block.statements):
             if idx < starting_stmt_idx:
@@ -197,6 +210,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
             isinstance(stmt, Call)
             and isinstance(stmt.target, str)
             and stmt.target == "strncpy"
+            and stmt.args is not None
             and len(stmt.args) == 3
             and isinstance(stmt.args[1], Const)
             and hasattr(stmt.args[1], "custom_string")
