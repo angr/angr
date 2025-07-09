@@ -169,6 +169,7 @@ class SimType:
         # to resolve all members of these types. This is done to ensure that types that recursively
         # refer to themselves have pointers to themselves
         for cle_typ in cle_types:
+            typ = None
             if isinstance(cle_typ, variable_type.BaseType):
                 match cle_typ.encoding:
                     case variable_type.BaseTypeEncoding.SIGNED:
@@ -182,14 +183,22 @@ class SimType:
                             typ = SimTypeWideChar(label=cle_typ.name)
                         else:
                             typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name)
+                    case variable_type.BaseTypeEncoding.BOOLEAN:
+                        typ = SimTypeBool()
             elif isinstance(cle_typ, variable_type.StructType):
                 typ: SimType = SimStruct(OrderedDict(), name=cle_typ.name)
             elif isinstance(cle_typ, variable_type.PointerType):
                 typ: SimType = SimTypePointer(None, label=cle_typ.name)
             elif isinstance(cle_typ, variable_type.ArrayType):
                 typ: SimType = SimTypeArray(None, cle_typ.count, label=cle_typ.name)
+            elif isinstance(cle_typ, variable_type.EnumerationType):
+                typ: SimType = SimTypeEnumeration(None, cle_typ.enumerator_values, label=cle_typ.name)
+            elif isinstance(cle_typ, variable_type.SubroutineType):
+                typ: SimType = SimTypeFunction([], None, label=cle_typ.name)
             elif cle_typ is None:
                 typ: SimType = SimTypeBottom()
+            if typ is None:
+                raise ValueError(f"Unable to convert cle DWARF type {type(cle_typ)} to corresponding angr type.")
             mapping[cle_typ] = typ
             constructed_types.append(typ)
         # At this point we have created all the objects for each type. On this second pass we now hook up
@@ -207,6 +216,17 @@ class SimType:
             elif isinstance(cle_typ, variable_type.ArrayType):
                 typ: SimTypeArray = mapping[cle_typ]
                 typ.elem_type = mapping[cle_typ.element_type]
+            elif isinstance(cle_typ, variable_type.EnumerationType):
+                typ: SimTypeEnumeration = mapping[cle_typ]
+                typ.underlying_type = mapping[cle_typ.type]
+            elif isinstance(cle_typ, variable_type.SubroutineType):
+                typ: SimTypeFunction = mapping[cle_typ]
+                typ.args = tuple(mapping[param] for param in cle_typ.parameters)
+                return_ty = cle_typ.type
+                if return_ty is None:
+                    typ.returnty = SimTypeBottom()
+                else:
+                    typ.returnty = mapping[return_ty]
             elif cle_typ is None:
                 pass
         return constructed_types
@@ -705,6 +725,66 @@ class SimTypeWideChar(SimTypeReg):
     def copy(self):
         return self.__class__(signed=self.signed, label=self.label, endness=self.endness)
 
+class SimTypeEnumeration(SimTypeReg):
+    """
+    SimTypeWideChar is a type that specifies a wide character (a UTF-16 character).
+    """
+
+    _base_name = "enum"
+
+    def __init__(self, underlying_type, enumerator_values: list[variable_type.EnumeratorValue], label=None):
+        """
+        :param label: the type label.
+        """
+        SimTypeReg.__init__(self, None, label=label)
+        self.underlying_type = underlying_type
+        self.enumerator_values = enumerator_values
+        self.enumerator_lookup = {val.const_value: val for val in enumerator_values}
+        self.enumerator_lookup_by_name = {val.name: val for val in enumerator_values}
+
+    def __repr__(self):
+        return f"enum {self.label}"
+
+    def store(self, state, addr, value: StoreType | variable_type.EnumeratorValue | str):
+        if isinstance(value, str):
+            if value in self.enumerator_lookup_by_name:
+                value = self.enumerator_lookup_by_name[value].const_value
+            else:
+                raise KeyError(f"Unable to find enumerator value named {value}")
+        elif isinstance(value, variable_type.EnumeratorValue):
+            value = value.const_value
+        self.underlying_type.store(state, addr, value)
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV:
+        ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True]) -> variable_type.EnumeratorValue:
+        ...
+
+    def extract(self, state, addr, concrete=False) -> Any:
+        out = self.underlying_type.extract(state, addr, concrete=concrete)
+        if concrete:
+            if out in self.enumerator_lookup:
+                return self.enumerator_lookup[out]
+            else:
+                return variable_type.EnumeratorValue("", out)
+        else:
+            return out
+
+    def _init_str(self):
+        return "{}({})".format(
+            self.__class__.__name__,
+            (f'label="{self.label}"') if self.label is not None else "",
+        )
+
+    @property
+    def size(self) -> int | None:
+        return self.underlying_type.size
+
+    def copy(self):
+        return self.__class__(self.underlying_type, list(self.enumerator_values), label=self.label)
 
 class SimTypeBool(SimTypeReg):
     _base_name = "bool"
