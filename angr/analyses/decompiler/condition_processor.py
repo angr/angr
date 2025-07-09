@@ -13,8 +13,6 @@ from unique_log_filter import UniqueLogFilter
 
 
 from angr.utils.graph import GraphUtils
-from angr.utils.lazy_import import lazy_import
-from angr.utils import is_pyinstaller
 from angr.utils.graph import dominates, inverted_idoms
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.block import Block, BlockNode
@@ -36,12 +34,6 @@ from .structuring.structurer_nodes import (
 )
 from .graph_region import GraphRegion
 from .utils import peephole_optimize_expr
-
-if is_pyinstaller():
-    # PyInstaller is not happy with lazy import
-    import sympy
-else:
-    sympy = lazy_import("sympy")
 
 
 l = logging.getLogger(__name__)
@@ -953,6 +945,9 @@ class ConditionProcessor:
 
     @staticmethod
     def claripy_ast_to_sympy_expr(ast, memo=None):
+
+        import sympy  # pylint:disable=import-outside-toplevel
+
         if ast.op == "And":
             return sympy.And(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
         if ast.op == "Or":
@@ -974,6 +969,9 @@ class ConditionProcessor:
 
     @staticmethod
     def sympy_expr_to_claripy_ast(expr, memo: dict):
+
+        import sympy  # pylint:disable=import-outside-toplevel
+
         if expr.is_Symbol:
             return memo[expr]
         if isinstance(expr, sympy.Or):
@@ -990,6 +988,9 @@ class ConditionProcessor:
 
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
+
+        import sympy  # pylint:disable=import-outside-toplevel
+
         memo = {}
         if cond.depth > depth_limit or len(cond.variables) > variables_limit:
             return cond
