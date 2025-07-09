@@ -170,7 +170,7 @@ class Icicle:
     @property
     def recent_blocks(self) -> list[tuple[int, int]]:
         """The addresses of recently executed basic blocks, if available."""
-    
+
     @property
     def edge_hitmap(self) -> bytes | None:
         """The edge hitmap from the most recent run, if edge hitmap is enabled."""
