@@ -4,8 +4,8 @@ import string
 
 from archinfo import Endness
 
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable
-from angr.ailment.statement import Call, Assignment
+from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, UnaryOp
+from angr.ailment.statement import Call, Assignment, Store, Statement
 
 from angr import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
@@ -24,16 +24,38 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     __slots__ = ()
 
     NAME = "Simplifying inlined strcpy"
-    stmt_classes = (Assignment,)
+    stmt_classes = (Assignment, Store)
 
-    def optimize(self, stmt: Assignment, stmt_idx: int | None = None, block=None, **kwargs):
+    def optimize(self, stmt: Assignment | Store, stmt_idx: int | None = None, block=None, **kwargs):
+        inlined_strcpy_candidate = False
+        src: Const | None = None
+        strcpy_dst: StackBaseOffset | UnaryOp | None = None
         if (
-            isinstance(stmt.dst, VirtualVariable)
+            isinstance(stmt, Assignment)
+            and isinstance(stmt.dst, VirtualVariable)
             and stmt.dst.was_stack
             and isinstance(stmt.src, Const)
             and isinstance(stmt.src.value, int)
         ):
-            r, s = self.is_integer_likely_a_string(stmt.src.value, stmt.src.size, self.project.arch.memory_endness)
+            inlined_strcpy_candidate = True
+            src = stmt.src
+            strcpy_dst = StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset)
+        elif (
+            isinstance(stmt, Store)
+            and isinstance(stmt.addr, UnaryOp)
+            and stmt.addr.op == "Reference"
+            and isinstance(stmt.addr.operand, VirtualVariable)
+            and stmt.addr.operand.was_stack
+            and isinstance(stmt.data, Const)
+            and isinstance(stmt.data.value, int)
+        ):
+            inlined_strcpy_candidate = True
+            src = stmt.data
+            strcpy_dst = stmt.addr
+
+        if inlined_strcpy_candidate:
+            assert src is not None
+            r, s = self.is_integer_likely_a_string(src.value, src.size, self.project.arch.memory_endness)
             if r:
                 # replace it with a call to strncpy
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
@@ -41,7 +63,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                     stmt.idx,
                     "strncpy",
                     args=[
-                        StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset),
+                        strcpy_dst,
                         Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                         Const(None, None, len(s), self.project.arch.bits),
                     ],
@@ -68,8 +90,18 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                             next_offset = None
                             stride = []
 
+                    if not stride:
+                        return None
+                    min_stride_stmt_idx = min(stmt_idx_ for _, stmt_idx_, _ in stride)
+                    if min_stride_stmt_idx > stmt_idx:
+                        # the current statement is not involved in the stride. we can't simplify here, otherwise we
+                        # will incorrectly remove the current statement
+                        return None
+
                     integer, size = self.stride_to_int(stride)
-                    r, s = self.is_integer_likely_a_string(integer, size, Endness.BE)
+                    prev_stmt = None if stmt_idx == 0 else block.statements[stmt_idx - 1]
+                    min_str_length = 1 if self.is_inlined_strcpy(prev_stmt) else 4
+                    r, s = self.is_integer_likely_a_string(integer, size, Endness.BE, min_length=min_str_length)
                     if r:
                         # we remove all involved statements whose statement IDs are greater than the current one
                         for _, stmt_idx_, _ in reversed(stride):
@@ -83,7 +115,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                             stmt.idx,
                             "strncpy",
                             args=[
-                                StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset),
+                                strcpy_dst,
                                 Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                                 Const(None, None, len(s), self.project.arch.bits),
                             ],
@@ -158,3 +190,14 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                 return False, None
             return True, "".join(chars)
         return False, None
+
+    @staticmethod
+    def is_inlined_strcpy(stmt: Statement) -> bool:
+        return (
+            isinstance(stmt, Call)
+            and isinstance(stmt.target, str)
+            and stmt.target == "strncpy"
+            and len(stmt.args) == 3
+            and isinstance(stmt.args[1], Const)
+            and hasattr(stmt.args[1], "custom_string")
+        )
