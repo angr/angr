@@ -36,7 +36,7 @@ class VEXLifter(SimEngine):
         default_strict_block_end=False,
         **kwargs,
     ):
-        super().__init__(project, **kwargs)
+        super().__init__(project, support_multiblock_lifting = True, **kwargs)
 
         self._use_cache = use_cache
         self._default_opt_level = default_opt_level
