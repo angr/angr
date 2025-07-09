@@ -123,7 +123,7 @@ class IcicleEngine(ConcreteEngine):
         if proj is None:
             raise ValueError("IcicleEngine requires a project to be set")
 
-        emu = Icicle(icicle_arch, PROCESSORS_DIR, True)
+        emu = Icicle(icicle_arch, PROCESSORS_DIR, True, True)
 
         copied_registers = set()
 
@@ -174,6 +174,11 @@ class IcicleEngine(ConcreteEngine):
             initial_cpu_icount=emu.cpu_icount,
         )
 
+        # 3. Copy edge hitmap
+        edge_hitmap = state.history.last_edge_hitmap
+        if edge_hitmap is not None:
+            emu.edge_hitmap = edge_hitmap
+
         return (emu, translation_data)
 
     @staticmethod
@@ -221,8 +226,11 @@ class IcicleEngine(ConcreteEngine):
         # Skip the last block, because it will be added by Successors
         state.history.recent_bbl_addrs.extend([b[0] for b in emu.recent_blocks][:-1])
 
-        # 4. Set history.recent_instruction_count
+        # 3.3. Set history.recent_instruction_count
         state.history.recent_instruction_count = emu.cpu_icount - translation_data.initial_cpu_icount
+
+        # 3.4. Set edge hitmap
+        state.history.edge_hitmap = emu.edge_hitmap
 
         return state
 
