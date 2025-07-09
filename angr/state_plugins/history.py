@@ -59,6 +59,9 @@ class SimStateHistory(SimStatePlugin):
         self.recent_syscall_count = 0 if clone is None else clone.recent_syscall_count
         self.recent_instruction_count = -1 if clone is None else clone.recent_instruction_count
 
+        # afl-style hitmap
+        self.edge_hitmap: bytes | None = None if clone is None else clone.edge_hitmap
+
         # satness stuff
         self._all_constraints = ()
         self._satisfiable = None
@@ -401,6 +404,19 @@ class SimStateHistory(SimStatePlugin):
     @property
     def stack_actions(self):
         return LambdaIterIter(self, operator.attrgetter("recent_stack_actions"))
+
+    @property
+    def last_edge_hitmap(self) -> bytes | None:
+        """
+        Returns the last edge hitmap in the history chain, or None if there is no edge hitmap.
+        """
+        history = self
+        while history is not None:
+            if history.edge_hitmap is not None:
+                return history.edge_hitmap
+            # Traverse to the previous state in the history chain
+            history = history.parent
+        return None
 
     #
     # Merging support
