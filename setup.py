@@ -4,12 +4,10 @@ import glob
 import importlib
 import importlib.resources
 import os
-import platform
 import shutil
 import subprocess
 import sys
 from distutils.command.build import build as st_build
-from distutils.util import get_platform
 
 from setuptools import Command, setup
 from setuptools.command.develop import develop as st_develop
