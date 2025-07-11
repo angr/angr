@@ -1008,6 +1008,13 @@ class PhoenixStructurer(StructurerBase):
             if node in graph and networkx.has_path(graph, node, loop_head):
                 loop_body.add(node)
 
+        # does it form a natural loop already?
+        for node in loop_body:
+            succs_in_loop_body = [succ for succ in fullgraph.successors(node) if succ in loop_body]
+            if len(succs_in_loop_body) > 1:
+                # it has multiple successors in the loop body, so it is not a natural loop
+                return False, None
+
         # extend the loop body if possible
         while True:
             loop_body_updated = False
