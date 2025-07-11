@@ -163,7 +163,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
             require_gotos=False,
             prevent_new_gotos=False,
             simplify_ail=False,
-            must_improve_rel_quality=True,
+            must_improve_rel_quality=False,
             **kwargs,
         )
 
