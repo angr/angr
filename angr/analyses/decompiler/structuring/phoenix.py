@@ -1008,6 +1008,17 @@ class PhoenixStructurer(StructurerBase):
             if node in graph and networkx.has_path(graph, node, loop_head):
                 loop_body.add(node)
 
+        # extend the loop body if possible
+        while True:
+            loop_body_updated = False
+            for node in list(loop_body):
+                for succ in graph.successors(node):
+                    if succ not in loop_body and all(pred in loop_body for pred in graph.predecessors(succ)):
+                        loop_body.add(succ)
+                        loop_body_updated = True
+            if not loop_body_updated:
+                break
+
         # determine successor candidates using the loop body
         successor_candidates = set()
         for node in loop_body:
