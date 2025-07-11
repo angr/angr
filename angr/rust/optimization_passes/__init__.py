@@ -36,7 +36,7 @@ def get_rust_optimization_passes():
         UnwrapOutliner,
         PrintMacroSimplifier,
         VecMacroSimplifier,
-        ShowMacroSimplifier,
+        # ShowMacroSimplifier,
         DerefCoercionSimplifier,
         StructReturnSimplifier,
         PrePatternMatchSimplifier,

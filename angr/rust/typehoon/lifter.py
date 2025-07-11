@@ -18,6 +18,7 @@ from ...analyses.typehoon.typeconsts import (
     Int16,
     Int32,
     Int64,
+    Int128,
     TypeConstant,
     Struct,
     Enum,
@@ -54,6 +55,8 @@ class RustTypeLifter(TypeLifter):
             return Int32()
         elif ty.size == 64:
             return Int64()
+        elif ty.size == 128:
+            return Int128()
         else:
             return BottomType()
 
