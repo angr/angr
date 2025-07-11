@@ -46,13 +46,13 @@ class TestOutliner(TestCase):
                 elif arg_vvar.parameter_category == VirtualVariableCategory.STACK:
                     simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
                 else:
-                    raise NotImplementedError()
+                    raise NotImplementedError
             elif arg_vvar.was_reg:
                 simvar = SimRegisterVariable(arg_vvar.reg_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
             elif arg_vvar.was_stack:
                 simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
             out_funcargs[arg_vvar.varid] = arg_vvar, simvar
 
         dec_inner = proj.analyses.Decompiler(
@@ -120,13 +120,13 @@ class TestOutliner(TestCase):
                     elif arg_vvar.parameter_category == VirtualVariableCategory.STACK:
                         simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
                     else:
-                        raise NotImplementedError()
+                        raise NotImplementedError
                 elif arg_vvar.was_reg:
                     simvar = SimRegisterVariable(arg_vvar.reg_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
                 elif arg_vvar.was_stack:
                     simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
                 else:
-                    raise NotImplementedError()
+                    raise NotImplementedError
                 out_funcargs[arg_vvar.varid] = arg_vvar, simvar
 
             dec_inner = proj.analyses.Decompiler(
@@ -158,6 +158,19 @@ class TestOutliner(TestCase):
             fail_fast=True,
         )
         print(dec_outer.codegen.text)
+
+    def test_liveness_density_notepad_npinit(self):
+        bin_path = r"F:\My Documents\Emotion Labs\ire\driver_samples\notepad_edited.exe"
+        # bin_path = r"F:\My Documents\Emotion Labs\ire\driver_samples\notepad.exe"
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        # proj.analyses.CompleteCallingConventions()
+
+        func = proj.kb.functions[0x1400135D0]
+        print(f"[+] Decompiling {func.name}...")
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print(dec.codegen.text)
 
 
 if __name__ == "__main__":

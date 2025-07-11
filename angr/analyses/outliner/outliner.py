@@ -128,9 +128,7 @@ class Outliner(Analysis):
         for src, dst in subgraph.edges:
             self.graph.remove_edge(src, dst)
         for node in subgraph:
-            if node is src_node:
-                pass
-            elif node in frontier:
+            if node is src_node or node in frontier:
                 pass
             elif self.graph.in_degree[node] == 0 and self.graph.out_degree[node] == 0:
                 # orphaned nodes
@@ -229,7 +227,7 @@ class Outliner(Analysis):
                             stmt.src.src_and_vvars[idx] = new_addr, vvars
                 else:
                     # multiple source blocks have been replaced... it's bad
-                    raise NotImplementedError()
+                    raise NotImplementedError
 
     def execute(self):
         """
