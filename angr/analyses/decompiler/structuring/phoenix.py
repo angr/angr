@@ -994,9 +994,8 @@ class PhoenixStructurer(StructurerBase):
                     return True, (continue_edges, outgoing_edges, continue_node, successor)
         return False, None
 
-    def _refine_cyclic_make_natural_loop(
-        self, graph, fullgraph, loop_head
-    ) -> tuple[bool, tuple[list, list, Any] | None]:
+    @staticmethod
+    def _refine_cyclic_make_natural_loop(graph, fullgraph, loop_head) -> tuple[bool, tuple[list, list, Any] | None]:
         continue_edges = []
         outgoing_edges = []
 

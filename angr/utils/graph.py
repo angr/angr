@@ -813,6 +813,10 @@ class GraphUtils:
                 graph_copy.add_node(node)
 
         class NodeWithAddr:
+            """
+            Temporary node class.
+            """
+
             def __init__(self, addr: int):
                 self.addr = addr
 
