@@ -777,11 +777,11 @@ class GraphUtils:
         # find all strongly connected components in the graph
         sccs = sorted(
             (scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1),
-            key=lambda x: min(node.addr for node in x),
+            key=lambda x: (len(x), min(node.addr if hasattr(node, "addr") else node for node in x)),
         )
         comp_indices = {}
         for i, scc in enumerate(sccs):
-            scc_addr = min(node.addr for node in scc)
+            scc_addr = min(node.addr if hasattr(node, "addr") else node for node in scc)
             for node in scc:
                 if node not in comp_indices:
                     comp_indices[node] = (i, scc_addr)
