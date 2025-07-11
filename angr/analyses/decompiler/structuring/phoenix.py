@@ -13,7 +13,7 @@ from angr.ailment.block import Block
 from angr.ailment.statement import Statement, ConditionalJump, Jump, Label, Return
 from angr.ailment.expression import Const, UnaryOp, MultiStatementExpression, BinaryOp
 
-from angr.utils.graph import GraphUtils, Dominators, compute_dominance_frontier
+from angr.utils.graph import GraphUtils
 from angr.utils.ail import is_phi_assignment, is_head_controlled_loop_block
 from angr.knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from angr.utils.constants import SWITCH_MISSING_DEFAULT_NODE_ADDR
@@ -710,14 +710,16 @@ class PhoenixStructurer(StructurerBase):
             continue_edges, outgoing_edges, successor = result_natural
 
         if outgoing_edges:
-            # if there is a single successor, we convert all out-going edges into breaks;
+            # if there is a single successor, we convert all but the first one out-going edges into breaks;
             # if there are multiple successors, and if the current region does not have a parent region, then we
-            # convert all out-going edges into gotos;
+            # convert all but the first successor-targeting out-going edges into gotos;
             # otherwise we give up.
 
             if self._parent_region is not None and len({dst for _, dst in outgoing_edges}) > 1:
                 # give up because there is a parent region
                 return False
+
+            outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
 
             if successor is None:
                 successor_and_edgecounts = defaultdict(int)
@@ -735,8 +737,14 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     successor = next(iter(successor_and_edgecounts.keys()))
 
+            first_edge_to_successor_skipped = False
+
             for src, dst in outgoing_edges:
                 if dst is successor:
+                    if not first_edge_to_successor_skipped:
+                        first_edge_to_successor_skipped = True
+                        continue
+
                     # keep in mind that at this point, src might have been structured already. this means the last
                     # block in src may not be the actual block that has a direct jump or a conditional jump to dst. as
                     # a result, we should walk all blocks in src to find the jump to dst, then extract the condition
@@ -992,38 +1000,26 @@ class PhoenixStructurer(StructurerBase):
         continue_edges = []
         outgoing_edges = []
 
-        # find dominance frontier
-        doms = Dominators(fullgraph, self._region.head)
-        dom_frontiers = compute_dominance_frontier(fullgraph, doms.dom)
+        # determine the loop body: all nodes that have paths going to loop_head
+        loop_body = set()
+        for node in fullgraph:
+            if node is loop_head:
+                loop_body.add(loop_head)
+                continue
+            if node in graph and networkx.has_path(graph, node, loop_head):
+                loop_body.add(node)
 
-        if loop_head not in dom_frontiers:
-            return False, None
-        dom_frontier = dom_frontiers[loop_head]
+        # determine successor candidates using the loop body
+        successor_candidates = set()
+        for node in loop_body:
+            for succ in fullgraph.successors(node):
+                if succ not in loop_body:
+                    successor_candidates.add(succ)
 
-        # now this is a little complex
-        dom_frontier = {node for node in dom_frontier if node is not loop_head}
-        if len(dom_frontier) == 0:
-            # the dominance frontier is empty (the loop head dominates all nodes in the full graph). however, this does
-            # not mean that the loop head must dominate all the nodes, because we only have a limited view of the full
-            # graph (e.g., some predecessors of the successor may not be in this full graph). as such, successors are
-            # the ones that are in the fullgraph but not in the graph.
-            successor_candidates = set()
-            for node in networkx.descendants(graph, loop_head):
-                for succ in fullgraph.successors(node):
-                    if succ not in graph:
-                        successor_candidates.add(succ)
-                    if loop_head is succ:
-                        continue_edges.append((node, succ))
-
-        else:
-            # this loop has a single successor
-            successor_candidates = dom_frontier
-            # traverse the loop body to find all continue edges
-            tmp_graph = networkx.DiGraph(graph)
-            tmp_graph.remove_nodes_from(successor_candidates)
-            for node in networkx.descendants(tmp_graph, loop_head):
-                if tmp_graph.has_edge(node, loop_head):
-                    continue_edges.append((node, loop_head))
+        # traverse the loop body to find all continue edges
+        for node in loop_body:
+            if graph.has_edge(node, loop_head):
+                continue_edges.append((node, loop_head))
 
         if len(successor_candidates) == 0:
             successor = None
@@ -1039,7 +1035,7 @@ class PhoenixStructurer(StructurerBase):
             # mark all edges as outgoing edges so they will be virtualized if they don't lead to the successor
             for node in successor_candidates:
                 for pred in fullgraph.predecessors(node):
-                    if networkx.has_path(doms.dom, loop_head, pred):
+                    if pred in graph:
                         outgoing_edges.append((pred, node))
 
         return True, (continue_edges, outgoing_edges, successor)
