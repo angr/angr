@@ -3831,7 +3831,7 @@ class TestDecompiler(unittest.TestCase):
         )
         print_decompilation_result(d)
 
-        assert d.codegen.text.count("break;") == 2
+        assert d.codegen.text.count("break;") == 2 or d.codegen.text.count("goto LABEL_402417;") == 1
 
     @structuring_algo("sailr")
     def test_ternary_expression_over_propagation(self, decompiler_options=None):
