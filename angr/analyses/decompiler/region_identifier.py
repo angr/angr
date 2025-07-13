@@ -280,9 +280,6 @@ class RegionIdentifier(Analysis):
         return set(loop_subgraph)
 
     def _refine_loop(self, graph: networkx.DiGraph, head, initial_loop_nodes, initial_exit_nodes):
-        if len(initial_exit_nodes) <= 1:
-            return initial_loop_nodes, initial_exit_nodes
-
         refined_loop_nodes = initial_loop_nodes.copy()
         refined_exit_nodes = initial_exit_nodes.copy()
 

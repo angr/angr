@@ -1480,7 +1480,7 @@ class TestDecompiler(unittest.TestCase):
         assert "* 8" in d.codegen.text
         assert ">>" not in d.codegen.text
 
-    @for_all_structuring_algos
+    @structuring_algo("sailr")
     def test_decompiling_fmt_get_space(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -1493,12 +1493,17 @@ class TestDecompiler(unittest.TestCase):
         f.prototype = cca.prototype
         f.calling_convention = cca.cc
 
-        d = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        all_optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes("AMD64", "linux")
+        d = proj.analyses.Decompiler(
+            f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
+        )
         assert d.codegen is not None and isinstance(d.codegen.text, str)
 
         print_decompilation_result(d)
 
-        assert "break" in d.codegen.text
+        assert re.search(r"if \([^v]*v1 == 32\)", d.codegen.text) is not None
+        assert re.search(r"else if \([^v]*v1 == 9\)", d.codegen.text) is not None
+        assert d.codegen.text.count("return v1;") == 1
 
     @for_all_structuring_algos
     def test_decompiling_fmt_main(self, decompiler_options=None):
