@@ -936,29 +936,38 @@ class PhoenixStructurer(StructurerBase):
 
         return bool(outgoing_edges or len(continue_edges) > 1)
 
+    @staticmethod
+    def _refine_cyclic_is_while_loop_check_loop_head_successors(graph, loop_head, head_succs) -> tuple[bool, Any]:
+        assert len(head_succs) == 2
+        a, b = head_succs
+        a_in_graph = a in graph
+        b_in_graph = b in graph
+        if a_in_graph ^ b_in_graph:
+            return True, b if a_in_graph else a
+        return False, None
+
     def _refine_cyclic_is_while_loop(
         self, graph, fullgraph, loop_head, head_succs
     ) -> tuple[bool, tuple[list, list, BaseNode, BaseNode] | None]:
-        if len(head_succs) == 2 and any(head_succ not in graph for head_succ in head_succs):
-            # make sure the head_pred is not already structured
-            _, _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
-            _, _, head_block_1 = self._find_node_going_to_dst(loop_head, head_succs[1])
-            if head_block_0 is head_block_1 and head_block_0 is not None:
-                # there is an out-going edge from the loop head
-                # virtualize all other edges
-                continue_edges: list[tuple[BaseNode, BaseNode]] = []
-                outgoing_edges = []
-                successor = next(iter(head_succ for head_succ in head_succs if head_succ not in graph))
-                for node in networkx.descendants(graph, loop_head):
-                    succs = list(fullgraph.successors(node))
-                    if loop_head in succs:
-                        continue_edges.append((node, loop_head))
-
-                    outside_succs = [succ for succ in succs if succ not in graph]
-                    for outside_succ in outside_succs:
-                        outgoing_edges.append((node, outside_succ))
-
-                return True, (continue_edges, outgoing_edges, loop_head, successor)
+        if len(head_succs) == 2:
+            r, successor = self._refine_cyclic_is_while_loop_check_loop_head_successors(graph, loop_head, head_succs)
+            if r:
+                # make sure the head_pred is not already structured
+                _, _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
+                _, _, head_block_1 = self._find_node_going_to_dst(loop_head, head_succs[1])
+                if head_block_0 is head_block_1 and head_block_0 is not None:
+                    # there is an out-going edge from the loop head
+                    # virtualize all other edges
+                    continue_edges: list[tuple[BaseNode, BaseNode]] = []
+                    outgoing_edges = []
+                    for node in networkx.descendants(graph, loop_head):
+                        succs = list(fullgraph.successors(node))
+                        if loop_head in succs:
+                            continue_edges.append((node, loop_head))
+                        outside_succs = [succ for succ in succs if succ not in graph]
+                        for outside_succ in outside_succs:
+                            outgoing_edges.append((node, outside_succ))
+                    return True, (continue_edges, outgoing_edges, loop_head, successor)
         return False, None
 
     def _refine_cyclic_is_dowhile_loop(
