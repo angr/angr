@@ -247,7 +247,10 @@ class ConditionProcessor:
                 )
                 assert last_stmt is not None
             else:
-                last_stmt = self.get_last_statement(src)
+                try:
+                    last_stmt = self.get_last_statement(src)
+                except EmptyBlockNotice:
+                    last_stmt = None
 
             if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
                 return True
