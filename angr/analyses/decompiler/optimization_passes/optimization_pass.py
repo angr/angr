@@ -135,6 +135,7 @@ class OptimizationPass(BaseOptimizationPass):
         entry_node_addr=None,
         scratch: dict[str, Any] | None = None,
         force_loop_single_exit: bool = True,
+        refine_loops_with_single_successor: bool = False,
         complete_successors: bool = False,
         avoid_vvar_ids: set[int] | None = None,
         arg_vvars: set[int] | None = None,
@@ -158,6 +159,7 @@ class OptimizationPass(BaseOptimizationPass):
             entry_node_addr if entry_node_addr is not None else (func.addr, None)
         )
         self._force_loop_single_exit = force_loop_single_exit
+        self._refine_loops_with_single_successor = refine_loops_with_single_successor
         self._complete_successors = complete_successors
         self._avoid_vvar_ids = avoid_vvar_ids or set()
         self._peephole_optimizations = peephole_optimizations
@@ -397,6 +399,7 @@ class OptimizationPass(BaseOptimizationPass):
             cond_proc=condition_processor or ConditionProcessor(self.project.arch),
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
+            refine_loops_with_single_successor=self._refine_loops_with_single_successor,
             complete_successors=self._complete_successors,
             entry_node_addr=self.entry_node_addr,
         )

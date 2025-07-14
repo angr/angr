@@ -4578,6 +4578,7 @@ class TestDecompiler(unittest.TestCase):
         # decompile!
         dec = p.analyses.Decompiler(entry, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
+        print_decompilation_result(dec)
         text = dec.codegen.text
 
         # Ensure call to f1 is not moved out of loop

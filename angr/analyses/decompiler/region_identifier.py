@@ -43,6 +43,7 @@ class RegionIdentifier(Analysis):
         update_graph=True,
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
+        refine_loops_with_single_successor=False,
         complete_successors=False,
         entry_node_addr: tuple[int, int | None] | None = None,
     ):
@@ -70,6 +71,7 @@ class RegionIdentifier(Analysis):
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
+        self._refine_loops_with_single_successor = refine_loops_with_single_successor
         self._complete_successors = complete_successors
         # we keep a dictionary of node and their traversal order in a quasi-topological traversal and update this
         # dictionary as we update the graph
@@ -280,6 +282,11 @@ class RegionIdentifier(Analysis):
         return set(loop_subgraph)
 
     def _refine_loop(self, graph: networkx.DiGraph, head, initial_loop_nodes, initial_exit_nodes):
+        if (self._refine_loops_with_single_successor and len(initial_exit_nodes) == 0) or (
+            not self._refine_loops_with_single_successor and len(initial_exit_nodes) <= 1
+        ):
+            return initial_loop_nodes, initial_exit_nodes
+
         refined_loop_nodes = initial_loop_nodes.copy()
         refined_exit_nodes = initial_exit_nodes.copy()
 

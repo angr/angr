@@ -589,6 +589,19 @@ def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | No
     return None
 
 
+def last_node(node: BaseNode) -> BaseNode | ailment.Block | None:
+    """
+    Get the last node in a sequence or code node.
+    """
+    if isinstance(node, CodeNode):
+        return last_node(node.node)
+    if isinstance(node, SequenceNode):
+        if not node.nodes:
+            return None
+        return last_node(node.nodes[-1])
+    return node
+
+
 def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
     for node in seq.nodes:
         inner_node = node.node if isinstance(node, CodeNode) else node
