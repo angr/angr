@@ -342,7 +342,7 @@ class PhoenixStructurer(StructurerBase):
                         seq_node = SequenceNode(node.addr, nodes=[node]) if not isinstance(node, SequenceNode) else node
                         loop_node = LoopNode(loop_type, edge_cond_left, seq_node, addr=seq_node.addr)
                         self.replace_nodes(graph, node, loop_node, self_loop=False)
-                        self.replace_nodes(full_graph, node, loop_node, self_loop=False)
+                        self.replace_nodes(full_graph, node, loop_node, self_loop=False, update_node_order=True)
 
                         # ensure the loop has only one successor: the right node
                         self._remove_edges_except(graph, loop_node, right)
@@ -371,7 +371,9 @@ class PhoenixStructurer(StructurerBase):
                             # on the original graph
                             self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
                             # on the graph with successors
-                            self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
+                            self.replace_nodes(
+                                full_graph, node, loop_node, old_node_1=left, self_loop=False, update_node_order=True
+                            )
 
                             # ensure the loop has only one successor: the right node
                             self._remove_edges_except(graph, loop_node, right)
@@ -396,7 +398,9 @@ class PhoenixStructurer(StructurerBase):
                         # on the original graph
                         self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
                         # on the graph with successors
-                        self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
+                        self.replace_nodes(
+                            full_graph, node, loop_node, old_node_1=left, self_loop=False, update_node_order=True
+                        )
 
                         # ensure the loop has only one successor: the right node
                         self._remove_edges_except(graph, loop_node, right)
@@ -419,7 +423,9 @@ class PhoenixStructurer(StructurerBase):
                             # on the original graph
                             self.replace_nodes(graph, node, loop_node, old_node_1=left, self_loop=False)
                             # on the graph with successors
-                            self.replace_nodes(full_graph, node, loop_node, old_node_1=left, self_loop=False)
+                            self.replace_nodes(
+                                full_graph, node, loop_node, old_node_1=left, self_loop=False, update_node_order=True
+                            )
 
                             # ensure the loop has only one successor: the right node
                             self._remove_edges_except(graph, loop_node, right)
@@ -505,7 +511,7 @@ class PhoenixStructurer(StructurerBase):
         for node_ in seq_node.nodes:
             if node_ is not node_copy:
                 full_graph.remove_node(node_)
-        self.replace_nodes(full_graph, node, loop_node, self_loop=False)
+        self.replace_nodes(full_graph, node, loop_node, self_loop=False, update_node_order=True)
         full_graph.add_edge(loop_node, successor_node)
 
         if self._node_order is not None:
@@ -571,7 +577,9 @@ class PhoenixStructurer(StructurerBase):
                             # on the original graph
                             self.replace_nodes(graph, node, loop_node, old_node_1=succ, self_loop=False)
                             # on the graph with successors
-                            self.replace_nodes(full_graph, node, loop_node, old_node_1=succ, self_loop=False)
+                            self.replace_nodes(
+                                full_graph, node, loop_node, old_node_1=succ, self_loop=False, update_node_order=True
+                            )
 
                             return True, loop_node, out_node
         elif ((node is head and len(preds) >= 1) or len(preds) >= 2) and len(succs) == 2 and node in succs:
@@ -590,7 +598,7 @@ class PhoenixStructurer(StructurerBase):
                     # on the original graph
                     self.replace_nodes(graph, node, loop_node, self_loop=False)
                     # on the graph with successors
-                    self.replace_nodes(full_graph, node, loop_node, self_loop=False)
+                    self.replace_nodes(full_graph, node, loop_node, self_loop=False, update_node_order=True)
 
                     return True, loop_node, succ
         return False, None, None
@@ -635,7 +643,7 @@ class PhoenixStructurer(StructurerBase):
         for node_ in seq_node.nodes:
             if node_ is not node:
                 full_graph.remove_node(node_)
-        self.replace_nodes(full_graph, node, loop_node, self_loop=False)
+        self.replace_nodes(full_graph, node, loop_node, self_loop=False, update_node_order=True)
 
         return True, loop_node
 
@@ -844,7 +852,7 @@ class PhoenixStructurer(StructurerBase):
                         else:
                             # directly replace the node in graph
                             self.replace_nodes(graph, src, new_node)
-                            self.replace_nodes(fullgraph, src, new_node)
+                            self.replace_nodes(fullgraph, src, new_node, update_node_order=True)
                             if src is loop_head:
                                 loop_head = new_node
                             if src is continue_node:
@@ -929,7 +937,7 @@ class PhoenixStructurer(StructurerBase):
                             self._remove_last_statement_if_jump(cont_block)
                             new_node = SequenceNode(src.addr, nodes=[src, new_cont_node])
                             self.replace_nodes(graph, src, new_node)
-                            self.replace_nodes(fullgraph, src, new_node)
+                            self.replace_nodes(fullgraph, src, new_node, update_node_order=True)
 
         if loop_type == "do-while":
             self.dowhile_known_tail_nodes.add(continue_node)
@@ -1688,7 +1696,7 @@ class PhoenixStructurer(StructurerBase):
                 if out_nodes and out_nodes[0] in graph:
                     graph.add_edge(new_node, out_nodes[0])
                 full_graph.remove_nodes_from(successors)
-                self.replace_nodes(full_graph, node, new_node)
+                self.replace_nodes(full_graph, node, new_node, update_node_order=True)
                 if out_nodes:
                     full_graph.add_edge(new_node, out_nodes[0])
                 if self._node_order:
@@ -1718,7 +1726,7 @@ class PhoenixStructurer(StructurerBase):
             # make the default node a SequenceNode so that we can insert Break and Continue nodes into it later
             new_node = SequenceNode(node_default.addr, nodes=[node_default])
             self.replace_nodes(graph, node_default, new_node)
-            self.replace_nodes(full_graph, node_default, new_node)
+            self.replace_nodes(full_graph, node_default, new_node, update_node_order=True)
             node_default = new_node
 
         converted_nodes: dict[tuple[int, int | None], Any] = {}
@@ -1985,7 +1993,7 @@ class PhoenixStructurer(StructurerBase):
                 # on the original graph
                 self.replace_nodes(graph, start_node, new_seq, old_node_1=end_node if end_node in graph else None)
                 # on the graph with successors
-                self.replace_nodes(full_graph, start_node, new_seq, old_node_1=end_node)
+                self.replace_nodes(full_graph, start_node, new_seq, old_node_1=end_node, update_node_order=True)
                 return True
         return False
 
@@ -2045,7 +2053,9 @@ class PhoenixStructurer(StructurerBase):
                             self.replace_nodes(graph, start_node, new_node, old_node_1=right)
                             # on the graph with successors
                             full_graph.remove_node(left)
-                            self.replace_nodes(full_graph, start_node, new_node, old_node_1=right)
+                            self.replace_nodes(
+                                full_graph, start_node, new_node, old_node_1=right, update_node_order=True
+                            )
                         else:
                             # on the original graph
                             if right in graph:
@@ -2053,7 +2063,9 @@ class PhoenixStructurer(StructurerBase):
                             self.replace_nodes(graph, start_node, new_node, old_node_1=left)
                             # on the graph with successors
                             full_graph.remove_node(right)
-                            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+                            self.replace_nodes(
+                                full_graph, start_node, new_node, old_node_1=left, update_node_order=True
+                            )
 
                         return True
 
@@ -2082,7 +2094,7 @@ class PhoenixStructurer(StructurerBase):
                         # on the original graph
                         self.replace_nodes(graph, start_node, new_node, old_node_1=left)
                         # on the graph with successors
-                        self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+                        self.replace_nodes(full_graph, start_node, new_node, old_node_1=left, update_node_order=True)
 
                         return True
 
@@ -2114,7 +2126,7 @@ class PhoenixStructurer(StructurerBase):
                     # on the original graph
                     self.replace_nodes(graph, start_node, new_node, old_node_1=left)
                     # on the graph with successors
-                    self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+                    self.replace_nodes(full_graph, start_node, new_node, old_node_1=left, update_node_order=True)
 
                     return True
 
@@ -2168,7 +2180,7 @@ class PhoenixStructurer(StructurerBase):
                     # on the original graph
                     self.replace_nodes(graph, start_node, new_node, old_node_1=left)
                     # on the graph with successors
-                    self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+                    self.replace_nodes(full_graph, start_node, new_node, old_node_1=left, update_node_order=True)
 
                     return True
 
@@ -2304,7 +2316,7 @@ class PhoenixStructurer(StructurerBase):
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
             self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
-            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left, update_node_order=True)
 
             return True
 
@@ -2338,7 +2350,7 @@ class PhoenixStructurer(StructurerBase):
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
             self.replace_nodes(graph, start_node, new_node, old_node_1=right if right in graph else None)
-            self.replace_nodes(full_graph, start_node, new_node, old_node_1=right)
+            self.replace_nodes(full_graph, start_node, new_node, old_node_1=right, update_node_order=True)
 
             return True
 
@@ -2373,7 +2385,7 @@ class PhoenixStructurer(StructurerBase):
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
             self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
-            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left, update_node_order=True)
             return True
 
         r = self._match_acyclic_short_circuit_conditions_type_d(graph, full_graph, start_node)
@@ -2406,7 +2418,7 @@ class PhoenixStructurer(StructurerBase):
             new_node = SequenceNode(start_node.addr, nodes=[start_node, new_cond_node])
 
             self.replace_nodes(graph, start_node, new_node, old_node_1=left if left in graph else None)
-            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left)
+            self.replace_nodes(full_graph, start_node, new_node, old_node_1=left, update_node_order=True)
             return True
 
         return False
@@ -2729,7 +2741,7 @@ class PhoenixStructurer(StructurerBase):
             self.virtualized_edges.add((src, dst))
             full_graph.remove_edge(src, dst)
             if new_src is not None:
-                self.replace_nodes(full_graph, src, new_src)
+                self.replace_nodes(full_graph, src, new_src, update_node_order=True)
         if remove_src_last_stmt:
             remove_last_statements(src)
 
@@ -3049,9 +3061,11 @@ class PhoenixStructurer(StructurerBase):
         )
         self._node_order = {n: i for i, n in enumerate(ordered_nodes)}
 
-    def replace_nodes(self, graph, old_node_0, new_node, old_node_1=None, self_loop=True):
+    def replace_nodes(
+        self, graph, old_node_0, new_node, old_node_1=None, self_loop=True, update_node_order: bool = False
+    ):
         super().replace_nodes(graph, old_node_0, new_node, old_node_1=old_node_1, self_loop=self_loop)
-        if self._node_order is not None and graph is self._region.graph_with_successors:
+        if self._node_order is not None and update_node_order:
             if old_node_1 is not None:
                 self._node_order[new_node] = min(self._node_order[old_node_0], self._node_order[old_node_1])
             else:
