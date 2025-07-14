@@ -766,7 +766,10 @@ class GraphUtils:
         """
 
         # fast path for single node graphs
-        if graph.number_of_nodes() == 1:
+        number_of_nodes = graph.number_of_nodes()
+        if number_of_nodes == 0:
+            return []
+        if number_of_nodes == 1:
             if nodes is None:
                 return list(graph.nodes)
             return [n for n in graph.nodes() if n in nodes]
