@@ -53,7 +53,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         prevent_new_gotos: bool = True,
         minimize_copies_for_regions: bool = True,
         region_identifier=None,
-        vvar_id_start: int | None = None,
+        vvar_id_start: int = 0,
         scratch: dict[str, Any] | None = None,
         max_func_blocks: int = 500,
         **kwargs,
@@ -91,8 +91,9 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         self,
         src: Block,
         dst: Block,
-        graph: networkx.DiGraph = None,
         max_level_check=1,
+        *,
+        graph: networkx.DiGraph,
     ):
         """
         TODO: Implement a more principled way of checking if an edge is a goto edge with Phoenix's structuring info
@@ -100,6 +101,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         above a goto edge as the goto src.
         """
         # Do a simple and fast check first
+        assert self._goto_manager is not None
         is_simple_goto = self._goto_manager.is_goto_edge(src, dst)
         if is_simple_goto:
             return True

@@ -937,7 +937,7 @@ class PhoenixStructurer(StructurerBase):
         return bool(outgoing_edges or len(continue_edges) > 1)
 
     @staticmethod
-    def _refine_cyclic_is_while_loop_check_loop_head_successors(graph, loop_head, head_succs) -> tuple[bool, Any]:
+    def _refine_cyclic_is_while_loop_check_loop_head_successors(graph, head_succs) -> tuple[bool, Any]:
         assert len(head_succs) == 2
         a, b = head_succs
         a_in_graph = a in graph
@@ -950,7 +950,7 @@ class PhoenixStructurer(StructurerBase):
         self, graph, fullgraph, loop_head, head_succs
     ) -> tuple[bool, tuple[list, list, BaseNode, BaseNode] | None]:
         if len(head_succs) == 2:
-            r, successor = self._refine_cyclic_is_while_loop_check_loop_head_successors(graph, loop_head, head_succs)
+            r, successor = self._refine_cyclic_is_while_loop_check_loop_head_successors(graph, head_succs)
             if r:
                 # make sure the head_pred is not already structured
                 _, _, head_block_0 = self._find_node_going_to_dst(loop_head, head_succs[0])
