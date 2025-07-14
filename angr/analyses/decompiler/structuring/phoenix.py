@@ -2612,6 +2612,14 @@ class PhoenixStructurer(StructurerBase):
                 continue
             if src not in graph:
                 continue
+            if (
+                isinstance(src, Block)
+                and src.statements
+                and isinstance(src.statements[-1], IncompleteSwitchCaseHeadStatement)
+            ):
+                # this is a head of an incomplete switch-case construct (that we will definitely be structuring later),
+                # so we do not want to remove any edges going out of this block
+                continue
             if not dominates(idoms, src, dst) and not dominates(idoms, dst, src):
                 if (src.addr, dst.addr) not in self.whitelist_edges:
                     all_edges_wo_dominance.append((src, dst))
