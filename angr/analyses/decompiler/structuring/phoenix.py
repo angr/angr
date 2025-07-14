@@ -1009,11 +1009,8 @@ class PhoenixStructurer(StructurerBase):
         outgoing_edges = []
 
         # determine the loop body: all nodes that have paths going to loop_head
-        loop_body = set()
-        for node in fullgraph:
-            if node is loop_head:
-                loop_body.add(loop_head)
-                continue
+        loop_body = {loop_head}
+        for node in networkx.descendants(fullgraph, loop_head):
             if node in graph and networkx.has_path(graph, node, loop_head):
                 loop_body.add(node)
 
