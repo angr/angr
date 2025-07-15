@@ -857,6 +857,7 @@ class PhoenixStructurer(StructurerBase):
                         # the original graph
                         new_src = NodeReplacer(src, {src_block: new_node}).result
                         self.replace_nodes(graph, src, new_src)
+                        fullgraph.remove_edge(src, dst)
                         self.replace_nodes(fullgraph, src, new_src, update_node_order=True)
                         if src is loop_head:
                             loop_head = new_src
@@ -948,6 +949,35 @@ class PhoenixStructurer(StructurerBase):
         return bool(outgoing_edges or len(continue_edges) > 1)
 
     @staticmethod
+    def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head) -> set[BaseNode]:
+        # determine the loop body: all nodes that have paths going to loop_head
+        loop_body = {loop_head}
+        for node in networkx.descendants(fullgraph, loop_head):
+            if node in graph and networkx.has_path(graph, node, loop_head):
+                loop_body.add(node)
+
+        # extend the loop body if possible
+        while True:
+            loop_body_updated = False
+            for node in list(loop_body):
+                new_nodes = set()
+                succ_not_in_loop_body = False
+                for succ in fullgraph.successors(node):
+                    if succ not in loop_body:
+                        if all(pred in loop_body for pred in fullgraph.predecessors(succ)):
+                            new_nodes.add(succ)
+                        else:
+                            # one of the predecessors of this successor is not in the loop body
+                            succ_not_in_loop_body = True
+                if new_nodes and not succ_not_in_loop_body:
+                    loop_body |= new_nodes
+                    loop_body_updated = True
+            if not loop_body_updated:
+                break
+
+        return loop_body
+
+    @staticmethod
     def _refine_cyclic_is_while_loop_check_loop_head_successors(graph, head_succs) -> tuple[bool, Any]:
         assert len(head_succs) == 2
         a, b = head_succs
@@ -1019,30 +1049,7 @@ class PhoenixStructurer(StructurerBase):
         continue_edges = []
         outgoing_edges = []
 
-        # determine the loop body: all nodes that have paths going to loop_head
-        loop_body = {loop_head}
-        for node in networkx.descendants(fullgraph, loop_head):
-            if node in graph and networkx.has_path(graph, node, loop_head):
-                loop_body.add(node)
-
-        # extend the loop body if possible
-        while True:
-            loop_body_updated = False
-            for node in list(loop_body):
-                new_nodes = set()
-                succ_not_in_loop_body = False
-                for succ in fullgraph.successors(node):
-                    if succ not in loop_body:
-                        if all(pred in loop_body for pred in fullgraph.predecessors(succ)):
-                            new_nodes.add(succ)
-                        else:
-                            # one of the predecessors of this successor is not in the loop body
-                            succ_not_in_loop_body = True
-                if new_nodes and not succ_not_in_loop_body:
-                    loop_body |= new_nodes
-                    loop_body_updated = True
-            if not loop_body_updated:
-                break
+        loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(graph, fullgraph, loop_head)
 
         # determine successor candidates using the loop body
         successor_candidates = set()
