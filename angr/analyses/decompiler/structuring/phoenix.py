@@ -127,6 +127,12 @@ class PhoenixStructurer(StructurerBase):
         self._improve_algorithm = improve_algorithm
         self._edge_virtualization_hints = []
 
+        # for each region, we only convert a switch-case head into an IncompleteSwitchCaseNode once. this is to avoid
+        # loops of creating and unpacking IncompleteSwitchCaseNode (when the entire switch-case construct is not yet
+        # ready to be structured, e.g., default node has a successor A and all case nodes have a successor B).
+        # TestDecompiler.test_decompiling_abnormal_switch_case_within_a_loop_with_redundant_jump captures this case.
+        self._matched_incomplete_switch_case_addrs: set[int] = set()
+
         # node_order keeps a dictionary of nodes and their order in a quasi-topological sort of the region full graph
         # (graph_with_successors). _generate_node_order() initializes this dictionary. we then update this dictionary
         # when new nodes are created. we do not populate this dictionary when working on acyclic graphs because it's
@@ -1686,7 +1692,8 @@ class PhoenixStructurer(StructurerBase):
                     succ for succ in full_graph.successors(succ) if succ is not node and succ not in successors
                 }
             out_nodes = list(out_nodes)
-            if len(out_nodes) <= 1:
+            if len(out_nodes) <= 1 and node.addr not in self._matched_incomplete_switch_case_addrs:
+                self._matched_incomplete_switch_case_addrs.add(node.addr)
                 new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
                 graph.remove_nodes_from(successors)
                 self.replace_nodes(graph, node, new_node)
@@ -1859,6 +1866,17 @@ class PhoenixStructurer(StructurerBase):
                     ):
                         # succ will be dangling - not ready to be structured yet - do it later
                         return False
+        succs = {dst for _, dst in out_edges}
+        dangling_succs = set()
+        if len(succs) > 1:
+            for succ in succs:
+                if succ in graph:
+                    non_switch_preds = {pred for pred in graph.predecessors(succ) if pred not in to_remove}
+                    if not non_switch_preds:
+                        dangling_succs.add(succ)
+        if len(dangling_succs) > 1:
+            # there will definitely be dangling nodes after structuring. it's not ready to be structured yet.
+            return False
 
         if node_default is not None:
             # the head no longer goes to the default case
