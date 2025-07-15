@@ -912,6 +912,24 @@ class StructurerBase(Analysis):
         return None
 
     @staticmethod
+    def _copy_and_remove_last_statement_if_jump(node: ailment.Block | MultiNode) -> ailment.Block | MultiNode:
+        if isinstance(node, MultiNode):
+            if node.nodes:
+                last_block = StructurerBase._copy_and_remove_last_statement_if_jump(node.nodes[-1])
+                nodes = [*node.nodes[:-1], last_block]
+            else:
+                nodes = []
+            return MultiNode(nodes, addr=node.addr, idx=node.idx)
+
+        assert isinstance(node, ailment.Block)
+        if node.statements and isinstance(node.statements[-1], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+            # copy the block and remove the last statement
+            stmts = node.statements[:-1]
+        else:
+            stmts = node.statements[::]
+        return ailment.Block(node.addr, node.original_size, statements=stmts, idx=node.idx)
+
+    @staticmethod
     def _merge_nodes(node_0, node_1):
         addr = node_0.addr if node_0.addr is not None else node_1.addr
 

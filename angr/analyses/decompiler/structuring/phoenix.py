@@ -31,6 +31,7 @@ from angr.analyses.decompiler.utils import (
     switch_extract_switch_expr_from_jump_target,
 )
 from angr.analyses.decompiler.counters.call_counter import AILCallCounter
+from angr.analyses.decompiler.node_replacer import NodeReplacer
 from .structurer_nodes import (
     ConditionNode,
     SequenceNode,
@@ -221,6 +222,7 @@ class PhoenixStructurer(StructurerBase):
         else:
             if pre_refinement_region is not None:
                 # we could not make a loop after the last cycle refinement. restore the graph
+                l.debug("Could not structure the cyclic graph. Restoring the region to the pre-refinement state.")
                 self._region = pre_refinement_region
 
             self.result = None  # the actual result is in self._region.graph and self._region.graph_with_successors
@@ -810,7 +812,8 @@ class PhoenixStructurer(StructurerBase):
                                 break_cond,
                                 break_node_inner,
                             )
-                        new_node = SequenceNode(src_block.addr, nodes=[src_block, break_node])
+                        new_src_block = self._copy_and_remove_last_statement_if_jump(src_block)
+                        new_node = SequenceNode(src_block.addr, nodes=[new_src_block, break_node])
                         if has_continue:
                             if continue_node.addr is not None and self.is_a_jump_target(
                                 last_src_stmt, continue_node.addr
@@ -844,25 +847,18 @@ class PhoenixStructurer(StructurerBase):
                                 # we don't handle it here.
                                 pass
 
-                        self._remove_last_statement_if_jump(src_block)
-                        fullgraph.remove_edge(src, dst)
-                        if src_parent is not None:
-                            # replace the node in its parent node
-                            self.replace_node_in_node(src_parent, src_block, new_node)
-                        else:
-                            # directly replace the node in graph
-                            self.replace_nodes(graph, src, new_node)
-                            self.replace_nodes(fullgraph, src, new_node, update_node_order=True)
-                            if src is loop_head:
-                                loop_head = new_node
-                            if src is continue_node:
-                                continue_node = new_node
+                        # we cannot modify the original src_block because loop refinement may fail and we must restore
+                        # the original graph
+                        new_src = NodeReplacer(src, {src_block: new_node}).result
+                        self.replace_nodes(graph, src, new_src)
+                        self.replace_nodes(fullgraph, src, new_src, update_node_order=True)
+                        if src is loop_head:
+                            loop_head = new_src
+                        if src is continue_node:
+                            continue_node = new_src
 
-                        self._replace_node_in_edge_list(outgoing_edges, src_block, new_node)
-                        self._replace_node_in_edge_list(continue_edges, src_block, new_node)
-
-                        # remove the last jump or conditional jump in src_block
-                        self._remove_last_statement_if_jump(src_block)
+                        self._replace_node_in_edge_list(outgoing_edges, src, new_src)
+                        self._replace_node_in_edge_list(continue_edges, src, new_src)
 
                 else:
                     self.virtualized_edges.add((src, dst))
@@ -934,10 +930,11 @@ class PhoenixStructurer(StructurerBase):
                             new_cont_node = ContinueNode(last_stmt.ins_addr, continue_node.addr)
 
                         if new_cont_node is not None:
-                            self._remove_last_statement_if_jump(cont_block)
-                            new_node = SequenceNode(src.addr, nodes=[src, new_cont_node])
-                            self.replace_nodes(graph, src, new_node)
-                            self.replace_nodes(fullgraph, src, new_node, update_node_order=True)
+                            new_cont_block = self._copy_and_remove_last_statement_if_jump(cont_block)
+                            new_node = NodeReplacer(src, {cont_block: new_cont_block}).result
+                            new_src = SequenceNode(new_node.addr, nodes=[new_node, new_cont_node])
+                            self.replace_nodes(graph, src, new_src)
+                            self.replace_nodes(fullgraph, src, new_src, update_node_order=True)
 
         if loop_type == "do-while":
             self.dowhile_known_tail_nodes.add(continue_node)

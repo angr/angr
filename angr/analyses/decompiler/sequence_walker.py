@@ -110,24 +110,28 @@ class SequenceWalker:
 
     def _handle_MultiNode(self, node, **kwargs):
         changed = False
-        nodes_copy = list(node.nodes)
+        nodes = node.nodes if self._update_seqnode_in_place else list(node.nodes)
 
         if self._force_forward_scan:
-            for i, node_ in enumerate(nodes_copy):
+            for i, node_ in enumerate(nodes):
                 new_node = self._handle(node_, parent=node, index=i)
                 if new_node is not None:
                     changed = True
-                    node.nodes[i] = new_node
+                    nodes[i] = new_node
         else:
-            i = len(nodes_copy) - 1
+            i = len(nodes) - 1
             while i > -1:
-                node_ = nodes_copy[i]
+                node_ = nodes[i]
                 new_node = self._handle(node_, parent=node, index=i)
                 if new_node is not None:
                     changed = True
-                    node.nodes[i] = new_node
+                    nodes[i] = new_node
                 i -= 1
-        return None if not changed else node
+        if not changed:
+            return None
+        if self._update_seqnode_in_place:
+            return node
+        return MultiNode(nodes, addr=node.addr, idx=node.idx)
 
     def _handle_SwitchCase(self, node, **kwargs):
         self._handle(node.switch_expr, parent=node, label="switch_expr")
