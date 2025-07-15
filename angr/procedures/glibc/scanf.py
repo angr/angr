@@ -7,5 +7,13 @@ class __isoc99_scanf(scanf):
     pass
 
 
+class __isoc23_scanf(scanf):
+    pass
+
+
 class __isoc99_fscanf(fscanf):
+    pass
+
+
+class __isoc23_fscanf(fscanf):
     pass
