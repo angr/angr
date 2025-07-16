@@ -656,7 +656,7 @@ class PhoenixStructurer(StructurerBase):
         return True, loop_node
 
     def _refine_cyclic(self) -> bool:
-        loop_heads = {t for _, t in dfs_back_edges(self._region.graph, self._region.head)}
+        loop_heads = {t for _, t in dfs_back_edges(self._region.graph, self._region.head, visit_all_nodes=True)}
         sorted_loop_heads = GraphUtils.quasi_topological_sort_nodes(self._region.graph, nodes=list(loop_heads))
 
         for head in sorted_loop_heads:
@@ -725,6 +725,8 @@ class PhoenixStructurer(StructurerBase):
             assert result_natural is not None
             continue_edges, outgoing_edges, successor = result_natural
 
+        outgoing_edges_removed = False
+
         if outgoing_edges:
             # if there is a single successor, we convert all but the first one out-going edges into breaks;
             # if there are multiple successors, and if the current region does not have a parent region, then we
@@ -760,6 +762,8 @@ class PhoenixStructurer(StructurerBase):
                     if not first_edge_to_successor_skipped:
                         first_edge_to_successor_skipped = True
                         continue
+
+                    outgoing_edges_removed = True
 
                     # keep in mind that at this point, src might have been structured already. this means the last
                     # block in src may not be the actual block that has a direct jump or a conditional jump to dst. as
@@ -868,6 +872,7 @@ class PhoenixStructurer(StructurerBase):
                         self._replace_node_in_edge_list(continue_edges, src, new_src)
 
                 else:
+                    outgoing_edges_removed = True
                     self.virtualized_edges.add((src, dst))
                     fullgraph.remove_edge(src, dst)
                     if fullgraph.in_degree[dst] == 0:
@@ -946,7 +951,7 @@ class PhoenixStructurer(StructurerBase):
         if loop_type == "do-while":
             self.dowhile_known_tail_nodes.add(continue_node)
 
-        return bool(outgoing_edges or len(continue_edges) > 1)
+        return bool(outgoing_edges_removed or len(continue_edges) > 1)
 
     @staticmethod
     def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head) -> set[BaseNode]:
@@ -963,7 +968,7 @@ class PhoenixStructurer(StructurerBase):
                 new_nodes = set()
                 succ_not_in_loop_body = False
                 for succ in fullgraph.successors(node):
-                    if succ not in loop_body:
+                    if succ not in loop_body and succ in graph and fullgraph.out_degree[succ] <= 1:
                         if all(pred in loop_body for pred in fullgraph.predecessors(succ)):
                             new_nodes.add(succ)
                         else:
@@ -1130,9 +1135,9 @@ class PhoenixStructurer(StructurerBase):
             acyclic_graph = graph
         else:
             acyclic_graph = networkx.DiGraph(graph)
-            acyclic_graph.remove_edges_from(graph.in_edges(head))
-
-            self._assert_graph_ok(acyclic_graph, "Removed wrong edges")
+            if len([node for node in acyclic_graph if acyclic_graph.in_degree[node] == 0]) == 0:
+                acyclic_graph.remove_edges_from(graph.in_edges(head))
+                self._assert_graph_ok(acyclic_graph, "Removed wrong edges")
 
         for node in list(GraphUtils.dfs_postorder_nodes_deterministic(acyclic_graph, head)):
             if node not in graph:

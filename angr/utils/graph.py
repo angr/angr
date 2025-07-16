@@ -85,7 +85,7 @@ def to_acyclic_graph(
     return acyclic_graph
 
 
-def dfs_back_edges(graph, start_node):
+def dfs_back_edges(graph, start_node, *, visit_all_nodes: bool = False, visited: set | None = None):
     """
     Perform an iterative DFS traversal of the graph, returning back edges.
 
@@ -96,7 +96,7 @@ def dfs_back_edges(graph, start_node):
     if start_node not in graph:
         return  # Ensures that the start node is in the graph
 
-    visited = set()  # Tracks visited nodes
+    visited = set() if visited is None else visited  # Tracks visited nodes
     finished = set()  # Tracks nodes whose descendants are fully explored
     stack = [(start_node, iter(sorted(graph[start_node], key=GraphUtils._sort_node)))]
 
@@ -114,6 +114,12 @@ def dfs_back_edges(graph, start_node):
         except StopIteration:
             stack.pop()  # Done with this node's children
             finished.add(node)  # Mark this node as finished
+
+    if visit_all_nodes:
+        while len(visited) < len(graph):
+            # If we need to visit all nodes, we can start from unvisited nodes
+            node = next(iter(sorted(set(graph) - visited, key=GraphUtils._sort_node)))
+            yield from dfs_back_edges(graph, node, visited=visited)
 
 
 def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
