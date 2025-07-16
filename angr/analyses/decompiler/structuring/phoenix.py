@@ -897,6 +897,8 @@ class PhoenixStructurer(StructurerBase):
                         new_src_block = self._copy_and_remove_last_statement_if_jump(src_block)
                         new_node = SequenceNode(src_block.addr, nodes=[new_src_block, break_node])
                         if has_continue:
+                            assert continue_node is not None
+
                             if continue_node.addr is not None and self.is_a_jump_target(
                                 last_src_stmt, continue_node.addr
                             ):
@@ -971,6 +973,7 @@ class PhoenixStructurer(StructurerBase):
 
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
                 # src at this point. we need to find the Jump statement and replace it.
+                assert continue_node is not None
                 _, _, cont_block = self._find_node_going_to_dst(src, continue_node)
                 if cont_block is None:
                     # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
@@ -1016,7 +1019,7 @@ class PhoenixStructurer(StructurerBase):
                         elif isinstance(last_stmt, Jump):
                             new_cont_node = ContinueNode(last_stmt.ins_addr, continue_node.addr)
 
-                        if new_cont_node is not None:
+                        if new_cont_node is not None and isinstance(cont_block, (Block, MultiNode)):
                             new_cont_block = self._copy_and_remove_last_statement_if_jump(cont_block)
                             new_node = NodeReplacer(src, {cont_block: new_cont_block}).result
                             new_src = SequenceNode(new_node.addr, nodes=[new_node, new_cont_node])
@@ -1430,7 +1433,7 @@ class PhoenixStructurer(StructurerBase):
         node_default = self._switch_find_default_node(graph, node, node_b_addr)
         if node_default is not None:
             # ensure we have successfully structured node_default
-            if full_graph.out_degree(node_default) > 1:
+            if full_graph.out_degree[node_default] > 1:
                 return False
 
         # un-structure IncompleteSwitchCaseNode
@@ -1752,7 +1755,7 @@ class PhoenixStructurer(StructurerBase):
         node_default = self._switch_find_default_node(graph, node, default_addr)
         if node_default is not None:
             # ensure we have successfully structured node_default
-            if full_graph.out_degree(node_default) > 1:
+            if full_graph.out_degree[node_default] > 1:
                 return False
 
         case_and_entry_addrs = self._find_case_and_entry_addrs(node, graph, cmp_lb, jump_table)
