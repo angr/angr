@@ -948,6 +948,8 @@ class PhoenixStructurer(StructurerBase):
                 else:
                     self.virtualized_edges.add((src, dst))
                     fullgraph_raw.remove_edge(src, dst)
+                    if graph.has_edge(src, dst):
+                        graph_raw.remove_edge(src, dst)
                     if fullgraph.in_degree[dst] == 0:
                         # drop this node
                         fullgraph_raw.remove_node(dst)
