@@ -118,7 +118,7 @@ def dfs_back_edges(graph, start_node, *, visit_all_nodes: bool = False, visited:
     if visit_all_nodes:
         while len(visited) < len(graph):
             # If we need to visit all nodes, we can start from unvisited nodes
-            node = next(iter(sorted(set(graph) - visited, key=GraphUtils._sort_node)))
+            node = sorted(set(graph) - visited, key=GraphUtils._sort_node)[0]
             yield from dfs_back_edges(graph, node, visited=visited)
 
 
