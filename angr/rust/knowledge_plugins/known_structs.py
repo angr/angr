@@ -1,9 +1,8 @@
 from typing import Optional
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 
 from angr.ailment import Const
 
-from angr.rust.definitions.structs import default_structs
 from ..optimization_passes.utils import extract_str_from_addr
 from angr.rust.sim_type import (
     RustSimTypeReference,
@@ -153,10 +152,7 @@ class KnownStructs(KnowledgeBasePlugin):
 
     def __init__(self, kb):
         super().__init__(kb)
-        self.known_struct_types = OrderedDict(
-            (struct_name, struct_ty.with_arch(self._kb._project.arch))
-            for struct_name, struct_ty in default_structs.items()
-        )
+        self.known_struct_types = OrderedDict()
 
     def __iter__(self):
         return iter(self.known_struct_types)
