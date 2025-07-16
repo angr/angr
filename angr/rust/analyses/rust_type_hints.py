@@ -3,7 +3,6 @@ from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Call, FunctionLikeMacro
 
 from ..sim_type import is_composite_type, RustSimTypeFunction
-from ..typehoon.lifter import RustTypeLifter
 from ...analyses import Analysis, AnalysesHub
 
 
