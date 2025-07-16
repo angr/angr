@@ -1,6 +1,8 @@
 from __future__ import annotations
+
+import logging
 import os.path
-from unittest import TestCase, main
+from unittest import TestCase
 
 from angr.ailment.expression import VirtualVariableCategory
 
@@ -9,7 +11,12 @@ from angr.sim_type import SimStruct, SimTypeArray, SimTypeWideChar, SimTypeChar
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.analyses.decompiler.clinic import ClinicStage
 
-from tests.common import bin_location, skip
+from tests.common import bin_location, is_testing
+
+
+def prompt_if_not_testing(prompt: str) -> None:
+    if not is_testing:
+        input(prompt)
 
 
 class TestOutliner(TestCase):
@@ -21,9 +28,19 @@ class TestOutliner(TestCase):
 
         func = proj.kb.functions["verify_password"]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        print("[+] Original function:")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print(dec.codegen.text)
+
+        prompt_if_not_testing("[+] Press any key to continue to outlining...")
+
         outliner = proj.analyses.Outliner(
-            func, dec.ail_graph, src_loc=(0x40180C, None), frontier=[(0x401847, None), (0x401867, 2)]
+            func,
+            dec.ail_graph,
+            src_loc=(0x4017BD, None),  # frontier=[(0x401847, None), (0x401867, 2)]
         )
+
+        prompt_if_not_testing("[+] Function outlined. Press any key to continue...")
 
         # now we have two graphs; gotta decompile them individually
         del dec._variable_kb.variables[func.addr]
@@ -35,6 +52,7 @@ class TestOutliner(TestCase):
             cfg=cfg.model,
             fail_fast=True,
         )
+        print("[+] Post-outlining:")
         print(dec_outer.codegen.text)
 
         # the second function
@@ -78,10 +96,10 @@ class TestOutliner(TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print(dec.codegen.text)
 
-        breakpoint()
+        prompt_if_not_testing("[+] Press any key to continue to outlining...")
 
         outlining_setups = [
-            ((0x140014172, None), [(0x1400144DF, None), (0x14001472C, None)]),
+            ((0x140014172, None), None),  # [(0x1400144DF, None), (0x14001472C, None)]),
             # (
             #     (0x140015368, None),
             #     [
@@ -99,7 +117,7 @@ class TestOutliner(TestCase):
         outliner_vvar_id = 0xD000
         outliner_block_addr = 0xABCD0000
         for src_loc, frontier in outlining_setups:
-            frontier_str = " ".join(f"{x[0]:#x}" for x in frontier)
+            frontier_str = " ".join(f"{x[0]:#x}" for x in frontier) if frontier is not None else "TBD"
             print(f"[+] Outlining {src_loc[0]:#x} - [{frontier_str}]...")
             outliner = proj.analyses.Outliner(
                 func,
@@ -108,8 +126,11 @@ class TestOutliner(TestCase):
                 frontier=frontier,
                 vvar_id_start=outliner_vvar_id,
                 block_addr_start=outliner_block_addr,
+                min_step=2,
             )
             outliner_vvar_id, outliner_block_addr = outliner.vvar_id_start, outliner.block_addr_start
+
+            prompt_if_not_testing("[+] Function outlined. Press any key to continue...")
 
             # the newly outlined function
             out_funcargs = {}
@@ -175,4 +196,8 @@ class TestOutliner(TestCase):
 
 if __name__ == "__main__":
     # main()
+    from angr.analyses.outliner import Outliner
+
+    logging.getLogger("angr.analyses.outliner").setLevel(logging.DEBUG)
+    # TestOutliner().test_outlining_authenticate()
     TestOutliner().test_outlining_notepad_npinit()
