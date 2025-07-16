@@ -1,16 +1,20 @@
 from __future__ import annotations
+import logging
+
 import networkx
 
 from angr.ailment import Block
 from angr.ailment.statement import Call, Assignment, ConditionalJump
 from angr.ailment.expression import Const, BinaryOp, VirtualVariable, VirtualVariableCategory
-
 from angr.utils.ssa import is_phi_assignment
 from angr.analyses import Analysis, AnalysesHub
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.code_location import ExternalCodeLocation
 from angr.knowledge_plugins.functions import Function
-from angr.utils.graph import subgraph_between_nodes
+from angr.utils.graph import subgraph_between_nodes, Dominators, compute_dominance_frontier
+
+
+_l = logging.getLogger(__name__)
 
 
 class Outliner(Analysis):
@@ -24,9 +28,10 @@ class Outliner(Analysis):
         func,
         ail_graph: networkx.DiGraph,
         src_loc: tuple[int, int | None],
-        frontier: set[tuple[int, int | None]],
+        frontier: set[tuple[int, int | None]] | None = None,
         vvar_id_start: int = 0xBEEF,
         block_addr_start: int = 0xAABB_0000,
+        min_step: int = 1,
     ):
         self.func = func
         self.graph = ail_graph
@@ -34,10 +39,14 @@ class Outliner(Analysis):
         self.frontier_locs = frontier
         self.vvar_id_start = vvar_id_start
         self.block_addr_start = block_addr_start
+        self.min_step = min_step
 
         self.out_func = None
         self.out_graph = None
         self.out_funcargs = None
+
+        if not self.frontier_locs:
+            self.frontier_locs = self._determine_frontier()
 
         self._analyze()
 
@@ -147,7 +156,8 @@ class Outliner(Analysis):
         vvar_id = self._next_vvar_id()
         call_expr = Call(
             None,
-            Const(None, None, src_node.addr, 64),
+            f"outlined_func_{src_node.addr:x}",
+            # Const(None, None, src_node.addr, 64),
             args=callee_arg_vvars,
             bits=self.project.arch.bits,
             ins_addr=src_node.addr,
@@ -228,6 +238,102 @@ class Outliner(Analysis):
                 else:
                     # multiple source blocks have been replaced... it's bad
                     raise NotImplementedError
+
+    @staticmethod
+    def _node_addr_to_str(addr: tuple[int, int | None]) -> str:
+        """
+        Convert a node address to a string representation.
+        """
+        return f"{addr[0]:#x}.{addr[1]}" if addr[1] is not None else f"{addr[0]:#x}"
+
+    def _determine_frontier(self) -> set[tuple[int, int | None]]:
+        _l.debug("Determining the outlining frontier starting at (%#x, %s)", self.src_loc[0], self.src_loc[1])
+
+        entry = next(iter(bb for bb in self.graph if self.graph.in_degree[bb] == 0))
+
+        liveness = self.project.analyses.SLiveness(
+            self.func,
+            func_graph=self.graph,
+            entry=entry,
+            arg_vvars=[],  # TODO: FIXME
+        )
+
+        live_vars_dict = liveness.live_vars_by_stmt()
+        assert self.src_loc in live_vars_dict
+
+        # find its dominance frontier
+        doms = Dominators(self.graph, entry)
+        dom_frontiers = compute_dominance_frontier(self.graph, doms.dom)
+
+        start = next(iter(bb for bb in self.graph if (bb.addr, bb.idx) == self.src_loc))
+
+        if start not in dom_frontiers:
+            return set()
+
+        queue = [start]
+        frontiers = set()
+        while queue:
+            node = queue.pop(0)
+            max_frontier = dom_frontiers[node]
+
+            # for all nodes between `node` and frontier, see when new live variables are no longer live
+            new_frontier = self._variable_life_frontier(node, max_frontier, liveness.model, min_step=self.min_step)
+            _l.debug(
+                "New frontier for node (%#x, %s): %s",
+                node.addr,
+                node.idx,
+                list(map(self._node_addr_to_str, new_frontier)),
+            )
+
+            frontiers |= new_frontier
+
+        return frontiers
+
+    def _variable_life_frontier(
+        self, start: Block, max_frontier: set[Block], liveness, min_step=1
+    ) -> set[tuple[int, int | None]]:
+
+        initial_live_vars = liveness.live_ins[start.addr, start.idx]
+        queue = [
+            {
+                "node": start,
+                "live_vars": set(),
+                "step": 0,
+            }
+        ]
+        visited = {start}
+
+        frontier = set()
+
+        while queue:
+            info = queue.pop(0)
+            node = info["node"]
+            step = info["step"]
+
+            live_outs = liveness.live_outs[node.addr, node.idx] - initial_live_vars
+            _l.debug("Visiting node %#x[%s] (step %d). Live outs: %s", node.addr, node.idx, step, live_outs)
+            if step >= min_step and not live_outs:
+                frontier.add((node.addr, node.idx))
+                continue
+
+            for succ in self.graph.successors(node):
+                if succ in visited:
+                    continue
+                if succ in max_frontier:
+                    frontier.add((succ.addr, succ.idx))
+                    continue
+                visited.add(succ)
+
+                # continue to the next node
+                queue.append(
+                    {
+                        "node": succ,
+                        "live_vars": live_outs,
+                        "step": step + 1,
+                    }
+                )
+
+        return frontier
 
     def execute(self):
         """
