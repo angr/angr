@@ -769,7 +769,7 @@ class PhoenixStructurer(StructurerBase):
                     # block in src may not be the actual block that has a direct jump or a conditional jump to dst. as
                     # a result, we should walk all blocks in src to find the jump to dst, then extract the condition
                     # and augment the corresponding block with a ConditionalBreak.
-                    _, src_parent, src_block = self._find_node_going_to_dst(src, dst)
+                    _, _, src_block = self._find_node_going_to_dst(src, dst)
                     if src_block is None:
                         l.warning(
                             "Cannot find the source block jumping to the destination block at %#x. "
