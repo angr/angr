@@ -717,7 +717,7 @@ class RegionIdentifier(Analysis):
 
         # visit the nodes in post-order
         region_created = False
-        for node in list(networkx.dfs_postorder_nodes(graph_copy, source=head)):
+        for node in list(GraphUtils.dfs_postorder_nodes_deterministic(graph_copy, head)):
             if node is dummy_endnode:
                 # skip the dummy endnode
                 continue
