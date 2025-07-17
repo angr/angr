@@ -267,13 +267,18 @@ class RegionIdentifier(Analysis):
 
         # special case: any node with more than two non-self successors are probably the head of a switch-case. we
         # should include all successors into the loop subgraph.
+        # we must be extra careful here to not include nodes that are reachable from outside the loop subgraph. an
+        # example is in binary 064e1d62c8542d658d83f7e231cc3b935a1f18153b8aea809dcccfd446a91c93, loop 0x40d7b0 should
+        # not include block 0x40d9d5 because this node has a out-of-loop-body predecessor (block 0x40d795).
         while True:
             updated = False
             for node in list(loop_subgraph):
                 nonself_successors = [succ for succ in graph.successors(node) if succ is not node]
                 if len(nonself_successors) > 2:
                     for succ in nonself_successors:
-                        if not loop_subgraph.has_edge(node, succ):
+                        if not loop_subgraph.has_edge(node, succ) and all(
+                            pred in loop_subgraph for pred in graph.predecessors(succ)
+                        ):
                             updated = True
                             loop_subgraph.add_edge(node, succ)
             if not updated:
