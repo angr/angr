@@ -900,8 +900,24 @@ class StructurerBase(Analysis):
 
     @staticmethod
     def _remove_last_statement_if_jump(
-        node: BaseNode | ailment.Block | MultiNode,
+        node: BaseNode | ailment.Block | MultiNode | SequenceNode,
     ) -> ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | None:
+        if isinstance(node, SequenceNode) and node.nodes and isinstance(node.nodes[-1], ConditionNode):
+            cond_node = node.nodes[-1]
+            the_stmt: ailment.Stmt.Jump | None = None
+            for block in [cond_node.true_node, cond_node.false_node]:
+                if (
+                    isinstance(block, ailment.Block)
+                    and block.statements
+                    and isinstance(block.statements[-1], ailment.Stmt.Jump)
+                ):
+                    the_stmt = block.statements[-1]  # type: ignore
+                    break
+
+            if the_stmt is not None:
+                node.nodes = node.nodes[:-1]
+                return the_stmt
+
         try:
             last_stmts = ConditionProcessor.get_last_statements(node)
         except EmptyBlockNotice:
@@ -912,7 +928,15 @@ class StructurerBase(Analysis):
         return None
 
     @staticmethod
-    def _copy_and_remove_last_statement_if_jump(node: ailment.Block | MultiNode) -> ailment.Block | MultiNode:
+    def _copy_and_remove_last_statement_if_jump(
+        node: ailment.Block | MultiNode | SequenceNode,
+    ) -> ailment.Block | MultiNode | SequenceNode:
+        if isinstance(node, SequenceNode):
+            if node.nodes and isinstance(node.nodes[-1], ConditionNode):
+                # copy the node and remove the last condition node
+                return SequenceNode(node.addr, nodes=node.nodes[:-1])
+            return node.copy()
+
         if isinstance(node, MultiNode):
             if node.nodes:
                 last_block = StructurerBase._copy_and_remove_last_statement_if_jump(node.nodes[-1])
