@@ -1501,8 +1501,8 @@ class TestDecompiler(unittest.TestCase):
 
         print_decompilation_result(d)
 
-        assert re.search(r"if \([^v]*v1 == 32\)", d.codegen.text) is not None
-        assert re.search(r"else if \([^v]*v1 == 9\)", d.codegen.text) is not None
+        assert re.search(r"if \([^v]*v1 [=!]= 32\)", d.codegen.text) is not None
+        assert re.search(r"if \([^v]*v1 [=!]= 9\)", d.codegen.text) is not None
         assert d.codegen.text.count("return v1;") == 1
 
     @for_all_structuring_algos
