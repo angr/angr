@@ -850,6 +850,15 @@ class PhoenixStructurer(StructurerBase):
                 # give up because there is a parent region
                 return False
 
+            # sanity check: if removing outgoing edges would create dangling nodes, then it means we are not ready for
+            # cyclic refinement yet.
+            outgoing_edges_by_dst = defaultdict(list)
+            for src, dst in outgoing_edges:
+                outgoing_edges_by_dst[dst].append(src)
+            for dst, srcs in outgoing_edges_by_dst.items():
+                if dst in graph and graph.in_degree[dst] == len(srcs):
+                    return False
+
             outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
 
             if successor is None:
