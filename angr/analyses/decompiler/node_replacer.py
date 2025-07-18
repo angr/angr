@@ -15,7 +15,7 @@ class NodeReplacer(SequenceWalker):
 
         self.root = root
         self.replacements = replacements
-        self.result: BaseNode = self.walk(self.root)
+        self.result: BaseNode = self.walk(self.root)  # type:ignore
 
     def _handle(self, node: BaseNode, **kwargs):
         return self.replacements[node] if node in self.replacements else super()._handle(node, **kwargs)

@@ -129,7 +129,7 @@ class PhoenixStructurer(StructurerBase):
         self.whitelist_edges: set[tuple[int, int]] = set()
         # also whitelist certain nodes that are definitely header for switch-case constructs. they should not be merged
         # into another node before we successfully structure the entire switch-case.
-        self.switch_case_known_heads: set[Block] = set()
+        self.switch_case_known_heads: set[Block | BaseNode] = set()
 
         # whitelist certain nodes that should be treated as a tail node for do-whiles. these nodes should not be
         # absorbed into other SequenceNodes
@@ -1427,7 +1427,8 @@ class PhoenixStructurer(StructurerBase):
     def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph_raw, full_graph_raw) -> bool:
 
         successor_addrs: list[int] = []
-        cmp_expr, cmp_lb = None, None
+        cmp_expr: int = 0
+        cmp_lb: int = 0
         switch_head_addr: int = 0
 
         # case 1: the last block is a ConditionNode with two goto statements
@@ -1455,6 +1456,7 @@ class PhoenixStructurer(StructurerBase):
                     return False
                 cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
 
+                assert cond_node.addr is not None
                 switch_head_addr = cond_node.addr
 
         # case 2: the last statement is a conditional jump
@@ -1509,6 +1511,8 @@ class PhoenixStructurer(StructurerBase):
 
         # populate whitelist_edges
         assert jump_table.jumptable_entries is not None
+        assert isinstance(node_a.addr, int)
+        assert isinstance(node.addr, int)
         for case_node_addr in jump_table.jumptable_entries:
             self.whitelist_edges.add((node_a.addr, case_node_addr))
         self.whitelist_edges.add((node.addr, node_b_addr))
@@ -3123,7 +3127,7 @@ class PhoenixStructurer(StructurerBase):
                 # FIXME: idx is ignored
                 _Holder.parent_and_block.append((_Holder.block_id, parent, break_node))
 
-        def _handle_ConditionNode(cond_node: ConditionNode, parent=None, **kwargs):
+        def _handle_ConditionNode(cond_node: ConditionNode, parent=None, **kwargs):  # pylint:disable=unused-argument
             _Holder.block_id += 1
             if (
                 isinstance(parent, SequenceNode)
