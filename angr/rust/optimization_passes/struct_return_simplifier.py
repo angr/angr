@@ -40,6 +40,9 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
         for offset in sorted(fields.keys()):
             expr = fields[offset]
             arg_ty = RustSimTypeInt(expr.bits, signed=False)
+            cur_size = RustSimStruct(ty_fields).with_arch(self.project.arch).size // self.project.arch.bytes
+            if cur_size < offset:
+                ty_fields[f"padding_{cur_size}"] = RustSimTypeInt(offset - cur_size, signed=False)
             ty_fields[f"field_{offset}"] = arg_ty
         struct_ty = RustSimStruct(ty_fields).with_arch(self.project.arch)
         struct_ty.name = f"struct{struct_ty.size // 8}"

@@ -201,7 +201,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
         if cur_size == expected_size:
             move_stmt = None
             if len(move_stmts) >= 2:
-                dst_offset = move_stmts[0].dst.stacK_offset
+                dst_offset = move_stmts[0].dst.stack_offset
                 # TODO: Group move stmts
             elif len(move_stmts) == 1:
                 move_stmt = move_stmts[0]

@@ -597,26 +597,26 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.bits), typevar=tv)
 
     def _handle_expr_StringLiteral(self, expr: StringLiteral):
-        return RichR(self.state.top(expr.bits))
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
 
     def _handle_expr_Struct(self, expr: Struct):
         for field in expr.fields.values():
             self._expr(field)
-        return RichR(self.state.top(expr.bits))
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
 
     def _handle_expr_Enum(self, expr: Enum):
         for field in expr.fields:
             self._expr(field)
-        return RichR(self.state.top(expr.bits))
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
 
     def _handle_expr_Array(self, expr: Array):
         for ele in expr.elements:
             self._expr(ele)
-        return RichR(self.state.top(expr.bits))
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
 
     def _handle_expr_Let(self, expr: Let):
         self._expr(expr.src)
-        return RichR(self.state.top(expr.bits))
+        return RichR(self.state.top(expr.bits), typevar=typevars.TypeVariable())
 
     def _handle_expr_FunctionLikeMacro(self, expr: FunctionLikeMacro):
         for arg in expr.args:

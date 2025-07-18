@@ -166,7 +166,7 @@ class RustTypeTranslator(TypeTranslator):
                     )
                     for variant in tc.variants
                 ],
-            )
+            ).with_arch(self.arch)
 
     def _tc2simtype(self, tc):
         if tc is None:

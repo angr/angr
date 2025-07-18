@@ -39,7 +39,10 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
     @property
     def alignment(self):
         align = super().alignment
-        return align if align > 0 else 1
+        align = align if align > 0 else 1
+        if self._arch:
+            align = min(align, self._arch.bytes)
+        return align
 
     @property
     def size(self):
@@ -287,8 +290,9 @@ class RustSimStruct(RustSimType, SimStruct):
         size = super().size
         if size == 0:
             return 0
-        if size % self.alignment != 0:
-            size += self.alignment - (size % self.alignment)
+        align = self.alignment * self._arch.bytes
+        if size % align != 0:
+            size += align - (size % align)
         return size
 
     def repr(self, name=None, full=0, memo=None, indent=0):
