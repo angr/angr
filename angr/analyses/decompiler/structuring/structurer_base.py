@@ -35,6 +35,7 @@ from .structurer_nodes import (
     LoopNode,
     EmptyBlockNotice,
     IncompleteSwitchCaseNode,
+    IncompleteSwitchCaseHeadStatement,
 )
 
 if TYPE_CHECKING:
@@ -924,6 +925,37 @@ class StructurerBase(Analysis):
             return None
 
         if len(last_stmts) == 1 and isinstance(last_stmts[0], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)):
+            return remove_last_statement(node)  # type: ignore
+        return None
+
+    @staticmethod
+    def _remove_last_statement_if_jump_or_schead(
+        node: BaseNode | ailment.Block | MultiNode | SequenceNode,
+    ) -> ailment.Stmt.Jump | ailment.Stmt.ConditionalJump | IncompleteSwitchCaseHeadStatement | None:
+        if isinstance(node, SequenceNode) and node.nodes and isinstance(node.nodes[-1], ConditionNode):
+            cond_node = node.nodes[-1]
+            the_stmt: ailment.Stmt.Jump | None = None
+            for block in [cond_node.true_node, cond_node.false_node]:
+                if (
+                    isinstance(block, ailment.Block)
+                    and block.statements
+                    and isinstance(block.statements[-1], ailment.Stmt.Jump)
+                ):
+                    the_stmt = block.statements[-1]  # type: ignore
+                    break
+
+            if the_stmt is not None:
+                node.nodes = node.nodes[:-1]
+                return the_stmt
+
+        try:
+            last_stmts = ConditionProcessor.get_last_statements(node)
+        except EmptyBlockNotice:
+            return None
+
+        if len(last_stmts) == 1 and isinstance(
+            last_stmts[0], (ailment.Stmt.Jump, ailment.Stmt.ConditionalJump, IncompleteSwitchCaseHeadStatement)
+        ):
             return remove_last_statement(node)  # type: ignore
         return None
 

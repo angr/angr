@@ -2680,9 +2680,11 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
 
         assert d.codegen.text.count("switch") == 1
+        assert d.codegen.text.count("while ") == 2, "Expect two loops"
 
     @for_all_structuring_algos
     def test_no_switch_case_touch_touch(self, decompiler_options=None):

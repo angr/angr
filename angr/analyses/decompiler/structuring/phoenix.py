@@ -24,6 +24,7 @@ from angr.analyses.decompiler.utils import (
     remove_last_statements,
     extract_jump_targets,
     switch_extract_cmp_bounds,
+    switch_extract_cmp_bounds_from_condition,
     is_empty_or_label_only_node,
     has_nonlabel_nonphi_statements,
     first_nonlabel_nonphi_statement,
@@ -81,7 +82,8 @@ class GraphEdgeFilter:
         self.graph = graph
 
     def __call__(self, src, dst) -> bool:
-        return not self.graph[src][dst].get("cyclic_refinement_outgoing", False)
+        d = self.graph[src][dst]
+        return not d.get("cyclic_refinement_outgoing", False)
 
 
 def _f(graph: networkx.DiGraph):
@@ -1026,6 +1028,7 @@ class PhoenixStructurer(StructurerBase):
             for src, _ in continue_edges:
                 if src is src_to_ignore:
                     # this edge will be handled during loop structuring
+                    # mark it regardless
                     continue
 
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
@@ -1422,17 +1425,59 @@ class PhoenixStructurer(StructurerBase):
         return True
 
     def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph_raw, full_graph_raw) -> bool:
-        try:
-            last_stmt = self.cond_proc.get_last_statement(node)
-        except EmptyBlockNotice:
-            return False
 
-        if last_stmt is None:
-            return False
+        successor_addrs: list[int] = []
+        cmp_expr, cmp_lb = None, None
+        switch_head_addr: int = 0
 
-        successor_addrs = extract_jump_targets(last_stmt)
-        if len(successor_addrs) != 2:
-            return False
+        # case 1: the last block is a ConditionNode with two goto statements
+        if isinstance(node, SequenceNode) and node.nodes and isinstance(node.nodes[-1], ConditionNode):
+            cond_node = node.nodes[-1]
+            assert isinstance(cond_node, ConditionNode)
+            if (
+                cond_node.true_node is not None
+                and cond_node.false_node is not None
+                and isinstance(cond_node.true_node, Block)
+                and isinstance(cond_node.false_node, Block)
+            ):
+                successor_addrs = [
+                    *extract_jump_targets(cond_node.true_node.statements[-1]),
+                    *extract_jump_targets(cond_node.false_node.statements[-1]),
+                ]
+                if len(successor_addrs) != 2 or None in successor_addrs:
+                    return False
+
+                # extract the comparison expression, lower-, and upper-bounds from the last statement
+                cmp = switch_extract_cmp_bounds_from_condition(
+                    self.cond_proc.convert_claripy_bool_ast(cond_node.condition)
+                )
+                if not cmp:
+                    return False
+                cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+
+                switch_head_addr = cond_node.addr
+
+        # case 2: the last statement is a conditional jump
+        if not successor_addrs:
+            try:
+                last_stmt = self.cond_proc.get_last_statement(node)
+            except EmptyBlockNotice:
+                return False
+
+            if last_stmt is None:
+                return False
+
+            successor_addrs = extract_jump_targets(last_stmt)
+            if len(successor_addrs) != 2:
+                return False
+
+            # extract the comparison expression, lower-, and upper-bounds from the last statement
+            cmp = switch_extract_cmp_bounds(last_stmt)
+            if not cmp:
+                return False
+            cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+
+            switch_head_addr = last_stmt.ins_addr
 
         for t in successor_addrs:
             if t in self.jump_tables:
@@ -1445,12 +1490,6 @@ class PhoenixStructurer(StructurerBase):
         jump_table = self.jump_tables[target]
         if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
             return False
-
-        # extract the comparison expression, lower-, and upper-bounds from the last statement
-        cmp = switch_extract_cmp_bounds(last_stmt)
-        if not cmp:
-            return False
-        cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
 
         graph = _f(graph_raw)
         full_graph = _f(full_graph_raw)
@@ -1574,7 +1613,7 @@ class PhoenixStructurer(StructurerBase):
             cases,
             node_b_addr,
             node_default,
-            last_stmt.ins_addr,
+            switch_head_addr,
             to_remove,
             graph_raw,
             full_graph_raw,
@@ -2019,7 +2058,7 @@ class PhoenixStructurer(StructurerBase):
             to_remove.add(node_default)
 
         for nn in to_remove:
-            if nn is head:
+            if nn is head or (node_a is not None and nn is node_a):
                 continue
             for src in graph.predecessors(nn):
                 if src not in to_remove:
@@ -2081,45 +2120,59 @@ class PhoenixStructurer(StructurerBase):
             self._node_order[scnode] = self._node_order[head]
 
         if out_edges:
+            # sort out_edges
+            out_edges_to_head = [edge for edge in out_edges if edge[1] is head]
+            other_out_edges = sorted(
+                [edge for edge in out_edges if edge[1] is not head], key=lambda edge: (edge[0].addr, edge[1].addr)
+            )
+
             # for all out edges going to head, we ensure there is a goto at the end of each corresponding case node
-            for out_src, out_dst in out_edges:
-                if out_dst is head:
-                    all_case_nodes = list(cases.values())
-                    if node_default is not None:
-                        all_case_nodes.append(node_default)
-                    case_node: SequenceNode = next(nn for nn in all_case_nodes if nn.addr == out_src.addr)
-                    try:
-                        case_node_last_stmt = self.cond_proc.get_last_statement(case_node)
-                    except EmptyBlockNotice:
-                        case_node_last_stmt = None
-                    if not isinstance(case_node_last_stmt, Jump):
-                        jump_stmt = Jump(
-                            None, Const(None, None, head.addr, self.project.arch.bits), None, ins_addr=out_src.addr
-                        )
-                        jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
-                        case_node.nodes.append(jump_node)
+            for out_src, out_dst in out_edges_to_head:
+                assert out_dst is head
+                all_case_nodes = list(cases.values())
+                if node_default is not None:
+                    all_case_nodes.append(node_default)
+                case_node: SequenceNode = next(nn for nn in all_case_nodes if nn.addr == out_src.addr)
+                try:
+                    case_node_last_stmt = self.cond_proc.get_last_statement(case_node)
+                except EmptyBlockNotice:
+                    case_node_last_stmt = None
+                if not isinstance(case_node_last_stmt, Jump):
+                    jump_stmt = Jump(
+                        None, Const(None, None, head.addr, self.project.arch.bits), None, ins_addr=out_src.addr
+                    )
+                    jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
+                    case_node.nodes.append(jump_node)
 
-            out_edges = [edge for edge in out_edges if edge[1] is not head]
-            if out_edges:
-                # leave only one out edge and virtualize all other out edges
-                out_edge = out_edges[0]
-                out_dst = out_edge[1]
-                if out_dst in graph:
-                    graph.add_edge(scnode, out_dst)
-                full_graph.add_edge(scnode, out_dst)
-                if full_graph.has_edge(head, out_dst):
-                    full_graph.remove_edge(head, out_dst)
+            if out_edges_to_head:  # noqa:SIM108
+                # add an edge from SwitchCaseNode to head so that a loop will be structured later
+                out_dst_succ = head
+            else:
+                # add an edge from SwitchCaseNode to its most immediate successor (if there is one)
+                out_dst_succ = other_out_edges[0][1] if other_out_edges else None
 
-                # fix full_graph if needed: remove successors that are no longer needed
-                for _out_src, out_dst in out_edges[1:]:
-                    if out_dst in full_graph and out_dst not in graph and full_graph.in_degree[out_dst] == 0:
-                        full_graph.remove_node(out_dst)
-                        assert self._region.successors is not None
-                        if out_dst in self._region.successors:
-                            self._region.successors.remove(out_dst)
+            if out_dst_succ is not None:
+                if out_dst_succ in graph:
+                    graph.add_edge(scnode, out_dst_succ)
+                full_graph.add_edge(scnode, out_dst_succ)
+                if full_graph.has_edge(head, out_dst_succ):
+                    full_graph.remove_edge(head, out_dst_succ)
+
+            # fix full_graph if needed: remove successors that are no longer needed
+            for _out_src, out_dst in other_out_edges:
+                if (
+                    out_dst is not out_dst_succ
+                    and out_dst in full_graph
+                    and out_dst not in graph
+                    and full_graph.in_degree[out_dst] == 0
+                ):
+                    full_graph.remove_node(out_dst)
+                    assert self._region.successors is not None
+                    if out_dst in self._region.successors:
+                        self._region.successors.remove(out_dst)
 
         # remove the last statement (conditional jump) in the head node
-        remove_last_statement(head)
+        self._remove_last_statement_if_jump_or_schead(head)
 
         if node_a is not None:
             # remove the last statement in node_a
@@ -2387,44 +2440,6 @@ class PhoenixStructurer(StructurerBase):
                     self.replace_nodes(full_graph_raw, start_node, new_node, old_node_1=left, update_node_order=True)
 
                     return True
-
-        return False
-
-    def _match_acyclic_ite_backedge_node(self, graph_raw, full_graph_raw, node, head) -> bool:
-        """
-        Node -> head forms a backedge; check if node has another successor that can be structured into an If-Then-Else
-        construct.
-        """
-
-        full_graph = _f(full_graph_raw)
-        graph = _f(graph_raw)
-
-        succs = list(graph.successors(node))
-        if len(succs) == 2 and head in succs:
-            other = next(iter(succ for succ in succs if succ is not head))
-            if other in full_graph and full_graph.out_degree[other] == 0:
-                # other is a dead end, so we can structure it into an ITE
-                if full_graph.in_degree[other] == 1:
-                    if self.cond_proc.have_opposite_edge_conditions(full_graph, node, other, head):
-                        # c = !c
-                        edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, node, other)
-                        last_if_jump = self._remove_last_statement_if_jump(node)
-                        new_cond_node = ConditionNode(
-                            last_if_jump.ins_addr if last_if_jump is not None else node.addr,
-                            None,
-                            edge_cond_left,
-                            other,
-                            false_node=head,
-                        )
-                        new_node = SequenceNode(node.addr, nodes=[node, new_cond_node])
-
-                        # on the original graph
-                        graph_raw.remove_node(other)
-                        self.replace_nodes(graph_raw, node, new_node)
-                        # on the graph with successors
-                        full_graph_raw.remove_node(other)
-                        self.replace_nodes(full_graph_raw, node, new_node, update_node_order=True)
-                        return True
 
         return False
 
