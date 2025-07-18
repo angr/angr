@@ -230,7 +230,7 @@ class Decompiler(Analysis):
         # is the algorithm based on Phoenix (a schema-based algorithm)?
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
             self._force_loop_single_exit = False
-            self._refine_loops_with_single_successor = True
+            # self._refine_loops_with_single_successor = True
             self._complete_successors = True
             fold_callexprs_into_conditions = True
 
