@@ -239,6 +239,24 @@ class ConditionProcessor:
         condition translation if possible.
         """
 
+        if isinstance(src, SequenceNode) and src.nodes and isinstance(src.nodes[-1], ConditionNode):
+            cond_node = src.nodes[-1]
+            if (
+                isinstance(cond_node.true_node, ailment.Block)
+                and isinstance(cond_node.false_node, ailment.Block)
+                and cond_node.true_node.statements
+                and cond_node.false_node.statements
+            ):
+                last_stmt_true = self.get_last_statement(cond_node.true_node)
+                last_stmt_false = self.get_last_statement(cond_node.false_node)
+                if (
+                    isinstance(last_stmt_true, ailment.Stmt.Jump)
+                    and isinstance(last_stmt_false, ailment.Stmt.Jump)
+                    and isinstance(last_stmt_true.target, ailment.Expr.Const)
+                    and isinstance(last_stmt_false.target, ailment.Expr.Const)
+                ):
+                    return {last_stmt_true.target.value, last_stmt_false.target.value} == {dst0.addr, dst1.addr}
+
         if src in graph and graph.out_degree[src] == 2 and graph.has_edge(src, dst0) and graph.has_edge(src, dst1):
             # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
             if isinstance(src, ailment.Block) and src.statements and is_head_controlled_loop_block(src):
@@ -247,7 +265,10 @@ class ConditionProcessor:
                 )
                 assert last_stmt is not None
             else:
-                last_stmt = self.get_last_statement(src)
+                try:
+                    last_stmt = self.get_last_statement(src)
+                except EmptyBlockNotice:
+                    last_stmt = None
 
             if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
                 return True
@@ -258,6 +279,28 @@ class ConditionProcessor:
         return claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right)  # type: ignore
 
     def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
+
+        def _check_condnode_and_get_condition(cond_node: ConditionNode) -> claripy.ast.Bool | None:
+            for cond_block, negate in [(cond_node.true_node, False), (cond_node.false_node, True)]:
+                if isinstance(cond_block, ailment.Block) and cond_block.statements:
+                    last_stmt = self.get_last_statement(cond_block)
+                    if (
+                        isinstance(last_stmt, ailment.Stmt.Jump)
+                        and isinstance(last_stmt.target, ailment.Expr.Const)
+                        and last_stmt.target.value == dst.addr
+                    ):
+                        return claripy.Not(cond_node.condition) if negate else cond_node.condition
+            return None
+
+        if isinstance(src, SequenceNode) and src.nodes and isinstance(src.nodes[-1], ConditionNode):
+            predicate = _check_condnode_and_get_condition(src.nodes[-1])
+            if predicate is not None:
+                return predicate
+        if isinstance(src, ConditionNode):
+            predicate = _check_condnode_and_get_condition(src)
+            if predicate is not None:
+                return predicate
+
         edge = src, dst
         edge_data = graph.get_edge_data(*edge)
         edge_type = edge_data.get("type", "transition") if edge_data is not None else "transition"

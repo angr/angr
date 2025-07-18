@@ -142,6 +142,7 @@ class Clinic(Analysis):
         optimization_scratch: dict[str, Any] | None = None,
         desired_variables: set[str] | None = None,
         force_loop_single_exit: bool = True,
+        refine_loops_with_single_successor: bool = False,
         complete_successors: bool = False,
         max_type_constraints: int = 100_000,
         type_constraint_set_degradation_threshold: int = 150,
@@ -212,6 +213,7 @@ class Clinic(Analysis):
         self._inlining_parents = inlining_parents or ()
         self._desired_variables = desired_variables
         self._force_loop_single_exit = force_loop_single_exit
+        self._refine_loops_with_single_successor = refine_loops_with_single_successor
         self._complete_successors = complete_successors
 
         self._register_save_areas_removed: bool = False
@@ -1550,6 +1552,7 @@ class Clinic(Analysis):
                 entry_node_addr=self.entry_node_addr,
                 scratch=self.optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
+                refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
                 stack_pointer_tracker=stack_pointer_tracker,
                 **kwargs,

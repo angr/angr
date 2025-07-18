@@ -85,7 +85,7 @@ def to_acyclic_graph(
     return acyclic_graph
 
 
-def dfs_back_edges(graph, start_node):
+def dfs_back_edges(graph, start_node, *, visit_all_nodes: bool = False, visited: set | None = None):
     """
     Perform an iterative DFS traversal of the graph, returning back edges.
 
@@ -96,9 +96,9 @@ def dfs_back_edges(graph, start_node):
     if start_node not in graph:
         return  # Ensures that the start node is in the graph
 
-    visited = set()  # Tracks visited nodes
+    visited = set() if visited is None else visited  # Tracks visited nodes
     finished = set()  # Tracks nodes whose descendants are fully explored
-    stack = [(start_node, iter(graph[start_node]))]
+    stack = [(start_node, iter(sorted(graph[start_node], key=GraphUtils._sort_node)))]
 
     while stack:
         node, children = stack[-1]
@@ -110,10 +110,16 @@ def dfs_back_edges(graph, start_node):
                 if child not in finished:
                     yield node, child  # Found a back edge
             elif child not in finished:  # Check if the child has not been finished
-                stack.append((child, iter(graph[child])))
+                stack.append((child, iter(sorted(graph[child], key=GraphUtils._sort_node))))
         except StopIteration:
             stack.pop()  # Done with this node's children
             finished.add(node)  # Mark this node as finished
+
+    if visit_all_nodes:
+        while len(visited) < len(graph):
+            # If we need to visit all nodes, we can start from unvisited nodes
+            node = sorted(set(graph) - visited, key=GraphUtils._sort_node)[0]
+            yield from dfs_back_edges(graph, node, visited=visited)
 
 
 def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
@@ -594,16 +600,23 @@ class SCCPlaceholder:
     Describes a placeholder for strongly-connected-components in a graph.
     """
 
-    __slots__ = ("scc_id",)
+    __slots__ = (
+        "addr",
+        "scc_id",
+    )
 
-    def __init__(self, scc_id):
+    def __init__(self, scc_id, addr):
         self.scc_id = scc_id
+        self.addr = addr
 
     def __eq__(self, other):
-        return isinstance(other, SCCPlaceholder) and other.scc_id == self.scc_id
+        return isinstance(other, SCCPlaceholder) and other.scc_id == self.scc_id and other.addr == self.addr
 
     def __hash__(self):
         return hash(f"scc_placeholder_{self.scc_id}")
+
+    def __repr__(self):
+        return f"SCCPlaceholder({self.scc_id}, addr={self.addr:#x})"
 
 
 class GraphUtils:
@@ -676,17 +689,17 @@ class GraphUtils:
     @staticmethod
     def dfs_postorder_nodes_deterministic(graph: networkx.DiGraph, source):
         visited = set()
-        stack = [source]
+        stack: list[tuple[Any, bool]] = [(source, True)]  # NodeType, is_pre_visit
         while stack:
-            node = stack[-1]
-            if node not in visited:
+            node, pre_visit = stack.pop()
+            if pre_visit and node not in visited:
                 visited.add(node)
+                stack.append((node, False))
                 for succ in sorted(graph.successors(node), key=GraphUtils._sort_node):
                     if succ not in visited:
-                        stack.append(succ)
-            else:
+                        stack.append((succ, True))
+            elif not pre_visit:
                 yield node
-                stack.pop()
 
     @staticmethod
     def reverse_post_order_sort_nodes(graph, nodes=None):
@@ -759,7 +772,10 @@ class GraphUtils:
         """
 
         # fast path for single node graphs
-        if graph.number_of_nodes() == 1:
+        number_of_nodes = graph.number_of_nodes()
+        if number_of_nodes == 0:
+            return []
+        if number_of_nodes == 1:
             if nodes is None:
                 return list(graph.nodes)
             return [n for n in graph.nodes() if n in nodes]
@@ -768,21 +784,25 @@ class GraphUtils:
         graph_copy = networkx.DiGraph()
 
         # find all strongly connected components in the graph
-        sccs = [scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1]
+        sccs = sorted(
+            (scc for scc in networkx.strongly_connected_components(graph) if len(scc) > 1),
+            key=lambda x: (len(x), min(node.addr if hasattr(node, "addr") else node for node in x)),
+        )
         comp_indices = {}
         for i, scc in enumerate(sccs):
+            scc_addr = min(node.addr if hasattr(node, "addr") else node for node in scc)
             for node in scc:
                 if node not in comp_indices:
-                    comp_indices[node] = i
+                    comp_indices[node] = (i, scc_addr)
 
         # collapse all strongly connected components
         for src, dst in sorted(graph.edges(), key=GraphUtils._sort_edge):
-            scc_index = comp_indices.get(src)
+            scc_index, scc_addr = comp_indices.get(src, (None, None))
             if scc_index is not None:
-                src = SCCPlaceholder(scc_index)
-            scc_index = comp_indices.get(dst)
+                src = SCCPlaceholder(scc_index, scc_addr)
+            scc_index, scc_addr = comp_indices.get(dst, (None, None))
             if scc_index is not None:
-                dst = SCCPlaceholder(scc_index)
+                dst = SCCPlaceholder(scc_index, scc_addr)
 
             if isinstance(src, SCCPlaceholder) and isinstance(dst, SCCPlaceholder) and src == dst:
                 if src not in graph_copy:
@@ -801,11 +821,28 @@ class GraphUtils:
             if graph.in_degree(node) == 0:
                 graph_copy.add_node(node)
 
-        # topological sort on acyclic graph `graph_copy`
-        tmp_nodes = networkx.topological_sort(graph_copy)
+        class NodeWithAddr:
+            """
+            Temporary node class.
+            """
 
+            def __init__(self, addr: int):
+                self.addr = addr
+
+        # topological sort on acyclic graph `graph_copy`
+        heads = [nn for nn in graph_copy if graph_copy.in_degree[nn] == 0]
+        if len(heads) > 1:
+            head = NodeWithAddr(-1)
+            for real_head in heads:
+                graph_copy.add_edge(head, real_head)
+        else:
+            assert heads
+            head = heads[0]
+        tmp_nodes = reversed(list(GraphUtils.dfs_postorder_nodes_deterministic(graph_copy, head)))
         ordered_nodes = []
         for n in tmp_nodes:
+            if isinstance(n, NodeWithAddr):
+                continue
             if isinstance(n, SCCPlaceholder):
                 GraphUtils._append_scc(
                     graph,
@@ -860,9 +897,10 @@ class GraphUtils:
                 if len(scc_succs) > 1:
                     # calculate the distance between each pair of nodes within scc_succs, pick the one with the
                     # shortest total distance
+                    sorted_scc_succs = sorted(scc_succs, key=GraphUtils._sort_node)
                     scc_node_distance = defaultdict(int)
-                    for scc_succ in scc_succs:
-                        for other_node in scc_succs:
+                    for scc_succ in sorted_scc_succs:
+                        for other_node in sorted_scc_succs:
                             if other_node is scc_succ:
                                 continue
                             scc_node_distance[scc_succ] += networkx.algorithms.shortest_path_length(

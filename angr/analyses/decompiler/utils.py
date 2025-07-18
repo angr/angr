@@ -156,27 +156,48 @@ def switch_extract_cmp_bounds(
 
     if not isinstance(last_stmt, ailment.Stmt.ConditionalJump):
         return None
+    return switch_extract_cmp_bounds_from_condition(last_stmt.condition)
 
+
+def switch_extract_cmp_bounds_from_condition(cond: ailment.Expr.Expression) -> tuple[Any, int, int] | None:
     # TODO: Add more operations
-    if isinstance(last_stmt.condition, ailment.Expr.BinaryOp) and last_stmt.condition.op in {"CmpLE", "CmpLT"}:
-        if not isinstance(last_stmt.condition.operands[1], ailment.Expr.Const):
-            return None
-        cmp_ub = (
-            last_stmt.condition.operands[1].value
-            if last_stmt.condition.op == "CmpLE"
-            else last_stmt.condition.operands[1].value - 1
-        )
-        cmp_lb = 0
-        cmp = last_stmt.condition.operands[0]
-        if (
-            isinstance(cmp, ailment.Expr.BinaryOp)
-            and cmp.op == "Sub"
-            and isinstance(cmp.operands[1], ailment.Expr.Const)
-        ):
-            cmp_ub += cmp.operands[1].value
-            cmp_lb += cmp.operands[1].value
-            cmp = cmp.operands[0]
-        return cmp, cmp_lb, cmp_ub
+    if isinstance(cond, ailment.Expr.BinaryOp):
+        if cond.op in {"CmpLE", "CmpLT"}:
+            if not (isinstance(cond.operands[1], ailment.Expr.Const) and isinstance(cond.operands[1].value, int)):
+                return None
+            cmp_ub = cond.operands[1].value if cond.op == "CmpLE" else cond.operands[1].value - 1
+            cmp_lb = 0
+            cmp = cond.operands[0]
+            if (
+                isinstance(cmp, ailment.Expr.BinaryOp)
+                and cmp.op == "Sub"
+                and isinstance(cmp.operands[1], ailment.Expr.Const)
+                and isinstance(cmp.operands[1].value, int)
+            ):
+                cmp_ub += cmp.operands[1].value
+                cmp_lb += cmp.operands[1].value
+                cmp = cmp.operands[0]
+            return cmp, cmp_lb, cmp_ub
+
+        if cond.op in {"CmpGE", "CmpGT"}:
+            # We got the negated condition here
+            #  CmpGE -> CmpLT
+            #  CmpGT -> CmpLE
+            if not (isinstance(cond.operands[1], ailment.Expr.Const) and isinstance(cond.operands[1].value, int)):
+                return None
+            cmp_ub = cond.operands[1].value if cond.op == "CmpGT" else cond.operands[1].value - 1
+            cmp_lb = 0
+            cmp = cond.operands[0]
+            if (
+                isinstance(cmp, ailment.Expr.BinaryOp)
+                and cmp.op == "Sub"
+                and isinstance(cmp.operands[1], ailment.Expr.Const)
+                and isinstance(cmp.operands[1].value, int)
+            ):
+                cmp_ub += cmp.operands[1].value
+                cmp_lb += cmp.operands[1].value
+                cmp = cmp.operands[0]
+            return cmp, cmp_lb, cmp_ub
 
     return None
 
@@ -315,7 +336,7 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
     coeff = None
     index_expr = None
     lb = None
-    ub = None
+    ub: int | None = None
     while expr is not None:
         if isinstance(expr, ailment.Expr.BinaryOp):
             if expr.op == "Mul":
@@ -331,12 +352,12 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
                 masks = {0x1, 0x3, 0x7, 0xF, 0x1F, 0x3F, 0x7F, 0xFF, 0x1FF, 0x3FF}
                 if isinstance(expr.operands[1], ailment.Expr.Const) and expr.operands[1].value in masks:
                     lb = 0
-                    ub = expr.operands[1].value
+                    ub = expr.operands[1].value  # type:ignore
                     index_expr = expr
                     break
                 if isinstance(expr.operands[0], ailment.Expr.Const) and expr.operands[1].value in masks:
                     lb = 0
-                    ub = expr.operands[0].value
+                    ub = expr.operands[0].value  # type:ignore
                     index_expr = expr
                     break
                 return None
@@ -366,7 +387,7 @@ def get_ast_subexprs(claripy_ast):
             yield ast
 
 
-def insert_node(parent, insert_location: str, node, node_idx: int | tuple[int] | None, label=None):
+def insert_node(parent, insert_location: str, node, node_idx: int, label=None):
     if insert_location not in {"before", "after"}:
         raise ValueError('"insert_location" must be either "before" or "after"')
 
@@ -538,12 +559,13 @@ def is_empty_or_label_only_node(node) -> bool:
 
 
 def has_nonlabel_statements(block: ailment.Block) -> bool:
-    return block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements)
+    return bool(block.statements and any(not isinstance(stmt, ailment.Stmt.Label) for stmt in block.statements))
 
 
 def has_nonlabel_nonphi_statements(block: ailment.Block) -> bool:
-    return block.statements and any(
-        not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)) for stmt in block.statements
+    return bool(
+        block.statements
+        and any(not (isinstance(stmt, ailment.Stmt.Label) or is_phi_assignment(stmt)) for stmt in block.statements)
     )
 
 
@@ -587,6 +609,19 @@ def last_nonlabel_statement(block: ailment.Block) -> ailment.Stmt.Statement | No
         if not isinstance(stmt, ailment.Stmt.Label):
             return stmt
     return None
+
+
+def last_node(node: BaseNode) -> BaseNode | ailment.Block | None:
+    """
+    Get the last node in a sequence or code node.
+    """
+    if isinstance(node, CodeNode):
+        return last_node(node.node)
+    if isinstance(node, SequenceNode):
+        if not node.nodes:
+            return None
+        return last_node(node.nodes[-1])
+    return node
 
 
 def first_nonlabel_node(seq: SequenceNode) -> BaseNode | ailment.Block | None:
@@ -672,7 +707,9 @@ def _find_node_in_graph(node: ailment.Block, graph: networkx.DiGraph) -> ailment
     return None
 
 
-def structured_node_has_multi_predecessors(node: SequenceNode | MultiNode, graph: networkx.DiGraph) -> bool:
+def structured_node_has_multi_predecessors(
+    node: SequenceNode | MultiNode | ailment.Block, graph: networkx.DiGraph
+) -> bool:
     if graph is None:
         return False
 
@@ -728,6 +765,7 @@ def structured_node_is_simple_return(
     if valid_last_stmt:
         # note that the block may not be the same block in the AIL graph post dephication. we must find the block again
         # in the graph.
+        assert isinstance(last_block, ailment.Block)
         last_graph_block = _find_node_in_graph(last_block, graph)
         if last_graph_block is not None:
             succs = list(graph.successors(last_graph_block))
@@ -927,6 +965,7 @@ def peephole_optimize_multistmts(block, stmt_opts):
                         break
 
                 if matched:
+                    assert stmt_seq_len is not None
                     matched_stmts = statements[stmt_idx : stmt_idx + stmt_seq_len]
                     r = opt.optimize(matched_stmts, stmt_idx=stmt_idx, block=block)
                     if r is not None:
@@ -1036,7 +1075,11 @@ def decompile_functions(
             _l.critical("Failed to decompile %s because %s", repr(f), exception_string)
             decompilation += f"// [error: {func} | {exception_string}]\n"
         else:
-            decompilation += dec.codegen.text + "\n"
+            if dec is not None and dec.codegen is not None and dec.codegen.text is not None:
+                decompilation += dec.codegen.text
+            else:
+                decompilation += "Invalid decompilation output"
+            decompilation += "\n"
 
     return decompilation
 
