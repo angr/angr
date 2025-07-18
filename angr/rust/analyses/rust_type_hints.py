@@ -1,5 +1,5 @@
 from angr.ailment import Assignment
-from angr.ailment.expression import VirtualVariable
+from angr.ailment.expression import VirtualVariable, Struct
 from angr.ailment.statement import Call, FunctionLikeMacro
 
 from ..sim_type import is_composite_type, RustSimTypeFunction

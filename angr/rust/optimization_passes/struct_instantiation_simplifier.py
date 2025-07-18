@@ -6,9 +6,10 @@ from archinfo import Endness
 from angr.ailment.expression import Const, VirtualVariable, Struct, Array, Load
 from angr.ailment.statement import Assignment
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
-from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef
+from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef, RustSimTypeUnit, RustSimTypeInt
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.utils.ssa import VVarUsesCollector
 
 
 class StructBuilder:
@@ -137,6 +138,11 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         self._stmts_to_replace = defaultdict(list)
         self._stmts_to_remove = defaultdict(list)
 
+        collector = VVarUsesCollector()
+        for block in self._graph.nodes:
+            collector.walk(block)
+        self._vvar_uses = collector.vvar_and_uselocs
+
         self.analyze()
 
     def _check(self):
@@ -169,7 +175,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                 return None
         return self.new_stack_vvar(src_offset, struct.bits, {})
 
-    def _simplify_struct_instantiation(self, callsite_block, vvar: VirtualVariable, struct_ty: RustSimStruct):
+    def _simplify_callsite_struct_instantiation(self, callsite_block, vvar: VirtualVariable, struct_ty: RustSimStruct):
         # If we can find all definitions of struct fields, let's create a struct instantiation
         # Otherwise just bind the offset and head variable to each field definition
         fields = {}
@@ -190,15 +196,99 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
             src = self._convert_to_stack_vvar(struct) or struct
             new_stmt = Assignment(None, new_vvar, src, **first_stack_def.stmt.tags)
 
+            # Collect type hints
+            self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty)
+
             for expr, struct_ty in builder.pending_potential_structs:
-                self._simplify_struct_instantiation(callsite_block, expr, struct_ty)
+                self._simplify_callsite_struct_instantiation(callsite_block, expr, struct_ty)
 
             self._stmts_to_replace[first_stack_def.block].append((first_stack_def.stmt_idx, new_stmt))
             for stack_def in used_defs[1:]:
                 self._stmts_to_remove[stack_def.block].append(stack_def.stmt)
 
+    def _build_struct_ty(self, fields):
+        if not fields:
+            return RustSimTypeUnit().with_arch(self.project.arch)
+        ty_fields = {}
+        for offset in sorted(fields.keys()):
+            expr = fields[offset]
+            arg_ty = RustSimTypeInt(expr.bits, signed=False)
+            cur_size = RustSimStruct(ty_fields).with_arch(self.project.arch).size // self.project.arch.bytes
+            if cur_size < offset:
+                ty_fields[f"padding_{cur_size}"] = RustSimTypeInt(offset - cur_size, signed=False)
+            ty_fields[f"field_{offset}"] = arg_ty
+        struct_ty = RustSimStruct(ty_fields).with_arch(self.project.arch)
+        struct_ty.name = f"struct{struct_ty.size // 8}"
+        return struct_ty.with_arch(self.project.arch)
+
+    def _try_build_struct_instantiation(self, sorted_stmts):
+        if len(sorted_stmts) >= 2:
+            if self._vvar_uses[sorted_stmts[0].dst.varid] and not any(
+                self._vvar_uses[stmt.dst.varid] for stmt in sorted_stmts[1:]
+            ):
+                expected_offset = None
+                fields = {}
+                for stmt in sorted_stmts:
+                    if (
+                        expected_offset is None
+                        or self.project.arch.bytes >= stmt.dst.stack_offset - expected_offset >= 0
+                    ):
+                        expected_offset = stmt.dst.stack_offset + stmt.src.size
+                        field_offset = stmt.dst.stack_offset - sorted_stmts[0].dst.stack_offset
+                        fields[field_offset] = stmt.src
+                    else:
+                        return None, None
+                struct_ty = self._build_struct_ty(fields)
+                struct = Struct(None, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
+                return struct_ty, struct
+        return None, None
+
+    @staticmethod
+    def _group_consecutive_stmts(stack_defs):
+        groups = []
+        current_group = []
+        last_idx = None
+
+        for offset, stack_def in stack_defs.items():
+            stmt_idx = stack_def.stmt_idx
+
+            if last_idx is None or stmt_idx == last_idx + 1:
+                current_group.append(stack_def.stmt)
+            else:
+                if current_group:
+                    groups.append(current_group)
+                current_group = [stack_def.stmt]
+
+            last_idx = stmt_idx
+
+        if current_group:
+            groups.append(current_group)
+
+        return groups
+
+    def _simplify_struct_instantiation(self, block):
+        stack_defs = self.collect_stack_defs_at(block)
+        consecutive_stmts_groups = self._group_consecutive_stmts(stack_defs)
+        for stmts in consecutive_stmts_groups:
+            if all(isinstance(stmt, Assignment) for stmt in stmts):
+                sorted_stmts = sorted(stmts, key=lambda stmt: stmt.dst.stack_offset)
+                struct_ty, struct = self._try_build_struct_instantiation(sorted_stmts)
+                if struct:
+                    vvar = sorted_stmts[0].dst
+                    new_vvar = self.new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
+                    src = self._convert_to_stack_vvar(struct) or struct
+                    new_stmt = Assignment(None, new_vvar, src, **sorted_stmts[0].tags)
+
+                    # Collect type hints
+                    self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty)
+
+                    self._stmts_to_replace[block].append((block.statements.index(sorted_stmts[0]), new_stmt))
+                    for stmt in sorted_stmts[1:]:
+                        self._stmts_to_remove[block].append(stmt)
+
     def _analyze(self, cache=None):
         for block in self._graph.nodes:
+            # Recover structs by function calls
             call = self.terminal_call(block)
             if (
                 call
@@ -211,7 +301,9 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     if isinstance(arg_ty, RustSimTypeReference):
                         arg_ty = arg_ty.pts_to
                     if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
-                        self._simplify_struct_instantiation(block, vvar, arg_ty)
+                        self._simplify_callsite_struct_instantiation(block, vvar, arg_ty)
+            # Recover other structs
+            self._simplify_struct_instantiation(block)
 
         for block in self._stmts_to_replace:
             for stmt_idx, replacement in self._stmts_to_replace[block]:

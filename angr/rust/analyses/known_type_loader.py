@@ -25,7 +25,10 @@ class KnownTypeLoader(Analysis):
             return lst
         for v in self.cfg.memory_data.values():
             if v.sort in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
-                lst.append(v.content.decode())
+                try:
+                    lst.append(v.content.decode())
+                except UnicodeDecodeError:
+                    pass
         return lst
 
     def _extract_rustc_version(self):
