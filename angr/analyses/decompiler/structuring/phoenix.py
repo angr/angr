@@ -1080,7 +1080,7 @@ class PhoenixStructurer(StructurerBase):
         return bool(outgoing_edges or len(continue_edges) > 1)
 
     @staticmethod
-    def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head) -> set[BaseNode]:
+    def _refine_cyclic_determine_loop_body(graph, fullgraph, loop_head, successor=None) -> set[BaseNode]:
         # determine the loop body: all nodes that have paths going to loop_head
         loop_body = {loop_head}
         for node in networkx.descendants(fullgraph, loop_head):
@@ -1094,6 +1094,8 @@ class PhoenixStructurer(StructurerBase):
                 new_nodes = set()
                 succ_not_in_loop_body = False
                 for succ in fullgraph.successors(node):
+                    if successor is not None and succ is successor:
+                        continue
                     if succ not in loop_body and succ in graph and fullgraph.out_degree[succ] <= 1:
                         if all(pred in loop_body for pred in fullgraph.predecessors(succ)):
                             new_nodes.add(succ)
@@ -1152,25 +1154,28 @@ class PhoenixStructurer(StructurerBase):
         if len(head_preds) == 1:
             head_pred = head_preds[0]
             head_pred_succs = list(fullgraph.successors(head_pred))
-            if len(head_pred_succs) == 2 and any(nn not in graph for nn in head_pred_succs):
+            if len(head_pred_succs) == 2:
+                successor = next(iter(nn for nn in head_pred_succs if nn is not loop_head))
                 # make sure the head_pred is not already structured
-                _, _, src_block_0 = self._find_node_going_to_dst(head_pred, head_pred_succs[0])
-                _, _, src_block_1 = self._find_node_going_to_dst(head_pred, head_pred_succs[1])
+                _, _, src_block_0 = self._find_node_going_to_dst(head_pred, loop_head)
+                _, _, src_block_1 = self._find_node_going_to_dst(head_pred, successor)
                 if src_block_0 is src_block_1 and src_block_0 is not None:
                     continue_edges: list[tuple[BaseNode, BaseNode]] = []
                     outgoing_edges = []
                     # there is an out-going edge from the loop tail
                     # virtualize all other edges
-                    successor = next(iter(nn for nn in head_pred_succs if nn not in graph))
                     continue_node = head_pred
-                    for node in [loop_head, *networkx.descendants(graph, loop_head)]:
+                    loop_body = PhoenixStructurer._refine_cyclic_determine_loop_body(
+                        graph, fullgraph, loop_head, successor=successor
+                    )
+                    for node in loop_body:
                         if node is head_pred:
                             continue
                         succs = list(fullgraph.successors(node))
                         if head_pred in succs:
                             continue_edges.append((node, head_pred))
 
-                        outside_succs = [succ for succ in succs if succ not in graph]
+                        outside_succs = [succ for succ in succs if succ not in loop_body]
                         for outside_succ in outside_succs:
                             outgoing_edges.append((node, outside_succ))
 
