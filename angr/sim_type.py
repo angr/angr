@@ -195,6 +195,8 @@ class SimType:
                 typ: SimType = SimTypeEnumeration(None, cle_typ.enumerator_values, label=cle_typ.name)
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name)
+            elif isinstance(cle_typ, variable_type.VariantType):
+                typ: SimType = SimVariant(cle_typ.byte_size, None, [], label=cle_typ.name)
             elif cle_typ is None:
                 typ: SimType = SimTypeBottom()
             if typ is None:
@@ -227,6 +229,12 @@ class SimType:
                     typ.returnty = SimTypeBottom()
                 else:
                     typ.returnty = mapping[return_ty]
+            elif isinstance(cle_typ, variable_type.VariantType):
+                typ: SimVariant = mapping[cle_typ]
+                if cle_typ.tag is not None:
+                    typ.tag = mapping[cle_typ.tag.type]
+                for c in cle_typ.variant_cases:
+                    typ.cases.append(mapping[c.type])
             elif cle_typ is None:
                 pass
         return constructed_types
@@ -1777,6 +1785,114 @@ class SimStructValue:
     def copy(self):
         return SimStructValue(self._struct, values=defaultdict(lambda: None, self._values))
 
+class SimVariantCase:
+    def __init__(self, tag: int, name: str, offset: int, type: SimType):
+        self.tag = tag
+        self.name = name
+        self.offset = offset
+        self.type = type
+
+class SimVariant(NamedTypeMixin, SimType):
+    fields = ("members", "name")
+
+    def __init__(self, size: int, tag: SimType | None, cases: list[SimVariantCase], name=None, label=None):
+        """
+        :param size:        The size of the variant
+        :param cases:     The members of the variant, as a mapping name -> type
+        :param name:        The name of the variant
+        """
+        super().__init__(label, name=name if name is not None else "<anon>")
+        self._size = size
+        # In an evaluation of a Rust binary, there was a variant with no tag! This was happening with types
+        # like Result<Infallible, ...>. I'm guessing that since you can't construct a value of type
+        # Infallible, this is the cause of the missing tag
+        self.tag = tag
+        self.cases = cases
+
+    @property
+    def size(self):
+        return self._size
+
+    @property
+    def alignment(self):
+        if all(val.alignment is NotImplemented for val in self.cases.values()):
+            return NotImplemented
+        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.cases.values())
+
+    def _refine_dir(self):
+        return list(self.cases.keys())
+
+    def _refine(self, view, k):
+        ty = self.cases[k]
+        return view._deeper(ty=ty, addr=view._addr)
+
+    def extract(self, state, addr, concrete=False):
+        if self.tag is None:
+            tag_view = None
+        else:
+            tag_view = SimMemView(ty=self.tag, addr=addr, state=state)
+        if concrete:
+            pass
+        else:
+            if tag_view is None:
+                tag = None
+            else:
+                tag = tag_view.resolved
+            case_values = []
+            for c in self.cases:
+                mem_view = SimMemView(ty=c.type, addr=addr + c.offset, state=state)
+                if tag is None:
+                    tag_constraint = None
+                else:
+                    tag_constraint = tag == c.tag
+                case_values.append(SimVariantCaseValue(c, tag_constraint, mem_view.resolved))
+            return SimVariantValue(self, tag, case_values)
+
+    def __repr__(self):
+        # use the str instead of repr of each member to avoid exceed recursion
+        # depth when representing self-referential unions
+        return "union {} {{\n\t{}\n}}".format(
+            self.name, "\n\t".join(f"{name} {ty!s};" for name, ty in self.cases.items())
+        )
+
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
+        if not full or (memo is not None and self in memo):
+            return super().c_repr(name, full, memo, indent)
+
+        indented = " " * indent if indent is not None else ""
+        new_indent = indent + 4 if indent is not None else None
+        new_indented = " " * new_indent if new_indent is not None else ""
+        newline = "\n" if indent is not None else " "
+        new_memo = (self,) + (memo if memo is not None else ())
+        members = newline.join(
+            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.cases.items()
+        )
+        return f"union {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+
+    def _init_str(self):
+        return '{}({{{}}}, name="{}", label="{}")'.format(
+            self.__class__.__name__,
+            ", ".join([self._field_str(f, ty) for f, ty in self.cases.items()]),
+            self._name,
+            self.label,
+        )
+
+    @staticmethod
+    def _field_str(field_name, field_type):
+        return f'"{field_name}": {field_type._init_str()}'
+
+    def __str__(self):
+        return f"union {self.name}"
+
+    def _with_arch(self, arch):
+        out = SimUnion({name: ty.with_arch(arch) for name, ty in self.cases.items()}, self.label)
+        out._arch = arch
+        return out
+
+    def copy(self):
+        return SimUnion(dict(self.cases), name=self.name, label=self.label)
 
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
@@ -1906,6 +2022,77 @@ class SimUnionValue:
 
     def copy(self):
         return SimUnionValue(self._union, values=self._values)
+
+class SimVariantCaseValue:
+    def __init__(self, variant_case: SimVariantCase, tag_constraint: claripy.ast.Bool, value: claripy.ast.Bits):
+        """
+        :param variant_case:    A SimVariantCase instance describing this particular case
+        :param tag_constraint:  A boolean claripy constraint that must be true in order for this variant case to be\
+        valid.
+        :param value:           The value of this particular variant case.
+        """
+        self.variant_case = variant_case
+        self.tag_constraint = tag_constraint
+        self.value = value
+
+    @property
+    def tag(self):
+        return self.variant_case.tag
+
+    @property
+    def name(self):
+        return self.variant_case.name
+
+    def copy(self):
+        return SimVariantCaseValue(self.variant_case, self.tag_constraint, self.value)
+
+class SimVariantValue:
+    """
+    The value of a variant, which depending on the variant's tag can be multiple values.
+    """
+
+    def __init__(self, variant: SimVariant, tag: claripy.ast.Bits, case_values: list[SimVariantCaseValue]):
+        """
+        :param variant:      A SimVariant instance describing the type of this variant
+        :param tag:          The tag of this variant. May be symbolic, concrete or a mixture of the two
+        :param case_values:  The memory contents of all possible values that this variant could be
+        """
+        self.variant = variant
+        self.tag = tag
+        self.case_values = case_values
+
+    def __indented_repr__(self, indent=0):
+        fields = []
+        for name, value in self.values.items():
+            try:
+                f = value.__indented_repr__  # type: ignore[reportAttributeAccessIssue]
+                s = f(indent=indent + 2)
+            except AttributeError:
+                s = repr(value)
+            fields.append(" " * (indent + 2) + f".{name} = {s}")
+
+        return "{{\n{}\n{}}}".format(",\n".join(fields), " " * indent)
+
+    def __repr__(self):
+        return self.__indented_repr__()
+
+    def __getattr__(self, item: str):
+        return self[item]
+
+    def __getitem__(self, item: str | int):
+        if isinstance(item, int):
+            for v in self.case_values:
+                if v.tag == item:
+                    return v
+            return self.variant_cases[item]
+        elif isinstance(item, str):
+            for v in self.case_values:
+                if v.name == item:
+                    return v
+        raise KeyError(f"Unknown variant case {item}")
+
+    def copy(self):
+        return SimVariantValue(self.variant, self.tag, self.case_values)
 
 
 class SimCppClass(SimStruct):
