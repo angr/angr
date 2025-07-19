@@ -319,8 +319,8 @@ construct and use a quick control-flow graph:
    >>> len(cfg.graph.nodes())
    951
 
-   # To get the CFGNode for a given address, use cfg.get_any_node
-   >>> entry_node = cfg.get_any_node(proj.entry)
+   # To get the CFGNode for a given address, use cfg.model.get_any_node
+   >>> entry_node = cfg.model.get_any_node(proj.entry)
    >>> len(list(cfg.graph.successors(entry_node)))
    2
 
