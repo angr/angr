@@ -141,6 +141,7 @@ class OptimizationPass(BaseOptimizationPass):
         arg_vvars: set[int] | None = None,
         peephole_optimizations=None,
         stack_pointer_tracker=None,
+        notes: dict | None = None,
         **kwargs,
     ):
         super().__init__(func)
@@ -164,6 +165,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._avoid_vvar_ids = avoid_vvar_ids or set()
         self._peephole_optimizations = peephole_optimizations
         self._stack_pointer_tracker = stack_pointer_tracker
+        self.notes = notes if notes is not None else {}
 
         # output
         self.out_graph: networkx.DiGraph | None = None

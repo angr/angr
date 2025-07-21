@@ -7,6 +7,7 @@ from angr.ailment import Block
 from angr.ailment.statement import Statement, Call, Assignment
 from angr.ailment.expression import Const, Register, VirtualVariable
 
+from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.optimization_passes import register_optimization_pass
 
@@ -57,9 +58,11 @@ class StringObfType3Rewriter(OptimizationPass):
                 self.is_call_or_call_assignment(last_stmt)
                 and last_stmt.ins_addr in self.kb.obfuscations.type3_deobfuscated_strings
             ):
-                new_block = self._process_block(
-                    block, self.kb.obfuscations.type3_deobfuscated_strings[block.statements[-1].ins_addr]
-                )
+                the_str = self.kb.obfuscations.type3_deobfuscated_strings[block.statements[-1].ins_addr]
+                if "deobfuscated_strings" not in self.kb.notes:
+                    self.kb.notes["deobfuscated_strings"] = DeobfuscatedStringsNote("deobfuscated_strings")
+                self.kb.notes["deobfuscated_strings"].add_string("3", the_str, ref_addr=last_stmt.ins_addr)
+                new_block = self._process_block(block, the_str)
                 if new_block is not None:
                     self._update_block(block, new_block)
 

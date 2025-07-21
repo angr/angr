@@ -173,10 +173,8 @@ class StringObfuscationFinder(Analysis):
                 continue
 
             # decompile this function and see if it "looks like" a deobfuscation function
-            try:
-                dec = self.project.analyses.Decompiler(func, cfg=cfg)
-            except Exception:  # pylint:disable=broad-exception-caught
-                continue
+            with self._resilience():
+                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)
             if (
                 dec.codegen is None
                 or not dec.codegen.text
@@ -470,10 +468,8 @@ class StringObfuscationFinder(Analysis):
                 continue
 
             # decompile this function and see if it "looks like" a deobfuscation function
-            try:
-                dec = self.project.analyses.Decompiler(func, cfg=cfg, expr_collapse_depth=64)
-            except Exception:  # pylint:disable=broad-exception-caught
-                continue
+            with self._resilience():
+                dec = self.project.analyses.Decompiler(func, cfg=cfg, expr_collapse_depth=64, fail_fast=self._fail_fast)
             if (
                 dec.codegen is None
                 or not dec.codegen.text
@@ -666,11 +662,9 @@ class StringObfuscationFinder(Analysis):
                 continue
 
             # take a look at the content
-            try:
-                dec = self.project.analyses.Decompiler(func, cfg=cfg)
-            except Exception:  # pylint:disable=broad-exception-caught
+            with self._resilience():
                 # catch all exceptions
-                continue
+                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)
             if dec.codegen is None or not dec.codegen.text:
                 continue
 

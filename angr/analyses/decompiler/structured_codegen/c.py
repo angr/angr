@@ -43,6 +43,7 @@ from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
 from angr.utils.types import unpack_typeref, unpack_pointer_and_array, dereference_simtype_by_lib
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
+from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.analyses import Analysis, register_analysis
@@ -254,7 +255,7 @@ class CConstruct:
         self.tags = tags or {}
         self.codegen: StructuredCodeGenerator = codegen
 
-    def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
+    def c_repr(self, initial_pos=0, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
         Creates the C representation of the code and displays it by
         constructing a large string. This function is called by each program function that needs to be decompiled.
@@ -268,7 +269,7 @@ class CConstruct:
 
         def mapper(chunks):
             # start all positions at beginning of document
-            pos = 0
+            pos = initial_pos
 
             last_insn_addr = None
 
@@ -2520,8 +2521,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         display_block_addrs=False,
         display_vvar_ids=False,
         min_data_addr: int = 0x400_000,
+        notes=None,
+        display_notes: bool = True,
     ):
-        super().__init__(flavor=flavor)
+        super().__init__(flavor=flavor, notes=notes)
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -2604,6 +2607,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_label: dict[tuple[int, int | None], CLabel] = {}
         self.cfunc: CFunction | None = None
         self.cexterns: set[CVariable] | None = None
+        self.display_notes = display_notes
 
         self._analyze()
 
@@ -2700,8 +2704,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ast_to_pos = defaultdict(set)
 
         text = cfunc.c_repr(
-            indent=self._indent, pos_to_node=pos_to_node, pos_to_addr=pos_to_addr, addr_to_pos=addr_to_pos
+            initial_pos=0,
+            indent=self._indent,
+            pos_to_node=pos_to_node,
+            pos_to_addr=pos_to_addr,
+            addr_to_pos=addr_to_pos,
         )
+
+        if self.display_notes:
+            notes = self.render_notes()
+            pos_to_node, pos_to_addr, addr_to_pos = self.adjust_mapping_positions(
+                len(notes), pos_to_node, pos_to_addr, addr_to_pos
+            )
+            text = notes + text
 
         for elem, node in pos_to_node.items():
             if isinstance(node.obj, CConstant):
@@ -2725,6 +2740,21 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 ast_to_pos[node.obj].add(elem)
 
         return text, pos_to_node, pos_to_addr, addr_to_pos, ast_to_pos
+
+    def render_notes(self) -> str:
+        """
+        Render decompilation notes.
+
+        :return: A string containing all notes.
+        """
+        if not self.notes:
+            return ""
+
+        lines = []
+        for note in self.notes.values():
+            note_lines = str(note).split("\n")
+            lines += [f"// {line}" for line in note_lines]
+        return "\n".join(lines) + "\n\n"
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
@@ -3601,14 +3631,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             reference_values = {}
             type_ = unpack_typeref(type_)
             if expr.value in self.kb.obfuscations.type1_deobfuscated_strings:
-                reference_values[SimTypePointer(SimTypeChar())] = self.kb.obfuscations.type1_deobfuscated_strings[
-                    expr.value
-                ]
+                deobf_str = self.kb.obfuscations.type1_deobfuscated_strings[expr.value]
+                reference_values[SimTypePointer(SimTypeChar())] = deobf_str
+                if "deobfuscated_strings" not in self.notes:
+                    self.notes["deobfuscated_strings"] = DeobfuscatedStringsNote()
+                self.notes["deobfuscated_strings"].add_string("1", deobf_str, ref_addr=expr.value)
                 inline_string = True
             elif expr.value in self.kb.obfuscations.type2_deobfuscated_strings:
-                reference_values[SimTypePointer(SimTypeChar())] = self.kb.obfuscations.type2_deobfuscated_strings[
-                    expr.value
-                ]
+                deobf_str = self.kb.obfuscations.type2_deobfuscated_strings[expr.value]
+                reference_values[SimTypePointer(SimTypeChar())] = deobf_str
+                if "deobfuscated_strings" not in self.notes:
+                    self.notes["deobfuscated_strings"] = DeobfuscatedStringsNote()
+                self.notes["deobfuscated_strings"].add_string("2", deobf_str, ref_addr=expr.value)
                 inline_string = True
             elif isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, (SimTypeChar, SimTypeBottom)):
                 # char* or void*

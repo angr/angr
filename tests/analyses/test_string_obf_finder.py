@@ -34,10 +34,8 @@ class TestStringObfFinder(TestCase):
             "int PsLookupProcessByProcessId(uint64_t a, uint64_t b);"
         ).with_arch(proj.arch)
 
-        # also sadly we do not yet identify "__security_check_cookie" on Windows binaries
-        # hard-code it for now
-        proj.kb.functions[0x1400070B0].name = "_security_check_cookie"
-        proj.kb.functions[0x1400070B0].is_default_name = False
+        # ensure we correctly recognize security_check_cookie
+        assert proj.kb.functions[0x1400070B0].name == "_security_check_cookie"
 
         proj.analyses.CompleteCallingConventions(recover_variables=True)
 
