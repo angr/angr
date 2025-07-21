@@ -434,8 +434,9 @@ class SimEngineRDVEX(
         size = bits // self.arch.byte_width
 
         # convert addr from MultiValues to a list of valid addresses
-        if (one_addr := addr.one_value()) is not None:
-            return self._load_core([one_addr], size, expr.endness)
+        if addr.count() == 1 and 0 in addr:
+            addrs = list(addr[0])
+            return self._load_core(addrs, size, expr.endness)
 
         top = self.state.top(bits)
         # annotate it
