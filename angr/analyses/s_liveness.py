@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import networkx
+from angr.ailment import Block
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Assignment, Call, ConditionalJump
 
 from angr.analyses import Analysis, register_analysis
+from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block, is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src
 
@@ -12,11 +14,13 @@ from angr.utils.ssa import VVarUsesCollector, phi_assignment_get_src
 class SLivenessModel:
     """
     The SLiveness model that stores LiveIn and LiveOut sets for each block in a partial-SSA function.
+
+    Blocks are identified by address and index.
     """
 
     def __init__(self):
-        self.live_ins = {}
-        self.live_outs = {}
+        self.live_ins: dict[tuple[int, int | None], set[int]] = {}
+        self.live_outs: dict[tuple[int, int | None], set[int]] = {}
 
 
 class SLivenessAnalysis(Analysis):
@@ -26,9 +30,9 @@ class SLivenessAnalysis(Analysis):
 
     def __init__(
         self,
-        func,
-        func_graph=None,
-        entry=None,
+        func: Function,
+        func_graph: networkx.DiGraph[Block] | None = None,
+        entry: Block | None = None,
         func_addr: int | None = None,
         arg_vvars: list[VirtualVariable] | None = None,
     ):

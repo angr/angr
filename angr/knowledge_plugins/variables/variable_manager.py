@@ -720,7 +720,7 @@ class VariableManagerInternal(Serializable):
             if variable.name == var.name:
                 vars_list.append(var)
 
-        accesses = []
+        accesses: list[VariableAccess] = []
         for var in vars_list:
             accesses.extend(self.get_variable_accesses(var))
 

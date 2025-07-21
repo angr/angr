@@ -11,6 +11,7 @@ from angr.ailment import Block
 from angr.ailment.statement import ConditionalJump, Jump
 from angr.ailment.expression import Const
 
+from angr.knowledge_plugins.functions.function import Function
 from angr.utils.graph import GraphUtils
 from angr.utils.graph import dfs_back_edges, subgraph_between_nodes, dominates
 from angr.utils.doms import IncrementalDominators
@@ -30,16 +31,19 @@ CONDITIONNODE_ADDR = count(0xFF000000)
 
 class RegionIdentifier(Analysis):
     """
-    Identifies regions within a function graph and creates a recursive GraphRegion object.
+    A region is a single-entry-single-exit subgraph of control flow. The region identifier recursively identifies the
+    smallest possible regions within a function graph and creates a GraphRegion object whose nodes are either Blocks
+    or GraphRegions.
+
     Note, that the analysis may modify the graph in-place. If you want to keep the original graph,
     set the `update_graph` parameter to False.
     """
 
     def __init__(
         self,
-        func,
-        cond_proc=None,
-        graph=None,
+        func: Function,
+        cond_proc: ConditionProcessor | None = None,
+        graph: networkx.DiGraph[Block] | None = None,
         update_graph=True,
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
@@ -60,7 +64,9 @@ class RegionIdentifier(Analysis):
                 else None  # it's only None in test cases
             )
         )
-        self._graph = graph if graph is not None else self.function.graph
+
+        self._graph = graph if graph is not None else self.project.analyses.Clinic(func).graph
+        assert self._graph is not None
         if not update_graph:
             # copy the graph so updates don't affect the original graph
             self._graph = copy_graph(self._graph)
@@ -80,7 +86,7 @@ class RegionIdentifier(Analysis):
         self._analyze()
 
     @staticmethod
-    def slice_graph(graph, node, frontier, include_frontier=False):
+    def slice_graph(graph, node, frontier, include_frontier=False) -> networkx.DiGraph[Block | GraphRegion]:
         """
         Generate a slice of the graph from the head node to the given frontier.
 
@@ -115,7 +121,7 @@ class RegionIdentifier(Analysis):
         # make regions into block address lists
         self.regions_by_block_addrs = self._make_regions_by_block_addrs()
 
-    def _pick_one_connected_component(self, digraph: networkx.DiGraph, as_copy: bool = False) -> networkx.DiGraph:
+    def _pick_one_connected_component(self, digraph: networkx.DiGraph[Block | GraphRegion], as_copy: bool = False) -> networkx.DiGraph[Block | GraphRegion]:
         g = networkx.Graph(digraph)
         components = list(networkx.connected_components(g))
         if len(components) <= 1:
@@ -402,9 +408,9 @@ class RegionIdentifier(Analysis):
 
         return refined_loop_nodes, refined_exit_nodes
 
-    def _make_regions(self, graph: networkx.DiGraph):
+    def _make_regions(self, graph: networkx.DiGraph[Block]):
         structured_loop_headers = set()
-        new_regions = []
+        new_regions: list[GraphRegion] = []
 
         # FIXME: _get_start_node() will fail if the graph is just a loop
 

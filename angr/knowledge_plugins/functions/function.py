@@ -6,7 +6,7 @@ import itertools
 from collections import defaultdict
 from collections.abc import Iterable
 import contextlib
-from typing import overload
+from typing import overload, TYPE_CHECKING
 
 import networkx
 import pydemumble
@@ -28,6 +28,9 @@ from angr.calling_conventions import SimCC
 from angr.project import Project
 from angr.utils.library import get_cpp_function_name
 from .function_parser import FunctionParser
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions.function_manager import FunctionManager
 
 l = logging.getLogger(name=__name__)
 
@@ -83,7 +86,7 @@ class Function(Serializable):
 
     def __init__(
         self,
-        function_manager,
+        function_manager: FunctionManager | None,
         addr,
         name=None,
         syscall=None,
@@ -260,7 +263,7 @@ class Function(Serializable):
     def project(self):
         if self._project is None and self._function_manager is not None:
             # try to set it from function manager
-            self._project: Project | None = self._function_manager._kb._project
+            self._project = self._function_manager._kb._project
         return self._project
 
     @property

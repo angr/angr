@@ -5,6 +5,8 @@ from collections import defaultdict
 
 import networkx
 
+from angr.ailment.block import Block
+
 from .structuring.structurer_nodes import MultiNode
 
 
@@ -37,11 +39,11 @@ class GraphRegion:
     def __init__(
         self,
         head,
-        graph,
-        successors: set | None,
-        graph_with_successors: networkx.DiGraph | None,
+        graph: networkx.DiGraph[Block | GraphRegion] | None,
+        successors: set[Block | GraphRegion] | None,
+        graph_with_successors: networkx.DiGraph[Block | GraphRegion] | None,
         cyclic,
-        full_graph: networkx.DiGraph | None,
+        full_graph: networkx.DiGraph[Block] | None,
         cyclic_ancestor: bool = False,
     ):
         self.head = head
@@ -93,6 +95,7 @@ class GraphRegion:
         new_graph = self._recursive_copy(self.graph, nodes_map)
 
         if self.graph_with_successors is not None:
+            assert self.successors is not None
             successors = set()
             for succ in self.successors:
                 if succ not in nodes_map:
@@ -162,6 +165,7 @@ class GraphRegion:
     def dbg_print(self, ident=0):
         s = self.dbg_get_repr(self.head, ident=ident) + "\n"
 
+        assert self.graph is not None
         successors = list(self.graph.successors(self.head))
         if len(successors) == 2:
             left_kid, right_kid = successors
@@ -192,6 +196,8 @@ class GraphRegion:
         replace_with,
         virtualized_edges: set[tuple[Any, Any]],
     ):
+        assert self.graph is not None
+        assert self.graph_with_successors is not None
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception
@@ -243,6 +249,7 @@ class GraphRegion:
         self._replaced_regions[sub_region] = replace_with
 
     def replace_region_with_region(self, sub_region: GraphRegion, replace_with: GraphRegion):
+        assert self.graph is not None
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception
@@ -332,9 +339,9 @@ class GraphRegion:
 
     def _replace_node_in_graph_with_subgraph(
         self,
-        graph: networkx.DiGraph,
-        known_successors: list | None,
-        reference_full_graph: networkx.DiGraph | None,
+        graph: networkx.DiGraph[Block | GraphRegion],
+        known_successors: list[Block | GraphRegion] | None,
+        reference_full_graph: networkx.DiGraph[Block] | None,
         node,
         sub_graph: networkx.DiGraph,
         sub_graph_head,

@@ -46,6 +46,7 @@ from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+from angr.analyses.typehoon import Typehoon
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .return_maker import ReturnMaker
@@ -135,7 +136,7 @@ class Clinic(Analysis):
             Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
         ) = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
-        variable_kb=None,
+        variable_kb: KnowledgeBase | None = None,
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,
         cache: DecompilationCache | None = None,
@@ -155,6 +156,7 @@ class Clinic(Analysis):
         ail_graph: networkx.DiGraph | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
+        end_stage: ClinicStage | None = None,
         notes: dict[str, DecompilationNote] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
@@ -177,6 +179,8 @@ class Clinic(Analysis):
         self._init_ail_graph = ail_graph
         self._init_arg_vvars = arg_vvars
         self._start_stage = start_stage if start_stage is not None else ClinicStage.INITIALIZATION
+        self._end_stage = end_stage if end_stage is not None else max(ClinicStage.__members__.values())
+
         self._blocks_by_addr_and_size = {}
         self.entry_node_addr: tuple[int, int | None] = self.function.addr, None
 
@@ -229,10 +233,10 @@ class Clinic(Analysis):
         self.edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] = []
         self.copied_var_ids: set[int] = set()
 
-        self._new_block_addrs = set()
+        self._new_block_addrs: set[int] = set()
 
         # a reference to the Typehoon type inference engine; useful for debugging and loading stats post decompilation
-        self.typehoon = None
+        self.typehoon: Typehoon | None = None
 
         # sanity checks
         if not self.kb.functions:
@@ -368,7 +372,7 @@ class Clinic(Analysis):
 
         return self._apply_callsite_prototype_and_calling_convention(ail_graph)
 
-    def _slice_variables(self, ail_graph):
+    def _slice_variables(self, ail_graph: networkx.DiGraph[ailment.Block]) -> networkx.DiGraph[ailment.Block]:
         assert self.variable_kb is not None and self._desired_variables is not None
 
         nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
@@ -562,7 +566,7 @@ class Clinic(Analysis):
         }
 
         for stage in sorted(stages):
-            if stage < self._start_stage:
+            if stage < self._start_stage or stage > self._end_stage:
                 continue
             stages[stage]()
 
@@ -1932,11 +1936,12 @@ class Clinic(Analysis):
             )
         else:
             try:
-                tp = self.project.analyses.Typehoon(
-                    vr.type_constraints,
-                    vr.func_typevar,
+                tp = self.project.analyses[Typehoon].prep(
                     kb=tmp_kb,
                     fail_fast=self._fail_fast,
+                )(
+                    vr.type_constraints,
+                    vr.func_typevar,
                     var_mapping=vr.var_to_typevars,
                     stack_offset_tvs=vr.stack_offset_typevars,
                     must_struct=must_struct,
