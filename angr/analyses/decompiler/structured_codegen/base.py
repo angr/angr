@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 from __future__ import annotations
 from sortedcontainers import SortedDict
 

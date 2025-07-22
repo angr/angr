@@ -5,6 +5,10 @@ from enum import Enum
 
 
 class DecompilationNoteLevel(Enum):
+    """
+    Enum class describing the level of each decompilation note.
+    """
+
     DEBUG = 0
     INFO = 1
     WARNING = 2

@@ -730,7 +730,7 @@ class StringObfuscationFinder(Analysis):
         callinsn2content = {}
         for idx, call_site in enumerate(call_sites):
             _l.debug("Analyzing type 3 candidate call site %#x (%d/%d)...", call_site.addr, idx + 1, len(call_sites))
-            assert call_site.function_address is not None
+            assert call_site.function_address is not None and isinstance(call_site.function_address, int)
             data, _ = self._type3_prepare_and_execute(func_addr, call_site.addr, call_site.function_address, cfg)
             if data:
                 callinsn2content[call_site.instruction_addrs[-1]] = data
@@ -825,7 +825,7 @@ class StringObfuscationFinder(Analysis):
                     # at least a byte
                     continue
                 con = prop_state.load_register(reg_offset, reg_width // 8)
-                if isinstance(con, claripy.ast.Base) and con.op == "BVV":
+                if isinstance(con, claripy.ast.Base) and con.op == "BVV" and isinstance(con.concrete_value, int):
                     state.registers.store(reg_offset, claripy.BVV(con.concrete_value, reg_width))
                     if reg_offset == state.arch.bp_offset:
                         bp_set = True
@@ -845,7 +845,11 @@ class StringObfuscationFinder(Analysis):
 
         in_state = simgr.active[0]
 
-        cc = default_cc(self.project.arch.name, self.project.simos.name)(self.project.arch)
+        cc_cls = default_cc(self.project.arch.name, self.project.simos.name)
+        assert (
+            cc_cls is not None
+        ), f"Failed to obtain the default calling convention for {self.project.arch.name}-{self.project.simos.name}."
+        cc = cc_cls(self.project.arch)
         cc.STACKARG_SP_BUFF = 0  # disable shadow stack space because the binary code already sets it if needed
         cc.STACK_ALIGNMENT = 1  # disable stack address aligning because the binary code already sets it if needed
         prototype_0 = SimTypeFunction([], SimTypePointer(pts_to=SimTypeBottom(label="void"))).with_arch(
@@ -869,7 +873,7 @@ class StringObfuscationFinder(Analysis):
         out_state = callable_0.result_state
 
         # figure out what was written
-        assert out_state is not None
+        assert out_state is not None and ret_value is not None
         ptr = out_state.memory.load(ret_value, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
         if out_state.memory.load(ptr, size=4).concrete_value == 0:
             # fall back to using the return value as the pointer

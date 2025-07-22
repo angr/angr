@@ -23,7 +23,7 @@ class DeobfuscatedString:
         )
 
     def __str__(self):
-        return self.value
+        return repr(self.value)
 
 
 class DeobfuscatedStringsNote(DecompilationNote):

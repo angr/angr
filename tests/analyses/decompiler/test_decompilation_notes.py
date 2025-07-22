@@ -1,3 +1,4 @@
+# pylint:disable=no-self-use
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
@@ -6,6 +7,7 @@ import os.path
 import unittest
 
 import angr
+from angr.analyses.decompiler import Decompiler
 from angr.sim_type import parse_signature
 
 from tests.common import bin_location, print_decompilation_result
@@ -42,34 +44,35 @@ class TestDecompilationNotes(unittest.TestCase):
         assert proj.kb.obfuscations.type1_deobfuscated_strings
         assert proj.kb.obfuscations.type2_deobfuscated_strings
 
-        dec = proj.analyses.Decompiler(
-            proj.kb.functions[0x140005174], fail_fast=True, options=[("display_notes", True)]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            proj.kb.functions[0x140005174], options=[("display_notes", True)]
         )
+        assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert "// Obfuscated strings are found in decompilation and have been deobfuscated:" in dec.codegen.text
         assert dec.codegen.text.count("explorer.exe") == 2
-        assert "deobfuscated_strings" in dec.codegen.notes
-        assert dec.codegen.notes["deobfuscated_strings"] is not None
-        assert len(dec.codegen.notes["deobfuscated_strings"].strings) == 1
+        assert "deobfuscated_strings" in dec.notes
+        assert dec.notes["deobfuscated_strings"] is not None
+        assert len(dec.notes["deobfuscated_strings"].strings) == 1
 
-        dec = proj.analyses.Decompiler(
-            proj.kb.functions[0x140003504], fail_fast=True, options=[("display_notes", True)]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            proj.kb.functions[0x140003504], options=[("display_notes", True)]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert "// Obfuscated strings are found in decompilation and have been deobfuscated:" in dec.codegen.text
         assert '"AutoConfigURL"' in dec.codegen.text
 
-        dec = proj.analyses.Decompiler(
-            proj.kb.functions[0x140006208], fail_fast=True, options=[("display_notes", True)]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            proj.kb.functions[0x140006208], options=[("display_notes", True)]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert "// Obfuscated strings are found in decompilation and have been deobfuscated:" in dec.codegen.text
         assert '" HTTP/1.1\\r\\nHost: "' in dec.codegen.text
 
-        dec = proj.analyses.Decompiler(
-            proj.kb.functions[0x1400035A0], fail_fast=True, options=[("display_notes", True)]
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(
+            proj.kb.functions[0x1400035A0], options=[("display_notes", True)]
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
