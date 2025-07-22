@@ -920,32 +920,32 @@ class JumpTableResolver(IndirectJumpResolver):
         # more sanity checks
 
         # for a typical jump table, the current block has only one predecessor, and the predecessor to the current
-        # block has two successors (not including itself)
+        # block has two successors
         # for a typical vtable call (or jump if at the end of a function), the block as two predecessors that form a
         # diamond shape
         curr_node = func.get_node(addr)
-        if curr_node is None or curr_node not in func.graph:
+        if curr_node is None or curr_node not in func.transition_graph:
             l.debug("Could not find the node %#x in the function transition graph", addr)
             return False, None
-        preds = list(func.graph.predecessors(curr_node))
+        preds = list(func.transition_graph.predecessors(curr_node))
         pred_endaddrs = {pred.addr + pred.size for pred in preds}  # handle non-normalized CFGs
         if func_graph_complete and not is_arm and not potential_call_table:
             # on ARM you can do a single-block jump table...
             if len(pred_endaddrs) == 1:
-                pred_succs = [succ for succ in func.graph.successors(preds[0]) if succ.addr != preds[0].addr]
+                pred_succs = [succ for succ in func.transition_graph.successors(preds[0]) if succ.addr != preds[0].addr]
                 if len(pred_succs) != 2:
                     l.debug("Expect two successors to the single predecessor, found %d.", len(pred_succs))
                     return False, None
             elif len(pred_endaddrs) == 2 and len(preds) == 2:
                 pred_succs = set(
-                    [succ for succ in func.graph.successors(preds[0]) if succ.addr != preds[0].addr]
-                    + [succ for succ in func.graph.successors(preds[1]) if succ.addr != preds[1].addr]
+                    [succ for succ in func.transition_graph.successors(preds[0]) if succ.addr != preds[0].addr]
+                    + [succ for succ in func.transition_graph.successors(preds[1]) if succ.addr != preds[1].addr]
                 )
                 is_diamond = False
                 if len(pred_succs) == 2:
                     non_node_succ = next(iter(pred_succ for pred_succ in pred_succs if pred_succ is not curr_node))
-                    while func.graph.out_degree[non_node_succ] == 1:
-                        non_node_succ = next(iter(func.graph.successors(non_node_succ)))
+                    while func.transition_graph.out_degree[non_node_succ] == 1:
+                        non_node_succ = next(iter(func.transition_graph.successors(non_node_succ)))
                         if non_node_succ == curr_node:
                             is_diamond = True
                             break

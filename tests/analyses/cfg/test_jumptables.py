@@ -3192,6 +3192,19 @@ class TestJumpTableResolver(unittest.TestCase):
             0x40073D,
         ]
 
+    def test_external_default_node(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "switch_default_abort.o"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast()
+        jt = cfg.model.jump_tables[0x40000D]
+        assert jt.jumptable_entries is not None
+        assert set(jt.jumptable_entries) == {
+            0x400020,
+            0x400030,
+            0x400040,
+            0x400050,
+            0x400060,
+        }
+
 
 class TestJumpTableResolverCallTables(unittest.TestCase):
     """
