@@ -144,14 +144,10 @@ class BaseStructuredCodeGenerator:
         new_addr_to_pos = InstructionMapping()
 
         for pos, node in pos_to_node.items():
-            new_pos_to_node.add_mapping(
-                pos + offset, node.length, PositionMappingElement(pos + offset, node.length, node.obj)
-            )
+            new_pos_to_node.add_mapping(pos + offset, node.length, node.obj)
 
         for pos, node in pos_to_addr.items():
-            new_pos_to_addr.add_mapping(
-                pos + offset, node.length, PositionMappingElement(pos + offset, node.length, node.obj)
-            )
+            new_pos_to_addr.add_mapping(pos + offset, node.length, node.obj)
 
         for addr, pos in addr_to_pos.items():
             new_addr_to_pos.add_mapping(addr, pos.posmap_pos + offset)
