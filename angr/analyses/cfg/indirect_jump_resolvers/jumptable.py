@@ -920,7 +920,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # more sanity checks
 
         # for a typical jump table, the current block has only one predecessor, and the predecessor to the current
-        # block has two successors (not including itself)
+        # block has two successors
         # for a typical vtable call (or jump if at the end of a function), the block as two predecessors that form a
         # diamond shape
         curr_node = func.get_node(addr)
