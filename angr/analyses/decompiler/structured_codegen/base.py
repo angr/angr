@@ -122,7 +122,7 @@ class BaseStructuredCodeGenerator:
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
         self.map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]] | None = None
-        self.notes = notes or {}
+        self.notes = notes if notes is not None else {}
 
     def adjust_mapping_positions(
         self,
