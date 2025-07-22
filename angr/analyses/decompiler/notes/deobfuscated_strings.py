@@ -36,7 +36,7 @@ class DeobfuscatedStringsNote(DecompilationNote):
 
         self.strings: dict[int, DeobfuscatedString] = {}
 
-    def add_string(self, obf_type: str, value: bytes, ref_addr: int | None = None):
+    def add_string(self, obf_type: str, value: bytes, *, ref_addr: int):
         """
         Add a deobfuscated string to the note.
 
@@ -44,7 +44,7 @@ class DeobfuscatedStringsNote(DecompilationNote):
         :param value: The deobfuscated string value.
         :param ref_addr: The address where this string is referenced, if applicable.
         """
-        deobf_str = DeobfuscatedString(value, obf_type, ref_addr)
+        deobf_str = DeobfuscatedString(value, obf_type, ref_addr=ref_addr)
         self.strings[ref_addr] = deobf_str
 
     def __str__(self):

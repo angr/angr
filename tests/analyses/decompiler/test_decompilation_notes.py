@@ -8,6 +8,7 @@ import unittest
 
 import angr
 from angr.analyses.decompiler import Decompiler
+from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.sim_type import parse_signature
 
 from tests.common import bin_location, print_decompilation_result
@@ -53,7 +54,9 @@ class TestDecompilationNotes(unittest.TestCase):
         assert dec.codegen.text.count("explorer.exe") == 2
         assert "deobfuscated_strings" in dec.notes
         assert dec.notes["deobfuscated_strings"] is not None
-        assert len(dec.notes["deobfuscated_strings"].strings) == 1
+        the_note = dec.notes["deobfuscated_strings"]
+        assert isinstance(the_note, DeobfuscatedStringsNote)
+        assert len(the_note.strings) == 1
 
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(
             proj.kb.functions[0x140003504], options=[("display_notes", True)]

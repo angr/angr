@@ -174,7 +174,7 @@ class StringObfuscationFinder(Analysis):
 
             # decompile this function and see if it "looks like" a deobfuscation function
             with self._resilience():
-                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)
+                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)  # type:ignore
             if (
                 dec.codegen is None
                 or not dec.codegen.text
@@ -469,7 +469,12 @@ class StringObfuscationFinder(Analysis):
 
             # decompile this function and see if it "looks like" a deobfuscation function
             with self._resilience():
-                dec = self.project.analyses.Decompiler(func, cfg=cfg, expr_collapse_depth=64, fail_fast=self._fail_fast)
+                dec = self.project.analyses.Decompiler(
+                    func,
+                    cfg=cfg,
+                    expr_collapse_depth=64,
+                    fail_fast=self._fail_fast,  # type:ignore
+                )
             if (
                 dec.codegen is None
                 or not dec.codegen.text
@@ -664,7 +669,7 @@ class StringObfuscationFinder(Analysis):
             # take a look at the content
             with self._resilience():
                 # catch all exceptions
-                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)
+                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)  # type:ignore
             if dec.codegen is None or not dec.codegen.text:
                 continue
 
