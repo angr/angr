@@ -34,10 +34,8 @@ class TestStringObfFinder(TestCase):
             "int PsLookupProcessByProcessId(uint64_t a, uint64_t b);"
         ).with_arch(proj.arch)
 
-        # also sadly we do not yet identify "__security_check_cookie" on Windows binaries
-        # hard-code it for now
-        proj.kb.functions[0x1400070B0].name = "_security_check_cookie"
-        proj.kb.functions[0x1400070B0].is_default_name = False
+        # ensure we correctly recognize security_check_cookie
+        assert proj.kb.functions[0x1400070B0].name == "_security_check_cookie"
 
         proj.analyses.CompleteCallingConventions(recover_variables=True)
 
@@ -47,18 +45,22 @@ class TestStringObfFinder(TestCase):
         assert proj.kb.obfuscations.type2_deobfuscated_strings
 
         dec = proj.analyses.Decompiler(proj.kb.functions[0x140005174])
+        assert dec.codegen is not None and dec.codegen.text is not None
         # print(dec.codegen.text)
         assert '"explorer.exe"' in dec.codegen.text
 
         dec = proj.analyses.Decompiler(proj.kb.functions[0x140003504])
+        assert dec.codegen is not None and dec.codegen.text is not None
         # print(dec.codegen.text)
         assert '"AutoConfigURL"' in dec.codegen.text
 
         dec = proj.analyses.Decompiler(proj.kb.functions[0x140006208])
+        assert dec.codegen is not None and dec.codegen.text is not None
         # print(dec.codegen.text)
         assert '" HTTP/1.1\\r\\nHost: "' in dec.codegen.text
 
         dec = proj.analyses.Decompiler(proj.kb.functions[0x1400035A0])
+        assert dec.codegen is not None and dec.codegen.text is not None
         # print(dec.codegen.text)
         assert "\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Internet Settings" in dec.codegen.text
 
@@ -91,6 +93,7 @@ class TestStringObfFinder(TestCase):
         _ = proj.analyses.StringObfuscationFinder()
 
         dec = proj.analyses.Decompiler(proj.kb.functions[0x140004790])
+        assert dec.codegen is not None and dec.codegen.text is not None
         # print(dec.codegen.text)
         assert "socket create false\\n" in dec.codegen.text
         assert "connet false\\n" in dec.codegen.text
@@ -109,6 +112,7 @@ class TestStringObfFinder(TestCase):
         _ = proj.analyses.StringObfuscationFinder()
 
         dec = proj.analyses.Decompiler(proj.kb.functions[0x1400017E8])
+        assert dec.codegen is not None and dec.codegen.text is not None
         # print(dec.codegen.text)
         assert "IsWhitelist->RvStrJson=%s\\\\n" in dec.codegen.text
         assert "0xda" not in dec.codegen.text and "218" not in dec.codegen.text

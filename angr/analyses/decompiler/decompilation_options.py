@@ -240,6 +240,16 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Display decompilation notes as comments",
+        "Display decompilation notes in the outpu as function comments.",
+        bool,
+        "codegen",
+        "display_notes",
+        category="Display",
+        default_value=False,
+        clears_cache=False,
+    ),
+    O(
         "Multi-expression statements generation",
         "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
         type,

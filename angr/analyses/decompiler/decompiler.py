@@ -21,12 +21,13 @@ from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
-from .decompilation_options import DecompilationOption
+from .decompilation_options import DecompilationOption, PARAM_TO_OPTION
 from .decompilation_cache import DecompilationCache
 from .utils import remove_edges_in_ailgraph
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
+from .notes import DecompilationNote
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
@@ -80,7 +81,7 @@ class Decompiler(Analysis):
             func = self.kb.functions[func]
         self.func: Function = func
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
-        self._options = options or []
+        self._options = self._parse_options(options) if options else []
 
         if preset is None and optimization_passes:
             self._optimization_passes = optimization_passes
@@ -145,6 +146,7 @@ class Decompiler(Analysis):
         self._copied_var_ids: set[int] = set()
         self._optimization_scratch: dict[str, Any] = {}
         self.expr_collapse_depth = expr_collapse_depth
+        self.notes: dict[str, DecompilationNote] = {}
 
         if decompile:
             with self._resilience():
@@ -170,6 +172,20 @@ class Decompiler(Analysis):
         a, b = self._cache_parameters, cache.parameters
         id_checks = {"cfg", "variable_kb"}
         return all(a[k] is b[k] if k in id_checks else a[k] == b[k] for k in self._cache_parameters)
+
+    @staticmethod
+    def _parse_options(options: list[tuple[DecompilationOption | str, Any]]) -> list[tuple[DecompilationOption, Any]]:
+        """
+        Parse the options and return a list of option tuples.
+        """
+
+        converted_options = []
+        for o, v in options:
+            if isinstance(o, str):
+                # convert to DecompilationOption
+                o = PARAM_TO_OPTION[o]
+            converted_options.append((o, v))
+        return converted_options
 
     @timethis
     def _decompile(self):
@@ -268,6 +284,7 @@ class Decompiler(Analysis):
                 ail_graph=self._clinic_graph,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
+                notes=self.notes,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -378,6 +395,7 @@ class Decompiler(Analysis):
                 const_formats=old_codegen.const_formats if old_codegen is not None else None,
                 externs=clinic.externs,
                 binop_depth_cutoff=self.expr_collapse_depth,
+                notes=self.notes,
                 **self.options_to_params(self.options_by_class["codegen"]),
             )
 

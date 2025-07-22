@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 from __future__ import annotations
 from sortedcontainers import SortedDict
 
@@ -114,13 +115,45 @@ class InstructionMapping:
 
 
 class BaseStructuredCodeGenerator:
-    def __init__(self, flavor=None):
+    def __init__(self, flavor=None, notes=None):
         self.flavor = flavor
         self.text = None
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
         self.map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]] | None = None
+        self.notes = notes if notes is not None else {}
+
+    def adjust_mapping_positions(
+        self,
+        offset: int,
+        pos_to_node: PositionMapping,
+        pos_to_addr: PositionMapping,
+        addr_to_pos: InstructionMapping,
+    ) -> tuple[PositionMapping, PositionMapping, InstructionMapping]:
+        """
+        Adjust positions in the mappings to account for the notes that are prepended to the text.
+
+        :param offset:       The length of the notes to prepend.
+        :param pos_to_node:  The position to node mapping.
+        :param pos_to_addr:  The position to address mapping.
+        :param addr_to_pos:  The address to position mapping.
+        :return:             Adjusted mappings.
+        """
+        new_pos_to_node = PositionMapping()
+        new_pos_to_addr = PositionMapping()
+        new_addr_to_pos = InstructionMapping()
+
+        for pos, node in pos_to_node.items():
+            new_pos_to_node.add_mapping(pos + offset, node.length, node.obj)
+
+        for pos, node in pos_to_addr.items():
+            new_pos_to_addr.add_mapping(pos + offset, node.length, node.obj)
+
+        for addr, pos in addr_to_pos.items():
+            new_addr_to_pos.add_mapping(addr, pos.posmap_pos + offset)
+
+        return new_pos_to_node, new_pos_to_addr, new_addr_to_pos
 
     def reapply_options(self, options):
         pass

@@ -22,6 +22,7 @@ class DecompilationCache:
         "errors",
         "func_typevar",
         "ite_exprs",
+        "notes",
         "parameters",
         "type_constraints",
         "var_to_typevar",
@@ -38,6 +39,7 @@ class DecompilationCache:
         self.ite_exprs: set[tuple[int, Any]] | None = None
         self.binop_operators: dict[OpDescriptor, str] | None = None
         self.errors: list[str] = []
+        self.notes: dict[str, str] = {}
 
     @property
     def local_types(self):

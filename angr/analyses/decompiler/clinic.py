@@ -55,6 +55,7 @@ from .optimization_passes import (
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+    from .notes import DecompilationNote
     from .decompilation_cache import DecompilationCache
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
@@ -149,6 +150,7 @@ class Clinic(Analysis):
         ail_graph: networkx.DiGraph | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
+        notes: dict[str, DecompilationNote] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -193,6 +195,8 @@ class Clinic(Analysis):
         # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
         # actual stack variables. these secondary stack variables can be safely eliminated if not used by anything.
         self.secondary_stackvars: set[int] = set()
+
+        self.notes = notes if notes is not None else {}
 
         #
         # intermediate variables used during decompilation
@@ -1555,6 +1559,7 @@ class Clinic(Analysis):
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
                 stack_pointer_tracker=stack_pointer_tracker,
+                notes=self.notes,
                 **kwargs,
             )
             if a.out_graph:
