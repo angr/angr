@@ -119,18 +119,18 @@ class CFBlanket(Analysis):
     def _init_regions(self):
         for obj in self.project.loader.all_objects:
             if isinstance(obj, cle.MetaELF):
-                if obj.sections:
+                if obj.segments:
+                    if "segment" not in self._exclude_region_types:
+                        for segment in obj.segments:
+                            if segment.memsize > 0:
+                                mr = MemoryRegion(segment.vaddr, segment.memsize, "segment", obj, segment)
+                                self._regions.append(mr)
+                elif obj.sections:
                     if "section" not in self._exclude_region_types:
                         # Enumerate sections in an ELF file
                         for section in obj.sections:
                             if section.occupies_memory:
                                 mr = MemoryRegion(section.vaddr, section.memsize, "section", obj, section)
-                                self._regions.append(mr)
-                elif obj.segments:
-                    if "segment" not in self._exclude_region_types:
-                        for segment in obj.segments:
-                            if segment.memsize > 0:
-                                mr = MemoryRegion(segment.vaddr, segment.memsize, "segment", obj, segment)
                                 self._regions.append(mr)
                 else:
                     raise NotImplementedError(
