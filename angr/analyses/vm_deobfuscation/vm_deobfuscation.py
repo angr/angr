@@ -1830,7 +1830,7 @@ class VMDeobfuscation(Analysis):
             main = proj.loader.main_object.get_symbol("main")
             start_addr = main.rebased_addr
         if start_state:
-            initial_input_state = start_state
+            initial_input_state = start_state.copy()
         else:
             print("Using blank state!")
             # kwargs = {'plugins': {'memory': DefaultListPagesMemory(memory_id="mem")}, 'cle_memory_backer':proj.loader, }#,
@@ -3139,6 +3139,12 @@ class VMDeobfuscation(Analysis):
     @logtime
     def _eliminate_dead_assignments(self, cfg, proj, keep_sp_changes_dae=False):
 
+        def remove_path(cur_cfg, start_node):
+            reachable = set(networkx.dfs_preorder_nodes(cur_cfg.graph, source= start_node))
+            # Nodes dominated by the edge are now unreachable
+            to_prune = [n for n in cur_cfg.graph.nodes if n not in reachable]
+            return to_prune
+
         #dsa_new_model = self.new_model_graph(cfg.graph, proj, 'dae')
         dsa_new_model = cfg
         for node in dsa_new_model.nodes():
@@ -3146,6 +3152,7 @@ class VMDeobfuscation(Analysis):
                 start_node = node
                 break
 
+        nodes_to_remove = set()
         for node in list(dsa_new_model.nodes()):
             if node.is_simprocedure:
                 continue
@@ -3293,6 +3300,7 @@ class VMDeobfuscation(Analysis):
                                 continue
 
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
+                            nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
                         continue
                     elif stmt.guard.con.value == 1:
                         # Remove the edge that is no longer required
@@ -3302,6 +3310,7 @@ class VMDeobfuscation(Analysis):
                                 if succ.addr == node.irsb.next.con.value and node.irsb.next.con.block_id == succ.block_id:
                                     edge_to_remove_node = succ
                             dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
+                            nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
                         # else:
                         #     print("Hmmmmm")
                         #     import ipdb;ipdb.set_trace()
@@ -3350,6 +3359,7 @@ class VMDeobfuscation(Analysis):
                                                    jumpkind=node.irsb.jumpkind,
                                                    size=node.irsb.size)
 
+        dsa_new_model.graph.remove_nodes_from(nodes_to_remove)
         # Returning a new CFGVMDeobfuscation object with the updated graph
         # if start_state:
         #     initial_input_state = start_state
