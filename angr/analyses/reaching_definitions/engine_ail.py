@@ -369,7 +369,7 @@ class SimEngineRDAIL(
 
         # base pointer
         # TODO: Check if the stack base pointer is used as a stack base pointer in this function or not
-        self.state.add_register_use(self.project.arch.bp_offset, self.project.arch.bytes)
+        # self.state.add_register_use(self.project.arch.bp_offset, self.project.arch.bytes)
         # We don't add sp since stack pointers are supposed to be get rid of in AIL. this is definitely a hack though
         # self.state.add_use(Register(self.project.arch.sp_offset, self.project.arch.bits // 8))
 
