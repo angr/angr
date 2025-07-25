@@ -249,6 +249,7 @@ class FunctionBodyFactCollector(AILBlockWalker):
                     self.has_write_to_arg0 = True
             elif func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
                 tmp = Tmp(None, None, 0, call.args[2].value * self.context.project.arch.byte_width)
+                self.has_write_to_arg0 = True
                 self.add_memory_write(0, self._path, 0, tmp)
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
