@@ -1,11 +1,14 @@
+import logging
+
 from angr.ailment import AILBlockWalker, Block, BinaryOp, Const
 from angr.ailment.expression import VirtualVariable, Load, StringLiteral
 from angr.ailment.statement import Call, Statement, FunctionLikeMacro
 
-from ..utils.ail import unwrap_stack_vvar_reference
 from angr.rust.sim_type import RustSimStruct
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import CFAMixin, SRDAMixin
+
+l = logging.getLogger(__file__)
 
 STR_CMP_NE_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::ne"
 STR_CMP_EQ_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::eq"
@@ -19,6 +22,11 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
     def handle_Call(self, call: Call, stmt, block):
         String_ty = self.context.project.kb.known_structs["alloc::string::String"]
         ptr_offset = String_ty.get_field_offset("vec.buf.ptr.pointer")
+        if ptr_offset is None:
+            ptr_offset = String_ty.get_field_offset("vec.buf.inner.ptr.pointer")
+        if ptr_offset is None:
+            l.warning(f"Can't find ptr_offset in {String_ty.repr(full=10)}")
+            return None
         len_offset = String_ty.get_field_offset("vec.len")
         if call.args:
             changed = False

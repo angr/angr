@@ -1,3 +1,4 @@
+from .combo_register_rewriter import ComboRegisterRewriter
 from .error_propagation_simplifier import ErrorPropagationSimplifier
 from .function_prototype_inference import FunctionPrototypeInference
 from .cleanup_code_remover import CleanupCodeRemover
@@ -5,8 +6,10 @@ from .deref_coercion_simplifier import DerefCoercionSimplifier
 from .macro.show_macro_simplifier import ShowMacroSimplifier
 from .macro.vec_macro_simplifier import VecMacroSimplifier
 from .outliners.string_cmp_outliner import StringCmpOutliner
+from .outliners.string_literal_outliner import StringLiteralOutliner
 from .outliners.string_outliner import StringOutliner
 from .outliners.unwrap_outliner import UnwrapOutliner
+from .outliners.vec_outliner import VecOutliner
 from .pattern_match_simplifier import PatternMatchSimplifier
 from .macro.print_macro_simplifier import PrintMacroSimplifier
 from .pre_pattern_match_simplifier import PrePatternMatchSimplifier
@@ -25,6 +28,8 @@ def get_rust_optimization_passes():
     return [
         # BEFORE_SSA_LEVEL0_TRANSFORMATION
         RetExprRewriter,
+        # AFTER_MAKING_CALLSITES
+        ComboRegisterRewriter,
         # BEFORE_VARIABLE_RECOVERY
         CleanupCodeRemover,
         SecurityCheckRemover,
@@ -32,7 +37,9 @@ def get_rust_optimization_passes():
         StrArgumentSimplifier,
         StructInstantiationSimplifier,
         StringOutliner,
+        VecOutliner,
         StringCmpOutliner,
+        StringLiteralOutliner,
         UnwrapOutliner,
         PrintMacroSimplifier,
         VecMacroSimplifier,

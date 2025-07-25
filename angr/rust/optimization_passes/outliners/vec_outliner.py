@@ -1,14 +1,15 @@
+from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference
 from angr.ailment import AILBlockWalker, Block
 from angr.ailment.expression import Const, Struct, StringLiteral
 from angr.ailment.statement import Assignment, Call
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 
 
-class StringOutliner(OptimizationPass):
+class VecOutliner(OptimizationPass):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
-    NAME = "Outline String structs to `String::new`"
+    NAME = "Outline Vec structs to `Vec::new`"
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -19,14 +20,22 @@ class StringOutliner(OptimizationPass):
 
     def _analyze(self, cache=None):
         def callback(stmt_idx, stmt: Assignment, block):
-            if isinstance(stmt.src, Struct) and stmt.src.name == "alloc::string::String":
-                cap = stmt.src.get_field("vec.buf.cap.__0") or stmt.src.get_field("vec.buf.inner.cap.__0")
-                _len = stmt.src.get_field("vec.len")
-                if isinstance(cap, Const) and cap.value == 0 and isinstance(_len, Const) and _len.value == 0:
+            if isinstance(stmt.src, Struct) and stmt.src.name.startswith("alloc::vec::Vec"):
+                cap = stmt.src.get_field("buf.cap.__0") or stmt.src.get_field("buf.inner.cap.__0")
+                _len = stmt.src.get_field("len")
+                if (
+                    isinstance(cap, Const)
+                    and cap.value == 0
+                    and isinstance(_len, Const)
+                    and _len.value == 0
+                    and "type" in stmt.src.tags
+                ):
                     call = Call(
                         idx=None,
-                        target=StringLiteral(None, "String::new", self.project.arch.bits),
-                        prototype=self.kb.librust.get_prototype("alloc::string::String::new")
+                        target=StringLiteral(None, "Vec::new", self.project.arch.bits),
+                        prototype=RustSimTypeFunction(
+                            args=[RustSimTypeReference(stmt.src.type)], returnty=None, is_arg0_retbuf=True
+                        )
                         .with_arch(self.project.arch)
                         .normalize(),
                         args=[],

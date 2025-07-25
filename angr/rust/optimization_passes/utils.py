@@ -2,6 +2,14 @@ import angr.ailment as ailment
 from angr.ailment import AILBlockWalker, Block
 from angr.ailment.statement import *
 from angr.ailment.expression import *
+from angr.calling_conventions import (
+    SimFunctionArgument,
+    SimStackArg,
+    SimRegArg,
+    SimReferenceArgument,
+    SimComboArg,
+    SimStructArg,
+)
 
 
 def extract_callee(obj, kb):
@@ -22,16 +30,18 @@ def extract_str(project, str_ptr, str_len):
     """
     Extract Rust string literal with given ptr and len
     """
-    decoded_str = ""
+    decoded_str = None
+    if str_len == 0:
+        return ""
     memory = project.loader.memory
     if str_ptr >= 0 and (
         (section := project.loader.find_section_containing(str_ptr)) and section.is_readable and not section.is_writable
     ):
         try:
             decoded_str = memory.load(str_ptr, str_len).decode("utf-8")
-            decoded_str = (
-                decoded_str if decoded_str.replace("\n", "").replace("\t", "").replace("\r", "").isprintable() else None
-            )
+            # decoded_str = (
+            #     decoded_str if decoded_str.replace("\n", "").replace("\t", "").replace("\r", "").isprintable() else None
+            # )
         except UnicodeDecodeError:
             pass
     return decoded_str
@@ -64,3 +74,22 @@ class CallReplacer(AILBlockWalker):
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         return self.callback(expr, block, stmt, is_expr=True)
+
+
+def expand_argloc(arg_loc: SimFunctionArgument) -> list[SimStackArg | SimRegArg | SimReferenceArgument]:
+    if isinstance(arg_loc, SimComboArg):
+        # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
+        # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
+        # have no way to know that until later down the pipeline.
+        return arg_loc.locations
+    elif isinstance(arg_loc, SimStructArg):
+        tmp_locs = []
+        for field_name in arg_loc.struct.fields:
+            if field_name not in arg_loc.locs:
+                continue
+            tmp_locs += expand_argloc(arg_loc.locs[field_name])
+        return tmp_locs
+    elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
+        return [arg_loc]
+    else:
+        raise NotImplementedError("Not implemented yet.")

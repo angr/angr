@@ -29,7 +29,7 @@ from angr.utils import timethis
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.graph import GraphUtils
 from angr.utils.types import dereference_simtype_by_lib
-from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument, SimCCUsercall
+from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument, SimStructArg, SimCCUsercall
 from angr.sim_type import (
     SimType,
     SimTypeChar,
@@ -75,6 +75,8 @@ from .optimization_passes import get_optimization_passes, OptimizationPassStage,
 from ..typehoon.typehoon import Typehoon
 from angr.ailment.expression import Struct, Array, Enum, Let, ComboRegister, VirtualVariable
 from angr.ailment.statement import FunctionLikeMacro
+from angr.rust.sim_type import RustSimTypeFunction
+from angr.rust.optimization_passes.utils import expand_argloc
 from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
@@ -1855,6 +1857,7 @@ class Clinic(Analysis):
                 notes=self.notes,
                 static_vvars=self.static_vvars,
                 static_buffers=self.static_buffers,
+                arg_vvars=self.arg_vvars,
                 **kwargs,
             )
             if a.out_graph:
@@ -1895,7 +1898,39 @@ class Clinic(Analysis):
                 )
                 self.vvar_id_start += 1
                 arg_vvars[arg_vvar.varid] = arg_vvar, arg
+            elif isinstance(arg, SimComboRegisterVariable):
+                arg_vvar = ailment.Expr.VirtualVariable(
+                    self._ail_manager.next_atom(),
+                    self.vvar_id_start,
+                    arg.bits,
+                    ailment.Expr.VirtualVariableCategory.PARAMETER,
+                    oident=(ailment.Expr.VirtualVariableCategory.COMBO_REGISTER, arg.reg_offsets),
+                    ins_addr=self.function.addr,
+                    vex_block_addr=self.function.addr,
+                    reg_vvars=[],
+                )
+                self.vvar_id_start += 1
+                arg_vvars[arg_vvar.varid] = arg_vvar, arg
 
+        for arg_vvar in arg_vvars:
+            if (
+                isinstance(arg_vvar, VirtualVariable)
+                and arg_vvar.parameter_category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER
+            ):
+                reg_vvars = []
+                for reg_offset in arg_vvar.reg_offsets:
+                    arg_vvar = ailment.Expr.VirtualVariable(
+                        self._ail_manager.next_atom(),
+                        self.vvar_id_start,
+                        self.project.arch.bits,
+                        ailment.Expr.VirtualVariableCategory.REGISTER,
+                        oident=reg_offset,
+                        ins_addr=self.function.addr,
+                        vex_block_addr=self.function.addr,
+                    )
+                    reg_vvars.append(arg_vvar)
+                    self.vvar_id_start += 1
+                arg_vvar.tags["reg_vvars"] = reg_vvars
         return arg_vvars
 
     @timethis
@@ -1994,6 +2029,28 @@ class Clinic(Analysis):
                             name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                         )
+                    elif isinstance(arg, SimStructArg):
+                        locs = expand_argloc(arg)
+                        if all(isinstance(loc, SimRegArg) for loc in locs):
+                            reg_offsets = []
+                            reg_names = []
+                            for loc in locs:
+                                reg_offsets.append(self.project.arch.registers[loc.reg_name][0])
+                                reg_names.append(loc.reg_name)
+                            argvar = SimComboRegisterVariable(
+                                tuple(reg_offsets),
+                                arg.size,
+                                ident=f"arg_{idx}",
+                                name=arg_names[idx],
+                                region=self.function.addr,
+                            )
+                        else:
+                            argvar = SimVariable(
+                                ident=f"arg_{idx}",
+                                name=arg_names[idx],
+                                region=self.function.addr,
+                                size=arg.size,
+                            )
                     else:
                         argvar = SimVariable(
                             ident=f"arg_{idx}",

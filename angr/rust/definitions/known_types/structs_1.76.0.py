@@ -269,11 +269,11 @@ default_structs['alloc::ffi::c_str::IntoStringError'] = RustSimStruct(name='allo
 
 default_structs['alloc::raw_vec::Cap'] = RustSimStruct(name='alloc::raw_vec::Cap', fields={"__0": RustSimTypeSize(signed=False), })
 
+default_structs['alloc::alloc::Global'] = RustSimStruct(name='alloc::alloc::Global', fields={})
+
 default_structs['core::marker::PhantomData<u8>'] = RustSimStruct(name='core::marker::PhantomData<u8>', fields={})
 
 default_structs['core::ptr::unique::Unique<u8>'] = RustSimStruct(name='core::ptr::unique::Unique<u8>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<u8>'], "_marker": default_structs['core::marker::PhantomData<u8>'], })
-
-default_structs['alloc::alloc::Global'] = RustSimStruct(name='alloc::alloc::Global', fields={})
 
 default_structs['alloc::raw_vec::RawVec<u8, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<u8, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<u8>'], "alloc": default_structs['alloc::alloc::Global'], })
 
@@ -465,73 +465,73 @@ default_structs['*const [core::mem::maybe_uninit::MaybeUninit<core::option::Opti
 
 default_structs['*const [core::mem::maybe_uninit::MaybeUninit<core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>]'] = RustSimStruct(name='*const [core::mem::maybe_uninit::MaybeUninit<core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>]', fields={"data_ptr": RustSimTypeReference(RustSimTypeBottom()), "length": RustSimTypeSize(signed=False), })
 
-default_structs['gimli::common::DebugRngListsBase<usize>'] = RustSimStruct(name='gimli::common::DebugRngListsBase<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::constants::DwVirtuality'] = RustSimStruct(name='gimli::constants::DwVirtuality', fields={"__0": RustSimTypeInt(8, signed=False), })
+default_structs['gimli::common::DebugTypeSignature'] = RustSimStruct(name='gimli::common::DebugTypeSignature', fields={"__0": RustSimTypeInt(64, signed=False), })
 
 default_structs['gimli::common::LocationListsOffset<usize>'] = RustSimStruct(name='gimli::common::LocationListsOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
 
+default_structs['gimli::constants::DwAte'] = RustSimStruct(name='gimli::constants::DwAte', fields={"__0": RustSimTypeInt(8, signed=False), })
+
 default_structs['gimli::constants::DwInl'] = RustSimStruct(name='gimli::constants::DwInl', fields={"__0": RustSimTypeInt(8, signed=False), })
 
-default_structs['gimli::common::DebugStrOffsetsBase<usize>'] = RustSimStruct(name='gimli::common::DebugStrOffsetsBase<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+default_structs['gimli::constants::DwAccess'] = RustSimStruct(name='gimli::constants::DwAccess', fields={"__0": RustSimTypeInt(8, signed=False), })
 
-default_structs['gimli::constants::DwAte'] = RustSimStruct(name='gimli::constants::DwAte', fields={"__0": RustSimTypeInt(8, signed=False), })
+default_structs['gimli::common::DebugAddrIndex<usize>'] = RustSimStruct(name='gimli::common::DebugAddrIndex<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugMacroOffset<usize>'] = RustSimStruct(name='gimli::common::DebugMacroOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugMacinfoOffset<usize>'] = RustSimStruct(name='gimli::common::DebugMacinfoOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugStrOffsetsIndex<usize>'] = RustSimStruct(name='gimli::common::DebugStrOffsetsIndex<usize>', fields={"__0": RustSimTypeSize(signed=False), })
 
 default_structs['gimli::endianity::LittleEndian'] = RustSimStruct(name='gimli::endianity::LittleEndian', fields={})
 
 default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'] = RustSimStruct(name='gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>', fields={"slice": RustSimTypeArrayRef(RustSimTypeInt(8, signed=False)), "endian": default_structs['gimli::endianity::LittleEndian'], })
 
-default_structs['gimli::common::DebugLocListsIndex<usize>'] = RustSimStruct(name='gimli::common::DebugLocListsIndex<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::constants::DwAccess'] = RustSimStruct(name='gimli::constants::DwAccess', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::constants::DwCc'] = RustSimStruct(name='gimli::constants::DwCc', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::common::DebugAddrIndex<usize>'] = RustSimStruct(name='gimli::common::DebugAddrIndex<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::common::DebugInfoOffset<usize>'] = RustSimStruct(name='gimli::common::DebugInfoOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::common::DebugStrOffsetsIndex<usize>'] = RustSimStruct(name='gimli::common::DebugStrOffsetsIndex<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::constants::DwId'] = RustSimStruct(name='gimli::constants::DwId', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::read::UnitOffset<usize>'] = RustSimStruct(name='gimli::read::UnitOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::common::DebugAddrBase<usize>'] = RustSimStruct(name='gimli::common::DebugAddrBase<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::common::DebugLineStrOffset<usize>'] = RustSimStruct(name='gimli::common::DebugLineStrOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::constants::DwLang'] = RustSimStruct(name='gimli::constants::DwLang', fields={"__0": RustSimTypeInt(16, signed=False), })
-
-default_structs['gimli::common::DebugTypeSignature'] = RustSimStruct(name='gimli::common::DebugTypeSignature', fields={"__0": RustSimTypeInt(64, signed=False), })
-
-default_structs['gimli::common::DwoId'] = RustSimStruct(name='gimli::common::DwoId', fields={"__0": RustSimTypeInt(64, signed=False), })
-
-default_structs['gimli::constants::DwOrd'] = RustSimStruct(name='gimli::constants::DwOrd', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::common::DebugStrOffset<usize>'] = RustSimStruct(name='gimli::common::DebugStrOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::constants::DwDs'] = RustSimStruct(name='gimli::constants::DwDs', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::common::DebugRngListsIndex<usize>'] = RustSimStruct(name='gimli::common::DebugRngListsIndex<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::constants::DwAddr'] = RustSimStruct(name='gimli::constants::DwAddr', fields={"__0": RustSimTypeInt(64, signed=False), })
-
-default_structs['gimli::common::DebugLineOffset<usize>'] = RustSimStruct(name='gimli::common::DebugLineOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::common::DebugMacroOffset<usize>'] = RustSimStruct(name='gimli::common::DebugMacroOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::common::DebugLocListsBase<usize>'] = RustSimStruct(name='gimli::common::DebugLocListsBase<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+default_structs['gimli::read::op::Expression<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::op::Expression<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"__0": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
 
 default_structs['gimli::constants::DwVis'] = RustSimStruct(name='gimli::constants::DwVis', fields={"__0": RustSimTypeInt(8, signed=False), })
 
-default_structs['gimli::common::DebugMacinfoOffset<usize>'] = RustSimStruct(name='gimli::common::DebugMacinfoOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+default_structs['gimli::constants::DwLang'] = RustSimStruct(name='gimli::constants::DwLang', fields={"__0": RustSimTypeInt(16, signed=False), })
+
+default_structs['gimli::common::DebugRngListsBase<usize>'] = RustSimStruct(name='gimli::common::DebugRngListsBase<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::constants::DwCc'] = RustSimStruct(name='gimli::constants::DwCc', fields={"__0": RustSimTypeInt(8, signed=False), })
+
+default_structs['gimli::common::DwoId'] = RustSimStruct(name='gimli::common::DwoId', fields={"__0": RustSimTypeInt(64, signed=False), })
+
+default_structs['gimli::common::DebugStrOffsetsBase<usize>'] = RustSimStruct(name='gimli::common::DebugStrOffsetsBase<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugLocListsBase<usize>'] = RustSimStruct(name='gimli::common::DebugLocListsBase<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugAddrBase<usize>'] = RustSimStruct(name='gimli::common::DebugAddrBase<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::read::UnitOffset<usize>'] = RustSimStruct(name='gimli::read::UnitOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::constants::DwOrd'] = RustSimStruct(name='gimli::constants::DwOrd', fields={"__0": RustSimTypeInt(8, signed=False), })
+
+default_structs['gimli::common::DebugInfoOffset<usize>'] = RustSimStruct(name='gimli::common::DebugInfoOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugLocListsIndex<usize>'] = RustSimStruct(name='gimli::common::DebugLocListsIndex<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugLineStrOffset<usize>'] = RustSimStruct(name='gimli::common::DebugLineStrOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugRngListsIndex<usize>'] = RustSimStruct(name='gimli::common::DebugRngListsIndex<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::DebugLineOffset<usize>'] = RustSimStruct(name='gimli::common::DebugLineOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
 
 default_structs['gimli::constants::DwEnd'] = RustSimStruct(name='gimli::constants::DwEnd', fields={"__0": RustSimTypeInt(8, signed=False), })
 
-default_structs['gimli::read::op::Expression<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::op::Expression<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"__0": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['gimli::constants::DwId'] = RustSimStruct(name='gimli::constants::DwId', fields={"__0": RustSimTypeInt(8, signed=False), })
 
 default_structs['gimli::common::RawRangeListsOffset<usize>'] = RustSimStruct(name='gimli::common::RawRangeListsOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::constants::DwDs'] = RustSimStruct(name='gimli::constants::DwDs', fields={"__0": RustSimTypeInt(8, signed=False), })
+
+default_structs['gimli::constants::DwAddr'] = RustSimStruct(name='gimli::constants::DwAddr', fields={"__0": RustSimTypeInt(64, signed=False), })
+
+default_structs['gimli::common::DebugStrOffset<usize>'] = RustSimStruct(name='gimli::common::DebugStrOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::constants::DwVirtuality'] = RustSimStruct(name='gimli::constants::DwVirtuality', fields={"__0": RustSimTypeInt(8, signed=False), })
 
 default_structs['gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'] = RustSimEnum('gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>', [EnumVariant('Addr', [(RustSimTypeInt(64, signed=False), None)], 0, 8), EnumVariant('Block', [(default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], None)], 1, 8), EnumVariant('Data1', [(RustSimTypeInt(8, signed=False), None)], 2, 8), EnumVariant('Data2', [(RustSimTypeInt(16, signed=False), None)], 3, 8), EnumVariant('Data4', [(RustSimTypeInt(32, signed=False), None)], 4, 8), EnumVariant('Data8', [(RustSimTypeInt(64, signed=False), None)], 5, 8), EnumVariant('Sdata', [(RustSimTypeInt(64, signed=True), None)], 6, 8), EnumVariant('Udata', [(RustSimTypeInt(64, signed=False), None)], 7, 8), EnumVariant('Exprloc', [(default_structs['gimli::read::op::Expression<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], None)], 8, 8), EnumVariant('Flag', [(RustSimTypeInt(1, signed=False), None)], 9, 8), EnumVariant('SecOffset', [(RustSimTypeSize(signed=False), None)], 10, 8), EnumVariant('DebugAddrBase', [(default_structs['gimli::common::DebugAddrBase<usize>'], None)], 11, 8), EnumVariant('DebugAddrIndex', [(default_structs['gimli::common::DebugAddrIndex<usize>'], None)], 12, 8), EnumVariant('UnitRef', [(default_structs['gimli::read::UnitOffset<usize>'], None)], 13, 8), EnumVariant('DebugInfoRef', [(default_structs['gimli::common::DebugInfoOffset<usize>'], None)], 14, 8), EnumVariant('DebugInfoRefSup', [(default_structs['gimli::common::DebugInfoOffset<usize>'], None)], 15, 8), EnumVariant('DebugLineRef', [(default_structs['gimli::common::DebugLineOffset<usize>'], None)], 16, 8), EnumVariant('LocationListsRef', [(default_structs['gimli::common::LocationListsOffset<usize>'], None)], 17, 8), EnumVariant('DebugLocListsBase', [(default_structs['gimli::common::DebugLocListsBase<usize>'], None)], 18, 8), EnumVariant('DebugLocListsIndex', [(default_structs['gimli::common::DebugLocListsIndex<usize>'], None)], 19, 8), EnumVariant('DebugMacinfoRef', [(default_structs['gimli::common::DebugMacinfoOffset<usize>'], None)], 20, 8), EnumVariant('DebugMacroRef', [(default_structs['gimli::common::DebugMacroOffset<usize>'], None)], 21, 8), EnumVariant('RangeListsRef', [(default_structs['gimli::common::RawRangeListsOffset<usize>'], None)], 22, 8), EnumVariant('DebugRngListsBase', [(default_structs['gimli::common::DebugRngListsBase<usize>'], None)], 23, 8), EnumVariant('DebugRngListsIndex', [(default_structs['gimli::common::DebugRngListsIndex<usize>'], None)], 24, 8), EnumVariant('DebugTypesRef', [(default_structs['gimli::common::DebugTypeSignature'], None)], 25, 8), EnumVariant('DebugStrRef', [(default_structs['gimli::common::DebugStrOffset<usize>'], None)], 26, 8), EnumVariant('DebugStrRefSup', [(default_structs['gimli::common::DebugStrOffset<usize>'], None)], 27, 8), EnumVariant('DebugStrOffsetsBase', [(default_structs['gimli::common::DebugStrOffsetsBase<usize>'], None)], 28, 8), EnumVariant('DebugStrOffsetsIndex', [(default_structs['gimli::common::DebugStrOffsetsIndex<usize>'], None)], 29, 8), EnumVariant('DebugLineStrRef', [(default_structs['gimli::common::DebugLineStrOffset<usize>'], None)], 30, 8), EnumVariant('String', [(default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], None)], 31, 8), EnumVariant('Encoding', [(default_structs['gimli::constants::DwAte'], None)], 32, 8), EnumVariant('DecimalSign', [(default_structs['gimli::constants::DwDs'], None)], 33, 8), EnumVariant('Endianity', [(default_structs['gimli::constants::DwEnd'], None)], 34, 8), EnumVariant('Accessibility', [(default_structs['gimli::constants::DwAccess'], None)], 35, 8), EnumVariant('Visibility', [(default_structs['gimli::constants::DwVis'], None)], 36, 8), EnumVariant('Virtuality', [(default_structs['gimli::constants::DwVirtuality'], None)], 37, 8), EnumVariant('Language', [(default_structs['gimli::constants::DwLang'], None)], 38, 8), EnumVariant('AddressClass', [(default_structs['gimli::constants::DwAddr'], None)], 39, 8), EnumVariant('IdentifierCase', [(default_structs['gimli::constants::DwId'], None)], 40, 8), EnumVariant('CallingConvention', [(default_structs['gimli::constants::DwCc'], None)], 41, 8), EnumVariant('Inline', [(default_structs['gimli::constants::DwInl'], None)], 42, 8), EnumVariant('Ordering', [(default_structs['gimli::constants::DwOrd'], None)], 43, 8), EnumVariant('FileIndex', [(RustSimTypeInt(64, signed=False), None)], 44, 8), EnumVariant('DwoId', [(default_structs['gimli::common::DwoId'], None)], 45, 8)])
 
@@ -567,33 +567,33 @@ default_structs['*mut [core::mem::maybe_uninit::MaybeUninit<u32>]'] = RustSimStr
 
 default_structs['*mut [core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]'] = RustSimStruct(name='*mut [core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]', fields={"data_ptr": RustSimTypeReference(RustSimTypeBottom()), "length": RustSimTypeSize(signed=False), })
 
-default_structs['gimli::constants::DwLns'] = RustSimStruct(name='gimli::constants::DwLns', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::constants::DwOp'] = RustSimStruct(name='gimli::constants::DwOp', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::constants::DwCfa'] = RustSimStruct(name='gimli::constants::DwCfa', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::constants::DwLne'] = RustSimStruct(name='gimli::constants::DwLne', fields={"__0": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::read::reader::ReaderOffsetId'] = RustSimStruct(name='gimli::read::reader::ReaderOffsetId', fields={"__0": RustSimTypeInt(64, signed=False), })
-
-default_structs['gimli::read::Error'] = RustSimEnum('gimli::read::Error', [EnumVariant('Io', [], 0, 1), EnumVariant('PcRelativePointerButSectionBaseIsUndefined', [], 1, 1), EnumVariant('TextRelativePointerButTextBaseIsUndefined', [], 2, 1), EnumVariant('DataRelativePointerButDataBaseIsUndefined', [], 3, 1), EnumVariant('FuncRelativePointerInBadContext', [], 4, 1), EnumVariant('CannotParseOmitPointerEncoding', [], 5, 1), EnumVariant('BadUnsignedLeb128', [], 6, 1), EnumVariant('BadSignedLeb128', [], 7, 1), EnumVariant('AbbreviationTagZero', [], 8, 1), EnumVariant('AttributeFormZero', [], 9, 1), EnumVariant('BadHasChildren', [], 10, 1), EnumVariant('BadLength', [], 11, 1), EnumVariant('UnknownForm', [], 12, 1), EnumVariant('ExpectedZero', [], 13, 1), EnumVariant('DuplicateAbbreviationCode', [], 14, 1), EnumVariant('DuplicateArange', [], 15, 1), EnumVariant('UnknownReservedLength', [], 16, 1), EnumVariant('UnknownVersion', [(RustSimTypeInt(64, signed=False), None)], 17, 1), EnumVariant('UnknownAbbreviation', [], 18, 1), EnumVariant('UnexpectedEof', [(default_structs['gimli::read::reader::ReaderOffsetId'], None)], 19, 1), EnumVariant('UnexpectedNull', [], 20, 1), EnumVariant('UnknownStandardOpcode', [(default_structs['gimli::constants::DwLns'], None)], 21, 1), EnumVariant('UnknownExtendedOpcode', [(default_structs['gimli::constants::DwLne'], None)], 22, 1), EnumVariant('UnsupportedAddressSize', [(RustSimTypeInt(8, signed=False), None)], 23, 1), EnumVariant('UnsupportedOffsetSize', [(RustSimTypeInt(8, signed=False), None)], 24, 1), EnumVariant('UnsupportedFieldSize', [(RustSimTypeInt(8, signed=False), None)], 25, 1), EnumVariant('MinimumInstructionLengthZero', [], 26, 1), EnumVariant('MaximumOperationsPerInstructionZero', [], 27, 1), EnumVariant('LineRangeZero', [], 28, 1), EnumVariant('OpcodeBaseZero', [], 29, 1), EnumVariant('BadUtf8', [], 30, 1), EnumVariant('NotCieId', [], 31, 1), EnumVariant('NotCiePointer', [], 32, 1), EnumVariant('NotFdePointer', [], 33, 1), EnumVariant('BadBranchTarget', [(RustSimTypeInt(64, signed=False), None)], 34, 1), EnumVariant('InvalidPushObjectAddress', [], 35, 1), EnumVariant('NotEnoughStackItems', [], 36, 1), EnumVariant('TooManyIterations', [], 37, 1), EnumVariant('InvalidExpression', [(default_structs['gimli::constants::DwOp'], None)], 38, 1), EnumVariant('UnsupportedEvaluation', [], 39, 1), EnumVariant('InvalidPiece', [], 40, 1), EnumVariant('InvalidExpressionTerminator', [(RustSimTypeInt(64, signed=False), None)], 41, 1), EnumVariant('DivisionByZero', [], 42, 1), EnumVariant('TypeMismatch', [], 43, 1), EnumVariant('IntegralTypeRequired', [], 44, 1), EnumVariant('UnsupportedTypeOperation', [], 45, 1), EnumVariant('InvalidShiftExpression', [], 46, 1), EnumVariant('UnknownCallFrameInstruction', [(default_structs['gimli::constants::DwCfa'], None)], 47, 1), EnumVariant('InvalidAddressRange', [], 48, 1), EnumVariant('InvalidLocationAddressRange', [], 49, 1), EnumVariant('CfiInstructionInInvalidContext', [], 50, 1), EnumVariant('PopWithEmptyStack', [], 51, 1), EnumVariant('NoUnwindInfoForAddress', [], 52, 1), EnumVariant('UnsupportedOffset', [], 53, 1), EnumVariant('UnknownPointerEncoding', [], 54, 1), EnumVariant('NoEntryAtGivenOffset', [], 55, 1), EnumVariant('OffsetOutOfBounds', [], 56, 1), EnumVariant('UnknownAugmentation', [], 57, 1), EnumVariant('UnsupportedPointerEncoding', [], 58, 1), EnumVariant('UnsupportedRegister', [(RustSimTypeInt(64, signed=False), None)], 59, 1), EnumVariant('TooManyRegisterRules', [], 60, 1), EnumVariant('StackFull', [], 61, 1), EnumVariant('VariableLengthSearchTable', [], 62, 1), EnumVariant('UnsupportedUnitType', [], 63, 1), EnumVariant('UnsupportedAddressIndex', [], 64, 1), EnumVariant('UnsupportedSegmentSize', [], 65, 1), EnumVariant('MissingUnitDie', [], 66, 1), EnumVariant('UnsupportedAttributeForm', [], 67, 1), EnumVariant('MissingFileEntryFormatPath', [], 68, 1), EnumVariant('ExpectedStringAttributeValue', [], 69, 1), EnumVariant('InvalidImplicitConst', [], 70, 1), EnumVariant('InvalidIndexSectionCount', [], 71, 1), EnumVariant('InvalidIndexSlotCount', [], 72, 1), EnumVariant('InvalidIndexRow', [], 73, 1), EnumVariant('UnknownIndexSection', [], 74, 1)])
-
-default_structs['core::option::Option<u64>'] = RustSimTypeOption(0, 8, RustSimTypeInt(64, signed=False), 1, 8, name='core::option::Option<u64>')
-
-default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimTypeOption(0, 8, default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], None, 0, name='core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>')
-
-default_structs['addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"call_file": default_structs['core::option::Option<u64>'], "dw_die_offset": default_structs['gimli::read::UnitOffset<usize>'], "name": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "call_line": RustSimTypeInt(32, signed=False), "call_column": RustSimTypeInt(32, signed=False), })
-
-default_structs['alloc::boxed::Box<[addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), "length": RustSimTypeSize(signed=False), })
-
 default_structs['gimli::read::rnglists::Range'] = RustSimStruct(name='gimli::read::rnglists::Range', fields={"begin": RustSimTypeInt(64, signed=False), "end": RustSimTypeInt(64, signed=False), })
 
 default_structs['addr2line::function::InlinedFunctionAddress'] = RustSimStruct(name='addr2line::function::InlinedFunctionAddress', fields={"range": default_structs['gimli::read::rnglists::Range'], "call_depth": RustSimTypeSize(signed=False), "function": RustSimTypeSize(signed=False), })
 
 default_structs['alloc::boxed::Box<[addr2line::function::InlinedFunctionAddress], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[addr2line::function::InlinedFunctionAddress], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['addr2line::function::InlinedFunctionAddress']), "length": RustSimTypeSize(signed=False), })
 
+default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimTypeOption(0, 8, default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], None, 0, name='core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>')
+
+default_structs['core::option::Option<u64>'] = RustSimTypeOption(0, 8, RustSimTypeInt(64, signed=False), 1, 8, name='core::option::Option<u64>')
+
+default_structs['addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"call_file": default_structs['core::option::Option<u64>'], "dw_die_offset": default_structs['gimli::read::UnitOffset<usize>'], "name": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "call_line": RustSimTypeInt(32, signed=False), "call_column": RustSimTypeInt(32, signed=False), })
+
+default_structs['alloc::boxed::Box<[addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), "length": RustSimTypeSize(signed=False), })
+
 default_structs['addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"inlined_functions": default_structs['alloc::boxed::Box<[addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>], alloc::alloc::Global>'], "inlined_addresses": default_structs['alloc::boxed::Box<[addr2line::function::InlinedFunctionAddress], alloc::alloc::Global>'], "dw_die_offset": default_structs['gimli::read::UnitOffset<usize>'], "name": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], })
+
+default_structs['gimli::constants::DwCfa'] = RustSimStruct(name='gimli::constants::DwCfa', fields={"__0": RustSimTypeInt(8, signed=False), })
+
+default_structs['gimli::constants::DwOp'] = RustSimStruct(name='gimli::constants::DwOp', fields={"__0": RustSimTypeInt(8, signed=False), })
+
+default_structs['gimli::read::reader::ReaderOffsetId'] = RustSimStruct(name='gimli::read::reader::ReaderOffsetId', fields={"__0": RustSimTypeInt(64, signed=False), })
+
+default_structs['gimli::constants::DwLne'] = RustSimStruct(name='gimli::constants::DwLne', fields={"__0": RustSimTypeInt(8, signed=False), })
+
+default_structs['gimli::constants::DwLns'] = RustSimStruct(name='gimli::constants::DwLns', fields={"__0": RustSimTypeInt(8, signed=False), })
+
+default_structs['gimli::read::Error'] = RustSimEnum('gimli::read::Error', [EnumVariant('Io', [], 0, 1), EnumVariant('PcRelativePointerButSectionBaseIsUndefined', [], 1, 1), EnumVariant('TextRelativePointerButTextBaseIsUndefined', [], 2, 1), EnumVariant('DataRelativePointerButDataBaseIsUndefined', [], 3, 1), EnumVariant('FuncRelativePointerInBadContext', [], 4, 1), EnumVariant('CannotParseOmitPointerEncoding', [], 5, 1), EnumVariant('BadUnsignedLeb128', [], 6, 1), EnumVariant('BadSignedLeb128', [], 7, 1), EnumVariant('AbbreviationTagZero', [], 8, 1), EnumVariant('AttributeFormZero', [], 9, 1), EnumVariant('BadHasChildren', [], 10, 1), EnumVariant('BadLength', [], 11, 1), EnumVariant('UnknownForm', [], 12, 1), EnumVariant('ExpectedZero', [], 13, 1), EnumVariant('DuplicateAbbreviationCode', [], 14, 1), EnumVariant('DuplicateArange', [], 15, 1), EnumVariant('UnknownReservedLength', [], 16, 1), EnumVariant('UnknownVersion', [(RustSimTypeInt(64, signed=False), None)], 17, 1), EnumVariant('UnknownAbbreviation', [], 18, 1), EnumVariant('UnexpectedEof', [(default_structs['gimli::read::reader::ReaderOffsetId'], None)], 19, 1), EnumVariant('UnexpectedNull', [], 20, 1), EnumVariant('UnknownStandardOpcode', [(default_structs['gimli::constants::DwLns'], None)], 21, 1), EnumVariant('UnknownExtendedOpcode', [(default_structs['gimli::constants::DwLne'], None)], 22, 1), EnumVariant('UnsupportedAddressSize', [(RustSimTypeInt(8, signed=False), None)], 23, 1), EnumVariant('UnsupportedOffsetSize', [(RustSimTypeInt(8, signed=False), None)], 24, 1), EnumVariant('UnsupportedFieldSize', [(RustSimTypeInt(8, signed=False), None)], 25, 1), EnumVariant('MinimumInstructionLengthZero', [], 26, 1), EnumVariant('MaximumOperationsPerInstructionZero', [], 27, 1), EnumVariant('LineRangeZero', [], 28, 1), EnumVariant('OpcodeBaseZero', [], 29, 1), EnumVariant('BadUtf8', [], 30, 1), EnumVariant('NotCieId', [], 31, 1), EnumVariant('NotCiePointer', [], 32, 1), EnumVariant('NotFdePointer', [], 33, 1), EnumVariant('BadBranchTarget', [(RustSimTypeInt(64, signed=False), None)], 34, 1), EnumVariant('InvalidPushObjectAddress', [], 35, 1), EnumVariant('NotEnoughStackItems', [], 36, 1), EnumVariant('TooManyIterations', [], 37, 1), EnumVariant('InvalidExpression', [(default_structs['gimli::constants::DwOp'], None)], 38, 1), EnumVariant('UnsupportedEvaluation', [], 39, 1), EnumVariant('InvalidPiece', [], 40, 1), EnumVariant('InvalidExpressionTerminator', [(RustSimTypeInt(64, signed=False), None)], 41, 1), EnumVariant('DivisionByZero', [], 42, 1), EnumVariant('TypeMismatch', [], 43, 1), EnumVariant('IntegralTypeRequired', [], 44, 1), EnumVariant('UnsupportedTypeOperation', [], 45, 1), EnumVariant('InvalidShiftExpression', [], 46, 1), EnumVariant('UnknownCallFrameInstruction', [(default_structs['gimli::constants::DwCfa'], None)], 47, 1), EnumVariant('InvalidAddressRange', [], 48, 1), EnumVariant('InvalidLocationAddressRange', [], 49, 1), EnumVariant('CfiInstructionInInvalidContext', [], 50, 1), EnumVariant('PopWithEmptyStack', [], 51, 1), EnumVariant('NoUnwindInfoForAddress', [], 52, 1), EnumVariant('UnsupportedOffset', [], 53, 1), EnumVariant('UnknownPointerEncoding', [], 54, 1), EnumVariant('NoEntryAtGivenOffset', [], 55, 1), EnumVariant('OffsetOutOfBounds', [], 56, 1), EnumVariant('UnknownAugmentation', [], 57, 1), EnumVariant('UnsupportedPointerEncoding', [], 58, 1), EnumVariant('UnsupportedRegister', [(RustSimTypeInt(64, signed=False), None)], 59, 1), EnumVariant('TooManyRegisterRules', [], 60, 1), EnumVariant('StackFull', [], 61, 1), EnumVariant('VariableLengthSearchTable', [], 62, 1), EnumVariant('UnsupportedUnitType', [], 63, 1), EnumVariant('UnsupportedAddressIndex', [], 64, 1), EnumVariant('UnsupportedSegmentSize', [], 65, 1), EnumVariant('MissingUnitDie', [], 66, 1), EnumVariant('UnsupportedAttributeForm', [], 67, 1), EnumVariant('MissingFileEntryFormatPath', [], 68, 1), EnumVariant('ExpectedStringAttributeValue', [], 69, 1), EnumVariant('InvalidImplicitConst', [], 70, 1), EnumVariant('InvalidIndexSectionCount', [], 71, 1), EnumVariant('InvalidIndexSlotCount', [], 72, 1), EnumVariant('InvalidIndexRow', [], 73, 1), EnumVariant('UnknownIndexSection', [], 74, 1)])
 
 default_structs['core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>'] = RustSimTypeResult(default_structs['addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], None, 0, default_structs['gimli::read::Error'], 0, 8, name='core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>')
 
@@ -607,15 +607,15 @@ default_structs['(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core
 
 default_structs['*mut [(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)]'] = RustSimStruct(name='*mut [(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)]', fields={"data_ptr": RustSimTypeReference(default_structs['(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)']), "length": RustSimTypeSize(signed=False), })
 
-default_structs['libc::unix::DIR'] = RustSimEnum('libc::unix::DIR', [])
-
-default_structs['std::sys::pal::unix::fs::Dir'] = RustSimStruct(name='std::sys::pal::unix::fs::Dir', fields={"__0": RustSimTypeReference(default_structs['libc::unix::DIR']), })
-
 default_structs['std::sys::os_str::bytes::Buf'] = RustSimStruct(name='std::sys::os_str::bytes::Buf', fields={"inner": default_structs['alloc::vec::Vec<u8, alloc::alloc::Global>'], })
 
 default_structs['std::ffi::os_str::OsString'] = RustSimStruct(name='std::ffi::os_str::OsString', fields={"inner": default_structs['std::sys::os_str::bytes::Buf'], })
 
 default_structs['std::path::PathBuf'] = RustSimStruct(name='std::path::PathBuf', fields={"inner": default_structs['std::ffi::os_str::OsString'], })
+
+default_structs['libc::unix::DIR'] = RustSimEnum('libc::unix::DIR', [])
+
+default_structs['std::sys::pal::unix::fs::Dir'] = RustSimStruct(name='std::sys::pal::unix::fs::Dir', fields={"__0": RustSimTypeReference(default_structs['libc::unix::DIR']), })
 
 default_structs['std::sys::pal::unix::fs::InnerReadDir'] = RustSimStruct(name='std::sys::pal::unix::fs::InnerReadDir', fields={"root": default_structs['std::path::PathBuf'], "dirp": default_structs['std::sys::pal::unix::fs::Dir'], })
 
@@ -651,39 +651,39 @@ default_structs['&mut [core::mem::maybe_uninit::MaybeUninit<u32>]'] = RustSimStr
 
 default_structs['std::backtrace_rs::symbolize::gimli::mmap::Mmap'] = RustSimStruct(name='std::backtrace_rs::symbolize::gimli::mmap::Mmap', fields={"ptr": RustSimTypeReference(RustSimTypeInt(8, signed=False)), "len": RustSimTypeSize(signed=False), })
 
-default_structs['gimli::read::unit::DebugInfo<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::unit::DebugInfo<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_info_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['core::marker::PhantomData<alloc::vec::Vec<u8, alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<alloc::vec::Vec<u8, alloc::alloc::Global>>', fields={})
 
-default_structs['gimli::read::rnglists::DebugRngLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::rnglists::DebugRngLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['core::ptr::unique::Unique<alloc::vec::Vec<u8, alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::unique::Unique<alloc::vec::Vec<u8, alloc::alloc::Global>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<alloc::vec::Vec<u8, alloc::alloc::Global>>'], "_marker": default_structs['core::marker::PhantomData<alloc::vec::Vec<u8, alloc::alloc::Global>>'], })
 
-default_structs['gimli::read::str::DebugStr<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::str::DebugStr<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_str_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['alloc::raw_vec::RawVec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<alloc::vec::Vec<u8, alloc::alloc::Global>>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['gimli::read::str::DebugStrOffsets<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::str::DebugStrOffsets<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
 
-default_structs['gimli::read::line::DebugLine<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::line::DebugLine<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_line_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['core::cell::UnsafeCell<alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>>'] = RustSimStruct(name='core::cell::UnsafeCell<alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>>', fields={"value": default_structs['alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>'], })
 
-default_structs['gimli::read::loclists::DebugLocLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::loclists::DebugLocLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'] = RustSimStruct(name='core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::mmap::Mmap>', fields={})
 
-default_structs['gimli::read::loclists::DebugLoc<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::loclists::DebugLoc<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::mmap::Mmap>', fields={"pointer": RustSimTypeReference(default_structs['std::backtrace_rs::symbolize::gimli::mmap::Mmap']), })
 
-default_structs['gimli::read::unit::DebugTypes<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::unit::DebugTypes<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_types_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'] = RustSimStruct(name='core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::mmap::Mmap>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'], "_marker": default_structs['core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'], })
 
-default_structs['gimli::read::abbrev::DebugAbbrev<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::abbrev::DebugAbbrev<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_abbrev_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['gimli::read::index::UnitIndex<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::index::UnitIndex<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"sections": RustSimTypeArray(RustSimTypeInt(8, signed=False), 8), "hash_ids": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "hash_rows": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "offsets": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "sizes": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "section_count": RustSimTypeInt(32, signed=False), "unit_count": RustSimTypeInt(32, signed=False), "slot_count": RustSimTypeInt(32, signed=False), "version": RustSimTypeInt(16, signed=False), })
+default_structs['alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
 
-default_structs['gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"cu_index": default_structs['gimli::read::index::UnitIndex<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "tu_index": default_structs['gimli::read::index::UnitIndex<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_abbrev": default_structs['gimli::read::abbrev::DebugAbbrev<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_info": default_structs['gimli::read::unit::DebugInfo<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_line": default_structs['gimli::read::line::DebugLine<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_str": default_structs['gimli::read::str::DebugStr<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_str_offsets": default_structs['gimli::read::str::DebugStrOffsets<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_loc": default_structs['gimli::read::loclists::DebugLoc<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_loclists": default_structs['gimli::read::loclists::DebugLocLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_rnglists": default_structs['gimli::read::rnglists::DebugRngLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_types": default_structs['gimli::read::unit::DebugTypes<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "empty": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+default_structs['core::cell::UnsafeCell<alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>>'] = RustSimStruct(name='core::cell::UnsafeCell<alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>>', fields={"value": default_structs['alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>'], })
 
-default_structs['core::option::Option<gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimTypeOption(22, 1, default_structs['gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], None, 0, name='core::option::Option<gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>')
+default_structs['std::backtrace_rs::symbolize::gimli::stash::Stash'] = RustSimStruct(name='std::backtrace_rs::symbolize::gimli::stash::Stash', fields={"buffers": default_structs['core::cell::UnsafeCell<alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>>'], "mmaps": default_structs['core::cell::UnsafeCell<alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>>'], })
 
 default_structs['addr2line::UnitRange'] = RustSimStruct(name='addr2line::UnitRange', fields={"range": default_structs['gimli::read::rnglists::Range'], "unit_id": RustSimTypeSize(signed=False), "max_end": RustSimTypeInt(64, signed=False), })
 
 default_structs['alloc::boxed::Box<[addr2line::UnitRange], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[addr2line::UnitRange], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['addr2line::UnitRange']), "length": RustSimTypeSize(signed=False), })
 
+default_structs['gimli::common::DebugAbbrevOffset<usize>'] = RustSimStruct(name='gimli::common::DebugAbbrevOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
+
 default_structs['gimli::common::DebugTypesOffset<usize>'] = RustSimStruct(name='gimli::common::DebugTypesOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
 
 default_structs['gimli::common::UnitSectionOffset<usize>'] = RustSimEnum('gimli::common::UnitSectionOffset<usize>', [EnumVariant('DebugInfoOffset', [(default_structs['gimli::common::DebugInfoOffset<usize>'], None)], 0, 8), EnumVariant('DebugTypesOffset', [(default_structs['gimli::common::DebugTypesOffset<usize>'], None)], 1, 8)])
-
-default_structs['gimli::common::DebugAbbrevOffset<usize>'] = RustSimStruct(name='gimli::common::DebugAbbrevOffset<usize>', fields={"__0": RustSimTypeSize(signed=False), })
 
 default_structs['gimli::read::unit::UnitType<usize>'] = RustSimEnum('gimli::read::unit::UnitType<usize>', [EnumVariant('Compilation', [], 0, 8), EnumVariant('Type', [(default_structs['gimli::common::DebugTypeSignature'], None), (default_structs['gimli::read::UnitOffset<usize>'], None)], 1, 8), EnumVariant('Partial', [], 2, 8), EnumVariant('Skeleton', [(default_structs['gimli::common::DwoId'], None)], 3, 8), EnumVariant('SplitCompilation', [(default_structs['gimli::common::DwoId'], None)], 4, 8), EnumVariant('SplitType', [(default_structs['gimli::common::DebugTypeSignature'], None), (default_structs['gimli::read::UnitOffset<usize>'], None)], 5, 8)])
 
@@ -691,59 +691,19 @@ default_structs['gimli::common::Encoding'] = RustSimStruct(name='gimli::common::
 
 default_structs['gimli::read::unit::UnitHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'] = RustSimStruct(name='gimli::read::unit::UnitHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>', fields={"unit_offset": default_structs['gimli::common::UnitSectionOffset<usize>'], "unit_type": default_structs['gimli::read::unit::UnitType<usize>'], "entries_buf": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "unit_length": RustSimTypeSize(signed=False), "debug_abbrev_offset": default_structs['gimli::common::DebugAbbrevOffset<usize>'], "encoding": default_structs['gimli::common::Encoding'], })
 
-default_structs['gimli::common::LineEncoding'] = RustSimStruct(name='gimli::common::LineEncoding', fields={"default_is_stmt": RustSimTypeInt(1, signed=False), "minimum_instruction_length": RustSimTypeInt(8, signed=False), "maximum_operations_per_instruction": RustSimTypeInt(8, signed=False), "line_base": RustSimTypeInt(8, signed=True), "line_range": RustSimTypeInt(8, signed=False), })
+default_structs['gimli::constants::DwTag'] = RustSimStruct(name='gimli::constants::DwTag', fields={"__0": RustSimTypeInt(16, signed=False), })
 
-default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={"pointer": RustSimTypeReference(default_structs['gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>']), })
+default_structs['gimli::constants::DwChildren'] = RustSimStruct(name='gimli::constants::DwChildren', fields={"__0": RustSimTypeInt(8, signed=False), })
 
-default_structs['core::marker::PhantomData<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::marker::PhantomData<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={})
-
-default_structs['core::ptr::unique::Unique<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::ptr::unique::Unique<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "_marker": default_structs['core::marker::PhantomData<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], })
-
-default_structs['alloc::raw_vec::RawVec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "alloc": default_structs['alloc::alloc::Global'], })
-
-default_structs['alloc::vec::Vec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
-
-default_structs['core::option::Option<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimTypeOption(46, 8, default_structs['gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], None, 0, name='core::option::Option<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>')
-
-default_structs['core::ptr::non_null::NonNull<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={"pointer": RustSimTypeReference(default_structs['gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>']), })
-
-default_structs['core::marker::PhantomData<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::marker::PhantomData<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={})
-
-default_structs['core::ptr::unique::Unique<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::ptr::unique::Unique<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "_marker": default_structs['core::marker::PhantomData<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], })
-
-default_structs['alloc::raw_vec::RawVec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "alloc": default_structs['alloc::alloc::Global'], })
-
-default_structs['alloc::vec::Vec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
+default_structs['core::marker::PhantomData<gimli::read::abbrev::AttributeSpecification>'] = RustSimStruct(name='core::marker::PhantomData<gimli::read::abbrev::AttributeSpecification>', fields={})
 
 default_structs['gimli::constants::DwForm'] = RustSimStruct(name='gimli::constants::DwForm', fields={"__0": RustSimTypeInt(16, signed=False), })
-
-default_structs['gimli::constants::DwLnct'] = RustSimStruct(name='gimli::constants::DwLnct', fields={"__0": RustSimTypeInt(16, signed=False), })
-
-default_structs['gimli::read::line::FileEntryFormat'] = RustSimStruct(name='gimli::read::line::FileEntryFormat', fields={"content_type": default_structs['gimli::constants::DwLnct'], "form": default_structs['gimli::constants::DwForm'], })
-
-default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntryFormat>'] = RustSimStruct(name='core::ptr::non_null::NonNull<gimli::read::line::FileEntryFormat>', fields={"pointer": RustSimTypeReference(default_structs['gimli::read::line::FileEntryFormat']), })
-
-default_structs['core::marker::PhantomData<gimli::read::line::FileEntryFormat>'] = RustSimStruct(name='core::marker::PhantomData<gimli::read::line::FileEntryFormat>', fields={})
-
-default_structs['core::ptr::unique::Unique<gimli::read::line::FileEntryFormat>'] = RustSimStruct(name='core::ptr::unique::Unique<gimli::read::line::FileEntryFormat>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntryFormat>'], "_marker": default_structs['core::marker::PhantomData<gimli::read::line::FileEntryFormat>'], })
-
-default_structs['alloc::raw_vec::RawVec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<gimli::read::line::FileEntryFormat>'], "alloc": default_structs['alloc::alloc::Global'], })
-
-default_structs['alloc::vec::Vec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
-
-default_structs['gimli::read::line::LineProgramHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'] = RustSimStruct(name='gimli::read::line::LineProgramHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>', fields={"comp_file": default_structs['core::option::Option<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "directory_entry_format": default_structs['alloc::vec::Vec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'], "include_directories": default_structs['alloc::vec::Vec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'], "file_name_entry_format": default_structs['alloc::vec::Vec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'], "file_names": default_structs['alloc::vec::Vec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'], "standard_opcode_lengths": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "program_buf": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "offset": default_structs['gimli::common::DebugLineOffset<usize>'], "unit_length": RustSimTypeSize(signed=False), "header_length": RustSimTypeSize(signed=False), "comp_dir": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "encoding": default_structs['gimli::common::Encoding'], "line_encoding": default_structs['gimli::common::LineEncoding'], "opcode_base": RustSimTypeInt(8, signed=False), })
-
-default_structs['gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'] = RustSimStruct(name='gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>', fields={"header": default_structs['gimli::read::line::LineProgramHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], })
-
-default_structs['core::option::Option<gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimTypeOption(47, 8, default_structs['gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], None, 0, name='core::option::Option<gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>')
 
 default_structs['gimli::constants::DwAt'] = RustSimStruct(name='gimli::constants::DwAt', fields={"__0": RustSimTypeInt(16, signed=False), })
 
 default_structs['gimli::read::abbrev::AttributeSpecification'] = RustSimStruct(name='gimli::read::abbrev::AttributeSpecification', fields={"implicit_const_value": RustSimTypeInt(64, signed=True), "name": default_structs['gimli::constants::DwAt'], "form": default_structs['gimli::constants::DwForm'], })
 
 default_structs['core::ptr::non_null::NonNull<gimli::read::abbrev::AttributeSpecification>'] = RustSimStruct(name='core::ptr::non_null::NonNull<gimli::read::abbrev::AttributeSpecification>', fields={"pointer": RustSimTypeReference(default_structs['gimli::read::abbrev::AttributeSpecification']), })
-
-default_structs['core::marker::PhantomData<gimli::read::abbrev::AttributeSpecification>'] = RustSimStruct(name='core::marker::PhantomData<gimli::read::abbrev::AttributeSpecification>', fields={})
 
 default_structs['core::ptr::unique::Unique<gimli::read::abbrev::AttributeSpecification>'] = RustSimStruct(name='core::ptr::unique::Unique<gimli::read::abbrev::AttributeSpecification>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<gimli::read::abbrev::AttributeSpecification>'], "_marker": default_structs['core::marker::PhantomData<gimli::read::abbrev::AttributeSpecification>'], })
 
@@ -752,10 +712,6 @@ default_structs['alloc::raw_vec::RawVec<gimli::read::abbrev::AttributeSpecificat
 default_structs['alloc::vec::Vec<gimli::read::abbrev::AttributeSpecification, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<gimli::read::abbrev::AttributeSpecification, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<gimli::read::abbrev::AttributeSpecification, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
 
 default_structs['gimli::read::abbrev::Attributes'] = RustSimEnum('gimli::read::abbrev::Attributes', [EnumVariant('Inline', [(RustSimTypeArray(default_structs['gimli::read::abbrev::AttributeSpecification'], 5), None), (RustSimTypeSize(signed=False), None)], 0, 8), EnumVariant('Heap', [(default_structs['alloc::vec::Vec<gimli::read::abbrev::AttributeSpecification, alloc::alloc::Global>'], None)], 1, 8)])
-
-default_structs['gimli::constants::DwTag'] = RustSimStruct(name='gimli::constants::DwTag', fields={"__0": RustSimTypeInt(16, signed=False), })
-
-default_structs['gimli::constants::DwChildren'] = RustSimStruct(name='gimli::constants::DwChildren', fields={"__0": RustSimTypeInt(8, signed=False), })
 
 default_structs['gimli::read::abbrev::Abbreviation'] = RustSimStruct(name='gimli::read::abbrev::Abbreviation', fields={"attributes": default_structs['gimli::read::abbrev::Attributes'], "code": RustSimTypeInt(64, signed=False), "tag": default_structs['gimli::constants::DwTag'], "has_children": default_structs['gimli::constants::DwChildren'], })
 
@@ -791,6 +747,50 @@ default_structs['alloc::sync::Arc<gimli::read::abbrev::Abbreviations, alloc::all
 
 default_structs['core::option::Option<gimli::common::DwoId>'] = RustSimTypeOption(0, 8, default_structs['gimli::common::DwoId'], 1, 8, name='core::option::Option<gimli::common::DwoId>')
 
+default_structs['core::marker::PhantomData<gimli::read::line::FileEntryFormat>'] = RustSimStruct(name='core::marker::PhantomData<gimli::read::line::FileEntryFormat>', fields={})
+
+default_structs['gimli::constants::DwLnct'] = RustSimStruct(name='gimli::constants::DwLnct', fields={"__0": RustSimTypeInt(16, signed=False), })
+
+default_structs['gimli::read::line::FileEntryFormat'] = RustSimStruct(name='gimli::read::line::FileEntryFormat', fields={"content_type": default_structs['gimli::constants::DwLnct'], "form": default_structs['gimli::constants::DwForm'], })
+
+default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntryFormat>'] = RustSimStruct(name='core::ptr::non_null::NonNull<gimli::read::line::FileEntryFormat>', fields={"pointer": RustSimTypeReference(default_structs['gimli::read::line::FileEntryFormat']), })
+
+default_structs['core::ptr::unique::Unique<gimli::read::line::FileEntryFormat>'] = RustSimStruct(name='core::ptr::unique::Unique<gimli::read::line::FileEntryFormat>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntryFormat>'], "_marker": default_structs['core::marker::PhantomData<gimli::read::line::FileEntryFormat>'], })
+
+default_structs['alloc::raw_vec::RawVec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<gimli::read::line::FileEntryFormat>'], "alloc": default_structs['alloc::alloc::Global'], })
+
+default_structs['alloc::vec::Vec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
+
+default_structs['core::ptr::non_null::NonNull<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={"pointer": RustSimTypeReference(default_structs['gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>']), })
+
+default_structs['core::marker::PhantomData<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::marker::PhantomData<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={})
+
+default_structs['core::ptr::unique::Unique<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::ptr::unique::Unique<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "_marker": default_structs['core::marker::PhantomData<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], })
+
+default_structs['alloc::raw_vec::RawVec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "alloc": default_structs['alloc::alloc::Global'], })
+
+default_structs['alloc::vec::Vec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
+
+default_structs['gimli::common::LineEncoding'] = RustSimStruct(name='gimli::common::LineEncoding', fields={"default_is_stmt": RustSimTypeInt(1, signed=False), "minimum_instruction_length": RustSimTypeInt(8, signed=False), "maximum_operations_per_instruction": RustSimTypeInt(8, signed=False), "line_base": RustSimTypeInt(8, signed=True), "line_range": RustSimTypeInt(8, signed=False), })
+
+default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={"pointer": RustSimTypeReference(default_structs['gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>']), })
+
+default_structs['core::marker::PhantomData<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::marker::PhantomData<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={})
+
+default_structs['core::ptr::unique::Unique<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimStruct(name='core::ptr::unique::Unique<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "_marker": default_structs['core::marker::PhantomData<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], })
+
+default_structs['alloc::raw_vec::RawVec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "alloc": default_structs['alloc::alloc::Global'], })
+
+default_structs['alloc::vec::Vec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
+
+default_structs['core::option::Option<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimTypeOption(46, 8, default_structs['gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], None, 0, name='core::option::Option<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>')
+
+default_structs['gimli::read::line::LineProgramHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'] = RustSimStruct(name='gimli::read::line::LineProgramHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>', fields={"comp_file": default_structs['core::option::Option<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "directory_entry_format": default_structs['alloc::vec::Vec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'], "include_directories": default_structs['alloc::vec::Vec<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'], "file_name_entry_format": default_structs['alloc::vec::Vec<gimli::read::line::FileEntryFormat, alloc::alloc::Global>'], "file_names": default_structs['alloc::vec::Vec<gimli::read::line::FileEntry<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, alloc::alloc::Global>'], "standard_opcode_lengths": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "program_buf": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "offset": default_structs['gimli::common::DebugLineOffset<usize>'], "unit_length": RustSimTypeSize(signed=False), "header_length": RustSimTypeSize(signed=False), "comp_dir": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "encoding": default_structs['gimli::common::Encoding'], "line_encoding": default_structs['gimli::common::LineEncoding'], "opcode_base": RustSimTypeInt(8, signed=False), })
+
+default_structs['gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'] = RustSimStruct(name='gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>', fields={"header": default_structs['gimli::read::line::LineProgramHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], })
+
+default_structs['core::option::Option<gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'] = RustSimTypeOption(47, 8, default_structs['gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], None, 0, name='core::option::Option<gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>')
+
 default_structs['gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'] = RustSimStruct(name='gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>', fields={"header": default_structs['gimli::read::unit::UnitHeader<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], "dwo_id": default_structs['core::option::Option<gimli::common::DwoId>'], "line_program": default_structs['core::option::Option<gimli::read::line::IncompleteLineProgram<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>>'], "abbreviations": default_structs['alloc::sync::Arc<gimli::read::abbrev::Abbreviations, alloc::alloc::Global>'], "name": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "comp_dir": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "low_pc": RustSimTypeInt(64, signed=False), "str_offsets_base": default_structs['gimli::common::DebugStrOffsetsBase<usize>'], "addr_base": default_structs['gimli::common::DebugAddrBase<usize>'], "loclists_base": default_structs['gimli::common::DebugLocListsBase<usize>'], "rnglists_base": default_structs['gimli::common::DebugRngListsBase<usize>'], })
 
 default_structs['addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"dw_unit": default_structs['gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], "offset": default_structs['gimli::common::DebugInfoOffset<usize>'], })
@@ -813,11 +813,11 @@ default_structs['core::cell::UnsafeCell<core::option::Option<core::result::Resul
 
 default_structs['addr2line::lazy::LazyCell<core::result::Result<core::option::Option<alloc::boxed::Box<(alloc::sync::Arc<gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>, gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), alloc::alloc::Global>>, gimli::read::Error>>'] = RustSimStruct(name='addr2line::lazy::LazyCell<core::result::Result<core::option::Option<alloc::boxed::Box<(alloc::sync::Arc<gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>, gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), alloc::alloc::Global>>, gimli::read::Error>>', fields={"contents": default_structs['core::cell::UnsafeCell<core::option::Option<core::result::Result<core::option::Option<alloc::boxed::Box<(alloc::sync::Arc<gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>, gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), alloc::alloc::Global>>, gimli::read::Error>>>'], })
 
+default_structs['alloc::boxed::Box<[(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)']), "length": RustSimTypeSize(signed=False), })
+
 default_structs['addr2line::function::FunctionAddress'] = RustSimStruct(name='addr2line::function::FunctionAddress', fields={"range": default_structs['gimli::read::rnglists::Range'], "function": RustSimTypeSize(signed=False), })
 
 default_structs['alloc::boxed::Box<[addr2line::function::FunctionAddress], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[addr2line::function::FunctionAddress], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['addr2line::function::FunctionAddress']), "length": RustSimTypeSize(signed=False), })
-
-default_structs['alloc::boxed::Box<[(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)']), "length": RustSimTypeSize(signed=False), })
 
 default_structs['addr2line::function::Functions<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::function::Functions<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"functions": default_structs['alloc::boxed::Box<[(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)], alloc::alloc::Global>'], "addresses": default_structs['alloc::boxed::Box<[addr2line::function::FunctionAddress], alloc::alloc::Global>'], })
 
@@ -831,8 +831,6 @@ default_structs['addr2line::lazy::LazyCell<core::result::Result<addr2line::funct
 
 default_structs['core::option::Option<gimli::constants::DwLang>'] = RustSimTypeOption(0, 2, default_structs['gimli::constants::DwLang'], 1, 2, name='core::option::Option<gimli::constants::DwLang>')
 
-default_structs['alloc::boxed::Box<[alloc::string::String], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[alloc::string::String], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['alloc::string::String']), "length": RustSimTypeSize(signed=False), })
-
 default_structs['addr2line::LineRow'] = RustSimStruct(name='addr2line::LineRow', fields={"address": RustSimTypeInt(64, signed=False), "file_index": RustSimTypeInt(64, signed=False), "line": RustSimTypeInt(32, signed=False), "column": RustSimTypeInt(32, signed=False), })
 
 default_structs['alloc::boxed::Box<[addr2line::LineRow], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[addr2line::LineRow], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['addr2line::LineRow']), "length": RustSimTypeSize(signed=False), })
@@ -840,6 +838,8 @@ default_structs['alloc::boxed::Box<[addr2line::LineRow], alloc::alloc::Global>']
 default_structs['addr2line::LineSequence'] = RustSimStruct(name='addr2line::LineSequence', fields={"rows": default_structs['alloc::boxed::Box<[addr2line::LineRow], alloc::alloc::Global>'], "start": RustSimTypeInt(64, signed=False), "end": RustSimTypeInt(64, signed=False), })
 
 default_structs['alloc::boxed::Box<[addr2line::LineSequence], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[addr2line::LineSequence], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['addr2line::LineSequence']), "length": RustSimTypeSize(signed=False), })
+
+default_structs['alloc::boxed::Box<[alloc::string::String], alloc::alloc::Global>'] = RustSimStruct(name='alloc::boxed::Box<[alloc::string::String], alloc::alloc::Global>', fields={"data_ptr": RustSimTypeReference(default_structs['alloc::string::String']), "length": RustSimTypeSize(signed=False), })
 
 default_structs['addr2line::Lines'] = RustSimStruct(name='addr2line::Lines', fields={"files": default_structs['alloc::boxed::Box<[alloc::string::String], alloc::alloc::Global>'], "sequences": default_structs['alloc::boxed::Box<[addr2line::LineSequence], alloc::alloc::Global>'], })
 
@@ -857,29 +857,19 @@ default_structs['alloc::boxed::Box<[addr2line::ResUnit<gimli::read::endian_slice
 
 default_structs['addr2line::Context<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::Context<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"sections": default_structs['alloc::sync::Arc<gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>'], "unit_ranges": default_structs['alloc::boxed::Box<[addr2line::UnitRange], alloc::alloc::Global>'], "units": default_structs['alloc::boxed::Box<[addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>], alloc::alloc::Global>'], "sup_units": default_structs['alloc::boxed::Box<[addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>], alloc::alloc::Global>'], })
 
-default_structs['core::option::Option<&[u8]>'] = RustSimTypeOption(0, 8, RustSimTypeArrayRef(RustSimTypeInt(8, signed=False)), None, 0, name='core::option::Option<&[u8]>')
+default_structs['object::endian::LittleEndian'] = RustSimStruct(name='object::endian::LittleEndian', fields={})
 
 default_structs['core::marker::PhantomData<&()>'] = RustSimStruct(name='core::marker::PhantomData<&()>', fields={})
 
+default_structs['core::option::Option<&[u8]>'] = RustSimTypeOption(0, 8, RustSimTypeArrayRef(RustSimTypeInt(8, signed=False)), None, 0, name='core::option::Option<&[u8]>')
+
 default_structs['object::read::util::StringTable<&[u8]>'] = RustSimStruct(name='object::read::util::StringTable<&[u8]>', fields={"data": default_structs['core::option::Option<&[u8]>'], "start": RustSimTypeInt(64, signed=False), "end": RustSimTypeInt(64, signed=False), "marker": default_structs['core::marker::PhantomData<&()>'], })
 
-default_structs['core::marker::PhantomData<object::endian::LittleEndian>'] = RustSimStruct(name='core::marker::PhantomData<object::endian::LittleEndian>', fields={})
-
-default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'] = RustSimStruct(name='object::endian::U64Bytes<object::endian::LittleEndian>', fields={"__0": RustSimTypeArray(RustSimTypeInt(8, signed=False), 8), "__1": default_structs['core::marker::PhantomData<object::endian::LittleEndian>'], })
-
-default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'] = RustSimStruct(name='object::endian::U32Bytes<object::endian::LittleEndian>', fields={"__0": RustSimTypeArray(RustSimTypeInt(8, signed=False), 4), "__1": default_structs['core::marker::PhantomData<object::endian::LittleEndian>'], })
-
-default_structs['object::elf::SectionHeader64<object::endian::LittleEndian>'] = RustSimStruct(name='object::elf::SectionHeader64<object::endian::LittleEndian>', fields={"sh_name": default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'], "sh_type": default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'], "sh_flags": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_addr": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_offset": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_size": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_link": default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'], "sh_info": default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'], "sh_addralign": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_entsize": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], })
-
-default_structs['object::read::elf::section::SectionTable<object::elf::FileHeader64<object::endian::LittleEndian>, &[u8]>'] = RustSimStruct(name='object::read::elf::section::SectionTable<object::elf::FileHeader64<object::endian::LittleEndian>, &[u8]>', fields={"sections": RustSimTypeArrayRef(default_structs['object::elf::SectionHeader64<object::endian::LittleEndian>']), "strings": default_structs['object::read::util::StringTable<&[u8]>'], })
-
-default_structs['object::endian::LittleEndian'] = RustSimStruct(name='object::endian::LittleEndian', fields={})
+default_structs['core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>'] = RustSimStruct(name='core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>', fields={})
 
 default_structs['std::backtrace_rs::symbolize::gimli::elf::ParsedSym'] = RustSimStruct(name='std::backtrace_rs::symbolize::gimli::elf::ParsedSym', fields={"address": RustSimTypeInt(64, signed=False), "size": RustSimTypeInt(64, signed=False), "name": RustSimTypeInt(32, signed=False), })
 
 default_structs['core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>', fields={"pointer": RustSimTypeReference(default_structs['std::backtrace_rs::symbolize::gimli::elf::ParsedSym']), })
-
-default_structs['core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>'] = RustSimStruct(name='core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>', fields={})
 
 default_structs['core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>'] = RustSimStruct(name='core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>'], "_marker": default_structs['core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>'], })
 
@@ -887,33 +877,43 @@ default_structs['alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::elf
 
 default_structs['alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::elf::ParsedSym, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::elf::ParsedSym, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::elf::ParsedSym, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
 
+default_structs['core::marker::PhantomData<object::endian::LittleEndian>'] = RustSimStruct(name='core::marker::PhantomData<object::endian::LittleEndian>', fields={})
+
+default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'] = RustSimStruct(name='object::endian::U32Bytes<object::endian::LittleEndian>', fields={"__0": RustSimTypeArray(RustSimTypeInt(8, signed=False), 4), "__1": default_structs['core::marker::PhantomData<object::endian::LittleEndian>'], })
+
+default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'] = RustSimStruct(name='object::endian::U64Bytes<object::endian::LittleEndian>', fields={"__0": RustSimTypeArray(RustSimTypeInt(8, signed=False), 8), "__1": default_structs['core::marker::PhantomData<object::endian::LittleEndian>'], })
+
+default_structs['object::elf::SectionHeader64<object::endian::LittleEndian>'] = RustSimStruct(name='object::elf::SectionHeader64<object::endian::LittleEndian>', fields={"sh_name": default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'], "sh_type": default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'], "sh_flags": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_addr": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_offset": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_size": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_link": default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'], "sh_info": default_structs['object::endian::U32Bytes<object::endian::LittleEndian>'], "sh_addralign": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], "sh_entsize": default_structs['object::endian::U64Bytes<object::endian::LittleEndian>'], })
+
+default_structs['object::read::elf::section::SectionTable<object::elf::FileHeader64<object::endian::LittleEndian>, &[u8]>'] = RustSimStruct(name='object::read::elf::section::SectionTable<object::elf::FileHeader64<object::endian::LittleEndian>, &[u8]>', fields={"sections": RustSimTypeArrayRef(default_structs['object::elf::SectionHeader64<object::endian::LittleEndian>']), "strings": default_structs['object::read::util::StringTable<&[u8]>'], })
+
 default_structs['std::backtrace_rs::symbolize::gimli::elf::Object'] = RustSimStruct(name='std::backtrace_rs::symbolize::gimli::elf::Object', fields={"syms": default_structs['alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::elf::ParsedSym, alloc::alloc::Global>'], "data": RustSimTypeArrayRef(RustSimTypeInt(8, signed=False)), "sections": default_structs['object::read::elf::section::SectionTable<object::elf::FileHeader64<object::endian::LittleEndian>, &[u8]>'], "strings": default_structs['object::read::util::StringTable<&[u8]>'], "endian": default_structs['object::endian::LittleEndian'], })
 
+default_structs['gimli::read::index::UnitIndex<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::index::UnitIndex<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"sections": RustSimTypeArray(RustSimTypeInt(8, signed=False), 8), "hash_ids": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "hash_rows": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "offsets": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "sizes": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], "section_count": RustSimTypeInt(32, signed=False), "unit_count": RustSimTypeInt(32, signed=False), "slot_count": RustSimTypeInt(32, signed=False), "version": RustSimTypeInt(16, signed=False), })
+
+default_structs['gimli::read::abbrev::DebugAbbrev<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::abbrev::DebugAbbrev<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_abbrev_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::unit::DebugInfo<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::unit::DebugInfo<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_info_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::str::DebugStr<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::str::DebugStr<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_str_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::loclists::DebugLocLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::loclists::DebugLocLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::unit::DebugTypes<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::unit::DebugTypes<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_types_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::rnglists::DebugRngLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::rnglists::DebugRngLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::line::DebugLine<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::line::DebugLine<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"debug_line_section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::loclists::DebugLoc<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::loclists::DebugLoc<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::str::DebugStrOffsets<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::str::DebugStrOffsets<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"section": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"cu_index": default_structs['gimli::read::index::UnitIndex<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "tu_index": default_structs['gimli::read::index::UnitIndex<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_abbrev": default_structs['gimli::read::abbrev::DebugAbbrev<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_info": default_structs['gimli::read::unit::DebugInfo<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_line": default_structs['gimli::read::line::DebugLine<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_str": default_structs['gimli::read::str::DebugStr<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_str_offsets": default_structs['gimli::read::str::DebugStrOffsets<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_loc": default_structs['gimli::read::loclists::DebugLoc<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_loclists": default_structs['gimli::read::loclists::DebugLocLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_rnglists": default_structs['gimli::read::rnglists::DebugRngLists<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "debug_types": default_structs['gimli::read::unit::DebugTypes<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "empty": default_structs['gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>'], })
+
+default_structs['core::option::Option<gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimTypeOption(22, 1, default_structs['gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], None, 0, name='core::option::Option<gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>')
+
 default_structs['std::backtrace_rs::symbolize::gimli::Context'] = RustSimStruct(name='std::backtrace_rs::symbolize::gimli::Context', fields={"object": default_structs['std::backtrace_rs::symbolize::gimli::elf::Object'], "package": default_structs['core::option::Option<gimli::read::dwarf::DwarfPackage<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], "dwarf": default_structs['addr2line::Context<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], })
-
-default_structs['core::marker::PhantomData<alloc::vec::Vec<u8, alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<alloc::vec::Vec<u8, alloc::alloc::Global>>', fields={})
-
-default_structs['core::ptr::unique::Unique<alloc::vec::Vec<u8, alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::unique::Unique<alloc::vec::Vec<u8, alloc::alloc::Global>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<alloc::vec::Vec<u8, alloc::alloc::Global>>'], "_marker": default_structs['core::marker::PhantomData<alloc::vec::Vec<u8, alloc::alloc::Global>>'], })
-
-default_structs['alloc::raw_vec::RawVec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<alloc::vec::Vec<u8, alloc::alloc::Global>>'], "alloc": default_structs['alloc::alloc::Global'], })
-
-default_structs['alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
-
-default_structs['core::cell::UnsafeCell<alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>>'] = RustSimStruct(name='core::cell::UnsafeCell<alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>>', fields={"value": default_structs['alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>'], })
-
-default_structs['core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'] = RustSimStruct(name='core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::mmap::Mmap>', fields={})
-
-default_structs['core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::mmap::Mmap>', fields={"pointer": RustSimTypeReference(default_structs['std::backtrace_rs::symbolize::gimli::mmap::Mmap']), })
-
-default_structs['core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'] = RustSimStruct(name='core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::mmap::Mmap>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'], "_marker": default_structs['core::marker::PhantomData<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'], })
-
-default_structs['alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::mmap::Mmap>'], "alloc": default_structs['alloc::alloc::Global'], })
-
-default_structs['alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
-
-default_structs['core::cell::UnsafeCell<alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>>'] = RustSimStruct(name='core::cell::UnsafeCell<alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>>', fields={"value": default_structs['alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>'], })
-
-default_structs['std::backtrace_rs::symbolize::gimli::stash::Stash'] = RustSimStruct(name='std::backtrace_rs::symbolize::gimli::stash::Stash', fields={"buffers": default_structs['core::cell::UnsafeCell<alloc::vec::Vec<alloc::vec::Vec<u8, alloc::alloc::Global>, alloc::alloc::Global>>'], "mmaps": default_structs['core::cell::UnsafeCell<alloc::vec::Vec<std::backtrace_rs::symbolize::gimli::mmap::Mmap, alloc::alloc::Global>>'], })
 
 default_structs['std::backtrace_rs::symbolize::gimli::Mapping'] = RustSimStruct(name='std::backtrace_rs::symbolize::gimli::Mapping', fields={"cx": default_structs['std::backtrace_rs::symbolize::gimli::Context'], "_map": default_structs['std::backtrace_rs::symbolize::gimli::mmap::Mmap'], "stash": default_structs['std::backtrace_rs::symbolize::gimli::stash::Stash'], })
 
@@ -943,16 +943,6 @@ default_structs['&mut [core::mem::maybe_uninit::MaybeUninit<addr2line::ResUnit<g
 
 default_structs['&mut [std::backtrace_rs::symbolize::gimli::elf::ParsedSym]'] = RustSimStruct(name='&mut [std::backtrace_rs::symbolize::gimli::elf::ParsedSym]', fields={"data_ptr": RustSimTypeReference(default_structs['std::backtrace_rs::symbolize::gimli::elf::ParsedSym']), "length": RustSimTypeSize(signed=False), })
 
-default_structs['std::backtrace_rs::backtrace::libunwind::uw::_Unwind_Context'] = RustSimEnum('std::backtrace_rs::backtrace::libunwind::uw::_Unwind_Context', [])
-
-default_structs['std::backtrace_rs::backtrace::libunwind::Frame'] = RustSimEnum('std::backtrace_rs::backtrace::libunwind::Frame', [EnumVariant('Raw', [(RustSimTypeReference(default_structs['std::backtrace_rs::backtrace::libunwind::uw::_Unwind_Context']), None)], 0, 8), EnumVariant('Cloned', [(RustSimTypeReference(RustSimTypeInt(8, signed=False)), None), (RustSimTypeReference(RustSimTypeInt(8, signed=False)), None), (RustSimTypeReference(RustSimTypeInt(8, signed=False)), None)], 1, 8)])
-
-default_structs['std::backtrace_rs::backtrace::Frame'] = RustSimStruct(name='std::backtrace_rs::backtrace::Frame', fields={"inner": default_structs['std::backtrace_rs::backtrace::libunwind::Frame'], })
-
-default_structs['std::backtrace::RawFrame'] = RustSimEnum('std::backtrace::RawFrame', [EnumVariant('Actual', [(default_structs['std::backtrace_rs::backtrace::Frame'], None)], None, 0)])
-
-default_structs['core::marker::PhantomData<std::backtrace::BacktraceSymbol>'] = RustSimStruct(name='core::marker::PhantomData<std::backtrace::BacktraceSymbol>', fields={})
-
 default_structs['core::option::Option<alloc::vec::Vec<u8, alloc::alloc::Global>>'] = RustSimTypeOption(9223372036854775808, 8, default_structs['alloc::vec::Vec<u8, alloc::alloc::Global>'], None, 0, name='core::option::Option<alloc::vec::Vec<u8, alloc::alloc::Global>>')
 
 default_structs['core::marker::PhantomData<u16>'] = RustSimStruct(name='core::marker::PhantomData<u16>', fields={})
@@ -971,11 +961,21 @@ default_structs['std::backtrace::BacktraceSymbol'] = RustSimStruct(name='std::ba
 
 default_structs['core::ptr::non_null::NonNull<std::backtrace::BacktraceSymbol>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::backtrace::BacktraceSymbol>', fields={"pointer": RustSimTypeReference(default_structs['std::backtrace::BacktraceSymbol']), })
 
+default_structs['core::marker::PhantomData<std::backtrace::BacktraceSymbol>'] = RustSimStruct(name='core::marker::PhantomData<std::backtrace::BacktraceSymbol>', fields={})
+
 default_structs['core::ptr::unique::Unique<std::backtrace::BacktraceSymbol>'] = RustSimStruct(name='core::ptr::unique::Unique<std::backtrace::BacktraceSymbol>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<std::backtrace::BacktraceSymbol>'], "_marker": default_structs['core::marker::PhantomData<std::backtrace::BacktraceSymbol>'], })
 
 default_structs['alloc::raw_vec::RawVec<std::backtrace::BacktraceSymbol, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<std::backtrace::BacktraceSymbol, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<std::backtrace::BacktraceSymbol>'], "alloc": default_structs['alloc::alloc::Global'], })
 
 default_structs['alloc::vec::Vec<std::backtrace::BacktraceSymbol, alloc::alloc::Global>'] = RustSimStruct(name='alloc::vec::Vec<std::backtrace::BacktraceSymbol, alloc::alloc::Global>', fields={"buf": default_structs['alloc::raw_vec::RawVec<std::backtrace::BacktraceSymbol, alloc::alloc::Global>'], "len": RustSimTypeSize(signed=False), })
+
+default_structs['std::backtrace_rs::backtrace::libunwind::uw::_Unwind_Context'] = RustSimEnum('std::backtrace_rs::backtrace::libunwind::uw::_Unwind_Context', [])
+
+default_structs['std::backtrace_rs::backtrace::libunwind::Frame'] = RustSimEnum('std::backtrace_rs::backtrace::libunwind::Frame', [EnumVariant('Raw', [(RustSimTypeReference(default_structs['std::backtrace_rs::backtrace::libunwind::uw::_Unwind_Context']), None)], 0, 8), EnumVariant('Cloned', [(RustSimTypeReference(RustSimTypeInt(8, signed=False)), None), (RustSimTypeReference(RustSimTypeInt(8, signed=False)), None), (RustSimTypeReference(RustSimTypeInt(8, signed=False)), None)], 1, 8)])
+
+default_structs['std::backtrace_rs::backtrace::Frame'] = RustSimStruct(name='std::backtrace_rs::backtrace::Frame', fields={"inner": default_structs['std::backtrace_rs::backtrace::libunwind::Frame'], })
+
+default_structs['std::backtrace::RawFrame'] = RustSimEnum('std::backtrace::RawFrame', [EnumVariant('Actual', [(default_structs['std::backtrace_rs::backtrace::Frame'], None)], None, 0)])
 
 default_structs['std::backtrace::BacktraceFrame'] = RustSimStruct(name='std::backtrace::BacktraceFrame', fields={"frame": default_structs['std::backtrace::RawFrame'], "symbols": default_structs['alloc::vec::Vec<std::backtrace::BacktraceSymbol, alloc::alloc::Global>'], })
 
@@ -1055,9 +1055,9 @@ default_structs['&[gimli::read::abbrev::Abbreviation]'] = RustSimStruct(name='&[
 
 default_structs['&[(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)]'] = RustSimStruct(name='&[(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)]', fields={"data_ptr": RustSimTypeReference(default_structs['(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)']), "length": RustSimTypeSize(signed=False), })
 
-default_structs['core::marker::PhantomData<&[u8]>'] = RustSimStruct(name='core::marker::PhantomData<&[u8]>', fields={})
-
 default_structs['libc::unix::iovec'] = RustSimStruct(name='libc::unix::iovec', fields={"iov_base": RustSimTypeReference(RustSimTypeInt(8, signed=False)), "iov_len": RustSimTypeSize(signed=False), })
+
+default_structs['core::marker::PhantomData<&[u8]>'] = RustSimStruct(name='core::marker::PhantomData<&[u8]>', fields={})
 
 default_structs['std::sys::pal::unix::io::IoSlice'] = RustSimStruct(name='std::sys::pal::unix::io::IoSlice', fields={"vec": default_structs['libc::unix::iovec'], "_p": default_structs['core::marker::PhantomData<&[u8]>'], })
 
@@ -1327,6 +1327,8 @@ default_structs['core::marker::PhantomData<&std::backtrace::BacktraceSymbol>'] =
 
 default_structs['core::slice::iter::Iter<std::backtrace::BacktraceSymbol>'] = RustSimStruct(name='core::slice::iter::Iter<std::backtrace::BacktraceSymbol>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<std::backtrace::BacktraceSymbol>'], "end_or_len": RustSimTypeReference(default_structs['std::backtrace::BacktraceSymbol']), "_marker": default_structs['core::marker::PhantomData<&std::backtrace::BacktraceSymbol>'], })
 
+default_structs['core::marker::PhantomData<&std::io::IoSliceMut>'] = RustSimStruct(name='core::marker::PhantomData<&std::io::IoSliceMut>', fields={})
+
 default_structs['core::marker::PhantomData<&mut [u8]>'] = RustSimStruct(name='core::marker::PhantomData<&mut [u8]>', fields={})
 
 default_structs['std::sys::pal::unix::io::IoSliceMut'] = RustSimStruct(name='std::sys::pal::unix::io::IoSliceMut', fields={"vec": default_structs['libc::unix::iovec'], "_p": default_structs['core::marker::PhantomData<&mut [u8]>'], })
@@ -1335,13 +1337,11 @@ default_structs['std::io::IoSliceMut'] = RustSimStruct(name='std::io::IoSliceMut
 
 default_structs['core::ptr::non_null::NonNull<std::io::IoSliceMut>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::io::IoSliceMut>', fields={"pointer": RustSimTypeReference(default_structs['std::io::IoSliceMut']), })
 
-default_structs['core::marker::PhantomData<&std::io::IoSliceMut>'] = RustSimStruct(name='core::marker::PhantomData<&std::io::IoSliceMut>', fields={})
-
 default_structs['core::slice::iter::Iter<std::io::IoSliceMut>'] = RustSimStruct(name='core::slice::iter::Iter<std::io::IoSliceMut>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<std::io::IoSliceMut>'], "end_or_len": RustSimTypeReference(default_structs['std::io::IoSliceMut']), "_marker": default_structs['core::marker::PhantomData<&std::io::IoSliceMut>'], })
 
-default_structs['core::ptr::non_null::NonNull<std::io::IoSlice>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::io::IoSlice>', fields={"pointer": RustSimTypeReference(default_structs['std::io::IoSlice']), })
-
 default_structs['core::marker::PhantomData<&std::io::IoSlice>'] = RustSimStruct(name='core::marker::PhantomData<&std::io::IoSlice>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<std::io::IoSlice>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::io::IoSlice>', fields={"pointer": RustSimTypeReference(default_structs['std::io::IoSlice']), })
 
 default_structs['core::slice::iter::Iter<std::io::IoSlice>'] = RustSimStruct(name='core::slice::iter::Iter<std::io::IoSlice>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<std::io::IoSlice>'], "end_or_len": RustSimTypeReference(default_structs['std::io::IoSlice']), "_marker": default_structs['core::marker::PhantomData<&std::io::IoSlice>'], })
 
@@ -1349,27 +1349,27 @@ default_structs['core::marker::PhantomData<&gimli::read::line::FileEntryFormat>'
 
 default_structs['core::slice::iter::Iter<gimli::read::line::FileEntryFormat>'] = RustSimStruct(name='core::slice::iter::Iter<gimli::read::line::FileEntryFormat>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<gimli::read::line::FileEntryFormat>'], "end_or_len": RustSimTypeReference(default_structs['gimli::read::line::FileEntryFormat']), "_marker": default_structs['core::marker::PhantomData<&gimli::read::line::FileEntryFormat>'], })
 
-default_structs['core::ptr::non_null::NonNull<u32>'] = RustSimStruct(name='core::ptr::non_null::NonNull<u32>', fields={"pointer": RustSimTypeReference(RustSimTypeInt(32, signed=False)), })
-
 default_structs['core::marker::PhantomData<&u32>'] = RustSimStruct(name='core::marker::PhantomData<&u32>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<u32>'] = RustSimStruct(name='core::ptr::non_null::NonNull<u32>', fields={"pointer": RustSimTypeReference(RustSimTypeInt(32, signed=False)), })
 
 default_structs['core::slice::iter::Iter<u32>'] = RustSimStruct(name='core::slice::iter::Iter<u32>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<u32>'], "end_or_len": RustSimTypeReference(RustSimTypeInt(32, signed=False)), "_marker": default_structs['core::marker::PhantomData<&u32>'], })
 
-default_structs['core::marker::PhantomData<&std::ffi::os_str::OsString>'] = RustSimStruct(name='core::marker::PhantomData<&std::ffi::os_str::OsString>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<std::ffi::os_str::OsString>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::ffi::os_str::OsString>', fields={"pointer": RustSimTypeReference(default_structs['std::ffi::os_str::OsString']), })
+
+default_structs['core::marker::PhantomData<&std::ffi::os_str::OsString>'] = RustSimStruct(name='core::marker::PhantomData<&std::ffi::os_str::OsString>', fields={})
 
 default_structs['core::slice::iter::Iter<std::ffi::os_str::OsString>'] = RustSimStruct(name='core::slice::iter::Iter<std::ffi::os_str::OsString>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<std::ffi::os_str::OsString>'], "end_or_len": RustSimTypeReference(default_structs['std::ffi::os_str::OsString']), "_marker": default_structs['core::marker::PhantomData<&std::ffi::os_str::OsString>'], })
 
-default_structs['core::ptr::non_null::NonNull<alloc::ffi::c_str::CString>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::ffi::c_str::CString>', fields={"pointer": RustSimTypeReference(default_structs['alloc::ffi::c_str::CString']), })
-
 default_structs['core::marker::PhantomData<&alloc::ffi::c_str::CString>'] = RustSimStruct(name='core::marker::PhantomData<&alloc::ffi::c_str::CString>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<alloc::ffi::c_str::CString>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::ffi::c_str::CString>', fields={"pointer": RustSimTypeReference(default_structs['alloc::ffi::c_str::CString']), })
 
 default_structs['core::slice::iter::Iter<alloc::ffi::c_str::CString>'] = RustSimStruct(name='core::slice::iter::Iter<alloc::ffi::c_str::CString>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<alloc::ffi::c_str::CString>'], "end_or_len": RustSimTypeReference(default_structs['alloc::ffi::c_str::CString']), "_marker": default_structs['core::marker::PhantomData<&alloc::ffi::c_str::CString>'], })
 
-default_structs['core::marker::PhantomData<&(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>'] = RustSimStruct(name='core::marker::PhantomData<&(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>'] = RustSimStruct(name='core::ptr::non_null::NonNull<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>', fields={"pointer": RustSimTypeReference(default_structs['(std::ffi::os_str::OsString, std::ffi::os_str::OsString)']), })
+
+default_structs['core::marker::PhantomData<&(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>'] = RustSimStruct(name='core::marker::PhantomData<&(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>', fields={})
 
 default_structs['core::slice::iter::Iter<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>'] = RustSimStruct(name='core::slice::iter::Iter<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>'], "end_or_len": RustSimTypeReference(default_structs['(std::ffi::os_str::OsString, std::ffi::os_str::OsString)']), "_marker": default_structs['core::marker::PhantomData<&(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>'], })
 
@@ -1423,9 +1423,9 @@ default_structs['std::sys::pal::unix::os::{impl#3}::fmt::{closure_env#0}'] = Rus
 
 default_structs['core::iter::adapters::map::Map<core::slice::iter::Iter<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>, std::sys::pal::unix::os::{impl#3}::fmt::{closure_env#0}>'] = RustSimStruct(name='core::iter::adapters::map::Map<core::slice::iter::Iter<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>, std::sys::pal::unix::os::{impl#3}::fmt::{closure_env#0}>', fields={"iter": default_structs['core::slice::iter::Iter<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>'], "f": default_structs['std::sys::pal::unix::os::{impl#3}::fmt::{closure_env#0}'], })
 
-default_structs['core::ptr::non_null::NonNull<addr2line::LineRow>'] = RustSimStruct(name='core::ptr::non_null::NonNull<addr2line::LineRow>', fields={"pointer": RustSimTypeReference(default_structs['addr2line::LineRow']), })
-
 default_structs['core::marker::PhantomData<addr2line::LineRow>'] = RustSimStruct(name='core::marker::PhantomData<addr2line::LineRow>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<addr2line::LineRow>'] = RustSimStruct(name='core::ptr::non_null::NonNull<addr2line::LineRow>', fields={"pointer": RustSimTypeReference(default_structs['addr2line::LineRow']), })
 
 default_structs['core::ptr::unique::Unique<addr2line::LineRow>'] = RustSimStruct(name='core::ptr::unique::Unique<addr2line::LineRow>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<addr2line::LineRow>'], "_marker": default_structs['core::marker::PhantomData<addr2line::LineRow>'], })
 
@@ -1513,9 +1513,9 @@ default_structs['core::mem::manually_drop::ManuallyDrop<libc::unix::linux_like::
 
 default_structs['core::mem::manually_drop::ManuallyDrop<libc::unix::linux_like::linux::gnu::msghdr>'] = RustSimStruct(name='core::mem::manually_drop::ManuallyDrop<libc::unix::linux_like::linux::gnu::msghdr>', fields={"value": default_structs['libc::unix::linux_like::linux::gnu::msghdr'], })
 
-default_structs['std::sys::pal::unix::locks::futex_mutex::Mutex'] = RustSimStruct(name='std::sys::pal::unix::locks::futex_mutex::Mutex', fields={"futex": default_structs['core::sync::atomic::AtomicU32'], })
-
 default_structs['std::sync::poison::Flag'] = RustSimStruct(name='std::sync::poison::Flag', fields={"failed": default_structs['core::sync::atomic::AtomicBool'], })
+
+default_structs['std::sys::pal::unix::locks::futex_mutex::Mutex'] = RustSimStruct(name='std::sys::pal::unix::locks::futex_mutex::Mutex', fields={"futex": default_structs['core::sync::atomic::AtomicU32'], })
 
 default_structs['std::sync::mutex::Mutex<std::io::buffered::bufreader::BufReader<std::io::stdio::StdinRaw>>'] = RustSimStruct(name='std::sync::mutex::Mutex<std::io::buffered::bufreader::BufReader<std::io::stdio::StdinRaw>>', fields={"inner": default_structs['std::sys::pal::unix::locks::futex_mutex::Mutex'], "poison": default_structs['std::sync::poison::Flag'], "data": default_structs['core::cell::UnsafeCell<std::io::buffered::bufreader::BufReader<std::io::stdio::StdinRaw>>'], })
 
@@ -1541,6 +1541,10 @@ default_structs['core::ptr::non_null::NonNull<alloc::collections::btree::node::L
 
 default_structs['core::mem::manually_drop::ManuallyDrop<core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::mem::manually_drop::ManuallyDrop<core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={"value": default_structs['core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>'], })
 
+default_structs['std::sys::pal::unix::fs::dirent64_min'] = RustSimStruct(name='std::sys::pal::unix::fs::dirent64_min', fields={"d_ino": RustSimTypeInt(64, signed=False), "d_type": RustSimTypeInt(8, signed=False), })
+
+default_structs['std::sys::pal::unix::fs::DirEntry'] = RustSimStruct(name='std::sys::pal::unix::fs::DirEntry', fields={"dir": default_structs['alloc::sync::Arc<std::sys::pal::unix::fs::InnerReadDir, alloc::alloc::Global>'], "name": default_structs['alloc::ffi::c_str::CString'], "entry": default_structs['std::sys::pal::unix::fs::dirent64_min'], })
+
 default_structs['core::marker::PhantomData<std::io::error::ErrorData<alloc::boxed::Box<std::io::error::Custom, alloc::alloc::Global>>>'] = RustSimStruct(name='core::marker::PhantomData<std::io::error::ErrorData<alloc::boxed::Box<std::io::error::Custom, alloc::alloc::Global>>>', fields={})
 
 default_structs['core::ptr::non_null::NonNull<()>'] = RustSimStruct(name='core::ptr::non_null::NonNull<()>', fields={"pointer": RustSimTypeReference(RustSimTypeUnit()), })
@@ -1548,10 +1552,6 @@ default_structs['core::ptr::non_null::NonNull<()>'] = RustSimStruct(name='core::
 default_structs['std::io::error::repr_bitpacked::Repr'] = RustSimStruct(name='std::io::error::repr_bitpacked::Repr', fields={"__0": default_structs['core::ptr::non_null::NonNull<()>'], "__1": default_structs['core::marker::PhantomData<std::io::error::ErrorData<alloc::boxed::Box<std::io::error::Custom, alloc::alloc::Global>>>'], })
 
 default_structs['std::io::error::Error'] = RustSimStruct(name='std::io::error::Error', fields={"repr": default_structs['std::io::error::repr_bitpacked::Repr'], })
-
-default_structs['std::sys::pal::unix::fs::dirent64_min'] = RustSimStruct(name='std::sys::pal::unix::fs::dirent64_min', fields={"d_ino": RustSimTypeInt(64, signed=False), "d_type": RustSimTypeInt(8, signed=False), })
-
-default_structs['std::sys::pal::unix::fs::DirEntry'] = RustSimStruct(name='std::sys::pal::unix::fs::DirEntry', fields={"dir": default_structs['alloc::sync::Arc<std::sys::pal::unix::fs::InnerReadDir, alloc::alloc::Global>'], "name": default_structs['alloc::ffi::c_str::CString'], "entry": default_structs['std::sys::pal::unix::fs::dirent64_min'], })
 
 default_structs['core::result::Result<std::sys::pal::unix::fs::DirEntry, std::io::error::Error>'] = RustSimTypeResult(default_structs['std::sys::pal::unix::fs::DirEntry'], None, 0, default_structs['std::io::error::Error'], 0, 8, name='core::result::Result<std::sys::pal::unix::fs::DirEntry, std::io::error::Error>')
 
@@ -1597,11 +1597,11 @@ default_structs['core::result::Result<gimli::common::DwoId, gimli::read::Error>'
 
 default_structs['core::result::Result<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, gimli::read::Error>'] = RustSimTypeResult(default_structs['gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>'], None, 0, default_structs['gimli::read::Error'], 46, 8, name='core::result::Result<gimli::read::unit::AttributeValue<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, gimli::read::Error>')
 
-default_structs['std::sync::poison::Guard'] = RustSimStruct(name='std::sync::poison::Guard', fields={"panicking": RustSimTypeInt(1, signed=False), })
-
 default_structs['std::sys::pal::unix::locks::futex_rwlock::RwLock'] = RustSimStruct(name='std::sys::pal::unix::locks::futex_rwlock::RwLock', fields={"state": default_structs['core::sync::atomic::AtomicU32'], "writer_notify": default_structs['core::sync::atomic::AtomicU32'], })
 
 default_structs['std::sync::rwlock::RwLock<std::panicking::Hook>'] = RustSimStruct(name='std::sync::rwlock::RwLock<std::panicking::Hook>', fields={"inner": default_structs['std::sys::pal::unix::locks::futex_rwlock::RwLock'], "poison": default_structs['std::sync::poison::Flag'], "data": default_structs['core::cell::UnsafeCell<std::panicking::Hook>'], })
+
+default_structs['std::sync::poison::Guard'] = RustSimStruct(name='std::sync::poison::Guard', fields={"panicking": RustSimTypeInt(1, signed=False), })
 
 default_structs['std::sync::rwlock::RwLockWriteGuard<std::panicking::Hook>'] = RustSimStruct(name='std::sync::rwlock::RwLockWriteGuard<std::panicking::Hook>', fields={"lock": RustSimTypeReference(default_structs['std::sync::rwlock::RwLock<std::panicking::Hook>']), "poison": default_structs['std::sync::poison::Guard'], })
 
@@ -1869,19 +1869,19 @@ default_structs['memchr::memmem::prefilter::PrefilterFn'] = RustSimStruct(name='
 
 default_structs['core::option::Option<memchr::memmem::prefilter::PrefilterFn>'] = RustSimTypeOption(0, 8, default_structs['memchr::memmem::prefilter::PrefilterFn'], None, 0, name='core::option::Option<memchr::memmem::prefilter::PrefilterFn>')
 
-default_structs['memchr::memmem::genericsimd::Forward'] = RustSimStruct(name='memchr::memmem::genericsimd::Forward', fields={"rare1i": RustSimTypeInt(8, signed=False), "rare2i": RustSimTypeInt(8, signed=False), })
+default_structs['memchr::memmem::rarebytes::RareNeedleBytes'] = RustSimStruct(name='memchr::memmem::rarebytes::RareNeedleBytes', fields={"rare1i": RustSimTypeInt(8, signed=False), "rare2i": RustSimTypeInt(8, signed=False), })
 
-default_structs['memchr::memmem::x86::sse::Forward'] = RustSimStruct(name='memchr::memmem::x86::sse::Forward', fields={"__0": default_structs['memchr::memmem::genericsimd::Forward'], })
+default_structs['memchr::memmem::NeedleInfo'] = RustSimStruct(name='memchr::memmem::NeedleInfo', fields={"nhash": default_structs['memchr::memmem::rabinkarp::NeedleHash'], "rarebytes": default_structs['memchr::memmem::rarebytes::RareNeedleBytes'], })
 
 default_structs['memchr::memmem::twoway::Forward'] = RustSimStruct(name='memchr::memmem::twoway::Forward', fields={"__0": default_structs['memchr::memmem::twoway::TwoWay'], })
 
 default_structs['memchr::memmem::x86::avx::nostd::Forward'] = RustSimStruct(name='memchr::memmem::x86::avx::nostd::Forward', fields={"__0": RustSimTypeUnit(), })
 
+default_structs['memchr::memmem::genericsimd::Forward'] = RustSimStruct(name='memchr::memmem::genericsimd::Forward', fields={"rare1i": RustSimTypeInt(8, signed=False), "rare2i": RustSimTypeInt(8, signed=False), })
+
+default_structs['memchr::memmem::x86::sse::Forward'] = RustSimStruct(name='memchr::memmem::x86::sse::Forward', fields={"__0": default_structs['memchr::memmem::genericsimd::Forward'], })
+
 default_structs['memchr::memmem::SearcherKind'] = RustSimEnum('memchr::memmem::SearcherKind', [EnumVariant('Empty', [], 2, 8), EnumVariant('OneByte', [(RustSimTypeInt(8, signed=False), None)], 3, 8), EnumVariant('TwoWay', [(default_structs['memchr::memmem::twoway::Forward'], None)], None, 0), EnumVariant('GenericSIMD128', [(default_structs['memchr::memmem::x86::sse::Forward'], None)], 5, 8), EnumVariant('GenericSIMD256', [(default_structs['memchr::memmem::x86::avx::nostd::Forward'], None)], 6, 8)])
-
-default_structs['memchr::memmem::rarebytes::RareNeedleBytes'] = RustSimStruct(name='memchr::memmem::rarebytes::RareNeedleBytes', fields={"rare1i": RustSimTypeInt(8, signed=False), "rare2i": RustSimTypeInt(8, signed=False), })
-
-default_structs['memchr::memmem::NeedleInfo'] = RustSimStruct(name='memchr::memmem::NeedleInfo', fields={"nhash": default_structs['memchr::memmem::rabinkarp::NeedleHash'], "rarebytes": default_structs['memchr::memmem::rarebytes::RareNeedleBytes'], })
 
 default_structs['memchr::memmem::Searcher'] = RustSimStruct(name='memchr::memmem::Searcher', fields={"kind": default_structs['memchr::memmem::SearcherKind'], "needle": default_structs['memchr::cow::CowBytes'], "prefn": default_structs['core::option::Option<memchr::memmem::prefilter::PrefilterFn>'], "ninfo": default_structs['memchr::memmem::NeedleInfo'], })
 
@@ -1983,9 +1983,9 @@ default_structs['&[addr2line::LineSequence]'] = RustSimStruct(name='&[addr2line:
 
 default_structs['(&gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, gimli::read::UnitOffset<usize>)'] = RustSimStruct(name='(&gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>, gimli::read::UnitOffset<usize>)', fields={"__0": RustSimTypeReference(default_structs['gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>']), "__1": default_structs['gimli::read::UnitOffset<usize>'], })
 
-default_structs['core::marker::PhantomData<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::marker::PhantomData<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"pointer": RustSimTypeReference(default_structs['addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), })
+
+default_structs['core::marker::PhantomData<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::marker::PhantomData<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={})
 
 default_structs['core::ptr::unique::Unique<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::ptr::unique::Unique<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], "_marker": default_structs['core::marker::PhantomData<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], })
 
@@ -2099,9 +2099,9 @@ default_structs['addr2line::{impl#3}::parse::{closure_env#0}<gimli::read::endian
 
 default_structs['addr2line::{impl#3}::parse::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::{impl#3}::parse::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={})
 
-default_structs['core::marker::PhantomData<addr2line::function::InlinedFunctionAddress>'] = RustSimStruct(name='core::marker::PhantomData<addr2line::function::InlinedFunctionAddress>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<addr2line::function::InlinedFunctionAddress>'] = RustSimStruct(name='core::ptr::non_null::NonNull<addr2line::function::InlinedFunctionAddress>', fields={"pointer": RustSimTypeReference(default_structs['addr2line::function::InlinedFunctionAddress']), })
+
+default_structs['core::marker::PhantomData<addr2line::function::InlinedFunctionAddress>'] = RustSimStruct(name='core::marker::PhantomData<addr2line::function::InlinedFunctionAddress>', fields={})
 
 default_structs['core::ptr::unique::Unique<addr2line::function::InlinedFunctionAddress>'] = RustSimStruct(name='core::ptr::unique::Unique<addr2line::function::InlinedFunctionAddress>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<addr2line::function::InlinedFunctionAddress>'], "_marker": default_structs['core::marker::PhantomData<addr2line::function::InlinedFunctionAddress>'], })
 
@@ -2149,10 +2149,6 @@ default_structs['core::option::Option<addr2line::FunctionName<gimli::read::endia
 
 default_structs['addr2line::Frame<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::Frame<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"dw_die_offset": default_structs['core::option::Option<gimli::read::UnitOffset<usize>>'], "location": default_structs['core::option::Option<addr2line::Location>'], "function": default_structs['core::option::Option<addr2line::FunctionName<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], })
 
-default_structs['addr2line::SplitDwarfLoad<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::SplitDwarfLoad<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"parent": default_structs['alloc::sync::Arc<gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>'], "dwo_id": default_structs['gimli::common::DwoId'], "comp_dir": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "path": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], })
-
-default_structs['core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>'] = RustSimTypeResult(default_structs['(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>)'], None, 0, default_structs['gimli::read::Error'], 3, 4, name='core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>')
-
 default_structs['addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#3}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#3}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"self": RustSimTypeReference(default_structs['addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), })
 
 default_structs['addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#4}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#4}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"self": RustSimTypeReference(default_structs['addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), "process_dwo": default_structs['addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#3}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "ctx": RustSimTypeReference(default_structs['addr2line::Context<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), })
@@ -2164,6 +2160,10 @@ default_structs['addr2line::SimpleLookup<core::result::Result<(addr2line::DebugF
 default_structs['addr2line::{impl#9}::find_function_or_location::{closure_env#0}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::{impl#9}::find_function_or_location::{closure_env#0}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"self": RustSimTypeReference(default_structs['addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), "ctx": RustSimTypeReference(default_structs['addr2line::Context<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), "probe": RustSimTypeInt(64, signed=False), })
 
 default_structs['addr2line::MappedLookup<core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>, addr2line::SimpleLookup<core::result::Result<(addr2line::DebugFile, &gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, &gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), gimli::read::Error>, gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#4}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, addr2line::{impl#9}::find_function_or_location::{closure_env#0}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='addr2line::MappedLookup<core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>, addr2line::SimpleLookup<core::result::Result<(addr2line::DebugFile, &gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, &gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), gimli::read::Error>, gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#4}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, addr2line::{impl#9}::find_function_or_location::{closure_env#0}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"original": default_structs['addr2line::SimpleLookup<core::result::Result<(addr2line::DebugFile, &gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, &gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), gimli::read::Error>, gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#4}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], "mutator": default_structs['addr2line::{impl#9}::find_function_or_location::{closure_env#0}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], })
+
+default_structs['core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>'] = RustSimTypeResult(default_structs['(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>)'], None, 0, default_structs['gimli::read::Error'], 3, 4, name='core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>')
+
+default_structs['addr2line::SplitDwarfLoad<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::SplitDwarfLoad<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"parent": default_structs['alloc::sync::Arc<gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>'], "dwo_id": default_structs['gimli::common::DwoId'], "comp_dir": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "path": default_structs['core::option::Option<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], })
 
 default_structs['addr2line::LookupResult<addr2line::MappedLookup<core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>, addr2line::SimpleLookup<core::result::Result<(addr2line::DebugFile, &gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, &gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), gimli::read::Error>, gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#4}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, addr2line::{impl#9}::find_function_or_location::{closure_env#0}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>>'] = RustSimEnum('addr2line::LookupResult<addr2line::MappedLookup<core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>, addr2line::SimpleLookup<core::result::Result<(addr2line::DebugFile, &gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, &gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), gimli::read::Error>, gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#4}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, addr2line::{impl#9}::find_function_or_location::{closure_env#0}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>>', [EnumVariant('Load', [(default_structs['addr2line::SplitDwarfLoad<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], None), (default_structs['addr2line::MappedLookup<core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>, addr2line::SimpleLookup<core::result::Result<(addr2line::DebugFile, &gimli::read::dwarf::Dwarf<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, &gimli::read::dwarf::Unit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, usize>), gimli::read::Error>, gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>, addr2line::{impl#9}::dwarf_and_unit_dwo::{closure_env#4}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, addr2line::{impl#9}::find_function_or_location::{closure_env#0}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], None)], None, 0), EnumVariant('Output', [(default_structs['core::result::Result<(core::option::Option<&addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, core::option::Option<addr2line::Location>), gimli::read::Error>'], None)], 0, 8)])
 
@@ -2207,17 +2207,17 @@ default_structs['addr2line::FrameIterState<gimli::read::endian_slice::EndianSlic
 
 default_structs['addr2line::FrameIter<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::FrameIter<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"__0": default_structs['addr2line::FrameIterState<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], })
 
+default_structs['addr2line::{impl#1}::find_units_range::{closure_env#2}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::{impl#1}::find_units_range::{closure_env#2}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"self": RustSimTypeReference(default_structs['addr2line::Context<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), "probe_low": RustSimTypeInt(64, signed=False), "probe_high": RustSimTypeInt(64, signed=False), })
+
+default_structs['addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"probe_high": RustSimTypeInt(64, signed=False), "probe_low": RustSimTypeInt(64, signed=False), })
+
 default_structs['core::marker::PhantomData<&addr2line::UnitRange>'] = RustSimStruct(name='core::marker::PhantomData<&addr2line::UnitRange>', fields={})
 
 default_structs['core::slice::iter::Iter<addr2line::UnitRange>'] = RustSimStruct(name='core::slice::iter::Iter<addr2line::UnitRange>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<addr2line::UnitRange>'], "end_or_len": RustSimTypeReference(default_structs['addr2line::UnitRange']), "_marker": default_structs['core::marker::PhantomData<&addr2line::UnitRange>'], })
 
 default_structs['core::iter::adapters::rev::Rev<core::slice::iter::Iter<addr2line::UnitRange>>'] = RustSimStruct(name='core::iter::adapters::rev::Rev<core::slice::iter::Iter<addr2line::UnitRange>>', fields={"iter": default_structs['core::slice::iter::Iter<addr2line::UnitRange>'], })
 
-default_structs['addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"probe_high": RustSimTypeInt(64, signed=False), "probe_low": RustSimTypeInt(64, signed=False), })
-
 default_structs['core::iter::adapters::take_while::TakeWhile<core::iter::adapters::rev::Rev<core::slice::iter::Iter<addr2line::UnitRange>>, addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::iter::adapters::take_while::TakeWhile<core::iter::adapters::rev::Rev<core::slice::iter::Iter<addr2line::UnitRange>>, addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"iter": default_structs['core::iter::adapters::rev::Rev<core::slice::iter::Iter<addr2line::UnitRange>>'], "predicate": default_structs['addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "flag": RustSimTypeInt(1, signed=False), })
-
-default_structs['addr2line::{impl#1}::find_units_range::{closure_env#2}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'] = RustSimStruct(name='addr2line::{impl#1}::find_units_range::{closure_env#2}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>', fields={"self": RustSimTypeReference(default_structs['addr2line::Context<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), "probe_low": RustSimTypeInt(64, signed=False), "probe_high": RustSimTypeInt(64, signed=False), })
 
 default_structs['core::iter::adapters::filter_map::FilterMap<core::iter::adapters::take_while::TakeWhile<core::iter::adapters::rev::Rev<core::slice::iter::Iter<addr2line::UnitRange>>, addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, addr2line::{impl#1}::find_units_range::{closure_env#2}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::iter::adapters::filter_map::FilterMap<core::iter::adapters::take_while::TakeWhile<core::iter::adapters::rev::Rev<core::slice::iter::Iter<addr2line::UnitRange>>, addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>, addr2line::{impl#1}::find_units_range::{closure_env#2}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"f": default_structs['addr2line::{impl#1}::find_units_range::{closure_env#2}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>'], "iter": default_structs['core::iter::adapters::take_while::TakeWhile<core::iter::adapters::rev::Rev<core::slice::iter::Iter<addr2line::UnitRange>>, addr2line::{impl#1}::find_units_range::{closure_env#1}<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], })
 
@@ -2275,9 +2275,9 @@ default_structs['core::ptr::non_null::NonNull<alloc::sync::ArcInner<core::mem::m
 
 default_structs['alloc::sync::Arc<core::mem::maybe_uninit::MaybeUninit<std::thread::Inner>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::sync::Arc<core::mem::maybe_uninit::MaybeUninit<std::thread::Inner>, alloc::alloc::Global>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<alloc::sync::ArcInner<core::mem::maybe_uninit::MaybeUninit<std::thread::Inner>>>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['std::thread::ThreadId'] = RustSimStruct(name='std::thread::ThreadId', fields={"__0": default_structs['core::num::nonzero::NonZero<u64>'], })
-
 default_structs['core::option::Option<alloc::ffi::c_str::CString>'] = RustSimTypeOption(0, 8, default_structs['alloc::ffi::c_str::CString'], None, 0, name='core::option::Option<alloc::ffi::c_str::CString>')
+
+default_structs['std::thread::ThreadId'] = RustSimStruct(name='std::thread::ThreadId', fields={"__0": default_structs['core::num::nonzero::NonZero<u64>'], })
 
 default_structs['std::thread::Inner'] = RustSimStruct(name='std::thread::Inner', fields={"id": default_structs['std::thread::ThreadId'], "name": default_structs['core::option::Option<alloc::ffi::c_str::CString>'], "parker": default_structs['std::sys_common::thread_parking::futex::Parker'], })
 
@@ -2339,41 +2339,41 @@ default_structs['core::ptr::unique::Unique<addr2line::LineSequence>'] = RustSimS
 
 default_structs['alloc::raw_vec::RawVec<addr2line::LineSequence, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<addr2line::LineSequence, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<addr2line::LineSequence>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>'] = RustSimStruct(name='core::ptr::non_null::NonNull<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>', fields={"pointer": RustSimTypeReference(default_structs['(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)']), })
-
 default_structs['core::marker::PhantomData<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>'] = RustSimStruct(name='core::marker::PhantomData<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>'] = RustSimStruct(name='core::ptr::non_null::NonNull<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>', fields={"pointer": RustSimTypeReference(default_structs['(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)']), })
 
 default_structs['core::ptr::unique::Unique<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>'] = RustSimStruct(name='core::ptr::unique::Unique<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>'], "_marker": default_structs['core::marker::PhantomData<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>'], })
 
 default_structs['alloc::raw_vec::RawVec<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>), alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>), alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<(gimli::common::DebugInfoOffset<usize>, gimli::common::DebugArangesOffset<usize>)>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<std::backtrace::BacktraceFrame>'] = RustSimStruct(name='core::marker::PhantomData<std::backtrace::BacktraceFrame>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<std::backtrace::BacktraceFrame>'] = RustSimStruct(name='core::ptr::non_null::NonNull<std::backtrace::BacktraceFrame>', fields={"pointer": RustSimTypeReference(default_structs['std::backtrace::BacktraceFrame']), })
+
+default_structs['core::marker::PhantomData<std::backtrace::BacktraceFrame>'] = RustSimStruct(name='core::marker::PhantomData<std::backtrace::BacktraceFrame>', fields={})
 
 default_structs['core::ptr::unique::Unique<std::backtrace::BacktraceFrame>'] = RustSimStruct(name='core::ptr::unique::Unique<std::backtrace::BacktraceFrame>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<std::backtrace::BacktraceFrame>'], "_marker": default_structs['core::marker::PhantomData<std::backtrace::BacktraceFrame>'], })
 
 default_structs['alloc::raw_vec::RawVec<std::backtrace::BacktraceFrame, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<std::backtrace::BacktraceFrame, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<std::backtrace::BacktraceFrame>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::marker::PhantomData<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"pointer": RustSimTypeReference(default_structs['addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), })
+
+default_structs['core::marker::PhantomData<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::marker::PhantomData<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={})
 
 default_structs['core::ptr::unique::Unique<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::ptr::unique::Unique<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], "_marker": default_structs['core::marker::PhantomData<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], })
 
 default_structs['alloc::raw_vec::RawVec<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"pointer": RustSimTypeReference(default_structs['addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), })
-
 default_structs['core::marker::PhantomData<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::marker::PhantomData<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"pointer": RustSimTypeReference(default_structs['addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>']), })
 
 default_structs['core::ptr::unique::Unique<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'] = RustSimStruct(name='core::ptr::unique::Unique<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], "_marker": default_structs['core::marker::PhantomData<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], })
 
 default_structs['alloc::raw_vec::RawVec<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<(*mut u8, unsafe extern "C" fn(*mut u8))>'] = RustSimStruct(name='core::ptr::non_null::NonNull<(*mut u8, unsafe extern "C" fn(*mut u8))>', fields={"pointer": RustSimTypeReference(default_structs['(*mut u8, unsafe extern "C" fn(*mut u8))']), })
-
 default_structs['core::marker::PhantomData<(*mut u8, unsafe extern "C" fn(*mut u8))>'] = RustSimStruct(name='core::marker::PhantomData<(*mut u8, unsafe extern "C" fn(*mut u8))>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<(*mut u8, unsafe extern "C" fn(*mut u8))>'] = RustSimStruct(name='core::ptr::non_null::NonNull<(*mut u8, unsafe extern "C" fn(*mut u8))>', fields={"pointer": RustSimTypeReference(default_structs['(*mut u8, unsafe extern "C" fn(*mut u8))']), })
 
 default_structs['core::ptr::unique::Unique<(*mut u8, unsafe extern "C" fn(*mut u8))>'] = RustSimStruct(name='core::ptr::unique::Unique<(*mut u8, unsafe extern "C" fn(*mut u8))>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<(*mut u8, unsafe extern "C" fn(*mut u8))>'], "_marker": default_structs['core::marker::PhantomData<(*mut u8, unsafe extern "C" fn(*mut u8))>'], })
 
@@ -2757,9 +2757,15 @@ default_structs['core::marker::PhantomData<*mut ()>'] = RustSimStruct(name='core
 
 default_structs['proc_macro::bridge::client::Span'] = RustSimStruct(name='proc_macro::bridge::client::Span', fields={"handle": default_structs['core::num::nonzero::NonZero<u32>'], "_marker": default_structs['core::marker::PhantomData<*mut ()>'], })
 
-default_structs['proc_macro::bridge::Ident<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'] = RustSimStruct(name='proc_macro::bridge::Ident<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>', fields={"sym": default_structs['proc_macro::bridge::symbol::Symbol'], "span": default_structs['proc_macro::bridge::client::Span'], "is_raw": RustSimTypeInt(1, signed=False), })
-
 default_structs['proc_macro::bridge::Punct<proc_macro::bridge::client::Span>'] = RustSimStruct(name='proc_macro::bridge::Punct<proc_macro::bridge::client::Span>', fields={"span": default_structs['proc_macro::bridge::client::Span'], "ch": RustSimTypeInt(8, signed=False), "joint": RustSimTypeInt(1, signed=False), })
+
+default_structs['proc_macro::bridge::DelimSpan<proc_macro::bridge::client::Span>'] = RustSimStruct(name='proc_macro::bridge::DelimSpan<proc_macro::bridge::client::Span>', fields={"open": default_structs['proc_macro::bridge::client::Span'], "close": default_structs['proc_macro::bridge::client::Span'], "entire": default_structs['proc_macro::bridge::client::Span'], })
+
+default_structs['proc_macro::bridge::client::TokenStream'] = RustSimStruct(name='proc_macro::bridge::client::TokenStream', fields={"handle": default_structs['core::num::nonzero::NonZero<u32>'], "_marker": default_structs['core::marker::PhantomData<*mut ()>'], })
+
+default_structs['core::option::Option<proc_macro::bridge::client::TokenStream>'] = RustSimTypeOption(0, 4, default_structs['proc_macro::bridge::client::TokenStream'], None, 0, name='core::option::Option<proc_macro::bridge::client::TokenStream>')
+
+default_structs['proc_macro::bridge::Group<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span>'] = RustSimStruct(name='proc_macro::bridge::Group<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span>', fields={"span": default_structs['proc_macro::bridge::DelimSpan<proc_macro::bridge::client::Span>'], "stream": default_structs['core::option::Option<proc_macro::bridge::client::TokenStream>'], "delimiter": RustSimTypeInt(8, signed=False), })
 
 default_structs['core::option::Option<proc_macro::bridge::symbol::Symbol>'] = RustSimTypeOption(0, 4, default_structs['proc_macro::bridge::symbol::Symbol'], None, 0, name='core::option::Option<proc_macro::bridge::symbol::Symbol>')
 
@@ -2767,13 +2773,7 @@ default_structs['proc_macro::bridge::LitKind'] = RustSimEnum('proc_macro::bridge
 
 default_structs['proc_macro::bridge::Literal<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'] = RustSimStruct(name='proc_macro::bridge::Literal<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>', fields={"symbol": default_structs['proc_macro::bridge::symbol::Symbol'], "span": default_structs['proc_macro::bridge::client::Span'], "suffix": default_structs['core::option::Option<proc_macro::bridge::symbol::Symbol>'], "kind": default_structs['proc_macro::bridge::LitKind'], })
 
-default_structs['proc_macro::bridge::client::TokenStream'] = RustSimStruct(name='proc_macro::bridge::client::TokenStream', fields={"handle": default_structs['core::num::nonzero::NonZero<u32>'], "_marker": default_structs['core::marker::PhantomData<*mut ()>'], })
-
-default_structs['core::option::Option<proc_macro::bridge::client::TokenStream>'] = RustSimTypeOption(0, 4, default_structs['proc_macro::bridge::client::TokenStream'], None, 0, name='core::option::Option<proc_macro::bridge::client::TokenStream>')
-
-default_structs['proc_macro::bridge::DelimSpan<proc_macro::bridge::client::Span>'] = RustSimStruct(name='proc_macro::bridge::DelimSpan<proc_macro::bridge::client::Span>', fields={"open": default_structs['proc_macro::bridge::client::Span'], "close": default_structs['proc_macro::bridge::client::Span'], "entire": default_structs['proc_macro::bridge::client::Span'], })
-
-default_structs['proc_macro::bridge::Group<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span>'] = RustSimStruct(name='proc_macro::bridge::Group<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span>', fields={"span": default_structs['proc_macro::bridge::DelimSpan<proc_macro::bridge::client::Span>'], "stream": default_structs['core::option::Option<proc_macro::bridge::client::TokenStream>'], "delimiter": RustSimTypeInt(8, signed=False), })
+default_structs['proc_macro::bridge::Ident<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'] = RustSimStruct(name='proc_macro::bridge::Ident<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>', fields={"sym": default_structs['proc_macro::bridge::symbol::Symbol'], "span": default_structs['proc_macro::bridge::client::Span'], "is_raw": RustSimTypeInt(1, signed=False), })
 
 default_structs['proc_macro::bridge::TokenTree<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'] = RustSimEnum('proc_macro::bridge::TokenTree<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>', [EnumVariant('Group', [(default_structs['proc_macro::bridge::Group<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span>'], None)], None, 0), EnumVariant('Punct', [(default_structs['proc_macro::bridge::Punct<proc_macro::bridge::client::Span>'], None)], 4, 1), EnumVariant('Ident', [(default_structs['proc_macro::bridge::Ident<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'], None)], 5, 1), EnumVariant('Literal', [(default_structs['proc_macro::bridge::Literal<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'], None)], 6, 1)])
 
@@ -2785,17 +2785,17 @@ default_structs['core::ptr::unique::Unique<proc_macro::bridge::TokenTree<proc_ma
 
 default_structs['alloc::raw_vec::RawVec<proc_macro::bridge::TokenTree<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<proc_macro::bridge::TokenTree<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<proc_macro::bridge::TokenTree<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>'] = RustSimStruct(name='core::marker::PhantomData<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>', fields={"pointer": RustSimTypeReference(RustSimTypeBottom()), })
+
+default_structs['core::marker::PhantomData<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>'] = RustSimStruct(name='core::marker::PhantomData<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>', fields={})
 
 default_structs['core::ptr::unique::Unique<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>'] = RustSimStruct(name='core::ptr::unique::Unique<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>'], "_marker": default_structs['core::marker::PhantomData<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>'], })
 
 default_structs['alloc::raw_vec::RawVec<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<proc_macro::bridge::Diagnostic<proc_macro::bridge::client::Span>>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<proc_macro::bridge::client::Span>'] = RustSimStruct(name='core::ptr::non_null::NonNull<proc_macro::bridge::client::Span>', fields={"pointer": RustSimTypeReference(default_structs['proc_macro::bridge::client::Span']), })
-
 default_structs['core::marker::PhantomData<proc_macro::bridge::client::Span>'] = RustSimStruct(name='core::marker::PhantomData<proc_macro::bridge::client::Span>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<proc_macro::bridge::client::Span>'] = RustSimStruct(name='core::ptr::non_null::NonNull<proc_macro::bridge::client::Span>', fields={"pointer": RustSimTypeReference(default_structs['proc_macro::bridge::client::Span']), })
 
 default_structs['core::ptr::unique::Unique<proc_macro::bridge::client::Span>'] = RustSimStruct(name='core::ptr::unique::Unique<proc_macro::bridge::client::Span>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<proc_macro::bridge::client::Span>'], "_marker": default_structs['core::marker::PhantomData<proc_macro::bridge::client::Span>'], })
 
@@ -2809,27 +2809,27 @@ default_structs['core::ptr::unique::Unique<proc_macro::diagnostic::Diagnostic>']
 
 default_structs['alloc::raw_vec::RawVec<proc_macro::diagnostic::Diagnostic, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<proc_macro::diagnostic::Diagnostic, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<proc_macro::diagnostic::Diagnostic>'], "alloc": default_structs['alloc::alloc::Global'], })
 
+default_structs['core::marker::PhantomData<proc_macro::Span>'] = RustSimStruct(name='core::marker::PhantomData<proc_macro::Span>', fields={})
+
 default_structs['proc_macro::Span'] = RustSimStruct(name='proc_macro::Span', fields={"__0": default_structs['proc_macro::bridge::client::Span'], })
 
 default_structs['core::ptr::non_null::NonNull<proc_macro::Span>'] = RustSimStruct(name='core::ptr::non_null::NonNull<proc_macro::Span>', fields={"pointer": RustSimTypeReference(default_structs['proc_macro::Span']), })
-
-default_structs['core::marker::PhantomData<proc_macro::Span>'] = RustSimStruct(name='core::marker::PhantomData<proc_macro::Span>', fields={})
 
 default_structs['core::ptr::unique::Unique<proc_macro::Span>'] = RustSimStruct(name='core::ptr::unique::Unique<proc_macro::Span>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<proc_macro::Span>'], "_marker": default_structs['core::marker::PhantomData<proc_macro::Span>'], })
 
 default_structs['alloc::raw_vec::RawVec<proc_macro::Span, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<proc_macro::Span, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<proc_macro::Span>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<&str>'] = RustSimStruct(name='core::marker::PhantomData<&str>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<&str>'] = RustSimStruct(name='core::ptr::non_null::NonNull<&str>', fields={"pointer": RustSimTypeReference(default_structs['&str']), })
+
+default_structs['core::marker::PhantomData<&str>'] = RustSimStruct(name='core::marker::PhantomData<&str>', fields={})
 
 default_structs['core::ptr::unique::Unique<&str>'] = RustSimStruct(name='core::ptr::unique::Unique<&str>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<&str>'], "_marker": default_structs['core::marker::PhantomData<&str>'], })
 
 default_structs['alloc::raw_vec::RawVec<&str, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<&str, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<&str>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>', fields={"pointer": RustSimTypeReference(default_structs['alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>']), })
+
+default_structs['core::marker::PhantomData<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>', fields={})
 
 default_structs['core::ptr::unique::Unique<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::unique::Unique<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>'], "_marker": default_structs['core::marker::PhantomData<alloc::boxed::Box<[core::mem::maybe_uninit::MaybeUninit<u8>], alloc::alloc::Global>>'], })
 
@@ -2991,13 +2991,13 @@ default_structs['core::option::Option<proc_macro::Span>'] = RustSimTypeOption(0,
 
 default_structs['core::option::Option<proc_macro::bridge::client::Span>'] = RustSimTypeOption(0, 4, default_structs['proc_macro::bridge::client::Span'], None, 0, name='core::option::Option<proc_macro::bridge::client::Span>')
 
-default_structs['proc_macro::Ident'] = RustSimStruct(name='proc_macro::Ident', fields={"__0": default_structs['proc_macro::bridge::Ident<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'], })
+default_structs['proc_macro::Group'] = RustSimStruct(name='proc_macro::Group', fields={"__0": default_structs['proc_macro::bridge::Group<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span>'], })
 
 default_structs['proc_macro::Literal'] = RustSimStruct(name='proc_macro::Literal', fields={"__0": default_structs['proc_macro::bridge::Literal<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'], })
 
-default_structs['proc_macro::Punct'] = RustSimStruct(name='proc_macro::Punct', fields={"__0": default_structs['proc_macro::bridge::Punct<proc_macro::bridge::client::Span>'], })
+default_structs['proc_macro::Ident'] = RustSimStruct(name='proc_macro::Ident', fields={"__0": default_structs['proc_macro::bridge::Ident<proc_macro::bridge::client::Span, proc_macro::bridge::symbol::Symbol>'], })
 
-default_structs['proc_macro::Group'] = RustSimStruct(name='proc_macro::Group', fields={"__0": default_structs['proc_macro::bridge::Group<proc_macro::bridge::client::TokenStream, proc_macro::bridge::client::Span>'], })
+default_structs['proc_macro::Punct'] = RustSimStruct(name='proc_macro::Punct', fields={"__0": default_structs['proc_macro::bridge::Punct<proc_macro::bridge::client::Span>'], })
 
 default_structs['proc_macro::TokenTree'] = RustSimEnum('proc_macro::TokenTree', [EnumVariant('Group', [(default_structs['proc_macro::Group'], None)], None, 0), EnumVariant('Ident', [(default_structs['proc_macro::Ident'], None)], 4, 1), EnumVariant('Punct', [(default_structs['proc_macro::Punct'], None)], 5, 1), EnumVariant('Literal', [(default_structs['proc_macro::Literal'], None)], 6, 1)])
 
@@ -3203,11 +3203,11 @@ default_structs['core::option::Option<std::sys::pal::unix::pipe::AnonPipe>'] = R
 
 default_structs['std::sys::pal::unix::process::process_common::StdioPipes'] = RustSimStruct(name='std::sys::pal::unix::process::process_common::StdioPipes', fields={"stdin": default_structs['core::option::Option<std::sys::pal::unix::pipe::AnonPipe>'], "stdout": default_structs['core::option::Option<std::sys::pal::unix::pipe::AnonPipe>'], "stderr": default_structs['core::option::Option<std::sys::pal::unix::pipe::AnonPipe>'], })
 
-default_structs['core::option::Option<std::os::linux::process::PidFd>'] = RustSimTypeOption(4294967295, 4, default_structs['std::os::linux::process::PidFd'], None, 0, name='core::option::Option<std::os::linux::process::PidFd>')
-
 default_structs['std::sys::pal::unix::process::process_inner::ExitStatus'] = RustSimStruct(name='std::sys::pal::unix::process::process_inner::ExitStatus', fields={"__0": RustSimTypeInt(32, signed=True), })
 
 default_structs['core::option::Option<std::sys::pal::unix::process::process_inner::ExitStatus>'] = RustSimTypeOption(0, 4, default_structs['std::sys::pal::unix::process::process_inner::ExitStatus'], 1, 4, name='core::option::Option<std::sys::pal::unix::process::process_inner::ExitStatus>')
+
+default_structs['core::option::Option<std::os::linux::process::PidFd>'] = RustSimTypeOption(4294967295, 4, default_structs['std::os::linux::process::PidFd'], None, 0, name='core::option::Option<std::os::linux::process::PidFd>')
 
 default_structs['std::sys::pal::unix::process::process_inner::Process'] = RustSimStruct(name='std::sys::pal::unix::process::process_inner::Process', fields={"status": default_structs['core::option::Option<std::sys::pal::unix::process::process_inner::ExitStatus>'], "pid": RustSimTypeInt(32, signed=True), "pidfd": default_structs['core::option::Option<std::os::linux::process::PidFd>'], })
 
@@ -3571,9 +3571,9 @@ default_structs['core::ptr::unique::Unique<u32>'] = RustSimStruct(name='core::pt
 
 default_structs['alloc::raw_vec::RawVec<u32, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<u32, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<u32>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<i8>'] = RustSimStruct(name='core::marker::PhantomData<i8>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<i8>'] = RustSimStruct(name='core::ptr::non_null::NonNull<i8>', fields={"pointer": RustSimTypeReference(RustSimTypeInt(8, signed=True)), })
+
+default_structs['core::marker::PhantomData<i8>'] = RustSimStruct(name='core::marker::PhantomData<i8>', fields={})
 
 default_structs['core::ptr::unique::Unique<i8>'] = RustSimStruct(name='core::ptr::unique::Unique<i8>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<i8>'], "_marker": default_structs['core::marker::PhantomData<i8>'], })
 
@@ -3587,9 +3587,9 @@ default_structs['core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::
 
 default_structs['alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::parse_running_mmaps::MapsEntry, alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<std::backtrace_rs::symbolize::gimli::parse_running_mmaps::MapsEntry, alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<std::backtrace_rs::symbolize::gimli::parse_running_mmaps::MapsEntry>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<*const i8>'] = RustSimStruct(name='core::marker::PhantomData<*const i8>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<*const i8>'] = RustSimStruct(name='core::ptr::non_null::NonNull<*const i8>', fields={"pointer": RustSimTypeReference(RustSimTypeReference(RustSimTypeInt(8, signed=True))), })
+
+default_structs['core::marker::PhantomData<*const i8>'] = RustSimStruct(name='core::marker::PhantomData<*const i8>', fields={})
 
 default_structs['core::ptr::unique::Unique<*const i8>'] = RustSimStruct(name='core::ptr::unique::Unique<*const i8>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<*const i8>'], "_marker": default_structs['core::marker::PhantomData<*const i8>'], })
 
@@ -3607,9 +3607,9 @@ default_structs['core::ptr::unique::Unique<(std::ffi::os_str::OsString, std::ffi
 
 default_structs['alloc::raw_vec::RawVec<(std::ffi::os_str::OsString, std::ffi::os_str::OsString), alloc::alloc::Global>'] = RustSimStruct(name='alloc::raw_vec::RawVec<(std::ffi::os_str::OsString, std::ffi::os_str::OsString), alloc::alloc::Global>', fields={"cap": default_structs['alloc::raw_vec::Cap'], "ptr": default_structs['core::ptr::unique::Unique<(std::ffi::os_str::OsString, std::ffi::os_str::OsString)>'], "alloc": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>'] = RustSimStruct(name='core::ptr::non_null::NonNull<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>', fields={"pointer": RustSimTypeReference(default_structs['(usize, std::backtrace_rs::symbolize::gimli::Mapping)']), })
-
 default_structs['core::marker::PhantomData<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>'] = RustSimStruct(name='core::marker::PhantomData<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>'] = RustSimStruct(name='core::ptr::non_null::NonNull<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>', fields={"pointer": RustSimTypeReference(default_structs['(usize, std::backtrace_rs::symbolize::gimli::Mapping)']), })
 
 default_structs['core::ptr::unique::Unique<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>'] = RustSimStruct(name='core::ptr::unique::Unique<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>'], "_marker": default_structs['core::marker::PhantomData<(usize, std::backtrace_rs::symbolize::gimli::Mapping)>'], })
 
@@ -3715,17 +3715,17 @@ default_structs['std::sys::pal::unix::process::process_common::ExitCode'] = Rust
 
 default_structs['std::process::ExitCode'] = RustSimStruct(name='std::process::ExitCode', fields={"__0": default_structs['std::sys::pal::unix::process::process_common::ExitCode'], })
 
-default_structs['std::process::ChildStdout'] = RustSimStruct(name='std::process::ChildStdout', fields={"inner": default_structs['std::sys::pal::unix::pipe::AnonPipe'], })
+default_structs['std::process::ChildStdin'] = RustSimStruct(name='std::process::ChildStdin', fields={"inner": default_structs['std::sys::pal::unix::pipe::AnonPipe'], })
 
-default_structs['core::option::Option<std::process::ChildStdout>'] = RustSimTypeOption(4294967295, 4, default_structs['std::process::ChildStdout'], None, 0, name='core::option::Option<std::process::ChildStdout>')
+default_structs['core::option::Option<std::process::ChildStdin>'] = RustSimTypeOption(4294967295, 4, default_structs['std::process::ChildStdin'], None, 0, name='core::option::Option<std::process::ChildStdin>')
 
 default_structs['std::process::ChildStderr'] = RustSimStruct(name='std::process::ChildStderr', fields={"inner": default_structs['std::sys::pal::unix::pipe::AnonPipe'], })
 
 default_structs['core::option::Option<std::process::ChildStderr>'] = RustSimTypeOption(4294967295, 4, default_structs['std::process::ChildStderr'], None, 0, name='core::option::Option<std::process::ChildStderr>')
 
-default_structs['std::process::ChildStdin'] = RustSimStruct(name='std::process::ChildStdin', fields={"inner": default_structs['std::sys::pal::unix::pipe::AnonPipe'], })
+default_structs['std::process::ChildStdout'] = RustSimStruct(name='std::process::ChildStdout', fields={"inner": default_structs['std::sys::pal::unix::pipe::AnonPipe'], })
 
-default_structs['core::option::Option<std::process::ChildStdin>'] = RustSimTypeOption(4294967295, 4, default_structs['std::process::ChildStdin'], None, 0, name='core::option::Option<std::process::ChildStdin>')
+default_structs['core::option::Option<std::process::ChildStdout>'] = RustSimTypeOption(4294967295, 4, default_structs['std::process::ChildStdout'], None, 0, name='core::option::Option<std::process::ChildStdout>')
 
 default_structs['std::process::Child'] = RustSimStruct(name='std::process::Child', fields={"handle": default_structs['std::sys::pal::unix::process::process_inner::Process'], "stdin": default_structs['core::option::Option<std::process::ChildStdin>'], "stdout": default_structs['core::option::Option<std::process::ChildStdout>'], "stderr": default_structs['core::option::Option<std::process::ChildStderr>'], })
 
@@ -4073,9 +4073,9 @@ default_structs['core::marker::PhantomData<&mut std::io::stdio::StderrRaw>'] = R
 
 default_structs['core::cell::RefMut<std::io::stdio::StderrRaw>'] = RustSimStruct(name='core::cell::RefMut<std::io::stdio::StderrRaw>', fields={"value": default_structs['core::ptr::non_null::NonNull<std::io::stdio::StderrRaw>'], "borrow": default_structs['core::cell::BorrowRefMut'], "marker": default_structs['core::marker::PhantomData<&mut std::io::stdio::StderrRaw>'], })
 
-default_structs['core::marker::PhantomData<&mut alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<&mut alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>', fields={"pointer": RustSimTypeReference(default_structs['alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>']), })
+
+default_structs['core::marker::PhantomData<&mut alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<&mut alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>', fields={})
 
 default_structs['core::cell::RefMut<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>'] = RustSimStruct(name='core::cell::RefMut<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>', fields={"value": default_structs['core::ptr::non_null::NonNull<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>'], "borrow": default_structs['core::cell::BorrowRefMut'], "marker": default_structs['core::marker::PhantomData<&mut alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>'], })
 
@@ -4245,13 +4245,13 @@ default_structs['(u64, i16, i8)'] = RustSimStruct(name='(u64, i16, i8)', fields=
 
 default_structs['&[core::ascii::ascii_char::AsciiChar]'] = RustSimStruct(name='&[core::ascii::ascii_char::AsciiChar]', fields={"data_ptr": RustSimTypeReference(RustSimTypeInt(8, signed=False)), "length": RustSimTypeSize(signed=False), })
 
-default_structs['core::option::Option<core::slice::iter::Iter<u8>>'] = RustSimTypeOption(0, 8, default_structs['core::slice::iter::Iter<u8>'], None, 0, name='core::option::Option<core::slice::iter::Iter<u8>>')
-
 default_structs['core::escape::EscapeIterInner<4>'] = RustSimStruct(name='core::escape::EscapeIterInner<4>', fields={"data": RustSimTypeArray(RustSimTypeInt(8, signed=False), 4), "alive": default_structs['core::ops::range::Range<u8>'], })
 
 default_structs['core::ascii::EscapeDefault'] = RustSimStruct(name='core::ascii::EscapeDefault', fields={"__0": default_structs['core::escape::EscapeIterInner<4>'], })
 
 default_structs['core::option::Option<core::ascii::EscapeDefault>'] = RustSimTypeOption(128, 1, default_structs['core::ascii::EscapeDefault'], None, 0, name='core::option::Option<core::ascii::EscapeDefault>')
+
+default_structs['core::option::Option<core::slice::iter::Iter<u8>>'] = RustSimTypeOption(0, 8, default_structs['core::slice::iter::Iter<u8>'], None, 0, name='core::option::Option<core::slice::iter::Iter<u8>>')
 
 default_structs['(core::option::Option<core::ascii::EscapeDefault>, core::option::Option<core::slice::iter::Iter<u8>>, core::option::Option<core::ascii::EscapeDefault>)'] = RustSimStruct(name='(core::option::Option<core::ascii::EscapeDefault>, core::option::Option<core::slice::iter::Iter<u8>>, core::option::Option<core::ascii::EscapeDefault>)', fields={"__1": default_structs['core::option::Option<core::slice::iter::Iter<u8>>'], "__0": default_structs['core::option::Option<core::ascii::EscapeDefault>'], "__2": default_structs['core::option::Option<core::ascii::EscapeDefault>'], })
 
@@ -4335,13 +4335,13 @@ default_structs['core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cl
 
 default_structs['core::iter::traits::iterator::iter_compare::compare::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>, u32, core::cmp::Ordering, core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u32, u32, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>>>>'] = RustSimStruct(name='core::iter::traits::iterator::iter_compare::compare::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>, u32, core::cmp::Ordering, core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u32, u32, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>>>>', fields={"b": RustSimTypeReference(default_structs['core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>']), "f": default_structs['core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u32, u32, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u32>>>>>'], })
 
-default_structs['core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>'] = RustSimStruct(name='core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>', fields={})
-
-default_structs['core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u8, u8, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>>'] = RustSimStruct(name='core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u8, u8, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>>', fields={"cmp": default_structs['core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>'], })
-
 default_structs['core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>'] = RustSimStruct(name='core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>', fields={"it": default_structs['core::slice::iter::Iter<u8>'], })
 
 default_structs['core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>'] = RustSimStruct(name='core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>', fields={"iter": default_structs['core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>'], })
+
+default_structs['core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>'] = RustSimStruct(name='core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>', fields={})
+
+default_structs['core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u8, u8, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>>'] = RustSimStruct(name='core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u8, u8, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>>', fields={"cmp": default_structs['core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>'], })
 
 default_structs['core::iter::traits::iterator::iter_compare::compare::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, u8, core::cmp::Ordering, core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u8, u8, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>>>'] = RustSimStruct(name='core::iter::traits::iterator::iter_compare::compare::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, u8, core::cmp::Ordering, core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u8, u8, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>>>', fields={"b": RustSimTypeReference(default_structs['core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>']), "f": default_structs['core::iter::traits::iterator::Iterator::cmp_by::compare::{closure_env#0}<u8, u8, core::iter::traits::iterator::Iterator::cmp::{closure_env#0}<core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>, core::iter::adapters::rev::Rev<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<u8>>>>>'], })
 
@@ -4585,9 +4585,9 @@ default_structs['core::task::wake::RawWakerVTable'] = RustSimStruct(name='core::
 
 default_structs['core::task::wake::RawWaker'] = RustSimStruct(name='core::task::wake::RawWaker', fields={"vtable": RustSimTypeReference(default_structs['core::task::wake::RawWakerVTable']), "data": RustSimTypeReference(RustSimTypeUnit()), })
 
-default_structs['core::task::wake::LocalWaker'] = RustSimStruct(name='core::task::wake::LocalWaker', fields={"waker": default_structs['core::task::wake::RawWaker'], })
-
 default_structs['core::task::wake::Waker'] = RustSimStruct(name='core::task::wake::Waker', fields={"waker": default_structs['core::task::wake::RawWaker'], })
+
+default_structs['core::task::wake::LocalWaker'] = RustSimStruct(name='core::task::wake::LocalWaker', fields={"waker": default_structs['core::task::wake::RawWaker'], })
 
 default_structs['core::task::wake::Context'] = RustSimStruct(name='core::task::wake::Context', fields={"waker": RustSimTypeReference(default_structs['core::task::wake::Waker']), "local_waker": RustSimTypeReference(default_structs['core::task::wake::LocalWaker']), "_marker2": default_structs['core::marker::PhantomData<*mut ()>'], })
 
@@ -4981,9 +4981,9 @@ default_structs['(*mut alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Out
 
 default_structs['(*mut [core::mem::maybe_uninit::MaybeUninit<(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)>], alloc::alloc::Global)'] = RustSimStruct(name='(*mut [core::mem::maybe_uninit::MaybeUninit<(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)>], alloc::alloc::Global)', fields={"__0": default_structs['*mut [core::mem::maybe_uninit::MaybeUninit<(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)>]'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]'], })
-
 default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]'], })
 
 default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'] = RustSimStruct(name='core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'], "_marker": default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunction<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'], })
 
@@ -4997,9 +4997,9 @@ default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit
 
 default_structs['(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineRow>]>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineRow>]>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineRow>]>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]'], })
-
 default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]'], })
 
 default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>'] = RustSimStruct(name='core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>'], "_marker": default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::LineSequence>]>'], })
 
@@ -5037,9 +5037,9 @@ default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit
 
 default_structs['(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)>]>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)>]>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<(gimli::read::UnitOffset<usize>, addr2line::lazy::LazyCell<core::result::Result<addr2line::function::Function<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>, gimli::read::Error>>)>]>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>', fields={"pointer": RustSimTypeReference(RustSimTypeBottom()), })
-
 default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>'] = RustSimStruct(name='core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>', fields={"pointer": RustSimTypeReference(RustSimTypeBottom()), })
 
 default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>'] = RustSimStruct(name='core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>'], "_marker": default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>'], })
 
@@ -5053,9 +5053,9 @@ default_structs['core::ptr::unique::Unique<std::path::Path>'] = RustSimStruct(na
 
 default_structs['(core::ptr::unique::Unique<std::path::Path>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<std::path::Path>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<std::path::Path>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<[core::net::socket_addr::SocketAddr]>'] = RustSimStruct(name='core::marker::PhantomData<[core::net::socket_addr::SocketAddr]>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<[core::net::socket_addr::SocketAddr]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::net::socket_addr::SocketAddr]>', fields={"pointer": default_structs['*const [core::net::socket_addr::SocketAddr]'], })
+
+default_structs['core::marker::PhantomData<[core::net::socket_addr::SocketAddr]>'] = RustSimStruct(name='core::marker::PhantomData<[core::net::socket_addr::SocketAddr]>', fields={})
 
 default_structs['core::ptr::unique::Unique<[core::net::socket_addr::SocketAddr]>'] = RustSimStruct(name='core::ptr::unique::Unique<[core::net::socket_addr::SocketAddr]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[core::net::socket_addr::SocketAddr]>'], "_marker": default_structs['core::marker::PhantomData<[core::net::socket_addr::SocketAddr]>'], })
 
@@ -5077,25 +5077,25 @@ default_structs['core::ptr::unique::Unique<[alloc::ffi::c_str::CString]>'] = Rus
 
 default_structs['(core::ptr::unique::Unique<[alloc::ffi::c_str::CString]>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<[alloc::ffi::c_str::CString]>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<[alloc::ffi::c_str::CString]>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]'], })
-
 default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]'], })
 
 default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>'] = RustSimStruct(name='core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>'], "_marker": default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>'], })
 
 default_structs['(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::UnitRange>]>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]'], })
+
+default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>', fields={})
 
 default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>'] = RustSimStruct(name='core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>'], "_marker": default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>'], })
 
 default_structs['(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::FunctionAddress>]>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>', fields={"pointer": RustSimTypeReference(default_structs['alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>']), })
-
 default_structs['core::marker::PhantomData<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>', fields={"pointer": RustSimTypeReference(default_structs['alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>']), })
 
 default_structs['core::ptr::unique::Unique<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::unique::Unique<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>'], "_marker": default_structs['core::marker::PhantomData<alloc::boxed::Box<dyn core::ops::function::FnOnce<(), Output=()>, alloc::alloc::Global>>'], })
 
@@ -5109,9 +5109,9 @@ default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<
 
 default_structs['(core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, std::ffi::os_str::OsString>>>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]'], })
+
+default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>', fields={})
 
 default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>'] = RustSimStruct(name='core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>'], "_marker": default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::function::InlinedFunctionAddress>]>'], })
 
@@ -5133,25 +5133,25 @@ default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit
 
 default_structs['(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::ResUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]'], })
-
 default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]'], })
 
 default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'] = RustSimStruct(name='core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'], "_marker": default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'], })
 
 default_structs['(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<addr2line::SupUnit<gimli::read::endian_slice::EndianSlice<gimli::endianity::LittleEndian>>>]>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={"pointer": RustSimTypeReference(RustSimTypeBottom()), })
+
+default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={})
 
 default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'], "_marker": default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'], })
 
 default_structs['(core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<u32>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<u32>]>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<u32>]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<u32>]>', fields={"pointer": default_structs['*const [core::mem::maybe_uninit::MaybeUninit<u32>]'], })
+
+default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<u32>]>'] = RustSimStruct(name='core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<u32>]>', fields={})
 
 default_structs['core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<u32>]>'] = RustSimStruct(name='core::ptr::unique::Unique<[core::mem::maybe_uninit::MaybeUninit<u32>]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[core::mem::maybe_uninit::MaybeUninit<u32>]>'], "_marker": default_structs['core::marker::PhantomData<[core::mem::maybe_uninit::MaybeUninit<u32>]>'], })
 
@@ -5165,17 +5165,17 @@ default_structs['core::ptr::unique::Unique<std::io::error::Custom>'] = RustSimSt
 
 default_structs['(core::ptr::unique::Unique<std::io::error::Custom>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<std::io::error::Custom>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<std::io::error::Custom>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>'] = RustSimStruct(name='core::marker::PhantomData<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>', fields={"pointer": RustSimTypeReference(default_structs['core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>']), })
+
+default_structs['core::marker::PhantomData<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>'] = RustSimStruct(name='core::marker::PhantomData<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>', fields={})
 
 default_structs['core::ptr::unique::Unique<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>'] = RustSimStruct(name='core::ptr::unique::Unique<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>'], "_marker": default_structs['core::marker::PhantomData<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>'], })
 
 default_structs['(core::ptr::unique::Unique<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<core::cell::RefCell<alloc::vec::Vec<(*mut u8, unsafe extern "C" fn(*mut u8)), alloc::alloc::Global>>>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={"pointer": RustSimTypeReference(RustSimTypeBottom()), })
+
+default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={})
 
 default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'] = RustSimStruct(name='core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'], "_marker": default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>>>>'], })
 
@@ -5283,9 +5283,9 @@ default_structs['core::marker::PhantomData<&mut alloc::collections::btree::map::
 
 default_structs['alloc::collections::btree::borrow::DormantMutRef<alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::alloc::Global>>'] = RustSimStruct(name='alloc::collections::btree::borrow::DormantMutRef<alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::alloc::Global>>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::alloc::Global>>'], "_marker": default_structs['core::marker::PhantomData<&mut alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::alloc::Global>>'], })
 
-default_structs['core::marker::PhantomData<&mut alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<&mut alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>', fields={"pointer": RustSimTypeReference(default_structs['alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>']), })
+
+default_structs['core::marker::PhantomData<&mut alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<&mut alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>', fields={})
 
 default_structs['alloc::collections::btree::borrow::DormantMutRef<alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>'] = RustSimStruct(name='alloc::collections::btree::borrow::DormantMutRef<alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>'], "_marker": default_structs['core::marker::PhantomData<&mut alloc::collections::btree::map::BTreeMap<std::ffi::os_str::OsString, core::option::Option<std::ffi::os_str::OsString>, alloc::alloc::Global>>'], })
 
@@ -5341,9 +5341,9 @@ default_structs['core::marker::PhantomData<&mut libc::unix::pollfd>'] = RustSimS
 
 default_structs['core::slice::iter::IterMut<libc::unix::pollfd>'] = RustSimStruct(name='core::slice::iter::IterMut<libc::unix::pollfd>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<libc::unix::pollfd>'], "end_or_len": RustSimTypeReference(default_structs['libc::unix::pollfd']), "_marker": default_structs['core::marker::PhantomData<&mut libc::unix::pollfd>'], })
 
-default_structs['core::ptr::non_null::NonNull<alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>', fields={"pointer": RustSimTypeReference(default_structs['alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>']), })
-
 default_structs['core::marker::PhantomData<&mut alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>'] = RustSimStruct(name='core::marker::PhantomData<&mut alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>', fields={"pointer": RustSimTypeReference(default_structs['alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>']), })
 
 default_structs['core::slice::iter::IterMut<alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>'] = RustSimStruct(name='core::slice::iter::IterMut<alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>'], "end_or_len": RustSimTypeReference(default_structs['alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>']), "_marker": default_structs['core::marker::PhantomData<&mut alloc::boxed::Box<(dyn core::ops::function::FnMut<(), Output=core::result::Result<(), std::io::error::Error>> + core::marker::Send + core::marker::Sync), alloc::alloc::Global>>'], })
 
@@ -5631,9 +5631,9 @@ default_structs['(usize, core::option::Option<usize>)'] = RustSimStruct(name='(u
 
 default_structs['alloc::str::join_generic_copy::{closure#0}::{closure_env#0}<str, u8, &str>'] = RustSimStruct(name='alloc::str::join_generic_copy::{closure#0}::{closure_env#0}<str, u8, &str>', fields={})
 
-default_structs['core::ptr::non_null::NonNull<proc_macro::bridge::client::TokenStream>'] = RustSimStruct(name='core::ptr::non_null::NonNull<proc_macro::bridge::client::TokenStream>', fields={"pointer": RustSimTypeReference(default_structs['proc_macro::bridge::client::TokenStream']), })
-
 default_structs['core::marker::PhantomData<proc_macro::bridge::client::TokenStream>'] = RustSimStruct(name='core::marker::PhantomData<proc_macro::bridge::client::TokenStream>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<proc_macro::bridge::client::TokenStream>'] = RustSimStruct(name='core::ptr::non_null::NonNull<proc_macro::bridge::client::TokenStream>', fields={"pointer": RustSimTypeReference(default_structs['proc_macro::bridge::client::TokenStream']), })
 
 default_structs['core::ptr::unique::Unique<proc_macro::bridge::client::TokenStream>'] = RustSimStruct(name='core::ptr::unique::Unique<proc_macro::bridge::client::TokenStream>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<proc_macro::bridge::client::TokenStream>'], "_marker": default_structs['core::marker::PhantomData<proc_macro::bridge::client::TokenStream>'], })
 
@@ -6385,9 +6385,9 @@ default_structs['(*mut [proc_macro::Span], alloc::alloc::Global)'] = RustSimStru
 
 default_structs['*const [proc_macro::Span]'] = RustSimStruct(name='*const [proc_macro::Span]', fields={"data_ptr": RustSimTypeReference(default_structs['proc_macro::Span']), "length": RustSimTypeSize(signed=False), })
 
-default_structs['core::marker::PhantomData<[proc_macro::Span]>'] = RustSimStruct(name='core::marker::PhantomData<[proc_macro::Span]>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<[proc_macro::Span]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[proc_macro::Span]>', fields={"pointer": default_structs['*const [proc_macro::Span]'], })
+
+default_structs['core::marker::PhantomData<[proc_macro::Span]>'] = RustSimStruct(name='core::marker::PhantomData<[proc_macro::Span]>', fields={})
 
 default_structs['core::ptr::unique::Unique<[proc_macro::Span]>'] = RustSimStruct(name='core::ptr::unique::Unique<[proc_macro::Span]>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<[proc_macro::Span]>'], "_marker": default_structs['core::marker::PhantomData<[proc_macro::Span]>'], })
 
@@ -7879,9 +7879,9 @@ default_structs['libc::unix::linux_like::linux::uinput_abs_setup'] = RustSimStru
 
 default_structs['libc::unix::linux_like::linux::uinput_ff_erase'] = RustSimStruct(name='libc::unix::linux_like::linux::uinput_ff_erase', fields={"request_id": RustSimTypeInt(32, signed=False), "retval": RustSimTypeInt(32, signed=True), "effect_id": RustSimTypeInt(32, signed=False), })
 
-default_structs['libc::unix::linux_like::linux::ff_replay'] = RustSimStruct(name='libc::unix::linux_like::linux::ff_replay', fields={"length": RustSimTypeInt(16, signed=False), "delay": RustSimTypeInt(16, signed=False), })
-
 default_structs['libc::unix::linux_like::linux::ff_trigger'] = RustSimStruct(name='libc::unix::linux_like::linux::ff_trigger', fields={"button": RustSimTypeInt(16, signed=False), "interval": RustSimTypeInt(16, signed=False), })
+
+default_structs['libc::unix::linux_like::linux::ff_replay'] = RustSimStruct(name='libc::unix::linux_like::linux::ff_replay', fields={"length": RustSimTypeInt(16, signed=False), "delay": RustSimTypeInt(16, signed=False), })
 
 default_structs['libc::unix::linux_like::linux::ff_effect'] = RustSimStruct(name='libc::unix::linux_like::linux::ff_effect', fields={"type_": RustSimTypeInt(16, signed=False), "id": RustSimTypeInt(16, signed=True), "direction": RustSimTypeInt(16, signed=False), "trigger": default_structs['libc::unix::linux_like::linux::ff_trigger'], "replay": default_structs['libc::unix::linux_like::linux::ff_replay'], "u": RustSimTypeArray(RustSimTypeInt(64, signed=False), 4), })
 
@@ -8009,9 +8009,9 @@ default_structs['libc::unix::linux_like::linux::gnu::b64::msqid_ds'] = RustSimSt
 
 default_structs['libc::unix::linux_like::linux::gnu::b64::sysinfo'] = RustSimStruct(name='libc::unix::linux_like::linux::gnu::b64::sysinfo', fields={"uptime": RustSimTypeInt(64, signed=True), "loads": RustSimTypeArray(RustSimTypeInt(64, signed=False), 3), "totalram": RustSimTypeInt(64, signed=False), "freeram": RustSimTypeInt(64, signed=False), "sharedram": RustSimTypeInt(64, signed=False), "bufferram": RustSimTypeInt(64, signed=False), "totalswap": RustSimTypeInt(64, signed=False), "freeswap": RustSimTypeInt(64, signed=False), "procs": RustSimTypeInt(16, signed=False), "pad": RustSimTypeInt(16, signed=False), "totalhigh": RustSimTypeInt(64, signed=False), "freehigh": RustSimTypeInt(64, signed=False), "mem_unit": RustSimTypeInt(32, signed=False), "_f": RustSimTypeArray(RustSimTypeInt(8, signed=True), 0), })
 
-default_structs['libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_fpxreg'] = RustSimStruct(name='libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_fpxreg', fields={"significand": RustSimTypeArray(RustSimTypeInt(16, signed=False), 4), "exponent": RustSimTypeInt(16, signed=False), "__private": RustSimTypeArray(RustSimTypeInt(16, signed=False), 3), })
-
 default_structs['libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_xmmreg'] = RustSimStruct(name='libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_xmmreg', fields={"element": RustSimTypeArray(RustSimTypeInt(32, signed=False), 4), })
+
+default_structs['libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_fpxreg'] = RustSimStruct(name='libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_fpxreg', fields={"significand": RustSimTypeArray(RustSimTypeInt(16, signed=False), 4), "exponent": RustSimTypeInt(16, signed=False), "__private": RustSimTypeArray(RustSimTypeInt(16, signed=False), 3), })
 
 default_structs['libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_fpstate'] = RustSimStruct(name='libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_fpstate', fields={"cwd": RustSimTypeInt(16, signed=False), "swd": RustSimTypeInt(16, signed=False), "ftw": RustSimTypeInt(16, signed=False), "fop": RustSimTypeInt(16, signed=False), "rip": RustSimTypeInt(64, signed=False), "rdp": RustSimTypeInt(64, signed=False), "mxcsr": RustSimTypeInt(32, signed=False), "mxcr_mask": RustSimTypeInt(32, signed=False), "_st": RustSimTypeArray(default_structs['libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_fpxreg'], 8), "_xmm": RustSimTypeArray(default_structs['libc::unix::linux_like::linux::gnu::b64::x86_64::_libc_xmmreg'], 16), "__private": RustSimTypeArray(RustSimTypeInt(64, signed=False), 12), })
 
@@ -8411,9 +8411,9 @@ default_structs['std::backtrace_rs::symbolize::gimli::elf::{impl#1}::parse::{clo
 
 default_structs['core::slice::{impl#0}::sort_unstable_by_key::{closure_env#0}<std::backtrace_rs::symbolize::gimli::elf::ParsedSym, u64, std::backtrace_rs::symbolize::gimli::elf::{impl#1}::parse::{closure_env#3}>'] = RustSimStruct(name='core::slice::{impl#0}::sort_unstable_by_key::{closure_env#0}<std::backtrace_rs::symbolize::gimli::elf::ParsedSym, u64, std::backtrace_rs::symbolize::gimli::elf::{impl#1}::parse::{closure_env#3}>', fields={"_ref__f": RustSimTypeReference(default_structs['std::backtrace_rs::symbolize::gimli::elf::{impl#1}::parse::{closure_env#3}']), })
 
-default_structs['core::marker::PhantomData<&u64>'] = RustSimStruct(name='core::marker::PhantomData<&u64>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<u64>'] = RustSimStruct(name='core::ptr::non_null::NonNull<u64>', fields={"pointer": RustSimTypeReference(RustSimTypeInt(64, signed=False)), })
+
+default_structs['core::marker::PhantomData<&u64>'] = RustSimStruct(name='core::marker::PhantomData<&u64>', fields={})
 
 default_structs['core::slice::iter::Iter<u64>'] = RustSimStruct(name='core::slice::iter::Iter<u64>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<u64>'], "end_or_len": RustSimTypeReference(RustSimTypeInt(64, signed=False)), "_marker": default_structs['core::marker::PhantomData<&u64>'], })
 
@@ -8749,9 +8749,9 @@ default_structs['alloc::collections::btree::node::ForceResult<alloc::collections
 
 default_structs['alloc::collections::btree::node::ForceResult<alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>, alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>, alloc::collections::btree::node::marker::KV>>'] = RustSimEnum('alloc::collections::btree::node::ForceResult<alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>, alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>, alloc::collections::btree::node::marker::KV>>', [EnumVariant('Leaf', [(default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>'], None)], 0, 8), EnumVariant('Internal', [(default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>, alloc::collections::btree::node::marker::KV>'], None)], 1, 8)])
 
-default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::KV>'], })
-
 default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>, alloc::collections::btree::node::marker::KV>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>, alloc::collections::btree::node::marker::KV>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::KV>'], })
+
+default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::KV>'], })
 
 default_structs['alloc::collections::btree::node::ForceResult<alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>, alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>, alloc::collections::btree::node::marker::KV>>'] = RustSimEnum('alloc::collections::btree::node::ForceResult<alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>, alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>, alloc::collections::btree::node::marker::KV>>', [EnumVariant('Leaf', [(default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::KV>'], None)], 0, 8), EnumVariant('Internal', [(default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, std::ffi::os_str::OsString, std::ffi::os_str::OsString, alloc::collections::btree::node::marker::Internal>, alloc::collections::btree::node::marker::KV>'], None)], 1, 8)])
 
@@ -9021,9 +9021,9 @@ default_structs['core::marker::PhantomData<&object::endian::U16Bytes<object::end
 
 default_structs['core::slice::iter::Iter<object::endian::U16Bytes<object::endian::LittleEndian>>'] = RustSimStruct(name='core::slice::iter::Iter<object::endian::U16Bytes<object::endian::LittleEndian>>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<object::endian::U16Bytes<object::endian::LittleEndian>>'], "end_or_len": RustSimTypeReference(default_structs['object::endian::U16Bytes<object::endian::LittleEndian>']), "_marker": default_structs['core::marker::PhantomData<&object::endian::U16Bytes<object::endian::LittleEndian>>'], })
 
-default_structs['core::ptr::non_null::NonNull<object::endian::U32Bytes<object::endian::LittleEndian>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<object::endian::U32Bytes<object::endian::LittleEndian>>', fields={"pointer": RustSimTypeReference(default_structs['object::endian::U32Bytes<object::endian::LittleEndian>']), })
-
 default_structs['core::marker::PhantomData<&object::endian::U32Bytes<object::endian::LittleEndian>>'] = RustSimStruct(name='core::marker::PhantomData<&object::endian::U32Bytes<object::endian::LittleEndian>>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<object::endian::U32Bytes<object::endian::LittleEndian>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<object::endian::U32Bytes<object::endian::LittleEndian>>', fields={"pointer": RustSimTypeReference(default_structs['object::endian::U32Bytes<object::endian::LittleEndian>']), })
 
 default_structs['core::slice::iter::Iter<object::endian::U32Bytes<object::endian::LittleEndian>>'] = RustSimStruct(name='core::slice::iter::Iter<object::endian::U32Bytes<object::endian::LittleEndian>>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<object::endian::U32Bytes<object::endian::LittleEndian>>'], "end_or_len": RustSimTypeReference(default_structs['object::endian::U32Bytes<object::endian::LittleEndian>']), "_marker": default_structs['core::marker::PhantomData<&object::endian::U32Bytes<object::endian::LittleEndian>>'], })
 
@@ -9223,17 +9223,17 @@ default_structs['(*mut core::mem::maybe_uninit::MaybeUninit<alloc::collections::
 
 default_structs['(*mut core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>, alloc::alloc::Global)'] = RustSimStruct(name='(*mut core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>, alloc::alloc::Global)', fields={"__0": RustSimTypeReference(RustSimTypeBottom()), "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>', fields={"pointer": RustSimTypeReference(RustSimTypeBottom()), })
-
 default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>'] = RustSimStruct(name='core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>', fields={"pointer": RustSimTypeReference(RustSimTypeBottom()), })
 
 default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>'] = RustSimStruct(name='core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>'], "_marker": default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>'], })
 
 default_structs['(core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>, alloc::alloc::Global)'] = RustSimStruct(name='(core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>, alloc::alloc::Global)', fields={"__0": default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<u64, gimli::read::abbrev::Abbreviation>>>'], "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>'] = RustSimStruct(name='core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>'] = RustSimStruct(name='core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>', fields={"pointer": RustSimTypeReference(RustSimTypeBottom()), })
+
+default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>'] = RustSimStruct(name='core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>', fields={})
 
 default_structs['core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>'] = RustSimStruct(name='core::ptr::unique::Unique<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>'], "_marker": default_structs['core::marker::PhantomData<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>>'], })
 
@@ -10425,9 +10425,9 @@ default_structs['panic_unwind::real_imp::Exception'] = RustSimStruct(name='panic
 
 default_structs['(*mut panic_unwind::real_imp::Exception, alloc::alloc::Global)'] = RustSimStruct(name='(*mut panic_unwind::real_imp::Exception, alloc::alloc::Global)', fields={"__0": RustSimTypeReference(default_structs['panic_unwind::real_imp::Exception']), "__1": default_structs['alloc::alloc::Global'], })
 
-default_structs['core::marker::PhantomData<panic_unwind::real_imp::Exception>'] = RustSimStruct(name='core::marker::PhantomData<panic_unwind::real_imp::Exception>', fields={})
-
 default_structs['core::ptr::non_null::NonNull<panic_unwind::real_imp::Exception>'] = RustSimStruct(name='core::ptr::non_null::NonNull<panic_unwind::real_imp::Exception>', fields={"pointer": RustSimTypeReference(default_structs['panic_unwind::real_imp::Exception']), })
+
+default_structs['core::marker::PhantomData<panic_unwind::real_imp::Exception>'] = RustSimStruct(name='core::marker::PhantomData<panic_unwind::real_imp::Exception>', fields={})
 
 default_structs['core::ptr::unique::Unique<panic_unwind::real_imp::Exception>'] = RustSimStruct(name='core::ptr::unique::Unique<panic_unwind::real_imp::Exception>', fields={"pointer": default_structs['core::ptr::non_null::NonNull<panic_unwind::real_imp::Exception>'], "_marker": default_structs['core::marker::PhantomData<panic_unwind::real_imp::Exception>'], })
 
@@ -10447,17 +10447,17 @@ default_structs['(&u64, &gimli::read::abbrev::Abbreviation)'] = RustSimStruct(na
 
 default_structs['alloc::fmt::format::{closure_env#0}'] = RustSimStruct(name='alloc::fmt::format::{closure_env#0}', fields={"_ref__args": RustSimTypeReference(default_structs['core::fmt::Arguments']), })
 
-default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::Edge>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::Edge>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::Edge>'], })
-
 default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::KV>'], })
+
+default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::Edge>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::Edge>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::Edge>'], })
 
 default_structs['alloc::collections::btree::search::SearchResult<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal, alloc::collections::btree::node::marker::LeafOrInternal>'] = RustSimEnum('alloc::collections::btree::search::SearchResult<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal, alloc::collections::btree::node::marker::LeafOrInternal>', [EnumVariant('Found', [(default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>'], None)], 0, 8), EnumVariant('GoDown', [(default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::Edge>'], None)], 1, 8)])
 
 default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>'] = RustSimStruct(name='alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>', fields={"node": default_structs['core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<u64, gimli::read::abbrev::Abbreviation>>'], "height": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<(alloc::collections::btree::node::marker::Immut, alloc::collections::btree::node::marker::LeafOrInternal)>'], })
 
-default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::KV>'], })
-
 default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::Edge>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::Edge>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::Edge>'], })
+
+default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>'] = RustSimStruct(name='alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>', fields={"node": default_structs['alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>'], "idx": RustSimTypeSize(signed=False), "_marker": default_structs['core::marker::PhantomData<alloc::collections::btree::node::marker::KV>'], })
 
 default_structs['alloc::collections::btree::search::SearchResult<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal, alloc::collections::btree::node::marker::LeafOrInternal>'] = RustSimEnum('alloc::collections::btree::search::SearchResult<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal, alloc::collections::btree::node::marker::LeafOrInternal>', [EnumVariant('Found', [(default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>'], None)], 0, 8), EnumVariant('GoDown', [(default_structs['alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Immut, u64, gimli::read::abbrev::Abbreviation, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::Edge>'], None)], 1, 8)])
 
@@ -10899,9 +10899,9 @@ default_structs['core::cell::Cell<usize>'] = RustSimStruct(name='core::cell::Cel
 
 default_structs['core::mem::manually_drop::ManuallyDrop<alloc::raw_vec::RawVec<u8, alloc::alloc::Global>>'] = RustSimStruct(name='core::mem::manually_drop::ManuallyDrop<alloc::raw_vec::RawVec<u8, alloc::alloc::Global>>', fields={"value": default_structs['alloc::raw_vec::RawVec<u8, alloc::alloc::Global>'], })
 
-default_structs['core::ptr::non_null::NonNull<[u8; 2]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[u8; 2]>', fields={"pointer": RustSimTypeReference(RustSimTypeArray(RustSimTypeInt(8, signed=False), 2)), })
-
 default_structs['core::marker::PhantomData<&[u8; 2]>'] = RustSimStruct(name='core::marker::PhantomData<&[u8; 2]>', fields={})
+
+default_structs['core::ptr::non_null::NonNull<[u8; 2]>'] = RustSimStruct(name='core::ptr::non_null::NonNull<[u8; 2]>', fields={"pointer": RustSimTypeReference(RustSimTypeArray(RustSimTypeInt(8, signed=False), 2)), })
 
 default_structs['core::slice::iter::Iter<[u8; 2]>'] = RustSimStruct(name='core::slice::iter::Iter<[u8; 2]>', fields={"ptr": default_structs['core::ptr::non_null::NonNull<[u8; 2]>'], "end_or_len": RustSimTypeReference(RustSimTypeArray(RustSimTypeInt(8, signed=False), 2)), "_marker": default_structs['core::marker::PhantomData<&[u8; 2]>'], })
 

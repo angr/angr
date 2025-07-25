@@ -108,6 +108,18 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
         if isinstance(condition, BinaryOp) and condition.op in ("CmpEQ", "CmpNE"):
             op0, op1 = condition.operands
             cmp_op = condition.op
+            # CmpEQ((Load(addr=(Reference vvar_247{stack -216}), size=1, endness=Iend_LE) & 0x1<8>), 0x0<8>)
+            if (
+                isinstance(op1, Const)
+                and op1.value == 0
+                and isinstance(op0, BinaryOp)
+                and op0.op == "And"
+                and isinstance(op0.operands[1], Const)
+            ):
+                op1 = op1.copy()
+                op1.value = op0.operands[1].value
+                op0 = op0.operands[0]
+                cmp_op = "CmpNE" if cmp_op == "CmpEQ" else "CmpEQ"
             if isinstance(op0, Load):
                 scrutinee = unwrap_stack_vvar_reference(op0.addr) or unwrap_combo_reg_vvar_reference(op0.addr)
             if isinstance(op0, (VirtualVariable, Call)):
@@ -201,7 +213,8 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
         if cur_size == expected_size:
             move_stmt = None
             if len(move_stmts) >= 2:
-                dst_offset = move_stmts[0].dst.stack_offset
+                pass
+                # dst_offset = move_stmts[0].dst.stack_offset
                 # TODO: Group move stmts
             elif len(move_stmts) == 1:
                 move_stmt = move_stmts[0]
