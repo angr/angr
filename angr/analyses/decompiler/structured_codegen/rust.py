@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument
 from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
-from collections import defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict, Counter
 import logging
 from functools import reduce
 
@@ -26,6 +26,7 @@ from ....sim_type import (
     SimTypeFixedSizeArray,
     SimTypeLength,
     SimTypeReg,
+    SimTypeInt,
 )
 from ....rust.sim_type import (
     RustSimType,
@@ -490,9 +491,17 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
             else:
                 name = str(variable)
 
-            # sort by number of occurrences
+            # sort by the following:
+            #   * if it's a a non-basic type
+            #   * the number of occurrences
+            #   * the repr of the type itself
+            # TODO: The type selection should actually happen during variable unification
             vartypes = [x[1] for x in cvar_and_vartypes]
-            vartypes = list(dict.fromkeys(sorted(vartypes, key=vartypes.count, reverse=True)))
+            count = Counter(vartypes)
+            vartypes = sorted(
+                count.copy(),
+                key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
+            )
 
             for i, var_type in enumerate(vartypes):
                 var_type = unpack_typeref(var_type)

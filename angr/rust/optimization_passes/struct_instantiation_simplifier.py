@@ -191,20 +191,25 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         struct = builder.build(fields, struct_ty)
 
         if struct and used_defs:
-            first_stack_def = used_defs[0]
-            new_vvar = self.new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
-            src = self._convert_to_stack_vvar(struct) or struct
-            new_stmt = Assignment(None, new_vvar, src, **first_stack_def.stmt.tags)
+            if len(used_defs) > 1:
+                first_stack_def = used_defs[0]
+                new_vvar = self.new_stack_vvar(vvar.stack_offset, struct.bits, vvar.tags)
+                src = self._convert_to_stack_vvar(struct) or struct
+                src.tags["type"] = struct_ty
+                new_stmt = Assignment(None, new_vvar, src, **first_stack_def.stmt.tags)
 
-            # Collect type hints
-            self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty)
+                # Collect type hints
+                self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty)
 
-            for expr, struct_ty in builder.pending_potential_structs:
-                self._simplify_callsite_struct_instantiation(callsite_block, expr, struct_ty)
+                for expr, struct_ty in builder.pending_potential_structs:
+                    self._simplify_callsite_struct_instantiation(callsite_block, expr, struct_ty)
 
-            self._stmts_to_replace[first_stack_def.block].append((first_stack_def.stmt_idx, new_stmt))
-            for stack_def in used_defs[1:]:
-                self._stmts_to_remove[stack_def.block].append(stack_def.stmt)
+                self._stmts_to_replace[first_stack_def.block].append((first_stack_def.stmt_idx, new_stmt))
+                for stack_def in used_defs[1:]:
+                    self._stmts_to_remove[stack_def.block].append(stack_def.stmt)
+            else:
+                # Collect type hints
+                self.project.kb.type_hints.add_type_hint(vvar, struct_ty)
 
     def _build_struct_ty(self, fields):
         if not fields:
@@ -270,7 +275,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         stack_defs = self.collect_stack_defs_at(block)
         consecutive_stmts_groups = self._group_consecutive_stmts(stack_defs)
         for stmts in consecutive_stmts_groups:
-            if all(isinstance(stmt, Assignment) for stmt in stmts):
+            if all(isinstance(stmt, Assignment) and stmt not in self._stmts_to_remove[block] for stmt in stmts):
                 sorted_stmts = sorted(stmts, key=lambda stmt: stmt.dst.stack_offset)
                 struct_ty, struct = self._try_build_struct_instantiation(sorted_stmts)
                 if struct:

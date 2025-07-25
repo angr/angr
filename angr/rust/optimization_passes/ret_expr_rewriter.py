@@ -61,3 +61,5 @@ class RetExprRewriter(OptimizationPass):
         replacer = CallReplacer(callback)
         for block in self._graph.nodes:
             replacer.walk(block)
+
+        self.out_graph = self._graph

@@ -1182,6 +1182,15 @@ class SimEngineVRBase(
                 elif vvar.category == ailment.Expr.VirtualVariableCategory.TMP:
                     # we don't track variables for tmps
                     pass
+                elif vvar.category == ailment.Expr.VirtualVariableCategory.COMBO_REGISTER:
+                    variable = SimComboRegisterVariable(
+                        vvar.reg_offsets,
+                        vvar.size,
+                        ident=self.state.variable_manager[self.func_addr].next_variable_ident("register"),
+                        region=self.func_addr,
+                    )
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+                    # self.state.variable_manager[self.func_addr].add_variable("register", vvar.reg_offset, variable)
                 else:
                     raise NotImplementedError
 

@@ -5,12 +5,14 @@ from collections import OrderedDict
 
 from networkx import DiGraph
 
+from angr.calling_conventions import SimCC
 from angr.ailment import BinaryOp, Const, AILBlockWalker, Block
-from angr.ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi
+from angr.ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi, VirtualVariableCategory
 from angr.ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment, Jump, Label
 from angr.rust.mixins import SRDAMixin, DFAMixin, CFAMixin
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
+from angr.rust.optimization_passes.utils import CallReplacer, expand_argloc
 from angr.rust.sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType, RustSimTypeUnit
 from angr.rust.knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from angr.rust.sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
@@ -194,9 +196,15 @@ class FunctionBodyFactCollector(AILBlockWalker):
         else:
             self.has_write_to_arg0 = True
 
+    def _srda_on_path(self, path: Tuple[Block]):
+        return SRDAMixin(self.context.func, Pathfinder.path_to_graph(path), self.project)
+
     def add_memory_write(self, arg_idx, block_or_path, offset, expr):
         if block_or_path not in self.model.memory_writes[arg_idx]:
             self.model.memory_writes[arg_idx][block_or_path] = {}
+        if isinstance(block_or_path, tuple) and isinstance(expr, VirtualVariable):
+            srda = self._srda_on_path(block_or_path)
+            expr = srda.get_terminal_vvar_value(expr) or expr
         self.model.memory_writes[arg_idx][block_or_path][offset] = (expr, self.context.func.addr)
 
     def add_memory_read(self, arg_idx, block, offset, expr):
@@ -320,22 +328,6 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                     l.error(f"Rust calling convention analysis failed for {normalize(self.func.name)}")
                     l.error("".join(traceback.format_exception(e)))
 
-    def _srda_on_path(self, path: Tuple[Block]):
-        return SRDAMixin(self.func, Pathfinder.path_to_graph(path), self.project)
-
-    def _calculate_discriminant(self, path: Tuple[Block]) -> Optional[Const]:
-        srda = self._srda_on_path(path)
-        for block in path:
-            for stmt in reversed(block.statements):
-                if isinstance(stmt, Store) and isinstance(stmt.addr, VirtualVariable):
-                    dst_var = self.get_terminal_vvar(stmt.addr)
-                    if dst_var.varid == 0 and dst_var.was_parameter:
-                        discriminant = stmt.data
-                        if isinstance(discriminant, VirtualVariable):
-                            discriminant = srda.get_terminal_vvar_value(discriminant)
-                        return discriminant if isinstance(discriminant, Const) else None
-        return None
-
     def _remove_discriminant_from_struct(self, struct_type: RustSimStruct):
         field_types = list(struct_type.fields.values())[1:]
         fields = OrderedDict()
@@ -350,7 +342,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         ).with_arch(self.project.arch)
 
     def _infer_potential_enum_type(
-        self, candidates_and_paths: List[Tuple[RustSimStruct, Tuple[Block]]]
+        self, candidates_and_paths: List[Tuple[Tuple[RustSimStruct, Const | None], Tuple[Block]]]
     ) -> RustSimEnum | None:
         # Simplest case: if there is only one candidate, it's not an Enum type
         if len(candidates_and_paths) <= 1:
@@ -360,8 +352,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         # Calculate discriminant for each path and deduplicate
         candidates_and_discriminants = []
         visited = set()
-        for candidate, path in candidates_and_paths:
-            discriminant = self._calculate_discriminant(path)
+        for (candidate, discriminant), path in candidates_and_paths:
             key = (candidate.size, discriminant.value if discriminant else None)
             if key not in visited:
                 visited.add(key)
@@ -464,7 +455,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             #         ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
             #         err_type = self.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
             #         return RustSimTypeResult(ok_type, err_type, 0, None, 0), False
-            return None, False
+            return self.func.prototype.returnty, False
 
         memory_writes = self.model.memory_writes[0]
         candidates_and_paths = []
@@ -472,21 +463,24 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         for path in memory_writes:
             fields = {}
             path_memory_writes = memory_writes[path]
+            discriminant = None
             for offset in sorted(path_memory_writes.keys()):
                 expr, func_addr = path_memory_writes[offset]
                 arg_ty = RustSimTypeInt(expr.bits, signed=False)
                 fields[f"field_{offset}"] = arg_ty
+                if offset == 0 and isinstance(expr, Const):
+                    discriminant = expr
             struct_ty = RustSimStruct(
                 fields,
                 name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
                 pack=True,
             ).with_arch(self.project.arch)
-            candidates_and_paths.append((struct_ty, path))
+            candidates_and_paths.append(((struct_ty, discriminant), path))
 
         # Return inferred enum type if we found one, otherwise return the struct type with the largest size
         returnty = self._infer_potential_enum_type(candidates_and_paths)
         if not returnty and candidates_and_paths:
-            returnty = next(iter(sorted(candidates_and_paths, key=lambda item: item[0].size, reverse=True)))[0]
+            returnty = next(iter(sorted(candidates_and_paths, key=lambda item: item[0][0].size, reverse=True)))[0][0]
         return returnty, True
 
     def _infer_arg_type(self, arg_idx):
@@ -520,21 +514,75 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
         return final_ty
 
+    def _arg_idx_to_arg_type(self, arg_idx, prototype: RustSimTypeFunction, cc: SimCC):
+        if prototype and cc:
+            arg_types = prototype.args
+            arg_locs = cc.arg_locs(prototype)
+            for arg_ty, arg_loc in zip(arg_types, arg_locs):
+                if arg_idx == 0:
+                    return arg_ty
+                locs = expand_argloc(arg_loc)
+                arg_idx -= len(locs)
+        return None
+
+    def _infer_combo_arg_types(self, arg_types):
+        combo_arg_types = {}
+
+        def callback(call: Call, block, stmt, is_expr):
+            i = 0
+            while i + 1 < len(call.args):
+                arg = call.args[i]
+                next_arg = call.args[i + 1]
+                if isinstance(arg, VirtualVariable) and isinstance(next_arg, VirtualVariable):
+                    arg = self.get_terminal_vvar(arg) or arg
+                    next_arg = self.get_terminal_vvar(next_arg) or arg
+                    if (
+                        arg.was_parameter
+                        and arg.parameter_category == VirtualVariableCategory.REGISTER
+                        and next_arg.was_parameter
+                        and next_arg.parameter_category == VirtualVariableCategory.REGISTER
+                        and next_arg.varid - arg.varid == 1
+                    ):
+                        arg_ty = self._arg_idx_to_arg_type(i, call.prototype, call.calling_convention)
+                        if isinstance(arg_ty, RustSimType) and arg_ty.size == self.project.arch.bits * 2:
+                            combo_arg_types[arg.varid] = arg_ty
+                            i += 1
+                i += 1
+            return None
+
+        replacer = CallReplacer(callback)
+        for block in self._graph.nodes:
+            replacer.walk(block)
+
+        new_arg_types = []
+        i = 0
+        while i < len(arg_types):
+            if i in combo_arg_types:
+                new_arg_types.append(combo_arg_types[i])
+                i += 2
+            else:
+                new_arg_types.append(arg_types[i])
+                i += 1
+
+        return new_arg_types
+
     def infer_prototype(self):
         returnty, is_arg0_ret_buf = self._infer_return_type()
         args = []
         for arg_idx, old_arg_type in enumerate(self.func.prototype.args):
             if is_arg0_ret_buf and arg_idx == 0:
                 args.append(RustSimTypeReference(returnty).with_arch(self.project.arch))
+                returnty = None
                 continue
             arg_type = self._infer_arg_type(arg_idx)
             if not arg_type:
                 arg_type = old_arg_type
             args.append(arg_type)
+        args = self._infer_combo_arg_types(args)
         prototype = self.func.prototype
         return RustSimTypeFunction(
             args=args,
-            returnty=returnty if is_arg0_ret_buf and returnty else prototype.returnty,
+            returnty=returnty,
             label=prototype.label,
             arg_names=prototype.arg_names,
             variadic=prototype.variadic,

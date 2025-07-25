@@ -324,6 +324,9 @@ class VirtualVariable(Atom):
         if self.was_combo_reg:
             assert isinstance(self.oident, tuple)
             return self.oident
+        elif self.was_parameter and self.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
+            assert isinstance(self.oident[1], tuple)
+            return self.oident[1]
         raise TypeError("Is not a combo register")
 
     @property
@@ -387,6 +390,8 @@ class VirtualVariable(Atom):
                 ori_str = f"{{r{self.reg_offset}|{self.size}b}}"
             case VirtualVariableCategory.STACK:
                 ori_str = f"{{s{self.oident}|{self.size}b}}"
+            case VirtualVariableCategory.COMBO_REGISTER:
+                ori_str = f"{{combo_reg {self.oident}}}"
         return f"vvar_{self.varid}{ori_str}"
 
     def _hash_core(self):
@@ -2068,15 +2073,11 @@ class StringLiteral(Expression):
     def __init__(self, idx, data, bits, **kwargs):
         super().__init__(idx, 0, **kwargs)
         self.data = data
-        self._bits = bits
+        self.bits = bits
 
     @property
     def size(self):
         return self.bits // 8
-
-    @property
-    def bits(self):
-        return self._bits
 
     def __repr__(self):
         return f'"{repr(self.data)[1:-1]}"'

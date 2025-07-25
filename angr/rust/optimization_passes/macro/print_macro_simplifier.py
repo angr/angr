@@ -108,7 +108,9 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
                     if returnty is not None:
                         returnty = returnty.with_arch(self.project.arch)
                     if macro_name and fmt_str:
-                        macro_args = [macro_arg.get_field("ty") for macro_arg in macro_args]
+                        macro_args = [
+                            macro_arg.get_field("ty") or macro_arg.get_field("value") for macro_arg in macro_args
+                        ]
                         macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
                         macro = FunctionLikeMacro(
                             None,

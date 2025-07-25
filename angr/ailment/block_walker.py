@@ -759,7 +759,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
 
         if changed:
             new_expr = expr.copy()
-            expr.registers = new_regs
+            new_expr.registers = new_regs
             return new_expr
 
         return None
