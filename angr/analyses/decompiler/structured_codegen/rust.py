@@ -2694,8 +2694,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         display_block_addrs=False,
         display_vvar_ids=False,
         min_data_addr: int = 0x400_000,
+        notes=None,
+        display_notes: bool = True,
     ):
-        super().__init__(flavor=flavor)
+        super().__init__(flavor=flavor, notes=notes)
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -2778,6 +2780,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_label: Dict[Tuple[int, Optional[int]], RustLabel] = {}
         self.rust_func: Optional[RustFunction] = None
         self.cexterns: Optional[Set[RustVariable]] = None
+        self.display_notes = display_notes
 
         self._analyze()
 
@@ -2889,6 +2892,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             indent=self._indent, pos_to_node=pos_to_node, pos_to_addr=pos_to_addr, addr_to_pos=addr_to_pos
         )
 
+        if self.display_notes:
+            notes = self.render_notes()
+            pos_to_node, pos_to_addr, addr_to_pos = self.adjust_mapping_positions(
+                len(notes), pos_to_node, pos_to_addr, addr_to_pos
+            )
+            text = notes + text
+
         for elem, node in pos_to_node.items():
             if isinstance(node.obj, RustConstant):
                 ast_to_pos[node.obj.value].add(elem)
@@ -2911,6 +2921,21 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 ast_to_pos[node.obj].add(elem)
 
         return text, pos_to_node, pos_to_addr, addr_to_pos, ast_to_pos
+
+    def render_notes(self) -> str:
+        """
+        Render decompilation notes.
+
+        :return: A string containing all notes.
+        """
+        if not self.notes:
+            return ""
+
+        lines = []
+        for note in self.notes.values():
+            note_lines = str(note).split("\n")
+            lines += [f"// {line}" for line in note_lines]
+        return "\n".join(lines) + "\n\n"
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
