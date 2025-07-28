@@ -16,6 +16,7 @@ from angr.rust.optimization_passes.utils import CallReplacer, expand_argloc
 from angr.rust.sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType, RustSimTypeUnit
 from angr.rust.knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from angr.rust.sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
+from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, has_call, extract_vvar_and_offset
 from angr.rust.utils.library import normalize
 from angr.utils.graph import GraphUtils
@@ -581,6 +582,8 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             args.append(arg_type)
         args = self._infer_combo_arg_types(args)
         prototype = self.func.prototype
+        if returnty:
+            returnty = RustTypeTranslator(self.project, self.project.arch).ctype2rust(returnty)
         return RustSimTypeFunction(
             args=args,
             returnty=returnty,

@@ -1,8 +1,8 @@
 from angr.ailment import Assignment
-from angr.ailment.expression import VirtualVariable, Struct
+from angr.ailment.expression import VirtualVariable, Struct, StringLiteral
 from angr.ailment.statement import Call, FunctionLikeMacro
 
-from ..sim_type import is_composite_type, RustSimTypeFunction
+from ..sim_type import is_composite_type, RustSimTypeFunction, RustSimTypeStrRef
 from ...analyses import Analysis, AnalysesHub
 
 
@@ -30,6 +30,10 @@ class RustTypeHintsAnalysis(Analysis):
                             returnty = call.returnty
                         if returnty:
                             self.project.kb.type_hints.add_type_hint(stmt.dst, returnty)
+                    elif isinstance(stmt.src, StringLiteral):
+                        self.project.kb.type_hints.add_type_hint(
+                            stmt.dst, RustSimTypeStrRef().with_arch(self.project.arch)
+                        )
 
 
 AnalysesHub.register_default("RustTypeHints", RustTypeHintsAnalysis)

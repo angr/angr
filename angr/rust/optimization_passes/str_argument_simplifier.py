@@ -62,8 +62,8 @@ class StrArgumentSimplifierWalker(AILBlockWalker):
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         new_expr = super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
         if new_expr is None:
-            new_expr = expr
-        return self._simplify_call(new_expr)
+            return self._simplify_call(expr)
+        return self._simplify_call(new_expr) or new_expr
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         new_stmt = super()._handle_Call(stmt_idx, stmt, block)
