@@ -3,7 +3,8 @@ from collections import defaultdict, OrderedDict
 import claripy
 from archinfo import Endness
 
-from angr.ailment.expression import Const, VirtualVariable, Struct, Array, Load
+from angr.ailment import UnaryOp
+from angr.ailment.expression import Const, VirtualVariable, Struct, Array, Load, BinaryOp
 from angr.ailment.statement import Assignment
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
 from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef, RustSimTypeUnit, RustSimTypeInt
@@ -22,26 +23,36 @@ class StructBuilder:
         offsets = struct_ty.offsets
         for name, field_ty in struct_ty.fields.items():
             field_offset = offsets[name]
-            if offset == field_offset:
+            if offset == field_offset and field_ty.size > 0:
                 return name, field_ty
             elif isinstance(field_ty, RustSimStruct) and offsets[name] < offset < offsets[name] + field_ty.size // 8:
                 return self._resolve_field(field_ty, offset - field_offset)
         return None, None
 
     def _truncate(self, data, bits):
-        if bits < data.bits and isinstance(data, Const):
-            bv = claripy.BVV(data.value, data.bits)
-            leftover = data.copy()
-            data = data.copy()
-            data.bits = bits
-            leftover.bits = bv.size() - bits
-            if self._arch.memory_endness == Endness.LE:
-                data.value = bv[bits - 1 : 0].concrete_value
-                leftover.value = bv[bv.size() - 1 : bits].concrete_value
-            else:
-                data.value = bv[bv.size() - 1 : bv.size() - bits].concrete_value
-                leftover.value = bv[bv.size() - bits - 1 : 0].concrete_value
-            return data, leftover
+        if bits < data.bits:
+            if isinstance(data, Const):
+                bv = claripy.BVV(data.value, data.bits)
+                leftover = data.copy()
+                data = data.copy()
+                data.bits = bits
+                leftover.bits = bv.size() - bits
+                if self._arch.memory_endness == Endness.LE:
+                    data.value = bv[bits - 1 : 0].concrete_value
+                    leftover.value = bv[bv.size() - 1 : bits].concrete_value
+                else:
+                    data.value = bv[bv.size() - 1 : bv.size() - bits].concrete_value
+                    leftover.value = bv[bv.size() - bits - 1 : 0].concrete_value
+                return data, leftover
+            elif isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
+                size = bits // self.context.project.arch.byte_width
+                leftover_size = (data.bits - bits) // self.context.project.arch.byte_width
+                leftover = data.copy()
+                leftover.addr = data.addr + Const(None, None, size, data.addr.bits)
+                leftover.size = leftover_size
+                data = data.copy()
+                data.size = size
+                return data, leftover
         return None, None
 
     def _fix_field_exprs(self, field_exprs, struct_ty):
@@ -148,32 +159,58 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
     def _check(self):
         return self.project.is_rust_binary, None
 
+    def _expand_fields(self, struct: Struct):
+        expanded_fields = []
+        for field in struct.fields.values():
+            if isinstance(field, Struct):
+                expanded_fields += self._expand_fields(field)
+            else:
+                expanded_fields.append(field)
+        return expanded_fields
+
     def _convert_to_stack_vvar(self, struct: Struct):
         src_offset = None
         expected_offset = None
-        for field in struct.fields.values():
-            src_vvar = None
+        expanded_fields = self._expand_fields(struct)
+        for field in expanded_fields:
             if isinstance(field, Load) and (
                 (vvar := unwrap_stack_vvar_reference(field.addr))
                 and isinstance(vvar, VirtualVariable)
                 and vvar.was_stack
                 and (expected_offset is None or vvar.stack_offset == expected_offset)
             ):
-                src_vvar = vvar
+                if src_offset is None:
+                    src_offset = vvar.stack_offset
+                expected_offset = vvar.stack_offset + field.size
+            elif (
+                isinstance(field, Load)
+                and isinstance(field.addr, BinaryOp)
+                and field.addr.op == "Add"
+                and (
+                    (vvar := unwrap_stack_vvar_reference(field.addr.operands[0]))
+                    and isinstance(vvar, VirtualVariable)
+                    and vvar.was_stack
+                    and isinstance(field.addr.operands[1], Const)
+                    and (expected_offset is None or vvar.stack_offset + field.addr.operands[1].value == expected_offset)
+                )
+            ):
+                offset = vvar.stack_offset + field.addr.operands[1].value
+                if src_offset is None:
+                    src_offset = offset
+                expected_offset = offset + field.size
             elif (
                 isinstance(field, VirtualVariable)
                 and field.was_stack
                 and (expected_offset is None or field.stack_offset == expected_offset)
             ):
-                src_vvar = field
-            if src_vvar:
-                if expected_offset is None:
-                    src_offset = src_vvar.stack_offset
-                    expected_offset = src_offset
-                expected_offset += field.size
+                if src_offset is None:
+                    src_offset = field.stack_offset
+                expected_offset = field.stack_offset + field.size
             else:
                 return None
-        return self.new_stack_vvar(src_offset, struct.bits, {})
+        if src_offset is not None:
+            return self.new_stack_vvar(src_offset, struct.bits, {})
+        return None
 
     def _simplify_callsite_struct_instantiation(self, callsite_block, vvar: VirtualVariable, struct_ty: RustSimStruct):
         # If we can find all definitions of struct fields, let's create a struct instantiation
