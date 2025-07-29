@@ -186,7 +186,7 @@ class SimType:
                     case variable_type.BaseTypeEncoding.BOOLEAN:
                         typ = SimTypeBool()
             elif isinstance(cle_typ, variable_type.StructType):
-                typ: SimType = SimStruct(OrderedDict(), name=cle_typ.name)
+                typ: SimType = SimStruct(OrderedDict(), align=cle_typ.align, name=cle_typ.name, offsets=dict())
             elif isinstance(cle_typ, variable_type.PointerType):
                 typ: SimType = SimTypePointer(None, label=cle_typ.name)
             elif isinstance(cle_typ, variable_type.ArrayType):
@@ -196,7 +196,8 @@ class SimType:
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name)
             elif isinstance(cle_typ, variable_type.VariantType):
-                typ: SimType = SimVariant(cle_typ.byte_size, None, [], label=cle_typ.name)
+                typ: SimType = SimVariant(cle_typ.byte_size, None, [],
+                                          label=cle_typ.name, name=cle_typ.name, align=cle_typ.align)
             elif cle_typ is None:
                 typ: SimType = SimTypeBottom()
             if typ is None:
@@ -212,6 +213,7 @@ class SimType:
                 typ: SimStruct = mapping[cle_typ]
                 for field in cle_typ.members:
                     typ.fields[field.name] = mapping[field.type]
+                    typ.offsets[field.name] = field.addr_offset
             elif isinstance(cle_typ, variable_type.PointerType):
                 typ: SimTypePointer = mapping[cle_typ]
                 typ.pts_to = mapping[cle_typ.referenced_type]
@@ -233,8 +235,9 @@ class SimType:
                 typ: SimVariant = mapping[cle_typ]
                 if cle_typ.tag is not None:
                     typ.tag = mapping[cle_typ.tag.type]
-                for c in cle_typ.variant_cases:
-                    typ.cases.append(mapping[c.type])
+                for c in cle_typ.cases:
+                    case = SimVariantCase(c.tag_value, c.name, c.member.addr_offset, mapping[c.type])
+                    typ.cases.append(case)
             elif cle_typ is None:
                 pass
         return constructed_types
@@ -1533,6 +1536,7 @@ class SimStruct(NamedTypeMixin, SimType):
         pack=False,
         align=None,
         anonymous: bool = False,
+        offsets: dict[str, int] | None = None,
     ):
         super().__init__(None, name="<anon>" if name is None else name)
 
@@ -1546,6 +1550,7 @@ class SimStruct(NamedTypeMixin, SimType):
             self.anonymous = True
 
         self._arch_memo = {}
+        self._offsets = offsets
 
     @property
     def packed(self):
@@ -1553,6 +1558,9 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @property
     def offsets(self) -> dict[str, int]:
+        if self._offsets is not None:
+            return self._offsets
+
         if self._arch is None:
             raise ValueError("Need an arch to calculate offsets")
 
@@ -1786,8 +1794,8 @@ class SimStructValue:
         return SimStructValue(self._struct, values=defaultdict(lambda: None, self._values))
 
 class SimVariantCase:
-    def __init__(self, tag: int, name: str, offset: int, type: SimType):
-        self.tag = tag
+    def __init__(self, tag_value: int, name: str, offset: int, type: SimType):
+        self.tag_value = tag_value
         self.name = name
         self.offset = offset
         self.type = type
@@ -1795,7 +1803,8 @@ class SimVariantCase:
 class SimVariant(NamedTypeMixin, SimType):
     fields = ("members", "name")
 
-    def __init__(self, size: int, tag: SimType | None, cases: list[SimVariantCase], name=None, label=None):
+    def __init__(self, size: int, tag: SimType | None, cases: list[SimVariantCase], name=None,
+                 label=None, align: int | None = None):
         """
         :param size:        The size of the variant
         :param cases:     The members of the variant, as a mapping name -> type
@@ -1803,9 +1812,7 @@ class SimVariant(NamedTypeMixin, SimType):
         """
         super().__init__(label, name=name if name is not None else "<anon>")
         self._size = size
-        # In an evaluation of a Rust binary, there was a variant with no tag! This was happening with types
-        # like Result<Infallible, ...>. I'm guessing that since you can't construct a value of type
-        # Infallible, this is the cause of the missing tag
+        self._align = align
         self.tag = tag
         self.cases = cases
 
@@ -1815,6 +1822,8 @@ class SimVariant(NamedTypeMixin, SimType):
 
     @property
     def alignment(self):
+        if self._align is not None:
+            return self._align
         if all(val.alignment is NotImplemented for val in self.cases.values()):
             return NotImplemented
         return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.cases.values())
