@@ -1,0 +1,185 @@
+use std::time::Duration;
+
+use backtrace::Backtrace;
+use libafl::{
+    executors::{Executor, ExitKind, HasObservers, HasTimeout},
+    inputs::BytesInput,
+    observers::MapObserver,
+};
+use libafl_bolts::{AsSliceMut, tuples::RefIndexable};
+use pyo3::prelude::*;
+
+use crate::fuzzer::OT;
+
+pub struct PyExecutorInner<S> {
+    base_state: PyObject,
+    apply_fn: PyObject,
+    observers: OT,
+    timeout: Option<Duration>,
+    phantom: std::marker::PhantomData<S>,
+}
+
+impl<S> PyExecutorInner<S> {
+    pub fn new(
+        base_state: Bound<PyAny>,
+        apply_fn: Bound<PyAny>,
+        observers: OT,
+        timeout: Option<Duration>,
+    ) -> PyResult<Self> {
+        if !apply_fn.is_callable() {
+            return Err(pyo3::exceptions::PyTypeError::new_err(
+                "Expected a callable function",
+            ));
+        }
+        Ok(PyExecutorInner {
+            base_state: base_state.unbind(),
+            apply_fn: apply_fn.unbind(),
+            observers,
+            timeout,
+            phantom: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
+    fn run_target(
+        &mut self,
+        _fuzzer: &mut Z,
+        _state: &mut S,
+        _mgr: &mut EM,
+        input: &BytesInput,
+    ) -> Result<ExitKind, libafl::Error> {
+        // New "smart" harness
+        let (emulator, exit) = Python::with_gil(|py| {
+            || -> _ {
+                // Step 1: Copy the base state and run the apply function
+                // Copy base state by calling python copy function
+                let copied_state = self.base_state.bind(py).getattr("copy")?.call0()?;
+
+                // Call apply_fn on the state with the input
+                let apply_fn = self.apply_fn.bind(py);
+                apply_fn.call1((&copied_state, input.as_ref()))?;
+
+                // Step 2: Use an emulator to run the target
+                let project = copied_state.getattr("project")?;
+                let icicle_engine = py
+                    .import("angr.engines.icicle")?
+                    .getattr("UberIcicleEngine")?
+                    .call1((project,))?;
+                let emulator = py
+                    .import("angr.emulator")?
+                    .getattr("Emulator")?
+                    .call1((icicle_engine, copied_state))?;
+                let exit = emulator
+                    .getattr("run")?
+                    .call0()?
+                    .getattr("name")?
+                    .extract::<String>()?;
+
+                Ok((emulator.unbind(), exit))
+            }()
+            .map_err(|e: PyErr| {
+                if let Some(traceback) = e.traceback(py) {
+                    if let Ok(traceback_str) = traceback.format() {
+                        libafl::Error::Unknown(
+                            format!("Python error building emulator: {e}\n{traceback_str:?}"),
+                            Backtrace::new(),
+                        )
+                    } else {
+                        libafl::Error::Unknown(
+                            format!(
+                                "Python error building emulator (traceback formatting failed): {e}"
+                            ),
+                            Backtrace::new(),
+                        )
+                    }
+                } else {
+                    libafl::Error::Unknown(
+                        format!("Python error building emulator (no traceback available): {e}"),
+                        Backtrace::new(),
+                    )
+                }
+            })
+        })?;
+
+        // Step 3: Handle the result
+        let result = match exit.as_str() {
+            "INSTRUCTION_LIMIT" => Ok(ExitKind::Timeout),
+            "BREAKPOINT" => Ok(ExitKind::Ok),
+            "NO_SUCCESSORS" => Err(libafl::Error::Unknown(
+                "No successors found".to_string(),
+                Backtrace::new(),
+            )),
+            "MEMORY_ERROR" => Ok(ExitKind::Crash),
+            "FAILURE" => Err(libafl::Error::Unknown(
+                "Unexpected exit reason".to_string(),
+                Backtrace::new(),
+            )),
+            "EXIT" => Ok(ExitKind::Ok),
+            _ => Err(libafl::Error::Unknown(
+                "Unexpected exit reason".to_string(),
+                Backtrace::new(),
+            )),
+        };
+
+        // Step 4: Copy the edge map from state.history to the observer to provide feedback
+        let py_hitmap: Vec<u8> = Python::with_gil(|py| {
+            emulator
+                .bind(py)
+                .getattr("state")?
+                .getattr("history")?
+                .getattr("last_edge_hitmap")?
+                .extract()
+        })
+        .map_err(|e| {
+            libafl::Error::Unknown(
+                format!("Python error extracting hitmap: {e}"),
+                Backtrace::new(),
+            )
+        })?;
+        if py_hitmap.len() != self.observers.0.usable_count() {
+            return Err(libafl::Error::Unknown(
+                format!(
+                    "Hitmap length {} does not match observer length {}",
+                    py_hitmap.len(),
+                    self.observers.0.usable_count()
+                ),
+                Backtrace::new(),
+            ));
+        }
+        self.observers.0.as_slice_mut().copy_from_slice(&py_hitmap);
+        println!(
+            "Hitmap updated, {:?} bytes set, total {}",
+            self.observers.0.count_bytes(),
+            self.observers
+                .0
+                .to_vec()
+                .iter()
+                .fold(0u64, |acc, &x| acc + x as u64)
+        );
+
+        result
+    }
+}
+
+impl<S> HasObservers for PyExecutorInner<S> {
+    type Observers = OT;
+
+    fn observers(&self) -> RefIndexable<&Self::Observers, Self::Observers> {
+        RefIndexable::from(&self.observers)
+    }
+
+    fn observers_mut(&mut self) -> RefIndexable<&mut Self::Observers, Self::Observers> {
+        RefIndexable::from(&mut self.observers)
+    }
+}
+
+impl<S> HasTimeout for PyExecutorInner<S> {
+    fn timeout(&self) -> Duration {
+        self.timeout.unwrap_or(Duration::ZERO)
+    }
+
+    fn set_timeout(&mut self, timeout: Duration) {
+        self.timeout = Some(timeout);
+    }
+}

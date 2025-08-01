@@ -5,7 +5,7 @@
 ///
 /// This module is adapted from the `icicle-python` project, which can be found at:
 /// https://github.com/icicle-emu/icicle-python
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, pin::Pin};
 
 use icicle_fuzzing::coverage::register_afl_hit_counts_all;
 use icicle_vm::{
@@ -193,13 +193,44 @@ impl From<icicle_vm::cpu::ExceptionCode> for ExceptionCode {
     }
 }
 
+struct Hitmap {
+    inner: Pin<Box<[u8]>>,
+    _pin: std::marker::PhantomPinned,
+}
+
+impl Hitmap {
+    pub fn new(size: usize) -> Self {
+        let hitmap = Pin::from(vec![0u8; size].into_boxed_slice());
+        Hitmap {
+            inner: hitmap,
+            _pin: std::marker::PhantomPinned,
+        }
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut u8 {
+        self.inner.as_mut_ptr()
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.inner
+    }
+
+    pub fn as_slice_mut(&mut self) -> &mut [u8] {
+        &mut self.inner
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
 #[pyclass(unsendable, module = "angr.rustylib.icicle")]
 struct Icicle {
     #[pyo3(get)]
     architecture: String,
     vm: icicle_vm::Vm,
     path_tracer: Option<PathTracerRef>,
-    edge_count_hitmap: Option<Box<[u8]>>,
+    edge_count_hitmap: Option<Hitmap>,
 }
 
 #[pymethods]
@@ -253,8 +284,8 @@ impl Icicle {
             };
 
         let edge_count_hitmap = if enable_edge_count {
-            let mut hitmap = vec![0u8; 1 << 16].into_boxed_slice();
-            register_afl_hit_counts_all(&mut vm, hitmap.as_mut_ptr(), 16);
+            let mut hitmap = Hitmap::new(65536);
+            register_afl_hit_counts_all(&mut vm, hitmap.as_mut_ptr(), hitmap.len() as u32);
             Some(hitmap)
         } else {
             None
@@ -429,7 +460,7 @@ impl Icicle {
 
     #[getter]
     pub fn get_edge_hitmap(&mut self) -> Option<&[u8]> {
-        self.edge_count_hitmap.as_deref()
+        self.edge_count_hitmap.as_ref().map(|hitmap| hitmap.as_slice())
     }
 
     #[setter]
@@ -438,7 +469,7 @@ impl Icicle {
             if hitmap.len() != new_hitmap.len() {
                 return Err(PyRuntimeError::new_err("Hitmap size mismatch"));
             }
-            hitmap.copy_from_slice(new_hitmap);
+            hitmap.as_slice_mut().copy_from_slice(new_hitmap);
         } else {
             return Err(PyRuntimeError::new_err("Edge hitmap is not enabled"));
         }
