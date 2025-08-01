@@ -8,10 +8,16 @@ name = "rustylib"
 crate-type = ["cdylib"]
 
 [dependencies]
+backtrace = "0.3.75"
 icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
 icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
+libafl = { version = "0.15.3", default-features = false, features = ["errors_backtrace"]}
+libafl_bolts = { version = "0.15.3" }
+# ouroboros = "0.18.5"
 pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
 pyo3 = { git = "https://github.com/pyo3/pyo3", version = "0.26.0", features = ["py-clone", "abi3-py310"] }
 rangemap = "1.5.1"
 send_wrapper = "0.6.0"
+serde = { version = "1.0.219", features = ["derive"] }
+# serde-big-array = "0.5.1"
 target-lexicon = "0.12.16"
