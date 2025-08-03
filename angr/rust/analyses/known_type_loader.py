@@ -60,7 +60,7 @@ class KnownTypeLoader(Analysis):
         return None
 
     def _analyze(self):
-        rustc_version = self._extract_rustc_version()
+        rustc_version = self._extract_rustc_version() or "1.61.0"
         if rustc_version:
             l.debug(f"Found rustc version: {rustc_version}")
             known_structs_path = (

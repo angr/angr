@@ -79,44 +79,12 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def simplify(self, state: UnwrapSimplifierState):
-        import ipdb
-
-        ipdb.set_trace()
-        if isinstance(state.cmp_expr, VirtualVariable) and state.cmp_expr.was_reg:
-            call = self.get_terminal_vvar_value(state.cmp_expr)
-            if isinstance(call, Call):
-                dst_vvar, src_vvar, offset, stmt_to_remove = self.find_reg_ptr_to_reg_data_flow(
-                    state.ownership_move_block, state.cmp_expr
-                )
-                if dst_vvar:
-                    last_stmt = self.last_stmt(state.ownership_move_block)
-                    unwrap_func_name = UNWRAP_FUNCTIONS[state.unwrap_failed_func_name]
-                    replacement = Call(
-                        idx=last_stmt.idx,
-                        target=unwrap_func_name,
-                        prototype=self.librust.get_prototype(unwrap_func_name).with_arch(self.project.arch),
-                        args=[src_vvar],
-                        ret_expr=None,
-                        **last_stmt.tags,
-                    )
-                    replacement.bits = dst_vvar.bits
-                    state.replacement = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
-                    state.stmt_to_replace = (state.ownership_move_block, stmt_to_remove, state.replacement)
-        if state.replacement:
-            # Simplification succeeded
-            block, old_stmt, new_stmt = state.stmt_to_replace
-            stmt_idx = block.statements.index(old_stmt)
-            block.statements[stmt_idx] = new_stmt
-            for block, stmts in state.stmts_to_remove:
-                for stmt in stmts:
-                    block.statements.remove(stmt)
-            self.remove_block(state.unwrap_failed_block)
-
     def _extract_vvar_from_cond(self, cond: BinaryOp):
         op0 = cond.operands[0]
         if isinstance(op0, Load):
             return unwrap_stack_vvar_reference(op0.addr)
+        elif isinstance(op0, VirtualVariable):
+            return op0
         return None
 
     def _find_pred_and_succ(self, unwrap_failed_block):
@@ -134,7 +102,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
             if (
                 isinstance(last_stmt, ConditionalJump)
                 and isinstance(last_stmt.condition, BinaryOp)
-                and ((cmp_vvar := self._extract_vvar_from_cond(last_stmt.condition)) and cmp_vvar.was_stack)
+                and ((cmp_vvar := self._extract_vvar_from_cond(last_stmt.condition)))
             ):
                 call = self.get_terminal_vvar_value(cmp_vvar)
                 if isinstance(call, Call) and isinstance(
@@ -153,25 +121,40 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                     ):
                         variant = enum_ty.get_variant_by_name("Some")
                     if variant:
-                        offset = cmp_vvar.stack_offset + variant.first_field_offset
-                        size = variant.size - variant.first_field_offset
-                        dst_vvar = self.new_stack_vvar(offset, size * 8, cmp_vvar.tags)
-                        unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
-                        first_block, second_block = self.split_block(pred, last_stmt)
-                        assert self.remove_block(unwrap_failed_block)
-                        replacement = Call(
-                            idx=last_stmt.idx,
-                            target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
-                            prototype=self.librust.get_prototype(unwrap_func_name)
-                            .with_arch(self.project.arch)
-                            .normalize(),
-                            args=[cmp_vvar],
-                            ret_expr=None,
-                            **last_stmt.tags,
-                        )
-                        replacement.prototype.returnty = variant.type.with_arch(self.project.arch)
-                        replacement.bits = dst_vvar.bits
-                        second_block.statements[-1] = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
+                        if cmp_vvar.was_stack:
+                            offset = cmp_vvar.stack_offset + variant.first_field_offset
+                            size = variant.size - variant.first_field_offset
+                            dst_vvar = self.new_stack_vvar(offset, size * 8, cmp_vvar.tags)
+                            unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
+                            first_block, second_block = self.split_block(pred, last_stmt)
+                            assert self.remove_block(unwrap_failed_block)
+                            replacement = Call(
+                                idx=last_stmt.idx,
+                                target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
+                                prototype=self.librust.get_prototype(unwrap_func_name)
+                                .with_arch(self.project.arch)
+                                .normalize(),
+                                args=[cmp_vvar],
+                                ret_expr=None,
+                                **last_stmt.tags,
+                            )
+                            replacement.prototype.returnty = variant.type.with_arch(self.project.arch)
+                            replacement.bits = dst_vvar.bits
+                            second_block.statements[-1] = Assignment(None, dst_vvar, replacement, **last_stmt.tags)
+                            return
+                # Outline unwrap without knowing the enum type
+                unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
+                first_block, second_block = self.split_block(pred, last_stmt)
+                assert self.remove_block(unwrap_failed_block)
+                replacement = Call(
+                    idx=last_stmt.idx,
+                    target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
+                    prototype=self.librust.get_prototype(unwrap_func_name).with_arch(self.project.arch).normalize(),
+                    args=[cmp_vvar],
+                    ret_expr=None,
+                    **last_stmt.tags,
+                )
+                second_block.statements[-1] = replacement
 
     def _analyze(self, cache=None):
         for block in list(self._graph.nodes):
