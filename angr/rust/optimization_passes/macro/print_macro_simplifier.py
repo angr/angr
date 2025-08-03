@@ -88,7 +88,8 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
                         and arg.was_stack
                         and arg.stack_offset in stack_defs
                         and isinstance(stack_defs[arg.stack_offset].data, Struct)
-                        and stack_defs[arg.stack_offset].data.name == "core::fmt::rt::Argument"
+                        and stack_defs[arg.stack_offset].data.name
+                        in ["core::fmt::rt::Argument", "core::fmt::ArgumentV1"]
                         for arg in args.elements
                     )
                     and all(isinstance(piece, Const) for piece in pieces.elements)
