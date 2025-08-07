@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from archinfo import Arch
 
-from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
+from angr.analyses.decompiler.optimization_passes.optimization_pass import BaseOptimizationPass
 
 
 class DecompilationPreset:
@@ -10,7 +10,7 @@ class DecompilationPreset:
     A DecompilationPreset provides a preconfigured set of optimizations and configurations for the Decompiler analysis.
     """
 
-    def __init__(self, name: str, opt_passes: list[type[OptimizationPass]]):
+    def __init__(self, name: str, opt_passes: list[type[BaseOptimizationPass]]):
         self.name = name
         self.opt_passes = opt_passes
 
