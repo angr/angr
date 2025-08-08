@@ -1225,8 +1225,10 @@ class DreamStructurer(StructurerBase):
         seq.insert_node(pos, ConditionNode(seq_addr, None, node_0.reaching_condition, new_node_0, new_node_1))
         seq.nodes = [n for n in seq.nodes if n is not None]
 
-    @staticmethod
-    def _remove_conditional_jumps(seq, follow_seq=True):
+    def _is_local_jump_target(self, target: ailment.Expr.Expression | None) -> bool:
+        return target is None or (isinstance(target, ailment.Expr.Const) and target.value in self.function.block_addrs)
+
+    def _remove_conditional_jumps(self, seq, follow_seq=True):
         """
         Remove all conditional jumps.
 
@@ -1241,7 +1243,13 @@ class DreamStructurer(StructurerBase):
 
         def _handle_Block(block, parent=None, index=0, label=None):
             block.statements = [
-                stmt for stmt in block.statements if not (isinstance(stmt, ailment.statement.ConditionalJump))
+                stmt
+                for stmt in block.statements
+                if not (
+                    isinstance(stmt, ailment.statement.ConditionalJump)
+                    and self._is_local_jump_target(stmt.true_target)
+                    and self._is_local_jump_target(stmt.false_target)
+                )
             ]
 
         handlers = {
@@ -1254,8 +1262,7 @@ class DreamStructurer(StructurerBase):
 
         return seq
 
-    @staticmethod
-    def _remove_all_jumps(seq):
+    def _remove_all_jumps(self, seq):
         """
         Remove all constant jumps.
 
@@ -1268,6 +1275,7 @@ class DreamStructurer(StructurerBase):
                 node.statements
                 and isinstance(node.statements[-1], ailment.Stmt.Jump)
                 and isinstance(node.statements[-1].target, ailment.Expr.Const)
+                and self._is_local_jump_target(node.statements[-1].target)
             ):
                 # remove the jump
                 node.statements = node.statements[:-1]
