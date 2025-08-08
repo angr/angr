@@ -1,5 +1,6 @@
 # pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
 from __future__ import annotations
+import itertools
 from typing import Any, TYPE_CHECKING
 import logging
 from collections import defaultdict, OrderedDict
@@ -106,6 +107,14 @@ class DreamStructurer(StructurerBase):
                     self._region,
                 )
             self._analyze_acyclic()
+
+        if self._parent_region is None:
+            # rewrite conditions in the result to remove all jump table entry conditions
+            rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
+            rewriter.walk(self.result)  # update SequenceNodes in-place
+
+            self.result = self._remove_all_jumps(self.result)
+            self.result = self._remove_conditional_jumps(self.result)
 
     def _analyze_cyclic(self):
         loop_head = self._region.head
@@ -314,7 +323,11 @@ class DreamStructurer(StructurerBase):
             loop_head, loop_region_graph, successors=None, graph_with_successors=None, cyclic=False, full_graph=None
         )
         structurer = self.project.analyses[DreamStructurer].prep()(
-            region, condition_processor=self.cond_proc, func=self.function, jump_tables=self.jump_tables
+            region,
+            condition_processor=self.cond_proc,
+            func=self.function,
+            jump_tables=self.jump_tables,
+            parent_region=self._parent_region,
         )
         seq = structurer.result
 
@@ -1211,6 +1224,64 @@ class DreamStructurer(StructurerBase):
 
         seq.insert_node(pos, ConditionNode(seq_addr, None, node_0.reaching_condition, new_node_0, new_node_1))
         seq.nodes = [n for n in seq.nodes if n is not None]
+
+    @staticmethod
+    def _remove_conditional_jumps(seq, follow_seq=True):
+        """
+        Remove all conditional jumps.
+
+        :param SequenceNode seq:    The SequenceNode instance to handle.
+        :return:                    A processed SequenceNode.
+        """
+
+        def _handle_Sequence(node, **kwargs):
+            if not follow_seq and node is not seq:
+                return None
+            return walker._handle_Sequence(node, **kwargs)
+
+        def _handle_Block(block, parent=None, index=0, label=None):
+            block.statements = [
+                stmt for stmt in block.statements if not (isinstance(stmt, ailment.statement.ConditionalJump))
+            ]
+
+        handlers = {
+            SequenceNode: _handle_Sequence,
+            ailment.Block: _handle_Block,
+        }
+
+        walker = SequenceWalker(handlers=handlers)
+        walker.walk(seq)
+
+        return seq
+
+    @staticmethod
+    def _remove_all_jumps(seq):
+        """
+        Remove all constant jumps.
+
+        :param SequenceNode seq:    The SequenceNode instance to handle.
+        :return:                    A processed SequenceNode.
+        """
+
+        def _handle_Block(node: ailment.Block, **kwargs):
+            if (
+                node.statements
+                and isinstance(node.statements[-1], ailment.Stmt.Jump)
+                and isinstance(node.statements[-1].target, ailment.Expr.Const)
+            ):
+                # remove the jump
+                node.statements = node.statements[:-1]
+
+            return node
+
+        handlers = {
+            ailment.Block: _handle_Block,
+        }
+
+        walker = SequenceWalker(handlers=handlers)
+        walker.walk(seq)
+
+        return seq
 
 
 # delayed import
