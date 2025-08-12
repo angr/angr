@@ -460,7 +460,9 @@ impl Icicle {
 
     #[getter]
     pub fn get_edge_hitmap(&mut self) -> Option<&[u8]> {
-        self.edge_count_hitmap.as_ref().map(|hitmap| hitmap.as_slice())
+        self.edge_count_hitmap
+            .as_ref()
+            .map(|hitmap| hitmap.as_slice())
     }
 
     #[setter]
