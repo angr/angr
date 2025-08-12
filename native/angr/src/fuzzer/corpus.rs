@@ -2,10 +2,17 @@ use libafl::{
     corpus::{Corpus, CorpusId, InMemoryCorpus, Testcase},
     inputs::BytesInput,
 };
-use pyo3::{exceptions::{PyRuntimeError, PyTypeError}, prelude::*};
+use pyo3::{
+    exceptions::{PyRuntimeError, PyTypeError},
+    prelude::*,
+};
 use serde::{Deserialize, Serialize};
 
-#[pyclass(module = "angr.rustylib.fuzzer.corpus", name = "InMemoryCorpus", unsendable)]
+#[pyclass(
+    module = "angr.rustylib.fuzzer.corpus",
+    name = "InMemoryCorpus",
+    unsendable
+)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PyInMemoryCorpus {
     inner: InMemoryCorpus<BytesInput>,
@@ -33,7 +40,9 @@ impl PyInMemoryCorpus {
 
     fn __getitem__(&self, id: usize) -> PyResult<Vec<u8>> {
         let corpus_id = CorpusId::from(id);
-        let testcase_ref = self.inner.get(corpus_id)
+        let testcase_ref = self
+            .inner
+            .get(corpus_id)
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         let testcase = testcase_ref.borrow();
         match testcase.input().clone() {
