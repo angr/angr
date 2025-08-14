@@ -562,7 +562,13 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
-            a = pass_(self.func, seq=seq_node, scratch=self._optimization_scratch, **kwargs)
+            a = pass_(
+                self.func,
+                seq=seq_node,
+                scratch=self._optimization_scratch,
+                peephole_optimizations=self._peephole_optimizations,
+                **kwargs,
+            )
             if a.out_seq:
                 seq_node = a.out_seq
 
