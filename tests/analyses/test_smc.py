@@ -8,6 +8,7 @@ import unittest
 import archinfo
 
 import angr
+from tests.common import skip_if_not_linux
 
 
 def gcc(c: str) -> str:
@@ -29,6 +30,7 @@ def gcc(c: str) -> str:
             os.unlink(f_in.name)
 
 
+@skip_if_not_linux
 class TestTraceClassifier(unittest.TestCase):
     """
     TraceClassifier tests
