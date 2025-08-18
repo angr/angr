@@ -155,7 +155,7 @@ class CFBlanket(Analysis):
                     self._regions.append(mr)
             elif isinstance(obj, ExternObject):
                 if "extern" not in self._exclude_region_types:
-                    size = obj.max_addr - obj.min_addr
+                    size = obj.next_addr
                     mr = MemoryRegion(obj.min_addr, size, "extern", obj, None)
                     self._regions.append(mr)
             elif isinstance(obj, ELFTLSObject):
