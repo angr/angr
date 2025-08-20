@@ -1206,10 +1206,13 @@ class SimCC:
     def _guess_arg_count(cls, args, limit: int = 64) -> int:
         # pylint:disable=not-callable
         assert cls.ARCH is not None
+        if hasattr(cls, "LANGUAGE"):  # noqa: SIM108
+            # this is a PCode SimCC where cls.ARCH is directly callable
+            stack_arg_size = cls.ARCH().bytes
+        else:
+            stack_arg_size = cls.ARCH(archinfo.Endness.LE).bytes
         stack_args = [a for a in args if isinstance(a, SimStackArg)]
-        stack_arg_count = (
-            (max(a.stack_offset for a in stack_args) // cls.ARCH(archinfo.Endness.LE).bytes + 1) if stack_args else 0
-        )
+        stack_arg_count = (max(a.stack_offset for a in stack_args) // stack_arg_size + 1) if stack_args else 0
         return min(limit, max(len(args), stack_arg_count))
 
     @staticmethod
