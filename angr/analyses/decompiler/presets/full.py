@@ -28,6 +28,7 @@ from angr.analyses.decompiler.optimization_passes import (
     SwitchReusedEntryRewriter,
     ConditionConstantPropagation,
     DetermineLoadSizes,
+    PostStructuringPeepholeOptimizationPass,
 )
 
 
@@ -61,6 +62,7 @@ preset_full = DecompilationPreset(
         SwitchReusedEntryRewriter,
         ConditionConstantPropagation,
         DetermineLoadSizes,
+        PostStructuringPeepholeOptimizationPass,
     ],
 )
 
