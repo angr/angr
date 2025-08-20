@@ -303,6 +303,23 @@ class BlockSimplifier(Analysis):
         return block.copy(statements=new_statements)
 
     def _eliminate_dead_assignments(self, block):
+
+        def _statement_has_calls(stmt: Statement) -> bool:
+            """
+            Check if a statement has any Call expressions.
+            """
+            walker = HasCallExprWalker()
+            walker.walk_statement(stmt)
+            return walker.has_call_expr
+
+        def _expression_has_calls(expr: Expression) -> bool:
+            """
+            Check if an expression has any Call expressions.
+            """
+            walker = HasCallExprWalker()
+            walker.walk_expression(expr)
+            return walker.has_call_expr
+
         new_statements = []
         if not block.statements:
             return block
@@ -325,8 +342,11 @@ class BlockSimplifier(Analysis):
         # micro optimization: if all statements that use a tmp are going to be removed, we remove this tmp as well
         for tmp, used_locs in rd.all_tmp_uses[block_loc].items():
             used_at = {stmt_idx for _, stmt_idx in used_locs}
-            if used_at.issubset(dead_defs_stmt_idx):
-                continue
+            if used_at.issubset(dead_defs_stmt_idx):  # noqa:SIM102
+                # cannot remove this tmp if any use sites involve call expressions; this is basically a duplicate of
+                # the logic in the larger loop below
+                if all(not _statement_has_calls(block.statements[i]) for i in used_at):
+                    continue
             used_tmps.add(tmp.tmp_idx)
 
         # Remove dead assignments
@@ -337,9 +357,7 @@ class BlockSimplifier(Analysis):
                     # is it assigning to an unused tmp or a dead virgin?
 
                     # does .src involve any Call expressions? if so, we cannot remove it
-                    walker = HasCallExprWalker()
-                    walker.walk_expression(stmt.src)
-                    if not walker.has_call_expr:
+                    if not _expression_has_calls(stmt.src):
                         continue
 
                     if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
