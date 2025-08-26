@@ -2234,8 +2234,43 @@ class CConstant(CExpression):
             yield "...", self
             return
 
-        # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
+            if self._type is not None and self._type in self.reference_values:
+                if isinstance(self._type, SimTypeInt):
+                    if isinstance(self.reference_values[self._type], int):
+                        yield self.fmt_int(self.reference_values[self._type]), self
+                        return
+                    yield hex(self.reference_values[self._type]), self
+                    return
+                elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
+                    refval = self.reference_values[self._type]
+                    if isinstance(refval, MemoryData):
+                        v = refval.content.decode("utf-8")
+                    elif isinstance(refval, bytes):
+                        v = refval.decode("latin1")
+                    else:
+                        # it must be a string
+                        v = refval
+                        assert isinstance(v, str)
+                    yield CConstant.str_to_c_str(v), self
+                    return
+                elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
+                    refval = self.reference_values[self._type]
+                    v = (
+                        refval.content.decode("utf_16_le")
+                        if isinstance(refval, MemoryData)
+                        else refval.decode("utf_16_le")
+                    )  # it's a string
+                    yield CConstant.str_to_c_str(v, prefix="L"), self
+                    return
+                else:
+                    if isinstance(self.reference_values[self._type], int):
+                        yield self.fmt_int(self.reference_values[self._type]), self
+                        return
+                    yield self.reference_values[self.type], self
+                    return
+
+            # default priority: string references -> variables -> other reference values
             for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield CConstant.str_to_c_str(v.content.decode("utf-8")), self
@@ -2250,32 +2285,7 @@ class CConstant(CExpression):
                     yield CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8")), self
                     return
 
-        if self.reference_values is not None and self._type is not None and self._type in self.reference_values:
-            if isinstance(self._type, SimTypeInt):
-                if isinstance(self.reference_values[self._type], int):
-                    yield self.fmt_int(self.reference_values[self._type]), self
-                    return
-                yield hex(self.reference_values[self._type]), self
-            elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
-                refval = self.reference_values[self._type]
-                if isinstance(refval, MemoryData):
-                    v = refval.content.decode("utf-8")
-                else:
-                    # it's a string
-                    v = refval
-                    assert isinstance(v, str)
-                yield CConstant.str_to_c_str(v), self
-            elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
-                refval = self.reference_values[self._type]
-                v = refval.content.decode("utf_16_le") if isinstance(refval, MemoryData) else refval  # it's a string
-                yield CConstant.str_to_c_str(v, prefix="L"), self
-            else:
-                if isinstance(self.reference_values[self._type], int):
-                    yield self.fmt_int(self.reference_values[self._type]), self
-                    return
-                yield self.reference_values[self.type], self
-
-        elif isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
+        if isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
             # print NULL instead
             yield "NULL", self
 
@@ -3622,10 +3632,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if type_ is None and hasattr(expr, "type"):
             type_ = expr.type
 
-        if type_ is None and reference_values is None and hasattr(expr, "reference_values"):
+        if reference_values is None and hasattr(expr, "reference_values"):
             reference_values = expr.reference_values.copy()
-            if len(reference_values) == 1:  # type: ignore
-                type_ = next(iter(reference_values))  # type: ignore
+        if type_ is None and reference_values is not None and len(reference_values) == 1:  # type: ignore
+            type_ = next(iter(reference_values))  # type: ignore
 
         if reference_values is None:
             reference_values = {}

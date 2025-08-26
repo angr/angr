@@ -2158,10 +2158,9 @@ class Clinic(Analysis):
             # custom string?
             if hasattr(expr, "custom_string") and expr.custom_string is True:
                 s = self.kb.custom_strings[expr.value]
+                ty = expr.type if hasattr(expr, "type") else SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                 expr.tags["reference_values"] = {
-                    SimTypePointer(SimTypeChar().with_arch(self.project.arch)).with_arch(self.project.arch): s.decode(
-                        "latin-1"
-                    ),
+                    ty: s,
                 }
             else:
                 # global variable?
