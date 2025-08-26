@@ -622,10 +622,15 @@ class FactCollector(Analysis):
 
         stack_offset_created = set()
         ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
+        # handle shadow stack args
+        cc_cls = default_cc(
+            self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
+        )
+        stackarg_sp_buff = cc_cls.STACKARG_SP_BUFF if cc_cls is not None else 0
         for state in end_states:
             for offset, size in state.stack_reads.items():
                 offset = u2s(offset, self.project.arch.bits)
-                if offset - ret_addr_offset > 0:
+                if offset - ret_addr_offset > stackarg_sp_buff:
                     if offset in stack_offset_created or offset in callee_saved_reg_stack_offsets:
                         continue
                     stack_offset_created.add(offset)
