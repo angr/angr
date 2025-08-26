@@ -2230,6 +2230,18 @@ class CConstant(CExpression):
         return f'{prefix}"{base_str}"'
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+
+        def _default_output(v) -> str:
+            if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
+                return CConstant.str_to_c_str(v.content.decode("utf-8"))
+            if isinstance(v, Function):
+                return get_cpp_function_name(v.demangled_name)
+            if isinstance(v, str):
+                return CConstant.str_to_c_str(v)
+            if isinstance(v, bytes):
+                return CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8"))
+            return str(v)
+
         if self.collapsed:
             yield "...", self
             return
@@ -2267,23 +2279,12 @@ class CConstant(CExpression):
                     if isinstance(self.reference_values[self._type], int):
                         yield self.fmt_int(self.reference_values[self._type]), self
                         return
-                    yield self.reference_values[self.type], self
+                    yield _default_output(self.reference_values[self.type]), self
                     return
 
             # default priority: string references -> variables -> other reference values
             for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
-                if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
-                    yield CConstant.str_to_c_str(v.content.decode("utf-8")), self
-                    return
-                elif isinstance(v, Function):
-                    yield get_cpp_function_name(v.demangled_name), self
-                    return
-                elif isinstance(v, str):
-                    yield CConstant.str_to_c_str(v), self
-                    return
-                elif isinstance(v, bytes):
-                    yield CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8")), self
-                    return
+                yield _default_output(v), self
 
         if isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
             # print NULL instead
