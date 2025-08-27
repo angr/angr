@@ -780,7 +780,7 @@ class JumpTableResolver(IndirectJumpResolver):
         self._find_bss_region()
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if pcode is not None and isinstance(block.vex, pcode.lifter.IRSB):
+        if pcode is not None and isinstance(block.vex, pcode.lifter.IRSB):  # type:ignore
             if once("pcode__indirect_jump_resolver"):
                 l.warning("JumpTableResolver does not support P-Code IR yet; CFG may be incomplete.")
             return False
@@ -1128,7 +1128,8 @@ class JumpTableResolver(IndirectJumpResolver):
                             ij.jumptable = True
                         else:
                             ij.jumptable = False
-                        ij.add_jumptable(jumptable_addr, jumptable_size, entry_size, jump_table, is_primary=True)
+                        if jumptable_addr is not None:
+                            ij.add_jumptable(jumptable_addr, jumptable_size, entry_size, jump_table, is_primary=True)
                         ij.resolved_targets = set(jump_table)
                         ij.type = ij_type
                     else:
@@ -1571,7 +1572,9 @@ class JumpTableResolver(IndirectJumpResolver):
                 stmt_whitelist = annotatedcfg.get_whitelisted_statements(block_addr)
                 assert isinstance(stmt_whitelist, list)
                 try:
-                    engine.process(state, block=block, whitelist=stmt_whitelist)
+                    engine.process(
+                        state, block=block, whitelist=set(stmt_whitelist) if stmt_whitelist is not None else None
+                    )
                 except (claripy.ClaripyError, SimError, AngrError):
                     # anything can happen
                     break
@@ -1800,7 +1803,18 @@ class JumpTableResolver(IndirectJumpResolver):
                         )
                     else:
                         l.debug("Table at %#x has %d plausible targets", table_base_addr, num_targets)
-                        return jump_table, table_base_addr, load_size, num_targets * load_size, jump_table, sort
+                        return (
+                            jump_table,
+                            table_base_addr,
+                            load_size,
+                            num_targets * load_size,
+                            jump_table,
+                            sort,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
 
             # We resolved too many targets for this indirect jump. Something might have gone wrong.
             l.debug(
