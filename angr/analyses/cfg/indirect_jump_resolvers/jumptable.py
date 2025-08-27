@@ -1049,6 +1049,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # Get the jumping targets
             for r in simgr.found:
+                jt2, jt2_addr, jt2_entrysize, jt2_size = None, None, None, None
                 if load_stmt is not None:
                     ret = self._try_resolve_targets_load(
                         r,
@@ -1064,7 +1065,18 @@ class JumpTableResolver(IndirectJumpResolver):
                     if ret is None:
                         # Try the next state
                         continue
-                    jump_table, jumptable_addr, entry_size, jumptable_size, all_targets, sort = ret
+                    (
+                        jump_table,
+                        jumptable_addr,
+                        entry_size,
+                        jumptable_size,
+                        all_targets,
+                        sort,
+                        jt2,
+                        jt2_addr,
+                        jt2_entrysize,
+                        jt2_size,
+                    ) = ret
                     if sort == "jumptable":
                         ij_type = IndirectJumpType.Jumptable_AddressLoadedFromMemory
                     elif sort == "vtable":
@@ -1116,15 +1128,14 @@ class JumpTableResolver(IndirectJumpResolver):
                             ij.jumptable = True
                         else:
                             ij.jumptable = False
-                        ij.jumptable_addr = jumptable_addr
-                        ij.jumptable_size = jumptable_size
-                        ij.jumptable_entry_size = entry_size
+                        ij.add_jumptable(jumptable_addr, jumptable_size, entry_size, jump_table, is_primary=True)
                         ij.resolved_targets = set(jump_table)
-                        ij.jumptable_entries = jump_table
                         ij.type = ij_type
                     else:
                         ij.jumptable = False
                         ij.resolved_targets = set(jump_table)
+                    if jt2 is not None and jt2_addr is not None and jt2_size is not None and jt2_entrysize is not None:
+                        ij.add_jumptable(jt2_addr, jt2_size, jt2_entrysize, jt2, is_primary=False)
 
                 return True, all_targets
 
@@ -1848,6 +1859,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # Adjust entries inside the jump table
         mask = (2**self.project.arch.bits) - 1
         transformation_list = list(reversed([v for v in transformations.values() if not v.first_load]))
+        jt_2nd_memloads: dict[int, int] = {}
         if transformation_list:
 
             def handle_signed_ext(a):
@@ -1872,6 +1884,10 @@ class JumpTableResolver(IndirectJumpResolver):
                 return (a + con) & mask
 
             def handle_load(size, a):
+                if a not in jt_2nd_memloads:
+                    jt_2nd_memloads[a] = size
+                else:
+                    jt_2nd_memloads[a] = max(jt_2nd_memloads[a], size)
                 return cfg._fast_memory_load_pointer(a, size=size)
 
             invert_conversion_ops = []
@@ -1936,6 +1952,31 @@ class JumpTableResolver(IndirectJumpResolver):
             l.debug("Could not recover jump table")
             return None
 
+        # there might be a secondary jumptable
+        jt_2nd = self._get_secondary_jumptable_from_transformations(transformation_list)
+        jt_2nd_entries: list[int] | None = None
+        jt_2nd_baseaddr: int | None = None
+        jt_2nd_entrysize: int | None = None
+        jt_2nd_size: int | None = None
+        if jt_2nd is not None and jt_2nd_memloads:
+            # determine the size of the secondary jump table
+            jt_2nd_baseaddr, jt_2nd_entrysize = jt_2nd
+            if jt_2nd_baseaddr in jt_2nd_memloads:
+                jt_2nd_size = max(jt_2nd_memloads) - jt_2nd_baseaddr + jt_2nd_entrysize
+                if jt_2nd_size % jt_2nd_entrysize == 0:
+                    jt_2nd_entrycount = jt_2nd_size // jt_2nd_entrysize
+                    if jt_2nd_entrycount <= len(all_targets):
+                        # we found it!
+                        jt_2nd_entries = []
+                        for i in range(jt_2nd_entrycount):
+                            target = cfg._fast_memory_load_pointer(
+                                jt_2nd_baseaddr + i * jt_2nd_entrysize,
+                                size=jt_2nd_entrysize,
+                            )
+                            if target is None:
+                                break
+                            jt_2nd_entries.append(target)
+
         # Finally... all targets are ready
         illegal_target_found = False
         for target in all_targets:
@@ -1953,7 +1994,18 @@ class JumpTableResolver(IndirectJumpResolver):
         if illegal_target_found:
             return None
 
-        return jump_table, min_jumptable_addr, load_size, total_cases * load_size, all_targets, sort
+        return (
+            jump_table,
+            min_jumptable_addr,
+            load_size,
+            total_cases * load_size,
+            all_targets,
+            sort,
+            jt_2nd_entries,
+            jt_2nd_baseaddr,
+            jt_2nd_entrysize,
+            jt_2nd_size,
+        )
 
     def _try_resolve_targets_ite(
         self, r, addr, cfg, annotatedcfg, ite_stmt: pyvex.IRStmt.WrTmp
@@ -2278,6 +2330,64 @@ class JumpTableResolver(IndirectJumpResolver):
                 l.exception("Error computing jump table address!")
                 return None
         return jump_addr
+
+    def _get_secondary_jumptable_from_transformations(
+        self, transformations: list[AddressTransformation]
+    ) -> tuple[int, int] | None:
+        """
+        Find the potential secondary "jump table" from a list of transformations.
+
+        :param transformations: A list of address transformations.
+        :return:    A tuple of [jump_table_addr, entry_size] if a secondary jump table is found. None otherwise.
+        """
+
+        # find all add-(add-)load sequence
+
+        for i in range(len(transformations) - 1):
+            prev_tran = transformations[i - 1] if i - 1 >= 0 else None
+            tran = transformations[i]
+            if not (
+                tran.op == AddressTransformationTypes.Add
+                and (prev_tran is None or prev_tran.op != AddressTransformationTypes.Add)
+            ):
+                continue
+            next_tran = transformations[i + 1]
+            add_tran, load_tran = None, None
+            if next_tran.op == AddressTransformationTypes.Load:
+                add_tran = None
+                load_tran = next_tran
+            elif next_tran.op == AddressTransformationTypes.Add:
+                next2_tran = transformations[i + 2] if i + 2 < len(transformations) else None
+                if next2_tran is not None and next2_tran.op == AddressTransformationTypes.Load:
+                    add_tran = next_tran
+                    load_tran = next2_tran
+
+            if load_tran is None:
+                continue
+            # we have found an add-(add-)load sequence
+            jumptable_base_addr = None
+            if isinstance(tran.operands[0], AddressOperand) and isinstance(tran.operands[1], int):
+                jumptable_base_addr = tran.operands[1]
+            elif isinstance(tran.operands[1], AddressOperand) and isinstance(tran.operands[0], int):
+                jumptable_base_addr = tran.operands[0]
+            else:
+                # unsupported first add
+                continue
+
+            if add_tran is not None:
+                mask = (1 << self.project.arch.bits) - 1
+                if isinstance(add_tran.operands[0], AddressOperand) and isinstance(add_tran.operands[1], int):
+                    jumptable_base_addr = (jumptable_base_addr + add_tran.operands[1]) & mask
+                elif isinstance(add_tran.operands[1], AddressOperand) and isinstance(add_tran.operands[0], int):
+                    jumptable_base_addr = (jumptable_base_addr + add_tran.operands[0]) & mask
+                else:
+                    # unsupported second add
+                    continue
+
+            load_size = load_tran.operands[1]
+            # we have a potential secondary jump table!
+            return jumptable_base_addr, load_size
+        return None
 
     def _sp_moved_up(self, block) -> bool:
         """
