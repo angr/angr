@@ -2285,6 +2285,7 @@ class CConstant(CExpression):
             # default priority: string references -> variables -> other reference values
             for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
                 yield _default_output(v), self
+                return
 
         if isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
             # print NULL instead
@@ -3725,10 +3726,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             offset = getattr(expr, "reference_variable_offset", 0)
             var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
-        if var_access is not None and expr.value >= self.min_data_addr:
-            return var_access
-
-        reference_values["offset"] = var_access
+        if var_access is not None:
+            if expr.value >= self.min_data_addr:
+                return var_access
+            reference_values["offset"] = var_access
         return CConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
     def _handle_Expr_UnaryOp(self, expr, **kwargs):
