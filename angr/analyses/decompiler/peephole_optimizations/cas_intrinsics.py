@@ -1,7 +1,7 @@
 # pylint:disable=arguments-differ,too-many-boolean-expressions
 from __future__ import annotations
 
-from angr.ailment.expression import BinaryOp, Load
+from angr.ailment.expression import BinaryOp, Load, Expression, Tmp
 from angr.ailment.statement import CAS, ConditionalJump, Statement, Assignment, Call
 
 from .base import PeepholeOptimizationMultiStmtBase
@@ -60,11 +60,13 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
             and next_stmt.ins_addr == cas_stmt.ins_addr
         ):
             addr = cas_stmt.addr
+            expd_lo = self._resolve_tmp_expr(cas_stmt.expd_lo, block)
+            next_stmt_cond_op1 = self._resolve_tmp_expr(next_stmt.condition.operands[1], block)
             if (
-                isinstance(cas_stmt.expd_lo, Load)
-                and cas_stmt.expd_lo.addr.likes(addr)
-                and isinstance(next_stmt.condition.operands[1], Load)
-                and next_stmt.condition.operands[1].addr.likes(addr)
+                isinstance(expd_lo, Load)
+                and expd_lo.addr.likes(addr)
+                and isinstance(next_stmt_cond_op1, Load)
+                and next_stmt_cond_op1.addr.likes(addr)
                 and cas_stmt.old_lo.likes(next_stmt.condition.operands[0])
                 and cas_stmt.old_hi is None
             ):
@@ -113,3 +115,11 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                 os = "Linux"
             return _INTRINSICS_NAMES[mnemonic][os]
         return mnemonic
+
+    @staticmethod
+    def _resolve_tmp_expr(expr: Expression, block) -> Expression:
+        if isinstance(expr, Tmp):
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and stmt.dst.likes(expr):
+                    return stmt.src
+        return expr
