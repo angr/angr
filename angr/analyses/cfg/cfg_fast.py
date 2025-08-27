@@ -3238,6 +3238,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             self.jump_tables[jump.addr] = jump
             # occupy the jump table region
             for jumptable_info in jump.jumptables:
+                if jumptable_info.addr is None:
+                    continue
                 self._seg_list.occupy(jumptable_info.addr, jumptable_info.size, "data")
                 if self._collect_data_ref:
                     if jumptable_info.addr in self._memory_data:

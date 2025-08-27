@@ -21,7 +21,7 @@ class JumptableInfo:
 
     __slots__ = ("addr", "entries", "entry_size", "size")
 
-    def __init__(self, addr: int, size: int, entry_size: int, entries: list[int]):
+    def __init__(self, addr: int | None, size: int, entry_size: int, entries: list[int]):
         self.addr = addr
         self.size = size
         self.entry_size = entry_size
@@ -79,7 +79,7 @@ class IndirectJump(Serializable):
 
     def add_jumptable(
         self,
-        addr: int,
+        addr: int | None,
         size: int,
         entry_size: int,
         entries: list[int],

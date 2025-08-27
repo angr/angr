@@ -1128,8 +1128,7 @@ class JumpTableResolver(IndirectJumpResolver):
                             ij.jumptable = True
                         else:
                             ij.jumptable = False
-                        if jumptable_addr is not None:
-                            ij.add_jumptable(jumptable_addr, jumptable_size, entry_size, jump_table, is_primary=True)
+                        ij.add_jumptable(jumptable_addr, jumptable_size, entry_size, jump_table, is_primary=True)
                         ij.resolved_targets = set(jump_table)
                         ij.type = ij_type
                     else:
