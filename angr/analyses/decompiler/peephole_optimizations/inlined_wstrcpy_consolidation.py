@@ -51,7 +51,7 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         r, s = True, b"\x00\x00"
                     else:
                         r, s = InlinedWstrcpy.is_integer_likely_a_wide_string(
-                            stmt.data.value, stmt.size, stmt.endness, min_length=1
+                            stmt.data.value, stmt.size, stmt.endness, min_length=1  # type:ignore
                         )
                     if r and s is not None:
                         new_str = s_last + s
