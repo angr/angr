@@ -19,14 +19,19 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
     NAME = "Consolidate multiple inlined wstrncpy calls"
     stmt_classes = ((Call, Call), (Call, Store))
 
-    def optimize(self, stmts: list[Call], **kwargs):
+    def optimize(  # type:ignore
+        self, stmts: list[Call], stmt_idx: int | None = None, block=None, **kwargs
+    ):  # pylint:disable=unused-argument
         last_stmt, stmt = stmts
         if InlinedWstrcpy.is_inlined_wstrncpy(last_stmt):
+            assert last_stmt.args is not None
+            assert self.kb is not None
             s_last: bytes = self.kb.custom_strings[last_stmt.args[1].value]
             addr_last = last_stmt.args[0]
             new_str = None  # will be set if consolidation should happen
 
             if isinstance(stmt, Call) and InlinedWstrcpy.is_inlined_wstrncpy(stmt):
+                assert stmt.args is not None
                 # consolidating two calls
                 s_curr: bytes = self.kb.custom_strings[stmt.args[1].value]
                 addr_curr = stmt.args[0]
@@ -35,23 +40,24 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                 if delta is not None and delta == len(s_last):
                     # consolidate both calls!
                     new_str = s_last + s_curr
-            elif isinstance(stmt, Store) and isinstance(stmt.data, Const):
+            elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
                 # consolidating a call and a store, in case the store statement is storing the suffix of a string (but
                 # the suffix is too short to qualify an inlined strcpy optimization)
                 addr_curr = stmt.addr
                 delta = self._get_delta(addr_last, addr_curr)
                 if delta is not None and delta == len(s_last):
-                    if stmt.size == 1 and stmt.data.value == 0:
+                    if stmt.size == 2 and stmt.data.value == 0:
                         # it's probably the terminating null byte
-                        r, s = True, "\x00"
+                        r, s = True, b"\x00\x00"
                     else:
                         r, s = InlinedWstrcpy.is_integer_likely_a_wide_string(
                             stmt.data.value, stmt.size, stmt.endness, min_length=1
                         )
-                    if r:
-                        new_str = s_last + s.encode("ascii")
+                    if r and s is not None:
+                        new_str = s_last + s
 
             if new_str is not None:
+                assert self.project is not None
                 wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
                 if new_str.endswith(b"\x00\x00"):
                     call_name = "wstrcpy"
@@ -89,10 +95,10 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
         ):
             return StackBaseOffset(None, addr.bits, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
-            if addr.op == "Add" and isinstance(addr.operands[1], Const):
+            if addr.op == "Add" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
                 base_0, offset_0 = InlinedWstrcpyConsolidation._parse_addr(addr.operands[0])
                 return base_0, offset_0 + addr.operands[1].value
-            if addr.op == "Sub" and isinstance(addr.operands[1], Const):
+            if addr.op == "Sub" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
                 base_0, offset_0 = InlinedWstrcpyConsolidation._parse_addr(addr.operands[0])
                 return base_0, offset_0 - addr.operands[1].value
 
