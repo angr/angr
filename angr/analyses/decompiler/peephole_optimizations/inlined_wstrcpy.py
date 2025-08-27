@@ -185,11 +185,15 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
 
     @staticmethod
     def even_offsets_are_zero(lst: list[int]) -> bool:
-        return all(ch == 0 for i, ch in enumerate(lst) if i % 2 == 0)
+        if len(lst) >= 2 and lst[-1] == 0 and lst[-2] == 0:
+            lst = lst[:-2]
+        return all((ch == 0 if i % 2 == 0 else ch != 0) for i, ch in enumerate(lst))
 
     @staticmethod
     def odd_offsets_are_zero(lst: list[int]) -> bool:
-        return all(ch == 0 for i, ch in enumerate(lst) if i % 2 == 1)
+        if len(lst) >= 2 and lst[-1] == 0 and lst[-2] == 0:
+            lst = lst[:-2]
+        return all((ch == 0 if i % 2 == 1 else ch != 0) for i, ch in enumerate(lst))
 
     @staticmethod
     def is_integer_likely_a_wide_string(
