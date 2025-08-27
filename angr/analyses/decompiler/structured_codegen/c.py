@@ -2231,7 +2231,7 @@ class CConstant(CExpression):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
 
-        def _default_output(v) -> str:
+        def _default_output(v) -> str | None:
             if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                 return CConstant.str_to_c_str(v.content.decode("utf-8"))
             if isinstance(v, Function):
@@ -2240,7 +2240,7 @@ class CConstant(CExpression):
                 return CConstant.str_to_c_str(v)
             if isinstance(v, bytes):
                 return CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8"))
-            return str(v)
+            return None
 
         if self.collapsed:
             yield "...", self
@@ -2279,13 +2279,17 @@ class CConstant(CExpression):
                     if isinstance(self.reference_values[self._type], int):
                         yield self.fmt_int(self.reference_values[self._type]), self
                         return
-                    yield _default_output(self.reference_values[self.type]), self
-                    return
+                    o = _default_output(self.reference_values[self.type])
+                    if o is not None:
+                        yield o, self
+                        return
 
             # default priority: string references -> variables -> other reference values
             for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
-                yield _default_output(v), self
-                return
+                o = _default_output(v)
+                if o is not None:
+                    yield o, self
+                    return
 
         if isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
             # print NULL instead
