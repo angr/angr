@@ -18,22 +18,22 @@ test_location = os.path.join(bin_location, "tests")
 l = logging.Logger(__name__)
 
 
-class TestPeepholeWstrcpy(unittest.TestCase):
+class TestCASRewriting(unittest.TestCase):
     def test_ipnathlp_IcsRegReadFromLocation(self):
-        bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "9c75d43ec531c76caa65de86dcac0269d6727ba4ec74fe1cac1fda0e176fd2ab"
+        )
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
-        func = cfg.functions[0x18003CA70]
+        func = cfg.functions[0x140002F50]
         assert func is not None
         dec = proj.analyses.Decompiler(func, cfg=cfg)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        assert (
-            'L"System\\\\CurrentControlSet\\\\Services\\\\Tcpip6\\\\Parameters\\\\Interfaces\\\\", 63)'
-            in dec.codegen.text
-        )
+        assert "CasCmp" not in dec.codegen.text
+        assert "InterlockedExchange" in dec.codegen.text
 
 
 if __name__ == "__main__":
