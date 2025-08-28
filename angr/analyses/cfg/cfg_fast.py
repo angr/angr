@@ -3237,22 +3237,24 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # Fill in the jump_tables dict
             self.jump_tables[jump.addr] = jump
             # occupy the jump table region
-            if jump.jumptable_addr is not None:
-                self._seg_list.occupy(jump.jumptable_addr, jump.jumptable_size, "data")
+            for jumptable_info in jump.jumptables:
+                if jumptable_info.addr is None:
+                    continue
+                self._seg_list.occupy(jumptable_info.addr, jumptable_info.size, "data")
                 if self._collect_data_ref:
-                    if jump.jumptable_addr in self._memory_data:
-                        memory_data = self._memory_data[jump.jumptable_addr]
-                        memory_data.size = jump.jumptable_size
-                        memory_data.max_size = jump.jumptable_size
+                    if jumptable_info.addr in self._memory_data:
+                        memory_data = self._memory_data[jumptable_info.addr]
+                        memory_data.size = jumptable_info.size
+                        memory_data.max_size = jumptable_info.size
                         memory_data.sort = MemoryDataSort.Unknown
                     else:
                         memory_data = MemoryData(
-                            jump.jumptable_addr,
-                            jump.jumptable_size,
+                            jumptable_info.addr,
+                            jumptable_info.size,
                             MemoryDataSort.Unknown,
-                            max_size=jump.jumptable_size,
+                            max_size=jumptable_info.size,
                         )
-                        self._memory_data[jump.jumptable_addr] = memory_data
+                        self._memory_data[jumptable_info.addr] = memory_data
 
         jump.resolved_targets = targets
         all_targets = set(targets)
