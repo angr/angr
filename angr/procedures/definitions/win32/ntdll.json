@@ -1,3635 +1,3048 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "ntdll.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "RtlAddGrowableFunctionTable": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IMAGE_RUNTIME_FUNCTION_ENTRY",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "DynamicTable",
-                    "FunctionTable",
-                    "EntryCount",
-                    "MaximumEntryCount",
-                    "RangeBase",
-                    "RangeEnd"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlAnsiStringToUnicodeString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "UNICODE_STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "DestinationString",
-                    "SourceString",
-                    "AllocateDestinationString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlCharToInteger": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "SByte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "String",
-                    "Base",
-                    "Value"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlConvertDeviceFamilyInfoToString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pulDeviceFamilyBufferSize",
-                    "pulDeviceFormBufferSize",
-                    "DeviceFamily",
-                    "DeviceForm"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlConvertSidToUnicodeString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "UNICODE_STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "UnicodeString",
-                    "Sid",
-                    "AllocateDestinationString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlCrc32": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Buffer",
-                    "Size",
-                    "InitialCrc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlCrc64": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeLongLong",
-                        "signed": false,
-                        "label": "UInt64"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeLongLong",
-                    "signed": false,
-                    "label": "UInt64"
-                },
-                "label": null,
-                "arg_names": [
-                    "Buffer",
-                    "Size",
-                    "InitialCrc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlDeleteGrowableFunctionTable": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "DynamicTable"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlDrainNonVolatileFlush": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "NvToken"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlEthernetAddressToStringA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Byte": {
-                                    "__type__": "SimTypeArray",
-                                    "elem_type": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": false,
-                                        "label": "Byte"
-                                    },
-                                    "length": 6,
-                                    "label": null
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Oui": {
-                                            "__type__": "SimUnion",
-                                            "members": {
-                                                "Byte": {
-                                                    "__type__": "SimTypeArray",
-                                                    "elem_type": {
-                                                        "__type__": "SimTypeChar",
-                                                        "signed": false,
-                                                        "label": "Byte"
-                                                    },
-                                                    "length": 3,
-                                                    "label": null
-                                                },
-                                                "Anonymous": {
-                                                    "__type__": "SimStruct",
-                                                    "fields": {
-                                                        "_bitfield": {
-                                                            "__type__": "SimTypeChar",
-                                                            "signed": false,
-                                                            "label": "Byte"
-                                                        }
-                                                    },
-                                                    "name": "_Anonymous_e__Struct",
-                                                    "pack": false,
-                                                    "align": null,
-                                                    "anonymous": true
-                                                }
-                                            },
-                                            "name": "<anon>",
-                                            "label": null
-                                        },
-                                        "Ei48": {
-                                            "__type__": "SimUnion",
-                                            "members": {
-                                                "Byte": {
-                                                    "__type__": "SimTypeArray",
-                                                    "elem_type": {
-                                                        "__type__": "SimTypeChar",
-                                                        "signed": false,
-                                                        "label": "Byte"
-                                                    },
-                                                    "length": 3,
-                                                    "label": null
-                                                }
-                                            },
-                                            "name": "<anon>",
-                                            "label": null
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "Addr",
-                    "S"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlEthernetAddressToStringW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Byte": {
-                                    "__type__": "SimTypeArray",
-                                    "elem_type": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": false,
-                                        "label": "Byte"
-                                    },
-                                    "length": 6,
-                                    "label": null
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Oui": {
-                                            "__type__": "SimUnion",
-                                            "members": {
-                                                "Byte": {
-                                                    "__type__": "SimTypeArray",
-                                                    "elem_type": {
-                                                        "__type__": "SimTypeChar",
-                                                        "signed": false,
-                                                        "label": "Byte"
-                                                    },
-                                                    "length": 3,
-                                                    "label": null
-                                                },
-                                                "Anonymous": {
-                                                    "__type__": "SimStruct",
-                                                    "fields": {
-                                                        "_bitfield": {
-                                                            "__type__": "SimTypeChar",
-                                                            "signed": false,
-                                                            "label": "Byte"
-                                                        }
-                                                    },
-                                                    "name": "_Anonymous_e__Struct",
-                                                    "pack": false,
-                                                    "align": null,
-                                                    "anonymous": true
-                                                }
-                                            },
-                                            "name": "<anon>",
-                                            "label": null
-                                        },
-                                        "Ei48": {
-                                            "__type__": "SimUnion",
-                                            "members": {
-                                                "Byte": {
-                                                    "__type__": "SimTypeArray",
-                                                    "elem_type": {
-                                                        "__type__": "SimTypeChar",
-                                                        "signed": false,
-                                                        "label": "Byte"
-                                                    },
-                                                    "length": 3,
-                                                    "label": null
-                                                }
-                                            },
-                                            "name": "<anon>",
-                                            "label": null
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeChar",
-                        "signed": true,
-                        "label": "Char"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "Addr",
-                    "S"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlEthernetStringToAddressA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": false,
-                                "label": "Byte"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Byte": {
-                                    "__type__": "SimTypeArray",
-                                    "elem_type": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": false,
-                                        "label": "Byte"
-                                    },
-                                    "length": 6,
-                                    "label": null
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Oui": {
-                                            "__type__": "SimUnion",
-                                            "members": {
-                                                "Byte": {
-                                                    "__type__": "SimTypeArray",
-                                                    "elem_type": {
-                                                        "__type__": "SimTypeChar",
-                                                        "signed": false,
-                                                        "label": "Byte"
-                                                    },
-                                                    "length": 3,
-                                                    "label": null
-                                                },
-                                                "Anonymous": {
-                                                    "__type__": "SimStruct",
-                                                    "fields": {
-                                                        "_bitfield": {
-                                                            "__type__": "SimTypeChar",
-                                                            "signed": false,
-                                                            "label": "Byte"
-                                                        }
-                                                    },
-                                                    "name": "_Anonymous_e__Struct",
-                                                    "pack": false,
-                                                    "align": null,
-                                                    "anonymous": true
-                                                }
-                                            },
-                                            "name": "<anon>",
-                                            "label": null
-                                        },
-                                        "Ei48": {
-                                            "__type__": "SimUnion",
-                                            "members": {
-                                                "Byte": {
-                                                    "__type__": "SimTypeArray",
-                                                    "elem_type": {
-                                                        "__type__": "SimTypeChar",
-                                                        "signed": false,
-                                                        "label": "Byte"
-                                                    },
-                                                    "length": 3,
-                                                    "label": null
-                                                }
-                                            },
-                                            "name": "<anon>",
-                                            "label": null
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "S",
-                    "Terminator",
-                    "Addr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlEthernetStringToAddressW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": true,
-                                "label": "Char"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Byte": {
-                                    "__type__": "SimTypeArray",
-                                    "elem_type": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": false,
-                                        "label": "Byte"
-                                    },
-                                    "length": 6,
-                                    "label": null
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Oui": {
-                                            "__type__": "SimUnion",
-                                            "members": {
-                                                "Byte": {
-                                                    "__type__": "SimTypeArray",
-                                                    "elem_type": {
-                                                        "__type__": "SimTypeChar",
-                                                        "signed": false,
-                                                        "label": "Byte"
-                                                    },
-                                                    "length": 3,
-                                                    "label": null
-                                                },
-                                                "Anonymous": {
-                                                    "__type__": "SimStruct",
-                                                    "fields": {
-                                                        "_bitfield": {
-                                                            "__type__": "SimTypeChar",
-                                                            "signed": false,
-                                                            "label": "Byte"
-                                                        }
-                                                    },
-                                                    "name": "_Anonymous_e__Struct",
-                                                    "pack": false,
-                                                    "align": null,
-                                                    "anonymous": true
-                                                }
-                                            },
-                                            "name": "<anon>",
-                                            "label": null
-                                        },
-                                        "Ei48": {
-                                            "__type__": "SimUnion",
-                                            "members": {
-                                                "Byte": {
-                                                    "__type__": "SimTypeArray",
-                                                    "elem_type": {
-                                                        "__type__": "SimTypeChar",
-                                                        "signed": false,
-                                                        "label": "Byte"
-                                                    },
-                                                    "length": 3,
-                                                    "label": null
-                                                }
-                                            },
-                                            "name": "<anon>",
-                                            "label": null
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "S",
-                    "Terminator",
-                    "Addr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlExtendCorrelationVector": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CORRELATION_VECTOR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "CorrelationVector"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlFillNonVolatileMemory": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "NvToken",
-                    "NvDestination",
-                    "Size",
-                    "Value",
-                    "Flags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlFirstEntrySList": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Alignment": {
-                                    "__type__": "SimTypeLongLong",
-                                    "signed": false,
-                                    "label": "UInt64"
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Next": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SINGLE_LIST_ENTRY",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "Depth": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        },
-                                        "CpuId": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "SLIST_ENTRY",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "ListHead"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlFlushNonVolatileMemory": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "NvToken",
-                    "NvBuffer",
-                    "Size",
-                    "Flags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlFlushNonVolatileMemoryRanges": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "NV_MEMORY_RANGE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "NvToken",
-                    "NvRanges",
-                    "NumRanges",
-                    "Flags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlFreeAnsiString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "AnsiString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlFreeNonVolatileToken": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "NvToken"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlFreeOemString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "OemString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlFreeUnicodeString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "UNICODE_STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "UnicodeString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlGetDeviceFamilyInfoEnum": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeLongLong",
-                            "signed": false,
-                            "label": "UInt64"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "DEVICEFAMILYINFOENUM"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "DEVICEFAMILYDEVICEFORM"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "pullUAPInfo",
-                    "pulDeviceFamily",
-                    "pulDeviceForm"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlGetNonVolatileToken": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "NvBuffer",
-                    "Size",
-                    "NvToken"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlGetProductInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeChar",
-                    "signed": false,
-                    "label": "Byte"
-                },
-                "label": null,
-                "arg_names": [
-                    "OSMajorVersion",
-                    "OSMinorVersion",
-                    "SpMajorVersion",
-                    "SpMinorVersion",
-                    "ReturnedProductType"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlGetReturnAddressHijackTarget": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt"
-                    },
-                    "label": "UIntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlGrowFunctionTable": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "DynamicTable",
-                    "NewEntryCount"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIncrementCorrelationVector": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CORRELATION_VECTOR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "CorrelationVector"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInitAnsiString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "SByte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "DestinationString",
-                    "SourceString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInitAnsiStringEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "SByte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "DestinationString",
-                    "SourceString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInitString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "SByte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "DestinationString",
-                    "SourceString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInitStringEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "SByte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "DestinationString",
-                    "SourceString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInitUnicodeString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "UNICODE_STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "DestinationString",
-                    "SourceString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInitializeCorrelationVector": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CORRELATION_VECTOR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "CorrelationVector",
-                    "Version",
-                    "Guid"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInitializeSListHead": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Alignment": {
-                                    "__type__": "SimTypeLongLong",
-                                    "signed": false,
-                                    "label": "UInt64"
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Next": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SINGLE_LIST_ENTRY",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "Depth": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        },
-                                        "CpuId": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "ListHead"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInterlockedFlushSList": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Alignment": {
-                                    "__type__": "SimTypeLongLong",
-                                    "signed": false,
-                                    "label": "UInt64"
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Next": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SINGLE_LIST_ENTRY",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "Depth": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        },
-                                        "CpuId": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "SLIST_ENTRY",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "ListHead"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInterlockedPopEntrySList": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Alignment": {
-                                    "__type__": "SimTypeLongLong",
-                                    "signed": false,
-                                    "label": "UInt64"
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Next": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SINGLE_LIST_ENTRY",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "Depth": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        },
-                                        "CpuId": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "SLIST_ENTRY",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "ListHead"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInterlockedPushEntrySList": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Alignment": {
-                                    "__type__": "SimTypeLongLong",
-                                    "signed": false,
-                                    "label": "UInt64"
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Next": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SINGLE_LIST_ENTRY",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "Depth": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        },
-                                        "CpuId": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SLIST_ENTRY",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "SLIST_ENTRY",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "ListHead",
-                    "ListEntry"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlInterlockedPushListSListEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Alignment": {
-                                    "__type__": "SimTypeLongLong",
-                                    "signed": false,
-                                    "label": "UInt64"
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Next": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SINGLE_LIST_ENTRY",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "Depth": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        },
-                                        "CpuId": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SLIST_ENTRY",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SLIST_ENTRY",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "SLIST_ENTRY",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "ListHead",
-                    "List",
-                    "ListEnd",
-                    "Count"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv4AddressToStringA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "Addr",
-                    "S"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv4AddressToStringExA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Address",
-                    "Port",
-                    "AddressString",
-                    "AddressStringLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv4AddressToStringExW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Address",
-                    "Port",
-                    "AddressString",
-                    "AddressStringLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv4AddressToStringW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeChar",
-                        "signed": true,
-                        "label": "Char"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "Addr",
-                    "S"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv4StringToAddressA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": false,
-                                "label": "Byte"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "S",
-                    "Strict",
-                    "Terminator",
-                    "Addr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv4StringToAddressExA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeShort",
-                            "signed": false,
-                            "label": "UInt16"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "AddressString",
-                    "Strict",
-                    "Address",
-                    "Port"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv4StringToAddressExW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeShort",
-                            "signed": false,
-                            "label": "UInt16"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "AddressString",
-                    "Strict",
-                    "Address",
-                    "Port"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv4StringToAddressW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": true,
-                                "label": "Char"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "S",
-                    "Strict",
-                    "Terminator",
-                    "Addr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv6AddressToStringA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN6_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "Addr",
-                    "S"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv6AddressToStringExA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN6_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Address",
-                    "ScopeId",
-                    "Port",
-                    "AddressString",
-                    "AddressStringLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv6AddressToStringExW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN6_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Address",
-                    "ScopeId",
-                    "Port",
-                    "AddressString",
-                    "AddressStringLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv6AddressToStringW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN6_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeChar",
-                        "signed": true,
-                        "label": "Char"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "Addr",
-                    "S"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv6StringToAddressA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": false,
-                                "label": "Byte"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN6_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "S",
-                    "Terminator",
-                    "Addr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv6StringToAddressExA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN6_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeShort",
-                            "signed": false,
-                            "label": "UInt16"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "AddressString",
-                    "Address",
-                    "ScopeId",
-                    "Port"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv6StringToAddressExW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN6_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeShort",
-                            "signed": false,
-                            "label": "UInt16"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "AddressString",
-                    "Address",
-                    "ScopeId",
-                    "Port"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIpv6StringToAddressW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": true,
-                                "label": "Char"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "IN6_ADDR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "S",
-                    "Terminator",
-                    "Addr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIsNameLegalDOS8Dot3": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "UNICODE_STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeChar",
-                    "signed": false,
-                    "label": "Byte"
-                },
-                "label": null,
-                "arg_names": [
-                    "Name",
-                    "OemName",
-                    "NameContainsSpaces"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlIsZeroMemory": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeChar",
-                    "signed": false,
-                    "label": "Byte"
-                },
-                "label": null,
-                "arg_names": [
-                    "Buffer",
-                    "Length"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlLocalTimeToSystemTime": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeLongLong",
-                            "signed": true,
-                            "label": "Int64"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeLongLong",
-                            "signed": true,
-                            "label": "Int64"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "LocalTime",
-                    "SystemTime"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlNormalizeSecurityDescriptor": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeChar",
-                    "signed": false,
-                    "label": "Byte"
-                },
-                "label": null,
-                "arg_names": [
-                    "SecurityDescriptor",
-                    "SecurityDescriptorLength",
-                    "NewSecurityDescriptor",
-                    "NewSecurityDescriptorLength",
-                    "CheckOnly"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlNtStatusToDosError": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Status"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlOsDeploymentState": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "OS_DEPLOYEMENT_STATE_VALUES"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlQueryDepthSList": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "Alignment": {
-                                    "__type__": "SimTypeLongLong",
-                                    "signed": false,
-                                    "label": "UInt64"
-                                },
-                                "Anonymous": {
-                                    "__type__": "SimStruct",
-                                    "fields": {
-                                        "Next": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SINGLE_LIST_ENTRY",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "Depth": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        },
-                                        "CpuId": {
-                                            "__type__": "SimTypeShort",
-                                            "signed": false,
-                                            "label": "UInt16"
-                                        }
-                                    },
-                                    "name": "_Anonymous_e__Struct",
-                                    "pack": false,
-                                    "align": null,
-                                    "anonymous": true
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeShort",
-                    "signed": false,
-                    "label": "UInt16"
-                },
-                "label": null,
-                "arg_names": [
-                    "ListHead"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlRaiseCustomSystemEventTrigger": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "TriggerConfig"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlSwitchedVVI": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "OSVERSIONINFOEXW",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeLongLong",
-                        "signed": false,
-                        "label": "UInt64"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "VersionInfo",
-                    "TypeMask",
-                    "ConditionMask"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlTimeToSecondsSince1970": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeLongLong",
-                            "signed": true,
-                            "label": "Int64"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeChar",
-                    "signed": false,
-                    "label": "Byte"
-                },
-                "label": null,
-                "arg_names": [
-                    "Time",
-                    "ElapsedSeconds"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlUnicodeStringToAnsiString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "UNICODE_STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "DestinationString",
-                    "SourceString",
-                    "AllocateDestinationString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlUnicodeStringToOemString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "UNICODE_STRING",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "DestinationString",
-                    "SourceString",
-                    "AllocateDestinationString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlUnicodeToMultiByteSize": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "BytesInMultiByteString",
-                    "UnicodeString",
-                    "BytesInUnicodeString"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlUniform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Seed"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlValidateCorrelationVector": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CORRELATION_VECTOR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Vector"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RtlWriteNonVolatileMemory": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "NvToken",
-                    "NvDestination",
-                    "Source",
-                    "Size",
-                    "Flags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"ntdll.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"RtlAddGrowableFunctionTable": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IMAGE_RUNTIME_FUNCTION_ENTRY",
+							"ot": "struct"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"DynamicTable",
+					"FunctionTable",
+					"EntryCount",
+					"MaximumEntryCount",
+					"RangeBase",
+					"RangeEnd"
+				]
+			}
+		},
+		"RtlAnsiStringToUnicodeString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "UNICODE_STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"DestinationString",
+					"SourceString",
+					"AllocateDestinationString"
+				]
+			}
+		},
+		"RtlCharToInteger": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "SByte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"String",
+					"Base",
+					"Value"
+				]
+			}
+		},
+		"RtlConvertDeviceFamilyInfoToString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"pulDeviceFamilyBufferSize",
+					"pulDeviceFormBufferSize",
+					"DeviceFamily",
+					"DeviceForm"
+				]
+			}
+		},
+		"RtlConvertSidToUnicodeString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "UNICODE_STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"UnicodeString",
+					"Sid",
+					"AllocateDestinationString"
+				]
+			}
+		},
+		"RtlCrc32": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"Buffer",
+					"Size",
+					"InitialCrc"
+				]
+			}
+		},
+		"RtlCrc64": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					}
+				],
+				"returnty": {
+					"_t": "llong",
+					"signed": false,
+					"label": "UInt64"
+				},
+				"arg_names": [
+					"Buffer",
+					"Size",
+					"InitialCrc"
+				]
+			}
+		},
+		"RtlDeleteGrowableFunctionTable": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"DynamicTable"
+				]
+			}
+		},
+		"RtlDrainNonVolatileFlush": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"NvToken"
+				]
+			}
+		},
+		"RtlEthernetAddressToStringA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Byte": {
+									"_t": "array",
+									"elem_type": {
+										"_t": "char",
+										"signed": false,
+										"label": "Byte"
+									},
+									"length": 6
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Oui": {
+											"_t": "union",
+											"members": {
+												"Byte": {
+													"_t": "array",
+													"elem_type": {
+														"_t": "char",
+														"signed": false,
+														"label": "Byte"
+													},
+													"length": 3
+												},
+												"Anonymous": {
+													"_t": "struct",
+													"fields": {
+														"_bitfield": {
+															"_t": "char",
+															"signed": false,
+															"label": "Byte"
+														}
+													},
+													"name": "_Anonymous_e__Struct",
+													"pack": false,
+													"align": null,
+													"anonymous": true
+												}
+											},
+											"name": "<anon>"
+										},
+										"Ei48": {
+											"_t": "union",
+											"members": {
+												"Byte": {
+													"_t": "array",
+													"elem_type": {
+														"_t": "char",
+														"signed": false,
+														"label": "Byte"
+													},
+													"length": 3
+												}
+											},
+											"name": "<anon>"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				},
+				"arg_names": [
+					"Addr",
+					"S"
+				]
+			}
+		},
+		"RtlEthernetAddressToStringW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Byte": {
+									"_t": "array",
+									"elem_type": {
+										"_t": "char",
+										"signed": false,
+										"label": "Byte"
+									},
+									"length": 6
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Oui": {
+											"_t": "union",
+											"members": {
+												"Byte": {
+													"_t": "array",
+													"elem_type": {
+														"_t": "char",
+														"signed": false,
+														"label": "Byte"
+													},
+													"length": 3
+												},
+												"Anonymous": {
+													"_t": "struct",
+													"fields": {
+														"_bitfield": {
+															"_t": "char",
+															"signed": false,
+															"label": "Byte"
+														}
+													},
+													"name": "_Anonymous_e__Struct",
+													"pack": false,
+													"align": null,
+													"anonymous": true
+												}
+											},
+											"name": "<anon>"
+										},
+										"Ei48": {
+											"_t": "union",
+											"members": {
+												"Byte": {
+													"_t": "array",
+													"elem_type": {
+														"_t": "char",
+														"signed": false,
+														"label": "Byte"
+													},
+													"length": 3
+												}
+											},
+											"name": "<anon>"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "char",
+						"signed": true,
+						"label": "Char"
+					}
+				},
+				"arg_names": [
+					"Addr",
+					"S"
+				]
+			}
+		},
+		"RtlEthernetStringToAddressA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": false,
+								"label": "Byte"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Byte": {
+									"_t": "array",
+									"elem_type": {
+										"_t": "char",
+										"signed": false,
+										"label": "Byte"
+									},
+									"length": 6
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Oui": {
+											"_t": "union",
+											"members": {
+												"Byte": {
+													"_t": "array",
+													"elem_type": {
+														"_t": "char",
+														"signed": false,
+														"label": "Byte"
+													},
+													"length": 3
+												},
+												"Anonymous": {
+													"_t": "struct",
+													"fields": {
+														"_bitfield": {
+															"_t": "char",
+															"signed": false,
+															"label": "Byte"
+														}
+													},
+													"name": "_Anonymous_e__Struct",
+													"pack": false,
+													"align": null,
+													"anonymous": true
+												}
+											},
+											"name": "<anon>"
+										},
+										"Ei48": {
+											"_t": "union",
+											"members": {
+												"Byte": {
+													"_t": "array",
+													"elem_type": {
+														"_t": "char",
+														"signed": false,
+														"label": "Byte"
+													},
+													"length": 3
+												}
+											},
+											"name": "<anon>"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"S",
+					"Terminator",
+					"Addr"
+				]
+			}
+		},
+		"RtlEthernetStringToAddressW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Byte": {
+									"_t": "array",
+									"elem_type": {
+										"_t": "char",
+										"signed": false,
+										"label": "Byte"
+									},
+									"length": 6
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Oui": {
+											"_t": "union",
+											"members": {
+												"Byte": {
+													"_t": "array",
+													"elem_type": {
+														"_t": "char",
+														"signed": false,
+														"label": "Byte"
+													},
+													"length": 3
+												},
+												"Anonymous": {
+													"_t": "struct",
+													"fields": {
+														"_bitfield": {
+															"_t": "char",
+															"signed": false,
+															"label": "Byte"
+														}
+													},
+													"name": "_Anonymous_e__Struct",
+													"pack": false,
+													"align": null,
+													"anonymous": true
+												}
+											},
+											"name": "<anon>"
+										},
+										"Ei48": {
+											"_t": "union",
+											"members": {
+												"Byte": {
+													"_t": "array",
+													"elem_type": {
+														"_t": "char",
+														"signed": false,
+														"label": "Byte"
+													},
+													"length": 3
+												}
+											},
+											"name": "<anon>"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"S",
+					"Terminator",
+					"Addr"
+				]
+			}
+		},
+		"RtlExtendCorrelationVector": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CORRELATION_VECTOR",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"CorrelationVector"
+				]
+			}
+		},
+		"RtlFillNonVolatileMemory": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"NvToken",
+					"NvDestination",
+					"Size",
+					"Value",
+					"Flags"
+				]
+			}
+		},
+		"RtlFirstEntrySList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Alignment": {
+									"_t": "llong",
+									"signed": false,
+									"label": "UInt64"
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Next": {
+											"_t": "_ref",
+											"name": "SINGLE_LIST_ENTRY",
+											"ot": "struct"
+										},
+										"Depth": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										},
+										"CpuId": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "SLIST_ENTRY",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"ListHead"
+				]
+			}
+		},
+		"RtlFlushNonVolatileMemory": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"NvToken",
+					"NvBuffer",
+					"Size",
+					"Flags"
+				]
+			}
+		},
+		"RtlFlushNonVolatileMemoryRanges": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "NV_MEMORY_RANGE",
+							"ot": "struct"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"NvToken",
+					"NvRanges",
+					"NumRanges",
+					"Flags"
+				]
+			}
+		},
+		"RtlFreeAnsiString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"AnsiString"
+				]
+			}
+		},
+		"RtlFreeNonVolatileToken": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"NvToken"
+				]
+			}
+		},
+		"RtlFreeOemString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"OemString"
+				]
+			}
+		},
+		"RtlFreeUnicodeString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "UNICODE_STRING",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"UnicodeString"
+				]
+			}
+		},
+		"RtlGetDeviceFamilyInfoEnum": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "llong",
+							"signed": false,
+							"label": "UInt64"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "DEVICEFAMILYINFOENUM"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "DEVICEFAMILYDEVICEFORM"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pullUAPInfo",
+					"pulDeviceFamily",
+					"pulDeviceForm"
+				]
+			}
+		},
+		"RtlGetNonVolatileToken": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"NvBuffer",
+					"Size",
+					"NvToken"
+				]
+			}
+		},
+		"RtlGetProductInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "char",
+					"signed": false,
+					"label": "Byte"
+				},
+				"arg_names": [
+					"OSMajorVersion",
+					"OSMinorVersion",
+					"SpMajorVersion",
+					"SpMinorVersion",
+					"ReturnedProductType"
+				]
+			}
+		},
+		"RtlGetReturnAddressHijackTarget": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"signed": false,
+						"label": "UInt"
+					},
+					"label": "UIntPtr"
+				},
+				"arg_names": []
+			}
+		},
+		"RtlGrowFunctionTable": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"DynamicTable",
+					"NewEntryCount"
+				]
+			}
+		},
+		"RtlIncrementCorrelationVector": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CORRELATION_VECTOR",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"CorrelationVector"
+				]
+			}
+		},
+		"RtlInitAnsiString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "SByte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"DestinationString",
+					"SourceString"
+				]
+			}
+		},
+		"RtlInitAnsiStringEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "SByte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"DestinationString",
+					"SourceString"
+				]
+			}
+		},
+		"RtlInitString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "SByte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"DestinationString",
+					"SourceString"
+				]
+			}
+		},
+		"RtlInitStringEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "SByte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"DestinationString",
+					"SourceString"
+				]
+			}
+		},
+		"RtlInitUnicodeString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "UNICODE_STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"DestinationString",
+					"SourceString"
+				]
+			}
+		},
+		"RtlInitializeCorrelationVector": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CORRELATION_VECTOR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"CorrelationVector",
+					"Version",
+					"Guid"
+				]
+			}
+		},
+		"RtlInitializeSListHead": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Alignment": {
+									"_t": "llong",
+									"signed": false,
+									"label": "UInt64"
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Next": {
+											"_t": "_ref",
+											"name": "SINGLE_LIST_ENTRY",
+											"ot": "struct"
+										},
+										"Depth": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										},
+										"CpuId": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"ListHead"
+				]
+			}
+		},
+		"RtlInterlockedFlushSList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Alignment": {
+									"_t": "llong",
+									"signed": false,
+									"label": "UInt64"
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Next": {
+											"_t": "_ref",
+											"name": "SINGLE_LIST_ENTRY",
+											"ot": "struct"
+										},
+										"Depth": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										},
+										"CpuId": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "SLIST_ENTRY",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"ListHead"
+				]
+			}
+		},
+		"RtlInterlockedPopEntrySList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Alignment": {
+									"_t": "llong",
+									"signed": false,
+									"label": "UInt64"
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Next": {
+											"_t": "_ref",
+											"name": "SINGLE_LIST_ENTRY",
+											"ot": "struct"
+										},
+										"Depth": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										},
+										"CpuId": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "SLIST_ENTRY",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"ListHead"
+				]
+			}
+		},
+		"RtlInterlockedPushEntrySList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Alignment": {
+									"_t": "llong",
+									"signed": false,
+									"label": "UInt64"
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Next": {
+											"_t": "_ref",
+											"name": "SINGLE_LIST_ENTRY",
+											"ot": "struct"
+										},
+										"Depth": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										},
+										"CpuId": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SLIST_ENTRY",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "SLIST_ENTRY",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"ListHead",
+					"ListEntry"
+				]
+			}
+		},
+		"RtlInterlockedPushListSListEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Alignment": {
+									"_t": "llong",
+									"signed": false,
+									"label": "UInt64"
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Next": {
+											"_t": "_ref",
+											"name": "SINGLE_LIST_ENTRY",
+											"ot": "struct"
+										},
+										"Depth": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										},
+										"CpuId": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SLIST_ENTRY",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SLIST_ENTRY",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "SLIST_ENTRY",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"ListHead",
+					"List",
+					"ListEnd",
+					"Count"
+				]
+			}
+		},
+		"RtlIpv4AddressToStringA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				},
+				"arg_names": [
+					"Addr",
+					"S"
+				]
+			}
+		},
+		"RtlIpv4AddressToStringExA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Address",
+					"Port",
+					"AddressString",
+					"AddressStringLength"
+				]
+			}
+		},
+		"RtlIpv4AddressToStringExW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Address",
+					"Port",
+					"AddressString",
+					"AddressStringLength"
+				]
+			}
+		},
+		"RtlIpv4AddressToStringW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "char",
+						"signed": true,
+						"label": "Char"
+					}
+				},
+				"arg_names": [
+					"Addr",
+					"S"
+				]
+			}
+		},
+		"RtlIpv4StringToAddressA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": false,
+								"label": "Byte"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN_ADDR",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"S",
+					"Strict",
+					"Terminator",
+					"Addr"
+				]
+			}
+		},
+		"RtlIpv4StringToAddressExA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "short",
+							"signed": false,
+							"label": "UInt16"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"AddressString",
+					"Strict",
+					"Address",
+					"Port"
+				]
+			}
+		},
+		"RtlIpv4StringToAddressExW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "short",
+							"signed": false,
+							"label": "UInt16"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"AddressString",
+					"Strict",
+					"Address",
+					"Port"
+				]
+			}
+		},
+		"RtlIpv4StringToAddressW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN_ADDR",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"S",
+					"Strict",
+					"Terminator",
+					"Addr"
+				]
+			}
+		},
+		"RtlIpv6AddressToStringA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN6_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				},
+				"arg_names": [
+					"Addr",
+					"S"
+				]
+			}
+		},
+		"RtlIpv6AddressToStringExA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN6_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Address",
+					"ScopeId",
+					"Port",
+					"AddressString",
+					"AddressStringLength"
+				]
+			}
+		},
+		"RtlIpv6AddressToStringExW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN6_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Address",
+					"ScopeId",
+					"Port",
+					"AddressString",
+					"AddressStringLength"
+				]
+			}
+		},
+		"RtlIpv6AddressToStringW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN6_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "char",
+						"signed": true,
+						"label": "Char"
+					}
+				},
+				"arg_names": [
+					"Addr",
+					"S"
+				]
+			}
+		},
+		"RtlIpv6StringToAddressA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": false,
+								"label": "Byte"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN6_ADDR",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"S",
+					"Terminator",
+					"Addr"
+				]
+			}
+		},
+		"RtlIpv6StringToAddressExA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN6_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "short",
+							"signed": false,
+							"label": "UInt16"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"AddressString",
+					"Address",
+					"ScopeId",
+					"Port"
+				]
+			}
+		},
+		"RtlIpv6StringToAddressExW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN6_ADDR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "short",
+							"signed": false,
+							"label": "UInt16"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"AddressString",
+					"Address",
+					"ScopeId",
+					"Port"
+				]
+			}
+		},
+		"RtlIpv6StringToAddressW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "IN6_ADDR",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"S",
+					"Terminator",
+					"Addr"
+				]
+			}
+		},
+		"RtlIsNameLegalDOS8Dot3": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "UNICODE_STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "char",
+					"signed": false,
+					"label": "Byte"
+				},
+				"arg_names": [
+					"Name",
+					"OemName",
+					"NameContainsSpaces"
+				]
+			}
+		},
+		"RtlIsZeroMemory": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "char",
+					"signed": false,
+					"label": "Byte"
+				},
+				"arg_names": [
+					"Buffer",
+					"Length"
+				]
+			}
+		},
+		"RtlLocalTimeToSystemTime": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "llong",
+							"label": "Int64"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "llong",
+							"label": "Int64"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"LocalTime",
+					"SystemTime"
+				]
+			}
+		},
+		"RtlNormalizeSecurityDescriptor": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				],
+				"returnty": {
+					"_t": "char",
+					"signed": false,
+					"label": "Byte"
+				},
+				"arg_names": [
+					"SecurityDescriptor",
+					"SecurityDescriptorLength",
+					"NewSecurityDescriptor",
+					"NewSecurityDescriptorLength",
+					"CheckOnly"
+				]
+			}
+		},
+		"RtlNtStatusToDosError": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"Status"
+				]
+			}
+		},
+		"RtlOsDeploymentState": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "OS_DEPLOYEMENT_STATE_VALUES"
+				},
+				"arg_names": [
+					"Flags"
+				]
+			}
+		},
+		"RtlQueryDepthSList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Alignment": {
+									"_t": "llong",
+									"signed": false,
+									"label": "UInt64"
+								},
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"Next": {
+											"_t": "_ref",
+											"name": "SINGLE_LIST_ENTRY",
+											"ot": "struct"
+										},
+										"Depth": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										},
+										"CpuId": {
+											"_t": "short",
+											"signed": false,
+											"label": "UInt16"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								}
+							},
+							"name": "<anon>"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "short",
+					"signed": false,
+					"label": "UInt16"
+				},
+				"arg_names": [
+					"ListHead"
+				]
+			}
+		},
+		"RtlRaiseCustomSystemEventTrigger": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"TriggerConfig"
+				]
+			}
+		},
+		"RtlSwitchedVVI": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "OSVERSIONINFOEXW",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"VersionInfo",
+					"TypeMask",
+					"ConditionMask"
+				]
+			}
+		},
+		"RtlTimeToSecondsSince1970": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "llong",
+							"label": "Int64"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "char",
+					"signed": false,
+					"label": "Byte"
+				},
+				"arg_names": [
+					"Time",
+					"ElapsedSeconds"
+				]
+			}
+		},
+		"RtlUnicodeStringToAnsiString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "UNICODE_STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"DestinationString",
+					"SourceString",
+					"AllocateDestinationString"
+				]
+			}
+		},
+		"RtlUnicodeStringToOemString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "UNICODE_STRING",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"DestinationString",
+					"SourceString",
+					"AllocateDestinationString"
+				]
+			}
+		},
+		"RtlUnicodeToMultiByteSize": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"BytesInMultiByteString",
+					"UnicodeString",
+					"BytesInUnicodeString"
+				]
+			}
+		},
+		"RtlUniform": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"Seed"
+				]
+			}
+		},
+		"RtlValidateCorrelationVector": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CORRELATION_VECTOR",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"Vector"
+				]
+			}
+		},
+		"RtlWriteNonVolatileMemory": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"NvToken",
+					"NvDestination",
+					"Source",
+					"Size",
+					"Flags"
+				]
+			}
+		}
+	}
 }

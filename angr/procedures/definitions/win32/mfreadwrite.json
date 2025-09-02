@@ -1,216 +1,182 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "mfreadwrite.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "MFCreateSinkWriterFromMediaSink": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFMediaSink"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFAttributes"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMFSinkWriter"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pMediaSink",
-                    "pAttributes",
-                    "ppSinkWriter"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MFCreateSinkWriterFromURL": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFByteStream"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFAttributes"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMFSinkWriter"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszOutputURL",
-                    "pByteStream",
-                    "pAttributes",
-                    "ppSinkWriter"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MFCreateSourceReaderFromByteStream": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFByteStream"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFAttributes"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMFSourceReader"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pByteStream",
-                    "pAttributes",
-                    "ppSourceReader"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MFCreateSourceReaderFromMediaSource": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFMediaSource"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFAttributes"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMFSourceReader"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pMediaSource",
-                    "pAttributes",
-                    "ppSourceReader"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MFCreateSourceReaderFromURL": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMFAttributes"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMFSourceReader"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszURL",
-                    "pAttributes",
-                    "ppSourceReader"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"mfreadwrite.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"MFCreateSinkWriterFromMediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFMediaSink"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFSinkWriter"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pMediaSink",
+					"pAttributes",
+					"ppSinkWriter"
+				]
+			}
+		},
+		"MFCreateSinkWriterFromURL": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFSinkWriter"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszOutputURL",
+					"pByteStream",
+					"pAttributes",
+					"ppSinkWriter"
+				]
+			}
+		},
+		"MFCreateSourceReaderFromByteStream": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFSourceReader"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pByteStream",
+					"pAttributes",
+					"ppSourceReader"
+				]
+			}
+		},
+		"MFCreateSourceReaderFromMediaSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFMediaSource"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFSourceReader"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pMediaSource",
+					"pAttributes",
+					"ppSourceReader"
+				]
+			}
+		},
+		"MFCreateSourceReaderFromURL": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFSourceReader"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszURL",
+					"pAttributes",
+					"ppSourceReader"
+				]
+			}
+		}
+	}
 }
