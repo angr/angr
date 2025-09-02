@@ -1389,8 +1389,7 @@ class SimCCMicrosoftFastcall(SimCC):
 
 
 class MicrosoftAMD64ArgSession(ArgSession):
-    def __init__(self, cc):
-        super().__init__(cc)
+    pass
 
 
 class SimCCMicrosoftAMD64(SimCC):
