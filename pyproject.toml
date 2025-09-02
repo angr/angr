@@ -83,7 +83,7 @@ exclude = ["tests*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-angr = ["py.typed", "unicornlib.*", "rustylib.*"]
+angr = ["py.typed", "unicornlib.*", "rustylib.*", "*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }
