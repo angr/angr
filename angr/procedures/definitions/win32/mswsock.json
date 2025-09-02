@@ -1,0 +1,1128 @@
+{
+    "type_collection_names": [
+        "win32"
+    ],
+    "library_names": [
+        "mswsock.dll"
+    ],
+    "default_cc": {
+        "X86": "SimCCStdcall",
+        "AMD64": "SimCCMicrosoftAMD64"
+    },
+    "functions": {
+        "AcceptEx": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt"
+                        },
+                        "label": "UIntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt"
+                        },
+                        "label": "UIntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "OVERLAPPED",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "sListenSocket",
+                    "sAcceptSocket",
+                    "lpOutputBuffer",
+                    "dwReceiveDataLength",
+                    "dwLocalAddressLength",
+                    "dwRemoteAddressLength",
+                    "lpdwBytesReceived",
+                    "lpOverlapped"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "EnumProtocolsA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpiProtocols",
+                    "lpProtocolBuffer",
+                    "lpdwBufferLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "EnumProtocolsW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpiProtocols",
+                    "lpProtocolBuffer",
+                    "lpdwBufferLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetAcceptExSockaddrs": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeRef",
+                                "name": "SOCKADDR",
+                                "original_type_name": "SimStruct"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeRef",
+                                "name": "SOCKADDR",
+                                "original_type_name": "SimStruct"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpOutputBuffer",
+                    "dwReceiveDataLength",
+                    "dwLocalAddressLength",
+                    "dwRemoteAddressLength",
+                    "LocalSockaddr",
+                    "LocalSockaddrLength",
+                    "RemoteSockaddr",
+                    "RemoteSockaddrLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetAddressByNameA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SERVICE_ASYNC_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwNameSpace",
+                    "lpServiceType",
+                    "lpServiceName",
+                    "lpiProtocols",
+                    "dwResolution",
+                    "lpServiceAsyncInfo",
+                    "lpCsaddrBuffer",
+                    "lpdwBufferLength",
+                    "lpAliasBuffer",
+                    "lpdwAliasBufferLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetAddressByNameW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SERVICE_ASYNC_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwNameSpace",
+                    "lpServiceType",
+                    "lpServiceName",
+                    "lpiProtocols",
+                    "dwResolution",
+                    "lpServiceAsyncInfo",
+                    "lpCsaddrBuffer",
+                    "lpdwBufferLength",
+                    "lpAliasBuffer",
+                    "lpdwAliasBufferLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetNameByTypeA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpServiceType",
+                    "lpServiceName",
+                    "dwNameLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetNameByTypeW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpServiceType",
+                    "lpServiceName",
+                    "dwNameLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetServiceA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SERVICE_ASYNC_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwNameSpace",
+                    "lpGuid",
+                    "lpServiceName",
+                    "dwProperties",
+                    "lpBuffer",
+                    "lpdwBufferSize",
+                    "lpServiceAsyncInfo"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetServiceW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SERVICE_ASYNC_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwNameSpace",
+                    "lpGuid",
+                    "lpServiceName",
+                    "dwProperties",
+                    "lpBuffer",
+                    "lpdwBufferSize",
+                    "lpServiceAsyncInfo"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetTypeByNameA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpServiceName",
+                    "lpServiceType"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetTypeByNameW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpServiceName",
+                    "lpServiceType"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "SetServiceA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "SET_SERVICE_OPERATION"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SERVICE_INFOA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SERVICE_ASYNC_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwNameSpace",
+                    "dwOperation",
+                    "dwFlags",
+                    "lpServiceInfo",
+                    "lpServiceAsyncInfo",
+                    "lpdwStatusFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "SetServiceW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "SET_SERVICE_OPERATION"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SERVICE_INFOW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SERVICE_ASYNC_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwNameSpace",
+                    "dwOperation",
+                    "dwFlags",
+                    "lpServiceInfo",
+                    "lpServiceAsyncInfo",
+                    "lpdwStatusFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "TransmitFile": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt"
+                        },
+                        "label": "UIntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "OVERLAPPED",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "TRANSMIT_FILE_BUFFERS",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hSocket",
+                    "hFile",
+                    "nNumberOfBytesToWrite",
+                    "nNumberOfBytesPerSend",
+                    "lpOverlapped",
+                    "lpTransmitBuffers",
+                    "dwReserved"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WSARecvEx": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt"
+                        },
+                        "label": "UIntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "s",
+                    "buf",
+                    "len",
+                    "flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        }
+    }
+}

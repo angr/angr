@@ -1,0 +1,2534 @@
+{
+    "type_collection_names": [
+        "win32"
+    ],
+    "library_names": [
+        "mpr.dll"
+    ],
+    "default_cc": {
+        "X86": "SimCCStdcall",
+        "AMD64": "SimCCMicrosoftAMD64"
+    },
+    "functions": {
+        "MultinetGetConnectionPerformanceA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETCONNECTINFOSTRUCT",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpNetResource",
+                    "lpNetConnectInfoStruct"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "MultinetGetConnectionPerformanceW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETCONNECTINFOSTRUCT",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpNetResource",
+                    "lpNetConnectInfoStruct"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetAddConnection2A": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpNetResource",
+                    "lpPassword",
+                    "lpUserName",
+                    "dwFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetAddConnection2W": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpNetResource",
+                    "lpPassword",
+                    "lpUserName",
+                    "dwFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetAddConnection3A": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwndOwner",
+                    "lpNetResource",
+                    "lpPassword",
+                    "lpUserName",
+                    "dwFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetAddConnection3W": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwndOwner",
+                    "lpNetResource",
+                    "lpPassword",
+                    "lpUserName",
+                    "dwFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetAddConnection4A": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwndOwner",
+                    "lpNetResource",
+                    "pAuthBuffer",
+                    "cbAuthBuffer",
+                    "dwFlags",
+                    "lpUseOptions",
+                    "cbUseOptions"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetAddConnection4W": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwndOwner",
+                    "lpNetResource",
+                    "pAuthBuffer",
+                    "cbAuthBuffer",
+                    "dwFlags",
+                    "lpUseOptions",
+                    "cbUseOptions"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetAddConnectionA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpRemoteName",
+                    "lpPassword",
+                    "lpLocalName"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetAddConnectionW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpRemoteName",
+                    "lpPassword",
+                    "lpLocalName"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetCancelConnection2A": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpName",
+                    "dwFlags",
+                    "fForce"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetCancelConnection2W": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpName",
+                    "dwFlags",
+                    "fForce"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetCancelConnectionA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpName",
+                    "fForce"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetCancelConnectionW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpName",
+                    "fForce"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetCloseEnum": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hEnum"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetConnectionDialog": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwnd",
+                    "dwType"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetConnectionDialog1A": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "CONNECTDLGSTRUCTA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpConnDlgStruct"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetConnectionDialog1W": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "CONNECTDLGSTRUCTW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpConnDlgStruct"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetDisconnectDialog": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwnd",
+                    "dwType"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetDisconnectDialog1A": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "DISCDLGSTRUCTA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpConnDlgStruct"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetDisconnectDialog1W": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "DISCDLGSTRUCTW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpConnDlgStruct"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetEnumResourceA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hEnum",
+                    "lpcCount",
+                    "lpBuffer",
+                    "lpBufferSize"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetEnumResourceW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hEnum",
+                    "lpcCount",
+                    "lpBuffer",
+                    "lpBufferSize"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetConnectionA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpLocalName",
+                    "lpRemoteName",
+                    "lpnLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetConnectionW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpLocalName",
+                    "lpRemoteName",
+                    "lpnLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetLastErrorA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpError",
+                    "lpErrorBuf",
+                    "nErrorBufSize",
+                    "lpNameBuf",
+                    "nNameBufSize"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetLastErrorW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpError",
+                    "lpErrorBuf",
+                    "nErrorBufSize",
+                    "lpNameBuf",
+                    "nNameBufSize"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetNetworkInformationA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETINFOSTRUCT",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpProvider",
+                    "lpNetInfoStruct"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetNetworkInformationW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETINFOSTRUCT",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpProvider",
+                    "lpNetInfoStruct"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetProviderNameA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwNetType",
+                    "lpProviderName",
+                    "lpBufferSize"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetProviderNameW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwNetType",
+                    "lpProviderName",
+                    "lpBufferSize"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetResourceInformationA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeChar",
+                                "signed": false,
+                                "label": "Byte"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpNetResource",
+                    "lpBuffer",
+                    "lpcbBuffer",
+                    "lplpSystem"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetResourceInformationW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeChar",
+                                "signed": true,
+                                "label": "Char"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpNetResource",
+                    "lpBuffer",
+                    "lpcbBuffer",
+                    "lplpSystem"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetResourceParentA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpNetResource",
+                    "lpBuffer",
+                    "lpcbBuffer"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetResourceParentW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpNetResource",
+                    "lpBuffer",
+                    "lpcbBuffer"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetUniversalNameA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UNC_INFO_LEVEL"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpLocalPath",
+                    "dwInfoLevel",
+                    "lpBuffer",
+                    "lpBufferSize"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetUniversalNameW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UNC_INFO_LEVEL"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpLocalPath",
+                    "dwInfoLevel",
+                    "lpBuffer",
+                    "lpBufferSize"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetUserA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpName",
+                    "lpUserName",
+                    "lpnLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetGetUserW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpName",
+                    "lpUserName",
+                    "lpnLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetOpenEnumA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "NET_RESOURCE_SCOPE"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "NET_RESOURCE_TYPE"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "WNET_OPEN_ENUM_USAGE"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwScope",
+                    "dwType",
+                    "dwUsage",
+                    "lpNetResource",
+                    "lphEnum"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetOpenEnumW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "NET_RESOURCE_SCOPE"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "NET_RESOURCE_TYPE"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "WNET_OPEN_ENUM_USAGE"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwScope",
+                    "dwType",
+                    "dwUsage",
+                    "lpNetResource",
+                    "lphEnum"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetSetLastErrorA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "err",
+                    "lpError",
+                    "lpProviders"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetSetLastErrorW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "err",
+                    "lpError",
+                    "lpProviders"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetUseConnection4A": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwndOwner",
+                    "lpNetResource",
+                    "pAuthBuffer",
+                    "cbAuthBuffer",
+                    "dwFlags",
+                    "lpUseOptions",
+                    "cbUseOptions",
+                    "lpAccessName",
+                    "lpBufferSize",
+                    "lpResult"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetUseConnection4W": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwndOwner",
+                    "lpNetResource",
+                    "pAuthBuffer",
+                    "cbAuthBuffer",
+                    "dwFlags",
+                    "lpUseOptions",
+                    "cbUseOptions",
+                    "lpAccessName",
+                    "lpBufferSize",
+                    "lpResult"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetUseConnectionA": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "NET_USE_CONNECT_FLAGS"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwndOwner",
+                    "lpNetResource",
+                    "lpPassword",
+                    "lpUserId",
+                    "dwFlags",
+                    "lpAccessName",
+                    "lpBufferSize",
+                    "lpResult"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WNetUseConnectionW": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NETRESOURCEW",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "NET_USE_CONNECT_FLAGS"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "WIN32_ERROR"
+                },
+                "label": null,
+                "arg_names": [
+                    "hwndOwner",
+                    "lpNetResource",
+                    "lpPassword",
+                    "lpUserId",
+                    "dwFlags",
+                    "lpAccessName",
+                    "lpBufferSize",
+                    "lpResult"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        }
+    }
+}

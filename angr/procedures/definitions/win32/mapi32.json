@@ -1,0 +1,3580 @@
+{
+    "type_collection_names": [
+        "win32"
+    ],
+    "library_names": [
+        "mapi32.dll"
+    ],
+    "default_cc": {
+        "X86": "SimCCStdcall",
+        "AMD64": "SimCCMicrosoftAMD64"
+    },
+    "functions": {
+        "BuildDisplayTable": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lpObject",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": false,
+                                "label": "UInt32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "lpBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMalloc"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "DTPAGE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "IMAPITable"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "ITableData"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpAllocateBuffer",
+                    "lpAllocateMore",
+                    "lpFreeBuffer",
+                    "lpMalloc",
+                    "hInstance",
+                    "cPages",
+                    "lpPage",
+                    "ulFlags",
+                    "lppTable",
+                    "lppTblData"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ChangeIdleRoutine": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "param0"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": true,
+                        "label": "Int16"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "ftg",
+                    "lpfnIdle",
+                    "lpvIdleParam",
+                    "priIdle",
+                    "csecIdle",
+                    "iroIdle",
+                    "ircIdle"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "CloseIMsgSession": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpMsgSess"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "CreateIProp": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lpObject",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": false,
+                                "label": "UInt32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "lpBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "IPropData"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpInterface",
+                    "lpAllocateBuffer",
+                    "lpAllocateMore",
+                    "lpFreeBuffer",
+                    "lpvReserved",
+                    "lppPropData"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "DeinitMapiUtil": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "DeregisterIdleRoutine": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "ftg"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "EnableIdleRoutine": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "ftg",
+                    "fEnable"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FEqualNames": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "MAPINAMEID",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "MAPINAMEID",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpName1",
+                    "lpName2"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FPropCompareProp": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpSPropValue1",
+                    "ulRelOp",
+                    "lpSPropValue2"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FPropContainsProp": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpSPropValueDst",
+                    "lpSPropValueSrc",
+                    "ulFuzzyLevel"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FPropExists": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMAPIProp"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpMapiProp",
+                    "ulPropTag"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FreePadrlist": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "ADRLIST",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpAdrlist"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FreeProws": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SRowSet",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpRows"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FtAddFt": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeRef",
+                        "name": "FILETIME",
+                        "original_type_name": "SimStruct"
+                    },
+                    {
+                        "__type__": "SimTypeRef",
+                        "name": "FILETIME",
+                        "original_type_name": "SimStruct"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeRef",
+                    "name": "FILETIME",
+                    "original_type_name": "SimStruct"
+                },
+                "label": null,
+                "arg_names": [
+                    "ftAddend1",
+                    "ftAddend2"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FtMulDw": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeRef",
+                        "name": "FILETIME",
+                        "original_type_name": "SimStruct"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeRef",
+                    "name": "FILETIME",
+                    "original_type_name": "SimStruct"
+                },
+                "label": null,
+                "arg_names": [
+                    "ftMultiplier",
+                    "ftMultiplicand"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FtMulDwDw": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeRef",
+                    "name": "FILETIME",
+                    "original_type_name": "SimStruct"
+                },
+                "label": null,
+                "arg_names": [
+                    "ftMultiplicand",
+                    "ftMultiplier"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FtNegFt": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeRef",
+                        "name": "FILETIME",
+                        "original_type_name": "SimStruct"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeRef",
+                    "name": "FILETIME",
+                    "original_type_name": "SimStruct"
+                },
+                "label": null,
+                "arg_names": [
+                    "ft"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FtSubFt": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeRef",
+                        "name": "FILETIME",
+                        "original_type_name": "SimStruct"
+                    },
+                    {
+                        "__type__": "SimTypeRef",
+                        "name": "FILETIME",
+                        "original_type_name": "SimStruct"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeRef",
+                    "name": "FILETIME",
+                    "original_type_name": "SimStruct"
+                },
+                "label": null,
+                "arg_names": [
+                    "ftMinuend",
+                    "ftSubtrahend"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "FtgRegisterIdleRoutine": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "param0"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": true,
+                        "label": "Int16"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypePointer",
+                    "pts_to": {
+                        "__type__": "SimTypeBottom",
+                        "label": "Void"
+                    },
+                    "label": null,
+                    "offset": 0
+                },
+                "label": null,
+                "arg_names": [
+                    "lpfnIdle",
+                    "lpvIdleParam",
+                    "priIdle",
+                    "csecIdle",
+                    "iroIdle"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetAttribIMsgOnIStg": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropTagArray",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeRef",
+                                "name": "SPropAttrArray",
+                                "original_type_name": "SimStruct"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpObject",
+                    "lpPropTagArray",
+                    "lppPropAttrArray"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "GetTnefStreamCodepage": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IStream"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpStream",
+                    "lpulCodepage",
+                    "lpulSubCodepage"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrAddColumns": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMAPITable"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropTagArray",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": false,
+                                "label": "UInt32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "lpBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lptbl",
+                    "lpproptagColumnsNew",
+                    "lpAllocateBuffer",
+                    "lpFreeBuffer"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrAddColumnsEx": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMAPITable"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropTagArray",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": false,
+                                "label": "UInt32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "lpBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lptbl",
+                    "lpproptagColumnsNew",
+                    "lpAllocateBuffer",
+                    "lpFreeBuffer",
+                    "lpfnFilterColumns"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrAllocAdviseSink": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeRef",
+                                        "name": "NOTIFICATION",
+                                        "original_type_name": "SimStruct"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "lpvContext",
+                                "cNotification",
+                                "lpNotifications"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "IMAPIAdviseSink"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpfnCallback",
+                    "lpvContext",
+                    "lppAdviseSink"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrDispatchNotifications": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "ulFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrGetOneProp": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMAPIProp"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeRef",
+                                "name": "SPropValue",
+                                "original_type_name": "SimStruct"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpMapiProp",
+                    "ulPropTag",
+                    "lppProp"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrIStorageFromStream": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IUnknown"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "IStorage"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpUnkIn",
+                    "lpInterface",
+                    "ulFlags",
+                    "lppStorageOut"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrQueryAllRows": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMAPITable"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropTagArray",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SRestriction",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SSortOrderSet",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeRef",
+                                "name": "SRowSet",
+                                "original_type_name": "SimStruct"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpTable",
+                    "lpPropTags",
+                    "lpRestriction",
+                    "lpSortOrderSet",
+                    "crowsMax",
+                    "lppRows"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrSetOneProp": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMAPIProp"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpMapiProp",
+                    "lpProp"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "HrThisThreadAdviseSink": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMAPIAdviseSink"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "IMAPIAdviseSink"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpAdviseSink",
+                    "lppAdviseSink"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "LPropCompareProp": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpSPropValueA",
+                    "lpSPropValueB"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "LpValFindProp": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypePointer",
+                    "pts_to": {
+                        "__type__": "SimTypeRef",
+                        "name": "SPropValue",
+                        "original_type_name": "SimStruct"
+                    },
+                    "label": null,
+                    "offset": 0
+                },
+                "label": null,
+                "arg_names": [
+                    "ulPropTag",
+                    "cValues",
+                    "lpPropArray"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "MAPIDeinitIdle": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "Void"
+                },
+                "label": null,
+                "arg_names": [],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "MAPIFreeBuffer": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pv"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "MAPIGetDefaultMalloc": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [],
+                "returnty": {
+                    "__type__": "SimTypeBottom",
+                    "label": "IMalloc"
+                },
+                "label": null,
+                "arg_names": [],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "MAPIInitIdle": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpvReserved"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "MapStorageSCode": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "StgSCode"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "OpenIMsgOnIStg": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lpObject",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": false,
+                                "label": "UInt32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "lpBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMalloc"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IStorage"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeFunction",
+                                "args": [
+                                    {
+                                        "__type__": "SimTypeInt",
+                                        "signed": false,
+                                        "label": "UInt32"
+                                    },
+                                    {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "IMessage"
+                                    }
+                                ],
+                                "returnty": {
+                                    "__type__": "SimTypeBottom",
+                                    "label": "Void"
+                                },
+                                "label": null,
+                                "arg_names": [
+                                    "ulCallerData",
+                                    "lpMessage"
+                                ],
+                                "variadic": false
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "IMessage"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpMsgSess",
+                    "lpAllocateBuffer",
+                    "lpAllocateMore",
+                    "lpFreeBuffer",
+                    "lpMalloc",
+                    "lpMapiSup",
+                    "lpStg",
+                    "lpfMsgCallRelease",
+                    "ulCallerData",
+                    "ulFlags",
+                    "lppMsg"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "OpenIMsgSession": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMalloc"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpMalloc",
+                    "ulFlags",
+                    "lppMsgSess"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "OpenStreamOnFile": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": false,
+                                "label": "UInt32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "lpBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "IStream"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpAllocateBuffer",
+                    "lpFreeBuffer",
+                    "ulFlags",
+                    "lpszFileName",
+                    "lpszPrefix",
+                    "lppStream"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "OpenTnefStream": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IStream"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMessage"
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "ITnef"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpvSupport",
+                    "lpStream",
+                    "lpszStreamName",
+                    "ulFlags",
+                    "lpMessage",
+                    "wKeyVal",
+                    "lppTNEF"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "OpenTnefStreamEx": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IStream"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMessage"
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IAddrBook"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "ITnef"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpvSupport",
+                    "lpStream",
+                    "lpszStreamName",
+                    "ulFlags",
+                    "lpMessage",
+                    "wKeyVal",
+                    "lpAdressBook",
+                    "lppTNEF"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "PpropFindProp": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypePointer",
+                    "pts_to": {
+                        "__type__": "SimTypeRef",
+                        "name": "SPropValue",
+                        "original_type_name": "SimStruct"
+                    },
+                    "label": null,
+                    "offset": 0
+                },
+                "label": null,
+                "arg_names": [
+                    "lpPropArray",
+                    "cValues",
+                    "ulPropTag"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "PropCopyMore": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lpObject",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpSPropValueDest",
+                    "lpSPropValueSrc",
+                    "lpfAllocMore",
+                    "lpvObject"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "RTFSync": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IMessage"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpMessage",
+                    "ulFlags",
+                    "lpfMessageUpdated"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScCopyNotifications": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NOTIFICATION",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "cNotification",
+                    "lpNotifications",
+                    "lpvDst",
+                    "lpcb"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScCopyProps": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "cValues",
+                    "lpPropArray",
+                    "lpvDst",
+                    "lpcb"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScCountNotifications": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NOTIFICATION",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "cNotifications",
+                    "lpNotifications",
+                    "lpcb"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScCountProps": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "cValues",
+                    "lpPropArray",
+                    "lpcb"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScCreateConversationIndex": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeChar",
+                                "signed": false,
+                                "label": "Byte"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "cbParent",
+                    "lpbParent",
+                    "lpcbConvIndex",
+                    "lppbConvIndex"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScDupPropset": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypePointer",
+                                        "pts_to": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Void"
+                                        },
+                                        "label": null,
+                                        "offset": 0
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "cbSize",
+                                "lppBuffer"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeRef",
+                                "name": "SPropValue",
+                                "original_type_name": "SimStruct"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "cValues",
+                    "lpPropArray",
+                    "lpAllocateBuffer",
+                    "lppPropArray"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScInitMapiUtil": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "ulFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScLocalPathFromUNC": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpszUNC",
+                    "lpszLocal",
+                    "cchLocal"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScRelocNotifications": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "NOTIFICATION",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "cNotification",
+                    "lpNotifications",
+                    "lpvBaseOld",
+                    "lpvBaseNew",
+                    "lpcb"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScRelocProps": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "cValues",
+                    "lpPropArray",
+                    "lpvBaseOld",
+                    "lpvBaseNew",
+                    "lpcb"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "ScUNCFromLocalPath": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpszLocal",
+                    "lpszUNC",
+                    "cchUNC"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "SetAttribIMsgOnIStg": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropTagArray",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropAttrArray",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeRef",
+                                "name": "SPropProblemArray",
+                                "original_type_name": "SimStruct"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpObject",
+                    "lpPropTags",
+                    "lpPropAttrs",
+                    "lppPropProblems"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "SzFindCh": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypePointer",
+                    "pts_to": {
+                        "__type__": "SimTypeChar",
+                        "signed": true,
+                        "label": "SByte"
+                    },
+                    "label": null,
+                    "offset": 0
+                },
+                "label": null,
+                "arg_names": [
+                    "lpsz",
+                    "ch"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "SzFindLastCh": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypePointer",
+                    "pts_to": {
+                        "__type__": "SimTypeChar",
+                        "signed": true,
+                        "label": "SByte"
+                    },
+                    "label": null,
+                    "offset": 0
+                },
+                "label": null,
+                "arg_names": [
+                    "lpsz",
+                    "ch"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "SzFindSz": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypePointer",
+                    "pts_to": {
+                        "__type__": "SimTypeChar",
+                        "signed": true,
+                        "label": "SByte"
+                    },
+                    "label": null,
+                    "offset": 0
+                },
+                "label": null,
+                "arg_names": [
+                    "lpsz",
+                    "lpszKey"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "UFromSz": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpsz"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "UlAddRef": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpunk"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "UlPropSize": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SPropValue",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpSPropValue"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "UlRelease": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpunk"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WrapCompressedRTFStream": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeBottom",
+                        "label": "IStream"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "IStream"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "lpCompressedRTFStream",
+                    "ulFlags",
+                    "lpUncompressedRTFStream"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WrapStoreEntryID": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "SByte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "ENTRYID",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeRef",
+                                "name": "ENTRYID",
+                                "original_type_name": "SimStruct"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "ulFlags",
+                    "lpszDLLName",
+                    "cbOrigEntry",
+                    "lpOrigEntry",
+                    "lpcbWrappedEntry",
+                    "lppWrappedEntry"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        }
+    }
+}

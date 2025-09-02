@@ -1,0 +1,2162 @@
+{
+    "type_collection_names": [
+        "win32"
+    ],
+    "library_names": [
+        "bluetoothapis.dll"
+    ],
+    "default_cc": {
+        "X86": "SimCCStdcall",
+        "AMD64": "SimCCMicrosoftAMD64"
+    },
+    "functions": {
+        "BluetoothEnableDiscovery": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio",
+                    "fEnabled"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothEnableIncomingConnections": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio",
+                    "fEnabled"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothEnumerateInstalledServices": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio",
+                    "pbtdi",
+                    "pcServiceInout",
+                    "pGuidServices"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothFindDeviceClose": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hFind"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothFindFirstDevice": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_SEARCH_PARAMS",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypePointer",
+                    "pts_to": {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int"
+                    },
+                    "label": "IntPtr",
+                    "offset": 0
+                },
+                "label": null,
+                "arg_names": [
+                    "pbtsp",
+                    "pbtdi"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothFindFirstRadio": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_FIND_RADIO_PARAMS",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypePointer",
+                    "pts_to": {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int"
+                    },
+                    "label": "IntPtr",
+                    "offset": 0
+                },
+                "label": null,
+                "arg_names": [
+                    "pbtfrp",
+                    "phRadio"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothFindNextDevice": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hFind",
+                    "pbtdi"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothFindNextRadio": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hFind",
+                    "phRadio"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothFindRadioClose": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hFind"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTAbortReliableWrite": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeLongLong",
+                        "signed": false,
+                        "label": "UInt64"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "ReliableWriteContext",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTBeginReliableWrite": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeLongLong",
+                            "signed": false,
+                            "label": "UInt64"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "ReliableWriteContext",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTEndReliableWrite": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeLongLong",
+                        "signed": false,
+                        "label": "UInt64"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "ReliableWriteContext",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTGetCharacteristicValue": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_CHARACTERISTIC",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_CHARACTERISTIC_VALUE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeShort",
+                            "signed": false,
+                            "label": "UInt16"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "Characteristic",
+                    "CharacteristicValueDataSize",
+                    "CharacteristicValue",
+                    "CharacteristicValueSizeRequired",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTGetCharacteristics": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_SERVICE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_CHARACTERISTIC",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeShort",
+                            "signed": false,
+                            "label": "UInt16"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "Service",
+                    "CharacteristicsBufferCount",
+                    "CharacteristicsBuffer",
+                    "CharacteristicsBufferActual",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTGetDescriptorValue": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_DESCRIPTOR",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_DESCRIPTOR_VALUE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeShort",
+                            "signed": false,
+                            "label": "UInt16"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "Descriptor",
+                    "DescriptorValueDataSize",
+                    "DescriptorValue",
+                    "DescriptorValueSizeRequired",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTGetDescriptors": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_CHARACTERISTIC",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_DESCRIPTOR",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeShort",
+                            "signed": false,
+                            "label": "UInt16"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "Characteristic",
+                    "DescriptorsBufferCount",
+                    "DescriptorsBuffer",
+                    "DescriptorsBufferActual",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTGetIncludedServices": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_SERVICE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_SERVICE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeShort",
+                            "signed": false,
+                            "label": "UInt16"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "ParentService",
+                    "IncludedServicesBufferCount",
+                    "IncludedServicesBuffer",
+                    "IncludedServicesBufferActual",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTGetServices": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_SERVICE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeShort",
+                            "signed": false,
+                            "label": "UInt16"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "ServicesBufferCount",
+                    "ServicesBuffer",
+                    "ServicesBufferActual",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTRegisterEvent": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "BTH_LE_GATT_EVENT_TYPE"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "BTH_LE_GATT_EVENT_TYPE"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeBottom",
+                                "label": "Void"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "EventType",
+                                "EventOutParameter",
+                                "Context"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hService",
+                    "EventType",
+                    "EventParameterIn",
+                    "Callback",
+                    "CallbackContext",
+                    "pEventHandle",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTSetCharacteristicValue": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_CHARACTERISTIC",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_CHARACTERISTIC_VALUE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeLongLong",
+                        "signed": false,
+                        "label": "UInt64"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "Characteristic",
+                    "CharacteristicValue",
+                    "ReliableWriteContext",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTSetDescriptorValue": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_DESCRIPTOR",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BTH_LE_GATT_DESCRIPTOR_VALUE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hDevice",
+                    "Descriptor",
+                    "DescriptorValue",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGATTUnregisterEvent": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "EventHandle",
+                    "Flags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGetDeviceInfo": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio",
+                    "pbtdi"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothGetRadioInfo": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_RADIO_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio",
+                    "pRadioInfo"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothIsConnectable": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothIsDiscoverable": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothIsVersionAvailable": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeChar",
+                        "signed": false,
+                        "label": "Byte"
+                    },
+                    {
+                        "__type__": "SimTypeChar",
+                        "signed": false,
+                        "label": "Byte"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "MajorVersion",
+                    "MinorVersion"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothRegisterForAuthentication": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeRef",
+                                        "name": "BLUETOOTH_DEVICE_INFO",
+                                        "original_type_name": "SimStruct"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "pvParam",
+                                "pDevice"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pbtdi",
+                    "phRegHandle",
+                    "pfnCallback",
+                    "pvParam"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothRegisterForAuthenticationEx": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeRef",
+                                        "name": "BLUETOOTH_AUTHENTICATION_CALLBACK_PARAMS",
+                                        "original_type_name": "SimStruct"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "pvParam",
+                                "pAuthCallbackParams"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pbtdiIn",
+                    "phRegHandleOut",
+                    "pfnCallbackIn",
+                    "pvParam"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothRemoveDevice": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_ADDRESS",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pAddress"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSdpEnumAttributes": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeChar",
+                                        "signed": false,
+                                        "label": "Byte"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypeInt",
+                                    "signed": false,
+                                    "label": "UInt32"
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "uAttribId",
+                                "pValueStream",
+                                "cbStreamSize",
+                                "pvParam"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pSDPStream",
+                    "cbStreamSize",
+                    "pfnCallback",
+                    "pvParam"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSdpGetAttributeValue": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SDP_ELEMENT_DATA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pRecordStream",
+                    "cbRecordLength",
+                    "usAttributeId",
+                    "pAttributeData"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSdpGetContainerElementData": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SDP_ELEMENT_DATA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pContainerStream",
+                    "cbContainerLength",
+                    "pElement",
+                    "pData"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSdpGetElementData": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SDP_ELEMENT_DATA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pSdpStream",
+                    "cbSdpStreamLength",
+                    "pData"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSdpGetString": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": false,
+                            "label": "Byte"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "SDP_STRING_TYPE_DATA",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeShort",
+                        "signed": false,
+                        "label": "UInt16"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": "LPArray",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pRecordStream",
+                    "cbRecordLength",
+                    "pStringData",
+                    "usStringOffset",
+                    "pszString",
+                    "pcchStringLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSendAuthenticationResponse": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio",
+                    "pbtdi",
+                    "pszPasskey"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSendAuthenticationResponseEx": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_AUTHENTICATE_RESPONSE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadioIn",
+                    "pauthResponse"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSetLocalServiceInfo": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_LOCAL_SERVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadioIn",
+                    "pClassGuid",
+                    "ulInstance",
+                    "pServiceInfoIn"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothSetServiceState": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRadio",
+                    "pbtdi",
+                    "pGuidService",
+                    "dwServiceFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothUnregisterAuthentication": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "hRegHandle"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "BluetoothUpdateDeviceRecord": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "BLUETOOTH_DEVICE_INFO",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": false,
+                    "label": "UInt32"
+                },
+                "label": null,
+                "arg_names": [
+                    "pbtdi"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        }
+    }
+}

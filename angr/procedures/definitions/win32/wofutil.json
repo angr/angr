@@ -1,0 +1,668 @@
+{
+    "type_collection_names": [
+        "win32"
+    ],
+    "library_names": [
+        "wofutil.dll"
+    ],
+    "default_cc": {
+        "X86": "SimCCStdcall",
+        "AMD64": "SimCCMicrosoftAMD64"
+    },
+    "functions": {
+        "WofEnumEntries": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "EntryInfo",
+                                "UserData"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "VolumeName",
+                    "Provider",
+                    "EnumProc",
+                    "UserData"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofFileEnumFiles": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeChar",
+                                        "signed": true,
+                                        "label": "Char"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "FilePath",
+                                "ExternalFileInfo",
+                                "UserData"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "VolumeName",
+                    "Algorithm",
+                    "EnumProc",
+                    "UserData"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofGetDriverVersion": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "FileOrVolumeHandle",
+                    "Provider",
+                    "WofVersion"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofIsExternalFile": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "FilePath",
+                    "IsExternalFile",
+                    "Provider",
+                    "ExternalFileInfo",
+                    "BufferLength"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofSetFileDataLocation": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "FileHandle",
+                    "Provider",
+                    "ExternalFileInfo",
+                    "Length"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofShouldCompressBinaries": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "Volume",
+                    "Algorithm"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofWimAddEntry": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeLongLong",
+                            "signed": true,
+                            "label": "Int64"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "VolumeName",
+                    "WimPath",
+                    "WimType",
+                    "WimIndex",
+                    "DataSourceId"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofWimEnumFiles": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeLongLong",
+                        "signed": true,
+                        "label": "Int64"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeFunction",
+                            "args": [
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeChar",
+                                        "signed": true,
+                                        "label": "Char"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                },
+                                {
+                                    "__type__": "SimTypePointer",
+                                    "pts_to": {
+                                        "__type__": "SimTypeBottom",
+                                        "label": "Void"
+                                    },
+                                    "label": null,
+                                    "offset": 0
+                                }
+                            ],
+                            "returnty": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int32"
+                            },
+                            "label": null,
+                            "arg_names": [
+                                "FilePath",
+                                "ExternalFileInfo",
+                                "UserData"
+                            ],
+                            "variadic": false
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "VolumeName",
+                    "DataSourceId",
+                    "EnumProc",
+                    "UserData"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofWimRemoveEntry": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeLongLong",
+                        "signed": true,
+                        "label": "Int64"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "VolumeName",
+                    "DataSourceId"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofWimSuspendEntry": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeLongLong",
+                        "signed": true,
+                        "label": "Int64"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "VolumeName",
+                    "DataSourceId"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "WofWimUpdateEntry": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeLongLong",
+                        "signed": true,
+                        "label": "Int64"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeChar",
+                            "signed": true,
+                            "label": "Char"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "VolumeName",
+                    "DataSourceId",
+                    "NewWimPath"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        }
+    }
+}

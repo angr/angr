@@ -1,0 +1,86 @@
+{
+    "type_collection_names": [
+        "win32"
+    ],
+    "library_names": [
+        "msctfmonitor.dll"
+    ],
+    "default_cc": {
+        "X86": "SimCCStdcall",
+        "AMD64": "SimCCMicrosoftAMD64"
+    },
+    "functions": {
+        "DoMsCtfMonitor": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwFlags",
+                    "hEventForServiceStop"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "InitLocalMsCtfMonitor": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "dwFlags"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "UninitLocalMsCtfMonitor": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [],
+                "variadic": false
+            },
+            "doc": ""
+        }
+    }
+}

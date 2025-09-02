@@ -1,0 +1,42 @@
+{
+    "type_collection_names": [
+        "win32"
+    ],
+    "library_names": [
+        "api-ms-win-dx-d3dkmt-l1-1-6.dll"
+    ],
+    "default_cc": {
+        "X86": "SimCCStdcall",
+        "AMD64": "SimCCMicrosoftAMD64"
+    },
+    "functions": {
+        "D3DKMTEnumAdapters3": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "D3DKMT_ENUMADAPTERS3",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "param0"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        }
+    }
+}

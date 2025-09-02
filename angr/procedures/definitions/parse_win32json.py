@@ -4,13 +4,14 @@ from __future__ import annotations
 import json
 import codecs
 import sys
+import os
 import logging
 from collections import OrderedDict, defaultdict
 from argparse import ArgumentParser
 from pathlib import Path
 
 import angr
-from angr.sim_type import SimTypeFunction, SimTypeLong
+from angr.sim_type import SimTypeFunction, SimTypeLong, SimTypeInt, SimTypeBottom
 from angr.utils.library import parsedcprotos2py
 from angr.procedures.definitions import SimTypeCollection
 from angr.errors import AngrMissingTypeError
@@ -195,7 +196,7 @@ def do_it(in_dir, out_file):
     parsed_cprotos = defaultdict(list)
     for namespace in api_namespaces:
         metadata = api_namespaces[namespace]
-        logging.debug(f"+++ Processing namespace {namespace} ({i} of {len(api_namespaces)})")
+        logging.debug(f"+++ {i}/{len(api_namespaces)}: Processing namespace {namespace}")
         i += 1
         funcs = metadata["Functions"]
         if namespace.startswith("Windows.Win32"):
@@ -230,6 +231,11 @@ def do_it(in_dir, out_file):
     # Some missing function declarations
     missing_declarations = defaultdict(dict)
 
+    missing_declarations[("wdk", "ntoskrnl", "exe")] = {
+        "__fastfail": SimTypeFunction(
+            [SimTypeInt(signed=False, label="Int")], SimTypeBottom(label="void"), arg_names=["code"]
+        )
+    }
     missing_declarations[("win32", "kernel32", "dll")] = {
         "InterlockedCompareExchange": SimTypeFunction((SimTypeLong(),) * 3, SimTypeLong()),
         "InterlockedCompareExchange64": SimTypeFunction((SimTypeLong(),) * 5, SimTypeLong()),
@@ -2421,100 +2427,34 @@ def do_it(in_dir, out_file):
     }
 
     for (prefix, lib, suffix), decls in missing_declarations.items():
+
         for func, proto in decls.items():
+            # ensure the declaration does not exist anywhere else
+            exists = False
+            for cprotos in parsed_cprotos.values():
+                if any(f == func for f, _, _ in cprotos):
+                    exists = True
+                    break
+            if exists:
+                logging.warning("Declaration for function %s in %s.%s already exists. Skipping...", func, lib, suffix)
+
             parsed_cprotos[(prefix, lib, suffix)].append((func, proto, ""))
 
-    # Write to files
-
-    header = """# pylint:disable=line-too-long
-import logging
-from collections import OrderedDict
-
-from ...sim_type import (SimTypeFunction,
-    SimTypeShort,
-    SimTypeInt,
-    SimTypeLong,
-    SimTypeLongLong,
-    SimTypeDouble,
-    SimTypeFloat,
-    SimTypePointer,
-    SimTypeChar,
-    SimStruct,
-    SimTypeArray,
-    SimTypeBottom,
-    SimUnion,
-    SimTypeBool,
-    SimTypeRef,
-)
-from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
-from .. import SIM_PROCEDURES as P
-from . import SimLibrary
-
-
-_l = logging.getLogger(name=__name__)
-
-
-lib = SimLibrary()
-lib.type_collection_names = ["win32"]
-lib.set_default_cc("X86", SimCCStdcall)
-lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
-"""
-    footer = """    }
-
-lib.set_prototypes(prototypes)
-"""
-
-    # Dump function prototypes
-
+    # dump to JSON files
     for (prefix, libname, suffix), parsed_cprotos_per_lib in parsed_cprotos.items():
-        filename = prefix + "_" + libname.replace(".", "_") + ".py"
+        filename = libname.replace(".", "_") + ".json"
+        os.makedirs(prefix, exist_ok=True)
         logging.debug("Writing to file %s...", filename)
-        with open(filename, "w") as f:
-            f.write(header)
-            if (prefix, libname) == ("win32", "kernel32"):
-                f.write(
-                    """lib.add_all_from_dict(P['win32'])
-lib.add_alias('EncodePointer', 'DecodePointer')
-lib.add_alias('GlobalAlloc', 'LocalAlloc')
-
-lib.add('lstrcatA', P['libc']['strcat'])
-lib.add('lstrcmpA', P['libc']['strcmp'])
-lib.add('lstrcpyA', P['libc']['strcpy'])
-lib.add('lstrcpynA', P['libc']['strncpy'])
-lib.add('lstrlenA', P['libc']['strlen'])
-lib.add('lstrcmpW', P['libc']['wcscmp'])
-lib.add('lstrcmpiW', P['libc']['wcscasecmp'])
-"""
-                )
-            elif (prefix, libname) == ("win32", "ntdll"):
-                f.write(
-                    """lib.add('RtlEncodePointer', P['win32']['EncodePointer'])
-lib.add('RtlDecodePointer', P['win32']['EncodePointer'])
-lib.add('RtlAllocateHeap', P['win32']['HeapAlloc'])
-"""
-                )
-            elif (prefix, libname) == ("win32", "user32"):
-                f.write(
-                    """import archinfo
-from ...calling_conventions import SimCCCdecl
-
-lib.add_all_from_dict(P['win_user32'])
-lib.add('wsprintfA', P['libc']['sprintf'], cc=SimCCCdecl(archinfo.ArchX86()))
-"""
-                )
-            elif (prefix, libname) == ("wdk", "ntoskrnl"):
-                f.write(
-                    """lib.add_all_from_dict(P["win32_kernel"])
-"""
-                )
-
-            if suffix:
-                f.write(f'lib.set_library_names("{libname}.{suffix}")\n')
-            else:
-                f.write(f'lib.set_library_names("{libname}")\n')
-            f.write("prototypes = \\\n    {\n")
-            f.write(parsedcprotos2py(parsed_cprotos_per_lib))
-            f.write(footer)
+        d = {
+            "type_collection_names": ["win32"],
+            "library_names": [libname if not suffix else f"{libname}.{suffix}"],
+            "default_cc": {"X86": "SimCCStdcall", "AMD64": "SimCCMicrosoftAMD64"},
+            "functions": OrderedDict(),
+        }
+        for func, cproto, doc in sorted(parsed_cprotos_per_lib, key=lambda x: x[0]):
+            d["functions"][func] = {"proto": cproto.to_json(), "doc": doc}
+        with open(os.path.join(prefix, filename), "w") as f:
+            f.write(json.dumps(d, indent=4))
 
     # Dump the type collection
     with open("types_win32.py", "w") as f:
