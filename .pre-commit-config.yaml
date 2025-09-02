@@ -23,7 +23,8 @@ repos:
     -   id: check-symlinks
         fail_fast: true
     -   id: check-added-large-files
-        fail_fast: true
+        args: ["--maxkb=4096"]
+        fail_fast: false
     # Syntax
     -   id: check-toml
         fail_fast: true

@@ -1,0 +1,378 @@
+{
+    "type_collection_names": [
+        "win32"
+    ],
+    "library_names": [
+        "ksproxy.ax"
+    ],
+    "default_cc": {
+        "X86": "SimCCStdcall",
+        "AMD64": "SimCCMicrosoftAMD64"
+    },
+    "functions": {
+        "KsGetMediaType": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": true,
+                        "label": "Int32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "AM_MEDIA_TYPE",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "Position",
+                    "AmMediaType",
+                    "FilterHandle",
+                    "PinFactoryId"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "KsGetMediaTypeCount": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "FilterHandle",
+                    "PinFactoryId",
+                    "MediaTypeCount"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "KsGetMultiplePinFactoryItems": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeBottom",
+                                "label": "Void"
+                            },
+                            "label": null,
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "FilterHandle",
+                    "PinFactoryId",
+                    "PropertyId",
+                    "Items"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "KsOpenDefaultDevice": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Guid"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypePointer",
+                            "pts_to": {
+                                "__type__": "SimTypeInt",
+                                "signed": true,
+                                "label": "Int"
+                            },
+                            "label": "IntPtr",
+                            "offset": 0
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "Category",
+                    "Access",
+                    "DeviceHandle"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "KsResolveRequiredAttributes": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimUnion",
+                            "members": {
+                                "Anonymous": {
+                                    "__type__": "SimStruct",
+                                    "fields": {
+                                        "FormatSize": {
+                                            "__type__": "SimTypeInt",
+                                            "signed": false,
+                                            "label": "UInt32"
+                                        },
+                                        "Flags": {
+                                            "__type__": "SimTypeInt",
+                                            "signed": false,
+                                            "label": "UInt32"
+                                        },
+                                        "SampleSize": {
+                                            "__type__": "SimTypeInt",
+                                            "signed": false,
+                                            "label": "UInt32"
+                                        },
+                                        "Reserved": {
+                                            "__type__": "SimTypeInt",
+                                            "signed": false,
+                                            "label": "UInt32"
+                                        },
+                                        "MajorFormat": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Guid"
+                                        },
+                                        "SubFormat": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Guid"
+                                        },
+                                        "Specifier": {
+                                            "__type__": "SimTypeBottom",
+                                            "label": "Guid"
+                                        }
+                                    },
+                                    "name": "_Anonymous_e__Struct",
+                                    "pack": false,
+                                    "align": null,
+                                    "anonymous": true
+                                },
+                                "Alignment": {
+                                    "__type__": "SimTypeLongLong",
+                                    "signed": true,
+                                    "label": "Int64"
+                                }
+                            },
+                            "name": "<anon>",
+                            "label": null
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeRef",
+                            "name": "KSMULTIPLE_ITEM",
+                            "original_type_name": "SimStruct"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "DataRange",
+                    "Attributes"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        },
+        "KsSynchronousDeviceControl": {
+            "proto": {
+                "__type__": "SimTypeFunction",
+                "args": [
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": true,
+                            "label": "Int"
+                        },
+                        "label": "IntPtr",
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeBottom",
+                            "label": "Void"
+                        },
+                        "label": null,
+                        "offset": 0
+                    },
+                    {
+                        "__type__": "SimTypeInt",
+                        "signed": false,
+                        "label": "UInt32"
+                    },
+                    {
+                        "__type__": "SimTypePointer",
+                        "pts_to": {
+                            "__type__": "SimTypeInt",
+                            "signed": false,
+                            "label": "UInt32"
+                        },
+                        "label": null,
+                        "offset": 0
+                    }
+                ],
+                "returnty": {
+                    "__type__": "SimTypeInt",
+                    "signed": true,
+                    "label": "Int32"
+                },
+                "label": null,
+                "arg_names": [
+                    "Handle",
+                    "IoControl",
+                    "InBuffer",
+                    "InLength",
+                    "OutBuffer",
+                    "OutLength",
+                    "BytesReturned"
+                ],
+                "variadic": false
+            },
+            "doc": ""
+        }
+    }
+}
