@@ -108,10 +108,10 @@ class SimCCXtensa(SimCCPCodeBase):
     """
 
     LANGUAGE = "Xtensa:LE:32:default"
-    ARG_REGS = ["i2", "i3", "i4", "i5", "i6", "i7"]
+    ARG_REGS = ["a2", "a3", "a4", "a5", "a6", "a7"]
     FP_ARG_REGS = []  # TODO: ???
     RETURN_ADDR = SimRegArg("a0", 4)
-    RETURN_VAL = SimRegArg("o2", 4)
+    RETURN_VAL = SimRegArg("a2", 4)
 
 
 def register_pcode_arch_default_cc(arch: ArchPcode):

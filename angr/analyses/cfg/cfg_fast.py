@@ -1462,7 +1462,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         self._job_ctr += 1
         if self._low_priority:
-            self._release_gil(self._job_ctr, 2000, 0.000001)
+            self._release_gil(self._job_ctr, 20, 0.001)
 
         # a new entry is picked. Deregister it
         self._deregister_analysis_job(job.func_addr, job)
