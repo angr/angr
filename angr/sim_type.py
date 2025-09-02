@@ -2190,6 +2190,8 @@ class SimTypeRef(SimType):
 
     @staticmethod
     def from_json(d: dict[str, Any]) -> SimTypeRef:
+        if "ot" not in d:
+            raise ValueError("Missing original type for SimTypeRef")
         original_type = IDENT_TO_CLS.get(d["ot"], None)
         if original_type is None:
             raise ValueError(f"Unknown original type {d['ot']} for SimTypeRef")
