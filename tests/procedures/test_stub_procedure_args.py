@@ -10,7 +10,6 @@ import unittest
 import archinfo
 
 import angr
-from angr.procedures.definitions.win32_user32 import lib
 from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar
 from angr.engines.successors import SimSuccessors
 from angr.calling_conventions import SimCCStdcall, SimStackArg
@@ -25,6 +24,9 @@ class TestStubProcedureArgs(unittest.TestCase):
     def test_stub_procedure_args(self):
         # stub procedures should have the right number of arguments
 
+        angr.procedures.definitions.load_win32api_definitions()
+
+        lib = angr.SIM_LIBRARIES["user32.dll"][0]
         lib.set_prototype(
             "____a_random_stdcall_function__",
             SimTypeFunction(

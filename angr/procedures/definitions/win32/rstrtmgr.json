@@ -1,0 +1,493 @@
+{
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"rstrtmgr.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"RmAddFilter": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RM_UNIQUE_PROCESS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "RM_FILTER_ACTION"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle",
+					"strModuleName",
+					"pProcess",
+					"strServiceShortName",
+					"FilterAction"
+				]
+			}
+		},
+		"RmCancelCurrentTask": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle"
+				]
+			}
+		},
+		"RmEndSession": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle"
+				]
+			}
+		},
+		"RmGetFilterList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle",
+					"pbFilterBuf",
+					"cbFilterBuf",
+					"cbFilterBufNeeded"
+				]
+			}
+		},
+		"RmGetList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RM_PROCESS_INFO",
+							"ot": "struct"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle",
+					"pnProcInfoNeeded",
+					"pnProcInfo",
+					"rgAffectedApps",
+					"lpdwRebootReasons"
+				]
+			}
+		},
+		"RmJoinSession": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"pSessionHandle",
+					"strSessionKey"
+				]
+			}
+		},
+		"RmRegisterResources": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RM_UNIQUE_PROCESS",
+							"ot": "struct"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle",
+					"nFiles",
+					"rgsFileNames",
+					"nApplications",
+					"rgApplications",
+					"nServices",
+					"rgsServiceNames"
+				]
+			}
+		},
+		"RmRemoveFilter": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RM_UNIQUE_PROCESS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle",
+					"strModuleName",
+					"pProcess",
+					"strServiceShortName"
+				]
+			}
+		},
+		"RmRestart": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"nPercentComplete"
+							]
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle",
+					"dwRestartFlags",
+					"fnStatus"
+				]
+			}
+		},
+		"RmShutdown": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"nPercentComplete"
+							]
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"dwSessionHandle",
+					"lActionFlags",
+					"fnStatus"
+				]
+			}
+		},
+		"RmStartSession": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"pSessionHandle",
+					"dwSessionFlags",
+					"strSessionKey"
+				]
+			}
+		}
+	}
+}

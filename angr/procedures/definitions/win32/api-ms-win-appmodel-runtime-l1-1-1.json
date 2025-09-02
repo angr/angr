@@ -1,0 +1,336 @@
+{
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-appmodel-runtime-l1-1-1.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"GetApplicationUserModelIdFromToken": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"token",
+					"applicationUserModelIdLength",
+					"applicationUserModelId"
+				]
+			}
+		},
+		"GetPackageFamilyNameFromToken": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"token",
+					"packageFamilyNameLength",
+					"packageFamilyName"
+				]
+			}
+		},
+		"GetPackageFullNameFromToken": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"token",
+					"packageFullNameLength",
+					"packageFullName"
+				]
+			}
+		},
+		"GetStagedPackageOrigin": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "PackageOrigin"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"packageFullName",
+					"origin"
+				]
+			}
+		},
+		"OpenPackageInfoByFullNameForUser": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "_ref",
+								"name": "_PACKAGE_INFO_REFERENCE",
+								"ot": "struct"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"userSid",
+					"packageFullName",
+					"reserved",
+					"packageInfoReference"
+				]
+			}
+		},
+		"VerifyApplicationUserModelId": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"applicationUserModelId"
+				]
+			}
+		},
+		"VerifyPackageFamilyName": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"packageFamilyName"
+				]
+			}
+		},
+		"VerifyPackageFullName": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"packageFullName"
+				]
+			}
+		},
+		"VerifyPackageId": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "PACKAGE_ID",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"packageId"
+				]
+			}
+		},
+		"VerifyPackageRelativeApplicationId": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "WIN32_ERROR"
+				},
+				"arg_names": [
+					"packageRelativeApplicationId"
+				]
+			}
+		}
+	}
+}

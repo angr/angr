@@ -1,0 +1,1760 @@
+{
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"mf.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CreateNamedPropertyStore": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "INamedPropertyStore"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppStore"
+				]
+			}
+		},
+		"MFCreate3GPMediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIByteStream",
+					"pVideoMediaType",
+					"pAudioMediaType",
+					"ppIMediaSink"
+				]
+			}
+		},
+		"MFCreateAC3MediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pTargetByteStream",
+					"pAudioMediaType",
+					"ppMediaSink"
+				]
+			}
+		},
+		"MFCreateADTSMediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pTargetByteStream",
+					"pAudioMediaType",
+					"ppMediaSink"
+				]
+			}
+		},
+		"MFCreateASFContentInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFASFContentInfo"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppIContentInfo"
+				]
+			}
+		},
+		"MFCreateASFIndexer": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFASFIndexer"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppIIndexer"
+				]
+			}
+		},
+		"MFCreateASFIndexerByteStream": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFByteStream"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIContentByteStream",
+					"cbIndexStartOffset",
+					"pIIndexByteStream"
+				]
+			}
+		},
+		"MFCreateASFMediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIByteStream",
+					"ppIMediaSink"
+				]
+			}
+		},
+		"MFCreateASFMediaSinkActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IMFASFContentInfo"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszFileName",
+					"pContentInfo",
+					"ppIActivate"
+				]
+			}
+		},
+		"MFCreateASFMultiplexer": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFASFMultiplexer"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppIMultiplexer"
+				]
+			}
+		},
+		"MFCreateASFProfile": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFASFProfile"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppIProfile"
+				]
+			}
+		},
+		"MFCreateASFProfileFromPresentationDescriptor": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFPresentationDescriptor"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFASFProfile"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIPD",
+					"ppIProfile"
+				]
+			}
+		},
+		"MFCreateASFSplitter": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFASFSplitter"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppISplitter"
+				]
+			}
+		},
+		"MFCreateASFStreamSelector": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFASFProfile"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFASFStreamSelector"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIASFProfile",
+					"ppSelector"
+				]
+			}
+		},
+		"MFCreateASFStreamingMediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIByteStream",
+					"ppIMediaSink"
+				]
+			}
+		},
+		"MFCreateASFStreamingMediaSinkActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFActivate"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFASFContentInfo"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pByteStreamActivate",
+					"pContentInfo",
+					"ppIActivate"
+				]
+			}
+		},
+		"MFCreateAggregateSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFCollection"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSource"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSourceCollection",
+					"ppAggSource"
+				]
+			}
+		},
+		"MFCreateAudioRenderer": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pAudioAttributes",
+					"ppSink"
+				]
+			}
+		},
+		"MFCreateAudioRendererActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppActivate"
+				]
+			}
+		},
+		"MFCreateCredentialCache": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFNetCredentialCache"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppCache"
+				]
+			}
+		},
+		"MFCreateDeviceSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSource"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pAttributes",
+					"ppSource"
+				]
+			}
+		},
+		"MFCreateDeviceSourceActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pAttributes",
+					"ppActivate"
+				]
+			}
+		},
+		"MFCreateEncryptedMediaExtensionsStoreActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFPMPHostApp"
+					},
+					{
+						"_t": "bot",
+						"label": "IStream"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pmpHost",
+					"objectStream",
+					"classId",
+					"activate"
+				]
+			}
+		},
+		"MFCreateFMPEG4MediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIByteStream",
+					"pVideoMediaType",
+					"pAudioMediaType",
+					"ppIMediaSink"
+				]
+			}
+		},
+		"MFCreateMP3MediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pTargetByteStream",
+					"ppMediaSink"
+				]
+			}
+		},
+		"MFCreateMPEG4MediaSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIByteStream",
+					"pVideoMediaType",
+					"pAudioMediaType",
+					"ppIMediaSink"
+				]
+			}
+		},
+		"MFCreateMediaSession": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSession"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pConfiguration",
+					"ppMediaSession"
+				]
+			}
+		},
+		"MFCreateMuxSink": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "Guid"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSink"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"guidOutputSubType",
+					"pOutputAttributes",
+					"pOutputByteStream",
+					"ppMuxSink"
+				]
+			}
+		},
+		"MFCreateNetSchemePlugin": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"riid",
+					"ppvHandler"
+				]
+			}
+		},
+		"MFCreatePMPMediaSession": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaSession"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwCreationFlags",
+					"pConfiguration",
+					"ppMediaSession",
+					"ppEnablerActivate"
+				]
+			}
+		},
+		"MFCreatePMPServer": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFPMPServer"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwCreationFlags",
+					"ppPMPServer"
+				]
+			}
+		},
+		"MFCreatePresentationClock": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFPresentationClock"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppPresentationClock"
+				]
+			}
+		},
+		"MFCreatePresentationDescriptorFromASFProfile": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFASFProfile"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFPresentationDescriptor"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIProfile",
+					"ppIPD"
+				]
+			}
+		},
+		"MFCreateProtectedEnvironmentAccess": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFProtectedEnvironmentAccess"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppAccess"
+				]
+			}
+		},
+		"MFCreateProxyLocator": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IPropertyStore"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFNetProxyLocator"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pszProtocol",
+					"pProxyConfig",
+					"ppProxyLocator"
+				]
+			}
+		},
+		"MFCreateRemoteDesktopPlugin": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFRemoteDesktopPlugin"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppPlugin"
+				]
+			}
+		},
+		"MFCreateSampleCopierMFT": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFTransform"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppCopierMFT"
+				]
+			}
+		},
+		"MFCreateSampleGrabberSinkActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFSampleGrabberSinkCallback"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIMFMediaType",
+					"pIMFSampleGrabberSinkCallback",
+					"ppIActivate"
+				]
+			}
+		},
+		"MFCreateSequencerSegmentOffset": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "llong",
+						"label": "Int64"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "PROPVARIANT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwId",
+					"hnsOffset",
+					"pvarSegmentOffset"
+				]
+			}
+		},
+		"MFCreateSequencerSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFSequencerSource"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pReserved",
+					"ppSequencerSource"
+				]
+			}
+		},
+		"MFCreateSimpleTypeHandler": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaTypeHandler"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppHandler"
+				]
+			}
+		},
+		"MFCreateStandardQualityManager": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFQualityManager"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppQualityManager"
+				]
+			}
+		},
+		"MFCreateTopoLoader": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFTopoLoader"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppObj"
+				]
+			}
+		},
+		"MFCreateTopology": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFTopology"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppTopo"
+				]
+			}
+		},
+		"MFCreateTopologyNode": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "MF_TOPOLOGY_TYPE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFTopologyNode"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"NodeType",
+					"ppNode"
+				]
+			}
+		},
+		"MFCreateTranscodeProfile": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFTranscodeProfile"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppTranscodeProfile"
+				]
+			}
+		},
+		"MFCreateTranscodeSinkActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppActivate"
+				]
+			}
+		},
+		"MFCreateTranscodeTopology": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFMediaSource"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IMFTranscodeProfile"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFTopology"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSrc",
+					"pwszOutputFilePath",
+					"pProfile",
+					"ppTranscodeTopo"
+				]
+			}
+		},
+		"MFCreateTranscodeTopologyFromByteStream": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFMediaSource"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFByteStream"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFTranscodeProfile"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFTopology"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSrc",
+					"pOutputStream",
+					"pProfile",
+					"ppTranscodeTopo"
+				]
+			}
+		},
+		"MFCreateVideoRenderer": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"riidRenderer",
+					"ppVideoRenderer"
+				]
+			}
+		},
+		"MFCreateVideoRendererActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwndVideo",
+					"ppActivate"
+				]
+			}
+		},
+		"MFCreateWMAEncoderActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "bot",
+						"label": "IPropertyStore"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pMediaType",
+					"pEncodingConfigurationProperties",
+					"ppActivate"
+				]
+			}
+		},
+		"MFCreateWMVEncoderActivate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFMediaType"
+					},
+					{
+						"_t": "bot",
+						"label": "IPropertyStore"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFActivate"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pMediaType",
+					"pEncodingConfigurationProperties",
+					"ppActivate"
+				]
+			}
+		},
+		"MFEnumDeviceSources": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "IMFActivate"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pAttributes",
+					"pppSourceActivate",
+					"pcSourceActivate"
+				]
+			}
+		},
+		"MFGetLocalId": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"verifier",
+					"size",
+					"id"
+				]
+			}
+		},
+		"MFGetService": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"punkObject",
+					"guidService",
+					"riid",
+					"ppvObject"
+				]
+			}
+		},
+		"MFGetSystemId": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFSystemId"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ppId"
+				]
+			}
+		},
+		"MFGetTopoNodeCurrentType": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFTopologyNode"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFMediaType"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pNode",
+					"dwStreamIndex",
+					"fOutput",
+					"ppType"
+				]
+			}
+		},
+		"MFLoadSignedLibrary": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFSignedLibrary"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pszName",
+					"ppLib"
+				]
+			}
+		},
+		"MFRequireProtectedEnvironment": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMFPresentationDescriptor"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pPresentationDescriptor"
+				]
+			}
+		},
+		"MFShutdownObject": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pUnk"
+				]
+			}
+		},
+		"MFTranscodeGetAudioOutputAvailableTypes": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IMFAttributes"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMFCollection"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"guidSubType",
+					"dwMFTFlags",
+					"pCodecConfig",
+					"ppAvailableTypes"
+				]
+			}
+		}
+	}
+}

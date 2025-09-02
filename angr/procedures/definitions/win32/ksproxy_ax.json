@@ -1,0 +1,319 @@
+{
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"ksproxy.ax"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"KsGetMediaType": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AM_MEDIA_TYPE",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Position",
+					"AmMediaType",
+					"FilterHandle",
+					"PinFactoryId"
+				]
+			}
+		},
+		"KsGetMediaTypeCount": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"FilterHandle",
+					"PinFactoryId",
+					"MediaTypeCount"
+				]
+			}
+		},
+		"KsGetMultiplePinFactoryItems": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"FilterHandle",
+					"PinFactoryId",
+					"PropertyId",
+					"Items"
+				]
+			}
+		},
+		"KsOpenDefaultDevice": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Category",
+					"Access",
+					"DeviceHandle"
+				]
+			}
+		},
+		"KsResolveRequiredAttributes": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"Anonymous": {
+									"_t": "struct",
+									"fields": {
+										"FormatSize": {
+											"_t": "int",
+											"signed": false,
+											"label": "UInt32"
+										},
+										"Flags": {
+											"_t": "int",
+											"signed": false,
+											"label": "UInt32"
+										},
+										"SampleSize": {
+											"_t": "int",
+											"signed": false,
+											"label": "UInt32"
+										},
+										"Reserved": {
+											"_t": "int",
+											"signed": false,
+											"label": "UInt32"
+										},
+										"MajorFormat": {
+											"_t": "bot",
+											"label": "Guid"
+										},
+										"SubFormat": {
+											"_t": "bot",
+											"label": "Guid"
+										},
+										"Specifier": {
+											"_t": "bot",
+											"label": "Guid"
+										}
+									},
+									"name": "_Anonymous_e__Struct",
+									"pack": false,
+									"align": null,
+									"anonymous": true
+								},
+								"Alignment": {
+									"_t": "llong",
+									"label": "Int64"
+								}
+							},
+							"name": "<anon>"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "KSMULTIPLE_ITEM",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"DataRange",
+					"Attributes"
+				]
+			}
+		},
+		"KsSynchronousDeviceControl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Handle",
+					"IoControl",
+					"InBuffer",
+					"InLength",
+					"OutBuffer",
+					"OutLength",
+					"BytesReturned"
+				]
+			}
+		}
+	}
+}

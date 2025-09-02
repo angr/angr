@@ -1,0 +1,527 @@
+{
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"d2d1.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"D2D1ComputeMaximumScaleFactor": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_MATRIX_3X2_F",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "float"
+				},
+				"arg_names": [
+					"matrix"
+				]
+			}
+		},
+		"D2D1ConvertColorSpace": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "D2D1_COLOR_SPACE"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "D2D1_COLOR_SPACE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D1_COLOR_F",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "_ref",
+					"name": "D2D1_COLOR_F",
+					"ot": "struct"
+				},
+				"arg_names": [
+					"sourceColorSpace",
+					"destinationColorSpace",
+					"color"
+				]
+			}
+		},
+		"D2D1CreateDevice": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IDXGIDevice"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D1_CREATION_PROPERTIES",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "ID2D1Device"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dxgiDevice",
+					"creationProperties",
+					"d2dDevice"
+				]
+			}
+		},
+		"D2D1CreateDeviceContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IDXGISurface"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D1_CREATION_PROPERTIES",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "ID2D1DeviceContext"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dxgiSurface",
+					"creationProperties",
+					"d2dDeviceContext"
+				]
+			}
+		},
+		"D2D1CreateFactory": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "D2D1_FACTORY_TYPE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D1_FACTORY_OPTIONS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"factoryType",
+					"riid",
+					"pFactoryOptions",
+					"ppIFactory"
+				]
+			}
+		},
+		"D2D1GetGradientMeshInteriorPointsFromCoonsPatch": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_POINT_2F",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pPoint0",
+					"pPoint1",
+					"pPoint2",
+					"pPoint3",
+					"pPoint4",
+					"pPoint5",
+					"pPoint6",
+					"pPoint7",
+					"pPoint8",
+					"pPoint9",
+					"pPoint10",
+					"pPoint11",
+					"pTensorPoint11",
+					"pTensorPoint12",
+					"pTensorPoint21",
+					"pTensorPoint22"
+				]
+			}
+		},
+		"D2D1InvertMatrix": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_MATRIX_3X2_F",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"matrix"
+				]
+			}
+		},
+		"D2D1IsMatrixInvertible": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_MATRIX_3X2_F",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"matrix"
+				]
+			}
+		},
+		"D2D1MakeRotateMatrix": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "float"
+					},
+					{
+						"_t": "_ref",
+						"name": "D2D_POINT_2F",
+						"ot": "struct"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_MATRIX_3X2_F",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"angle",
+					"center",
+					"matrix"
+				]
+			}
+		},
+		"D2D1MakeSkewMatrix": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "float"
+					},
+					{
+						"_t": "float"
+					},
+					{
+						"_t": "_ref",
+						"name": "D2D_POINT_2F",
+						"ot": "struct"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "D2D_MATRIX_3X2_F",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"angleX",
+					"angleY",
+					"center",
+					"matrix"
+				]
+			}
+		},
+		"D2D1SinCos": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "float"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "float"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "float"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"angle",
+					"s",
+					"c"
+				]
+			}
+		},
+		"D2D1Tan": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "float"
+					}
+				],
+				"returnty": {
+					"_t": "float"
+				},
+				"arg_names": [
+					"angle"
+				]
+			}
+		},
+		"D2D1Vec3Length": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "float"
+					},
+					{
+						"_t": "float"
+					},
+					{
+						"_t": "float"
+					}
+				],
+				"returnty": {
+					"_t": "float"
+				},
+				"arg_names": [
+					"x",
+					"y",
+					"z"
+				]
+			}
+		}
+	}
+}

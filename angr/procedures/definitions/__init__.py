@@ -5,14 +5,15 @@ import os
 import logging
 import inspect
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
+import msgspec
 import pydemumble
 import archinfo
 
 from angr.errors import AngrMissingTypeError
 from angr.sim_type import parse_cpp_file, SimTypeFunction, SimTypeBottom
-from angr.calling_conventions import DEFAULT_CC
+from angr.calling_conventions import DEFAULT_CC, CC_NAMES
 from angr.misc import autoimport
 from angr.misc.ux import once
 from angr.sim_type import parse_file
@@ -84,6 +85,9 @@ class SimTypeCollection:
         return f"<SimTypeCollection with {len(self.types)} types>"
 
 
+_ARCH_NAME_CACHE: dict[str, str] = {}
+
+
 class SimLibrary:
     """
     A SimLibrary is the mechanism for describing a dynamic library's API, its functions and metadata.
@@ -102,10 +106,33 @@ class SimLibrary:
         self.procedures = {}
         self.non_returning = set()
         self.prototypes: dict[str, SimTypeFunction] = {}
+        self.prototypes_json: dict[str, Any] = {}
         self.default_ccs = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
         self.fallback_proc = ReturnUnconstrained
+
+    @staticmethod
+    def from_json(d: dict[str, Any]) -> SimLibrary:
+        lib = SimLibrary()
+        if "type_collection_names" in d:
+            lib.type_collection_names = d["type_collection_names"]
+        if "default_cc" in d:
+            if not isinstance(d["default_cc"], dict):
+                raise TypeError("default_cc must be a dict")
+            for arch_name, cc_name in d["default_cc"].items():
+                cc = CC_NAMES[cc_name]
+                lib.set_default_cc(arch_name, cc)
+        if "aliases" in d:
+            for name, alt_names in d["aliases"].items():
+                lib.add_alias(name, *alt_names)
+        if "library_names" in d:
+            lib.set_library_names(*d["library_names"])
+        else:
+            raise KeyError("library_names is required")
+        if "functions" in d:
+            lib.prototypes_json = {k: v["proto"] for k, v in d["functions"].items() if "proto" in v}
+        return lib
 
     def copy(self):
         """
@@ -117,6 +144,7 @@ class SimLibrary:
         o.procedures = dict(self.procedures)
         o.non_returning = set(self.non_returning)
         o.prototypes = dict(self.prototypes)
+        o.prototypes_json = self.prototypes_json
         o.default_ccs = dict(self.default_ccs)
         o.names = list(self.names)
         return o
@@ -159,7 +187,9 @@ class SimLibrary:
         :param arch_name:   The string name of the architecture, i.e. the ``.name`` field from archinfo.
         :parm cc_cls:       The SimCC class (not an instance!) to use
         """
-        arch_name = archinfo.arch_from_id(arch_name).name
+        if arch_name not in _ARCH_NAME_CACHE:
+            _ARCH_NAME_CACHE[arch_name] = archinfo.arch_from_id(arch_name).name
+        arch_name = _ARCH_NAME_CACHE[arch_name]
         self.default_ccs[arch_name] = cc_cls
 
     def set_non_returning(self, *names):
@@ -171,7 +201,7 @@ class SimLibrary:
         for name in names:
             self.non_returning.add(name)
 
-    def set_prototype(self, name, proto):
+    def set_prototype(self, name, proto: SimTypeFunction) -> None:
         """
         Set the prototype of a function in the form of a SimTypeFunction containing argument and return types
 
@@ -180,7 +210,7 @@ class SimLibrary:
         """
         self.prototypes[name] = proto
 
-    def set_prototypes(self, protos):
+    def set_prototypes(self, protos: dict[str, SimTypeFunction]) -> None:
         """
         Set the prototypes of many functions
 
@@ -188,13 +218,12 @@ class SimLibrary:
         """
         self.prototypes.update(protos)
 
-    def set_c_prototype(self, c_decl):
+    def set_c_prototype(self, c_decl: str) -> tuple[str, SimTypeFunction]:
         """
         Set the prototype of a function in the form of a C-style function declaration.
 
         :param str c_decl: The C-style declaration of the function.
         :return:           A tuple of (function name, function prototype)
-        :rtype:            tuple
         """
 
         parsed = parse_file(c_decl)
@@ -302,7 +331,11 @@ class SimLibrary:
         :param arch:    The architecture to specialize to.
         :return:        Prototype of the function, or None if the prototype does not exist.
         """
-        proto = self.prototypes.get(name, None)
+        if name not in self.prototypes and name in self.prototypes_json:
+            proto = SimTypeFunction.from_json(self.prototypes_json[name])
+            self.prototypes[name] = proto
+        else:
+            proto = self.prototypes.get(name, None)
         if proto is None:
             return None
         if arch is not None:
@@ -336,7 +369,7 @@ class SimLibrary:
         :rtype:               bool
         """
 
-        return func_name in self.prototypes
+        return func_name in self.prototypes or func_name in self.prototypes_json
 
 
 class SimCppLibrary(SimLibrary):
@@ -733,16 +766,65 @@ def load_external_definitions():
                 pass
 
 
+def _update_libkernel32(lib: SimLibrary):
+    from angr import SIM_PROCEDURES as P
+
+    lib.add_all_from_dict(P["win32"])
+    lib.add_alias("EncodePointer", "DecodePointer")
+    lib.add_alias("GlobalAlloc", "LocalAlloc")
+
+    lib.add("lstrcatA", P["libc"]["strcat"])
+    lib.add("lstrcmpA", P["libc"]["strcmp"])
+    lib.add("lstrcpyA", P["libc"]["strcpy"])
+    lib.add("lstrcpynA", P["libc"]["strncpy"])
+    lib.add("lstrlenA", P["libc"]["strlen"])
+    lib.add("lstrcmpW", P["libc"]["wcscmp"])
+    lib.add("lstrcmpiW", P["libc"]["wcscasecmp"])
+
+
+def _update_libntdll(lib: SimLibrary):
+    from angr import SIM_PROCEDURES as P
+
+    lib.add("RtlEncodePointer", P["win32"]["EncodePointer"])
+    lib.add("RtlDecodePointer", P["win32"]["EncodePointer"])
+    lib.add("RtlAllocateHeap", P["win32"]["HeapAlloc"])
+
+
+def _update_libuser32(lib: SimLibrary):
+    from angr import SIM_PROCEDURES as P
+    from angr.calling_conventions import SimCCCdecl
+
+    lib.add_all_from_dict(P["win_user32"])
+    lib.add("wsprintfA", P["libc"]["sprintf"], cc=SimCCCdecl(archinfo.ArchX86()))
+
+
+def _update_libntoskrnl(lib: SimLibrary):
+    from angr import SIM_PROCEDURES as P
+
+    lib.add_all_from_dict(P["win32_kernel"])
+
+
 def load_win32api_definitions():
     load_win32_type_collections()
     if once("load_win32api_definitions"):
-        for _ in autoimport.auto_import_modules(
-            "angr.procedures.definitions",
-            _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name.startswith(("win32_", "wdk_"))
-            or module_name in {"ntoskrnl", "ntdll", "user32"},
-        ):
-            pass
+        api_base_dirs = ["win32", "wdk"]
+
+        for api_base_dir in api_base_dirs:
+            base_dir = os.path.join(_DEFINITIONS_BASEDIR, api_base_dir)
+            for f in os.listdir(base_dir):
+                if f.endswith(".json"):
+                    with open(os.path.join(base_dir, f), "rb") as f:
+                        d = msgspec.json.decode(f.read())
+                        SimLibrary.from_json(d)
+
+        if "kernel32.dll" in SIM_LIBRARIES:
+            _update_libkernel32(SIM_LIBRARIES["kernel32.dll"][0])
+        if "ntdll.dll" in SIM_LIBRARIES:
+            _update_libntdll(SIM_LIBRARIES["ntdll.dll"][0])
+        if "user32.dll" in SIM_LIBRARIES:
+            _update_libuser32(SIM_LIBRARIES["user32.dll"][0])
+        if "ntoskrnl.exe" in SIM_LIBRARIES:
+            _update_libntoskrnl(SIM_LIBRARIES["ntoskrnl.exe"][0])
 
 
 def load_all_definitions():
