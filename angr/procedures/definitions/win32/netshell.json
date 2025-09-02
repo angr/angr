@@ -1,69 +1,58 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "netshell.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "NcFreeNetconProperties": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "NETCON_PROPERTIES",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "pProps"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NcIsValidConnectionName": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pszwName"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"netshell.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"NcFreeNetconProperties": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "NETCON_PROPERTIES",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pProps"
+				]
+			}
+		},
+		"NcIsValidConnectionName": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pszwName"
+				]
+			}
+		}
+	}
 }

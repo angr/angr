@@ -1,187 +1,151 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "vhfum.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "VhfAsyncOperationComplete": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "VhfOperationHandle",
-                    "CompletionStatus"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "VhfCreate": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "VHF_CONFIG",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "VhfConfig",
-                    "VhfHandle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "VhfDelete": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "VhfHandle",
-                    "Wait"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "VhfReadReportSubmit": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "HID_XFER_PACKET",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "VhfHandle",
-                    "HidTransferPacket"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "VhfStart": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "VhfHandle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"vhfum.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"VhfAsyncOperationComplete": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"VhfOperationHandle",
+					"CompletionStatus"
+				]
+			}
+		},
+		"VhfCreate": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "VHF_CONFIG",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"VhfConfig",
+					"VhfHandle"
+				]
+			}
+		},
+		"VhfDelete": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"VhfHandle",
+					"Wait"
+				]
+			}
+		},
+		"VhfReadReportSubmit": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "HID_XFER_PACKET",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"VhfHandle",
+					"HidTransferPacket"
+				]
+			}
+		},
+		"VhfStart": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"VhfHandle"
+				]
+			}
+		}
+	}
 }

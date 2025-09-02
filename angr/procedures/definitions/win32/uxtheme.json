@@ -1,4061 +1,3288 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "uxtheme.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "BeginBufferedAnimation": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "BP_BUFFERFORMAT"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "BP_PAINTPARAMS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "BP_ANIMATIONPARAMS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "hdcTarget",
-                    "prcTarget",
-                    "dwFormat",
-                    "pPaintParams",
-                    "pAnimationParams",
-                    "phdcFrom",
-                    "phdcTo"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "BeginBufferedPaint": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "BP_BUFFERFORMAT"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "BP_PAINTPARAMS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hdcTarget",
-                    "prcTarget",
-                    "dwFormat",
-                    "pPaintParams",
-                    "phdc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "BeginPanningFeedback": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "BufferedPaintClear": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hBufferedPaint",
-                    "prc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "BufferedPaintInit": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "BufferedPaintRenderAnimation": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "hdcTarget"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "BufferedPaintSetAlpha": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeChar",
-                        "signed": false,
-                        "label": "Byte"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hBufferedPaint",
-                    "prc",
-                    "alpha"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "BufferedPaintStopAllAnimations": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "BufferedPaintUnInit": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CloseThemeData": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DrawThemeBackground": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pRect",
-                    "pClipRect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DrawThemeBackgroundEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "DTBGOPTS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pRect",
-                    "pOptions"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DrawThemeEdge": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "DRAWEDGE_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "DRAW_EDGE_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pDestRect",
-                    "uEdge",
-                    "uFlags",
-                    "pContentRect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DrawThemeIcon": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pRect",
-                    "himl",
-                    "iImageIndex"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DrawThemeParentBackground": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "hdc",
-                    "prc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DrawThemeParentBackgroundEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "DRAW_THEME_PARENT_BACKGROUND_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "hdc",
-                    "dwFlags",
-                    "prc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DrawThemeText": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "DRAW_TEXT_FORMAT"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pszText",
-                    "cchText",
-                    "dwTextFlags",
-                    "dwTextFlags2",
-                    "pRect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DrawThemeTextEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "DRAW_TEXT_FORMAT"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "DTTOPTS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pszText",
-                    "cchText",
-                    "dwTextFlags",
-                    "pRect",
-                    "pOptions"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "EnableThemeDialogTexture": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "EnableTheming": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "fEnable"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "EndBufferedAnimation": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hbpAnimation",
-                    "fUpdateTarget"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "EndBufferedPaint": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hBufferedPaint",
-                    "fUpdateTarget"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "EndPanningFeedback": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "fAnimateBack"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetBufferedPaintBits": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeRef",
-                                "name": "RGBQUAD",
-                                "original_type_name": "SimStruct"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hBufferedPaint",
-                    "ppbBuffer",
-                    "pcxRow"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetBufferedPaintDC": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hBufferedPaint"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetBufferedPaintTargetDC": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hBufferedPaint"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetBufferedPaintTargetRect": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hBufferedPaint",
-                    "prc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetCurrentThemeName": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pszThemeFileName",
-                    "cchMaxNameChars",
-                    "pszColorBuff",
-                    "cchMaxColorChars",
-                    "pszSizeBuff",
-                    "cchMaxSizeChars"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeAnimationProperty": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "TA_PROPERTY"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iStoryboardId",
-                    "iTargetId",
-                    "eProperty",
-                    "pvProperty",
-                    "cbSize",
-                    "pcbSizeOut"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeAnimationTransform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "TA_TRANSFORM",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iStoryboardId",
-                    "iTargetId",
-                    "dwTransformIndex",
-                    "pTransform",
-                    "cbSize",
-                    "pcbSizeOut"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeAppProperties": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "SET_THEME_APP_PROPERTIES_FLAGS"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeBackgroundContentRect": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pBoundingRect",
-                    "pContentRect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeBackgroundExtent": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pContentRect",
-                    "pExtentRect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeBackgroundRegion": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pRect",
-                    "pRegion"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeBitmap": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "GET_THEME_BITMAP_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "dwFlags",
-                    "phBitmap"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeBool": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pfVal"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeColor": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pColor"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeDocumentationProperty": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pszThemeName",
-                    "pszPropertyName",
-                    "pszValueBuff",
-                    "cchMaxValChars"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeEnumValue": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "piVal"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeFilename": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pszThemeFileName",
-                    "cchMaxBuffChars"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeFont": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "LOGFONTW",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pFont"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeInt": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "piVal"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeIntList": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "INTLIST",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pIntList"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeMargins": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "MARGINS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "prc",
-                    "pMargins"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeMetric": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "piVal"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemePartSize": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "THEMESIZE"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIZE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "prc",
-                    "eSize",
-                    "psz"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemePosition": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "POINT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pPoint"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemePropertyOrigin": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "PROPERTYORIGIN"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pOrigin"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeRect": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pRect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeStream": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "ppvStream",
-                    "pcbStream",
-                    "hInst"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId",
-                    "iPropId",
-                    "pszBuff",
-                    "cchMaxBuffChars"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeSysBool": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iBoolId"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeSysColor": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iColorId"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeSysColorBrush": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iColorId"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeSysFont": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "LOGFONTW",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iFontId",
-                    "plf"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeSysInt": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iIntId",
-                    "piValue"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeSysSize": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iSizeId"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeSysString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iStringId",
-                    "pszStringBuff",
-                    "cchMaxStringChars"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeTextExtent": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "DRAW_TEXT_FORMAT"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "pszText",
-                    "cchCharCount",
-                    "dwTextFlags",
-                    "pBoundingRect",
-                    "pExtentRect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeTextMetrics": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "TEXTMETRICW",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "ptm"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeTimingFunction": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "TA_TIMINGFUNCTION",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iTimingFunctionId",
-                    "pTimingFunction",
-                    "cbSize",
-                    "pcbSizeOut"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetThemeTransitionDuration": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateIdFrom",
-                    "iStateIdTo",
-                    "iPropId",
-                    "pdwDuration"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetWindowTheme": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "HitTestThemeBackground": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "HIT_TEST_BACKGROUND_OPTIONS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeRef",
-                        "name": "POINT",
-                        "original_type_name": "SimStruct"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeShort",
-                            "signed": false,
-                            "label": "UInt16"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "hdc",
-                    "iPartId",
-                    "iStateId",
-                    "dwOptions",
-                    "pRect",
-                    "hrgn",
-                    "ptTest",
-                    "pwHitTestCode"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsAppThemed": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsCompositionActive": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsThemeActive": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsThemeBackgroundPartiallyTransparent": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsThemeDialogTextureEnabled": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsThemePartDefined": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hTheme",
-                    "iPartId",
-                    "iStateId"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "OpenThemeData": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pszClassList"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "OpenThemeDataEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "OPEN_THEME_DATA_FLAGS"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pszClassList",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "OpenThemeDataForDpi": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pszClassList",
-                    "dpi"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "SetThemeAppProperties": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "SET_THEME_APP_PROPERTIES_FLAGS"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "SetWindowTheme": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pszSubAppName",
-                    "pszSubIdList"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "SetWindowThemeAttribute": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WINDOWTHEMEATTRIBUTETYPE"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "eAttribute",
-                    "pvAttribute",
-                    "cbAttribute"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "UpdatePanningFeedback": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "lTotalOverpanOffsetX",
-                    "lTotalOverpanOffsetY",
-                    "fInInertia"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"uxtheme.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"BeginBufferedAnimation": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "BP_BUFFERFORMAT"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "BP_PAINTPARAMS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "BP_ANIMATIONPARAMS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hwnd",
+					"hdcTarget",
+					"prcTarget",
+					"dwFormat",
+					"pPaintParams",
+					"pAnimationParams",
+					"phdcFrom",
+					"phdcTo"
+				]
+			}
+		},
+		"BeginBufferedPaint": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "BP_BUFFERFORMAT"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "BP_PAINTPARAMS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hdcTarget",
+					"prcTarget",
+					"dwFormat",
+					"pPaintParams",
+					"phdc"
+				]
+			}
+		},
+		"BeginPanningFeedback": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd"
+				]
+			}
+		},
+		"BufferedPaintClear": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hBufferedPaint",
+					"prc"
+				]
+			}
+		},
+		"BufferedPaintInit": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		},
+		"BufferedPaintRenderAnimation": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"hdcTarget"
+				]
+			}
+		},
+		"BufferedPaintSetAlpha": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "char",
+						"signed": false,
+						"label": "Byte"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hBufferedPaint",
+					"prc",
+					"alpha"
+				]
+			}
+		},
+		"BufferedPaintStopAllAnimations": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd"
+				]
+			}
+		},
+		"BufferedPaintUnInit": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		},
+		"CloseThemeData": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme"
+				]
+			}
+		},
+		"DrawThemeBackground": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pRect",
+					"pClipRect"
+				]
+			}
+		},
+		"DrawThemeBackgroundEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "DTBGOPTS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pRect",
+					"pOptions"
+				]
+			}
+		},
+		"DrawThemeEdge": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "DRAWEDGE_FLAGS"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "DRAW_EDGE_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pDestRect",
+					"uEdge",
+					"uFlags",
+					"pContentRect"
+				]
+			}
+		},
+		"DrawThemeIcon": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pRect",
+					"himl",
+					"iImageIndex"
+				]
+			}
+		},
+		"DrawThemeParentBackground": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"hdc",
+					"prc"
+				]
+			}
+		},
+		"DrawThemeParentBackgroundEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "DRAW_THEME_PARENT_BACKGROUND_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"hdc",
+					"dwFlags",
+					"prc"
+				]
+			}
+		},
+		"DrawThemeText": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "DRAW_TEXT_FORMAT"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pszText",
+					"cchText",
+					"dwTextFlags",
+					"dwTextFlags2",
+					"pRect"
+				]
+			}
+		},
+		"DrawThemeTextEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "DRAW_TEXT_FORMAT"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "DTTOPTS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pszText",
+					"cchText",
+					"dwTextFlags",
+					"pRect",
+					"pOptions"
+				]
+			}
+		},
+		"EnableThemeDialogTexture": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"dwFlags"
+				]
+			}
+		},
+		"EnableTheming": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"fEnable"
+				]
+			}
+		},
+		"EndBufferedAnimation": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hbpAnimation",
+					"fUpdateTarget"
+				]
+			}
+		},
+		"EndBufferedPaint": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hBufferedPaint",
+					"fUpdateTarget"
+				]
+			}
+		},
+		"EndPanningFeedback": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"fAnimateBack"
+				]
+			}
+		},
+		"GetBufferedPaintBits": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "_ref",
+								"name": "RGBQUAD",
+								"ot": "struct"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hBufferedPaint",
+					"ppbBuffer",
+					"pcxRow"
+				]
+			}
+		},
+		"GetBufferedPaintDC": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hBufferedPaint"
+				]
+			}
+		},
+		"GetBufferedPaintTargetDC": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hBufferedPaint"
+				]
+			}
+		},
+		"GetBufferedPaintTargetRect": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hBufferedPaint",
+					"prc"
+				]
+			}
+		},
+		"GetCurrentThemeName": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pszThemeFileName",
+					"cchMaxNameChars",
+					"pszColorBuff",
+					"cchMaxColorChars",
+					"pszSizeBuff",
+					"cchMaxSizeChars"
+				]
+			}
+		},
+		"GetThemeAnimationProperty": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "TA_PROPERTY"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iStoryboardId",
+					"iTargetId",
+					"eProperty",
+					"pvProperty",
+					"cbSize",
+					"pcbSizeOut"
+				]
+			}
+		},
+		"GetThemeAnimationTransform": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "TA_TRANSFORM",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iStoryboardId",
+					"iTargetId",
+					"dwTransformIndex",
+					"pTransform",
+					"cbSize",
+					"pcbSizeOut"
+				]
+			}
+		},
+		"GetThemeAppProperties": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "SET_THEME_APP_PROPERTIES_FLAGS"
+				},
+				"arg_names": []
+			}
+		},
+		"GetThemeBackgroundContentRect": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pBoundingRect",
+					"pContentRect"
+				]
+			}
+		},
+		"GetThemeBackgroundExtent": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pContentRect",
+					"pExtentRect"
+				]
+			}
+		},
+		"GetThemeBackgroundRegion": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pRect",
+					"pRegion"
+				]
+			}
+		},
+		"GetThemeBitmap": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "GET_THEME_BITMAP_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"dwFlags",
+					"phBitmap"
+				]
+			}
+		},
+		"GetThemeBool": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pfVal"
+				]
+			}
+		},
+		"GetThemeColor": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pColor"
+				]
+			}
+		},
+		"GetThemeDocumentationProperty": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pszThemeName",
+					"pszPropertyName",
+					"pszValueBuff",
+					"cchMaxValChars"
+				]
+			}
+		},
+		"GetThemeEnumValue": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"piVal"
+				]
+			}
+		},
+		"GetThemeFilename": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pszThemeFileName",
+					"cchMaxBuffChars"
+				]
+			}
+		},
+		"GetThemeFont": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "LOGFONTW",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pFont"
+				]
+			}
+		},
+		"GetThemeInt": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"piVal"
+				]
+			}
+		},
+		"GetThemeIntList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "INTLIST",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pIntList"
+				]
+			}
+		},
+		"GetThemeMargins": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "MARGINS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"prc",
+					"pMargins"
+				]
+			}
+		},
+		"GetThemeMetric": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"piVal"
+				]
+			}
+		},
+		"GetThemePartSize": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "THEMESIZE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIZE",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"prc",
+					"eSize",
+					"psz"
+				]
+			}
+		},
+		"GetThemePosition": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "POINT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pPoint"
+				]
+			}
+		},
+		"GetThemePropertyOrigin": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "PROPERTYORIGIN"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pOrigin"
+				]
+			}
+		},
+		"GetThemeRect": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pRect"
+				]
+			}
+		},
+		"GetThemeStream": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"ppvStream",
+					"pcbStream",
+					"hInst"
+				]
+			}
+		},
+		"GetThemeString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId",
+					"iPropId",
+					"pszBuff",
+					"cchMaxBuffChars"
+				]
+			}
+		},
+		"GetThemeSysBool": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iBoolId"
+				]
+			}
+		},
+		"GetThemeSysColor": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iColorId"
+				]
+			}
+		},
+		"GetThemeSysColorBrush": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hTheme",
+					"iColorId"
+				]
+			}
+		},
+		"GetThemeSysFont": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "LOGFONTW",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iFontId",
+					"plf"
+				]
+			}
+		},
+		"GetThemeSysInt": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iIntId",
+					"piValue"
+				]
+			}
+		},
+		"GetThemeSysSize": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iSizeId"
+				]
+			}
+		},
+		"GetThemeSysString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iStringId",
+					"pszStringBuff",
+					"cchMaxStringChars"
+				]
+			}
+		},
+		"GetThemeTextExtent": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "DRAW_TEXT_FORMAT"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"pszText",
+					"cchCharCount",
+					"dwTextFlags",
+					"pBoundingRect",
+					"pExtentRect"
+				]
+			}
+		},
+		"GetThemeTextMetrics": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "TEXTMETRICW",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"ptm"
+				]
+			}
+		},
+		"GetThemeTimingFunction": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "TA_TIMINGFUNCTION",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iTimingFunctionId",
+					"pTimingFunction",
+					"cbSize",
+					"pcbSizeOut"
+				]
+			}
+		},
+		"GetThemeTransitionDuration": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateIdFrom",
+					"iStateIdTo",
+					"iPropId",
+					"pdwDuration"
+				]
+			}
+		},
+		"GetWindowTheme": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hwnd"
+				]
+			}
+		},
+		"HitTestThemeBackground": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "HIT_TEST_BACKGROUND_OPTIONS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "_ref",
+						"name": "POINT",
+						"ot": "struct"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "short",
+							"signed": false,
+							"label": "UInt16"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"hdc",
+					"iPartId",
+					"iStateId",
+					"dwOptions",
+					"pRect",
+					"hrgn",
+					"ptTest",
+					"pwHitTestCode"
+				]
+			}
+		},
+		"IsAppThemed": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		},
+		"IsCompositionActive": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		},
+		"IsThemeActive": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		},
+		"IsThemeBackgroundPartiallyTransparent": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId"
+				]
+			}
+		},
+		"IsThemeDialogTextureEnabled": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd"
+				]
+			}
+		},
+		"IsThemePartDefined": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hTheme",
+					"iPartId",
+					"iStateId"
+				]
+			}
+		},
+		"OpenThemeData": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hwnd",
+					"pszClassList"
+				]
+			}
+		},
+		"OpenThemeDataEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "OPEN_THEME_DATA_FLAGS"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hwnd",
+					"pszClassList",
+					"dwFlags"
+				]
+			}
+		},
+		"OpenThemeDataForDpi": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hwnd",
+					"pszClassList",
+					"dpi"
+				]
+			}
+		},
+		"SetThemeAppProperties": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "SET_THEME_APP_PROPERTIES_FLAGS"
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"dwFlags"
+				]
+			}
+		},
+		"SetWindowTheme": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pszSubAppName",
+					"pszSubIdList"
+				]
+			}
+		},
+		"SetWindowThemeAttribute": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WINDOWTHEMEATTRIBUTETYPE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"eAttribute",
+					"pvAttribute",
+					"cbAttribute"
+				]
+			}
+		},
+		"UpdatePanningFeedback": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"lTotalOverpanOffsetX",
+					"lTotalOverpanOffsetY",
+					"fInInertia"
+				]
+			}
+		}
+	}
 }

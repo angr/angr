@@ -1,813 +1,659 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "dssec.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "DSCreateISecurityInfoObject": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "ISecurityInformation"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypePointer",
-                                        "pts_to": {
-                                            "__type__": "SimTypeBottom",
-                                            "label": "Void"
-                                        },
-                                        "label": null,
-                                        "offset": 0
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "param0",
-                                "param1",
-                                "param2",
-                                "param3"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "param0",
-                                "param1",
-                                "param2",
-                                "param3"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszObjectPath",
-                    "pwszObjectClass",
-                    "dwFlags",
-                    "ppSI",
-                    "pfnReadSD",
-                    "pfnWriteSD",
-                    "lpContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DSCreateISecurityInfoObjectEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "ISecurityInformation"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypePointer",
-                                        "pts_to": {
-                                            "__type__": "SimTypeBottom",
-                                            "label": "Void"
-                                        },
-                                        "label": null,
-                                        "offset": 0
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "param0",
-                                "param1",
-                                "param2",
-                                "param3"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "param0",
-                                "param1",
-                                "param2",
-                                "param3"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszObjectPath",
-                    "pwszObjectClass",
-                    "pwszServer",
-                    "pwszUserName",
-                    "pwszPassword",
-                    "dwFlags",
-                    "ppSI",
-                    "pfnReadSD",
-                    "pfnWriteSD",
-                    "lpContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DSCreateSecurityPage": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypePointer",
-                                        "pts_to": {
-                                            "__type__": "SimTypeBottom",
-                                            "label": "Void"
-                                        },
-                                        "label": null,
-                                        "offset": 0
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "param0",
-                                "param1",
-                                "param2",
-                                "param3"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "param0",
-                                "param1",
-                                "param2",
-                                "param3"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszObjectPath",
-                    "pwszObjectClass",
-                    "dwFlags",
-                    "phPage",
-                    "pfnReadSD",
-                    "pfnWriteSD",
-                    "lpContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "DSEditSecurity": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypePointer",
-                                        "pts_to": {
-                                            "__type__": "SimTypeBottom",
-                                            "label": "Void"
-                                        },
-                                        "label": null,
-                                        "offset": 0
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "param0",
-                                "param1",
-                                "param2",
-                                "param3"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "param0",
-                                "param1",
-                                "param2",
-                                "param3"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwndOwner",
-                    "pwszObjectPath",
-                    "pwszObjectClass",
-                    "dwFlags",
-                    "pwszCaption",
-                    "pfnReadSD",
-                    "pfnWriteSD",
-                    "lpContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"dssec.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"DSCreateISecurityInfoObject": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "ISecurityInformation"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "ptr",
+										"pts_to": {
+											"_t": "bot",
+											"label": "Void"
+										}
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"param0",
+								"param1",
+								"param2",
+								"param3"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"param0",
+								"param1",
+								"param2",
+								"param3"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszObjectPath",
+					"pwszObjectClass",
+					"dwFlags",
+					"ppSI",
+					"pfnReadSD",
+					"pfnWriteSD",
+					"lpContext"
+				]
+			}
+		},
+		"DSCreateISecurityInfoObjectEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "ISecurityInformation"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "ptr",
+										"pts_to": {
+											"_t": "bot",
+											"label": "Void"
+										}
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"param0",
+								"param1",
+								"param2",
+								"param3"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"param0",
+								"param1",
+								"param2",
+								"param3"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszObjectPath",
+					"pwszObjectClass",
+					"pwszServer",
+					"pwszUserName",
+					"pwszPassword",
+					"dwFlags",
+					"ppSI",
+					"pfnReadSD",
+					"pfnWriteSD",
+					"lpContext"
+				]
+			}
+		},
+		"DSCreateSecurityPage": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "ptr",
+										"pts_to": {
+											"_t": "bot",
+											"label": "Void"
+										}
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"param0",
+								"param1",
+								"param2",
+								"param3"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"param0",
+								"param1",
+								"param2",
+								"param3"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszObjectPath",
+					"pwszObjectClass",
+					"dwFlags",
+					"phPage",
+					"pfnReadSD",
+					"pfnWriteSD",
+					"lpContext"
+				]
+			}
+		},
+		"DSEditSecurity": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "ptr",
+										"pts_to": {
+											"_t": "bot",
+											"label": "Void"
+										}
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"param0",
+								"param1",
+								"param2",
+								"param3"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"param0",
+								"param1",
+								"param2",
+								"param3"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwndOwner",
+					"pwszObjectPath",
+					"pwszObjectClass",
+					"dwFlags",
+					"pwszCaption",
+					"pfnReadSD",
+					"pfnWriteSD",
+					"lpContext"
+				]
+			}
+		}
+	}
 }

@@ -1,314 +1,264 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "sspicli.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "QueryContextAttributesExA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SecHandle",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "SECPKG_ATTR"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "phContext",
-                    "ulAttribute",
-                    "pBuffer",
-                    "cbBuffer"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "QueryContextAttributesExW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SecHandle",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "SECPKG_ATTR"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "phContext",
-                    "ulAttribute",
-                    "pBuffer",
-                    "cbBuffer"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "QueryCredentialsAttributesExA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SecHandle",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "phCredential",
-                    "ulAttribute",
-                    "pBuffer",
-                    "cbBuffer"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "QueryCredentialsAttributesExW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SecHandle",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "phCredential",
-                    "ulAttribute",
-                    "pBuffer",
-                    "cbBuffer"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "SspiDecryptAuthIdentityEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Options",
-                    "EncryptedAuthData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "SspiEncryptAuthIdentityEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Options",
-                    "AuthData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "SspiSetChannelBindingFlags": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SecPkgContext_Bindings",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBindings",
-                    "flags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"sspicli.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"QueryContextAttributesExA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SecHandle",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "SECPKG_ATTR"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"phContext",
+					"ulAttribute",
+					"pBuffer",
+					"cbBuffer"
+				]
+			}
+		},
+		"QueryContextAttributesExW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SecHandle",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "SECPKG_ATTR"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"phContext",
+					"ulAttribute",
+					"pBuffer",
+					"cbBuffer"
+				]
+			}
+		},
+		"QueryCredentialsAttributesExA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SecHandle",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"phCredential",
+					"ulAttribute",
+					"pBuffer",
+					"cbBuffer"
+				]
+			}
+		},
+		"QueryCredentialsAttributesExW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SecHandle",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"phCredential",
+					"ulAttribute",
+					"pBuffer",
+					"cbBuffer"
+				]
+			}
+		},
+		"SspiDecryptAuthIdentityEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Options",
+					"EncryptedAuthData"
+				]
+			}
+		},
+		"SspiEncryptAuthIdentityEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Options",
+					"AuthData"
+				]
+			}
+		},
+		"SspiSetChannelBindingFlags": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SecPkgContext_Bindings",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBindings",
+					"flags"
+				]
+			}
+		}
+	}
 }

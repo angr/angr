@@ -1,3682 +1,3118 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "urlmon.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "CoGetClassObjectFromURL": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "CLSCTX"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "rCLASSID",
-                    "szCODE",
-                    "dwFileVersionMS",
-                    "dwFileVersionLS",
-                    "szTYPE",
-                    "pBindCtx",
-                    "dwClsContext",
-                    "pvReserved",
-                    "riid",
-                    "ppv"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetCombineIUri": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUri"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUri"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IUri"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBaseUri",
-                    "pRelativeUri",
-                    "dwCombineFlags",
-                    "ppCombinedUri",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetCombineUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwzBaseUrl",
-                    "pwzRelativeUrl",
-                    "dwCombineFlags",
-                    "pszResult",
-                    "cchResult",
-                    "pcchResult",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetCombineUrlEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUri"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IUri"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBaseUri",
-                    "pwzRelativeUrl",
-                    "dwCombineFlags",
-                    "ppCombinedUri",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetCompareUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwzUrl1",
-                    "pwzUrl2",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetCreateSecurityManager": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IServiceProvider"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IInternetSecurityManager"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSP",
-                    "ppSM",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetCreateZoneManager": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IServiceProvider"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IInternetZoneManager"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSP",
-                    "ppZM",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetGetProtocolFlags": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwzUrl",
-                    "pdwFlags",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetGetSecurityUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": true,
-                                "label": "Char"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "PSUACTION"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszUrl",
-                    "ppwszSecUrl",
-                    "psuAction",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetGetSecurityUrlEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUri"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IUri"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "PSUACTION"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pUri",
-                    "ppSecUri",
-                    "psuAction",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetGetSession": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IInternetSession"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwSessionMode",
-                    "ppIInternetSession",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetIsFeatureEnabled": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "INTERNETFEATURELIST"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "FeatureEntry",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetIsFeatureEnabledForIUri": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "INTERNETFEATURELIST"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUri"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IInternetSecurityManagerEx2"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "FeatureEntry",
-                    "dwFlags",
-                    "pIUri",
-                    "pSecMgr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetIsFeatureEnabledForUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "INTERNETFEATURELIST"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IInternetSecurityManager"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "FeatureEntry",
-                    "dwFlags",
-                    "szURL",
-                    "pSecMgr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetIsFeatureZoneElevationEnabled": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IInternetSecurityManager"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "szFromURL",
-                    "szToURL",
-                    "pSecMgr",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetParseIUri": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUri"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "PARSEACTION"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pIUri",
-                    "ParseAction",
-                    "dwFlags",
-                    "pwzResult",
-                    "cchResult",
-                    "pcchResult",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetParseUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "PARSEACTION"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwzUrl",
-                    "ParseAction",
-                    "dwFlags",
-                    "pszResult",
-                    "cchResult",
-                    "pcchResult",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetQueryInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "QUERYOPTION"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwzUrl",
-                    "QueryOptions",
-                    "dwQueryFlags",
-                    "pvBuffer",
-                    "cbBuffer",
-                    "pcbBuffer",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CoInternetSetFeatureEnabled": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "INTERNETFEATURELIST"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "FeatureEntry",
-                    "dwFlags",
-                    "fEnable"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CompareSecurityIds": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pbSecurityId1",
-                    "dwLen1",
-                    "pbSecurityId2",
-                    "dwLen2",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CompatFlagsFromClsid": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pclsid",
-                    "pdwCompatFlags",
-                    "pdwMiscStatusFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CopyBindInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "BINDINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "BINDINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pcbiSrc",
-                    "pbiDest"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CopyStgMedium": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STGMEDIUM",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "STGMEDIUM",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pcstgmedSrc",
-                    "pstgmedDest"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateAsyncBindCtx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IEnumFORMATETC"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IBindCtx"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "reserved",
-                    "pBSCb",
-                    "pEFetc",
-                    "ppBC"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateAsyncBindCtxEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IEnumFORMATETC"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IBindCtx"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pbc",
-                    "dwOptions",
-                    "pBSCb",
-                    "pEnum",
-                    "ppBC",
-                    "reserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateFormatEnumerator": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "FORMATETC",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IEnumFORMATETC"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "cfmtetc",
-                    "rgfmtetc",
-                    "ppenumfmtetc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateIUriBuilder": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUri"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IUriBuilder"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pIUri",
-                    "dwFlags",
-                    "dwReserved",
-                    "ppIUriBuilder"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateURLMoniker": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMoniker"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMoniker"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pMkCtx",
-                    "szURL",
-                    "ppmk"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateURLMonikerEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMoniker"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMoniker"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pMkCtx",
-                    "szURL",
-                    "ppmk",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateURLMonikerEx2": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMoniker"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUri"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMoniker"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pMkCtx",
-                    "pUri",
-                    "ppmk",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateUri": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "URI_CREATE_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IUri"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwzURI",
-                    "dwFlags",
-                    "dwReserved",
-                    "ppURI"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateUriFromMultiByteString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IUri"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pszANSIInputUri",
-                    "dwEncodingFlags",
-                    "dwCodePage",
-                    "dwCreateFlags",
-                    "dwReserved",
-                    "ppUri"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CreateUriWithFragment": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IUri"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwzURI",
-                    "pwzFragment",
-                    "dwFlags",
-                    "dwReserved",
-                    "ppURI"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "FaultInIEFeature": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "uCLSSPEC",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "QUERYCONTEXT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hWnd",
-                    "pClassSpec",
-                    "pQuery",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "FindMediaType": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeShort",
-                            "signed": false,
-                            "label": "UInt16"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "rgszTypes",
-                    "rgcfTypes"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "FindMediaTypeClass": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "szType",
-                    "pclsID",
-                    "reserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "FindMimeFromData": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": true,
-                                "label": "Char"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "pwzUrl",
-                    "pBuffer",
-                    "cbSize",
-                    "pwzMimeProposed",
-                    "dwMimeFlags",
-                    "ppwzMimeOut",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetClassFileOrMime": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "szFilename",
-                    "pBuffer",
-                    "cbSize",
-                    "szMime",
-                    "dwReserved",
-                    "pclsid"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetClassURL": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "szURL",
-                    "pClsID"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetComponentIDFromCLSSPEC": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "uCLSSPEC",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": false,
-                                "label": "Byte"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pClassspec",
-                    "ppszComponentID"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "GetSoftwareUpdateInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SOFTDISTINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "szDistUnit",
-                    "psdi"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "HlinkGoBack": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pUnk"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "HlinkGoForward": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pUnk"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "HlinkNavigateMoniker": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMoniker"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pUnk",
-                    "pmkTarget"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "HlinkNavigateString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pUnk",
-                    "szTarget"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "HlinkSimpleNavigateToMoniker": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMoniker"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pmkTarget",
-                    "szLocation",
-                    "szTargetFrameName",
-                    "pUnk",
-                    "pbc",
-                    "param5",
-                    "grfHLNF",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "HlinkSimpleNavigateToString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "szTarget",
-                    "szLocation",
-                    "szTargetFrameName",
-                    "pUnk",
-                    "pbc",
-                    "param5",
-                    "grfHLNF",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IEGetUserPrivateNamespaceName": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeChar",
-                        "signed": true,
-                        "label": "Char"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IEInstallScope": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pdwScope"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsAsyncMoniker": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IMoniker"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pmk"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsLoggingEnabledA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pszUrl"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsLoggingEnabledW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszUrl"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsValidURL": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "szURL",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MkParseDisplayNameEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IMoniker"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pbc",
-                    "szDisplayName",
-                    "pchEaten",
-                    "ppmk"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "ObtainUserAgentString": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwOption",
-                    "pszUAOut",
-                    "cbSize"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RegisterBindStatusCallback": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IBindStatusCallback"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "pBSCb",
-                    "ppBSCBPrev",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RegisterFormatEnumerator": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IEnumFORMATETC"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "pEFetc",
-                    "reserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RegisterMediaTypeClass": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": false,
-                                "label": "Byte"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "ctypes",
-                    "rgszTypes",
-                    "rgclsID",
-                    "reserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RegisterMediaTypes": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": false,
-                                "label": "Byte"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeShort",
-                            "signed": false,
-                            "label": "UInt16"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "ctypes",
-                    "rgszTypes",
-                    "rgcfTypes"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "ReleaseBindInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "BINDINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "pbindinfo"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RevokeBindStatusCallback": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "pBSCb"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "RevokeFormatEnumerator": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindCtx"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IEnumFORMATETC"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pBC",
-                    "pEFetc"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "SetAccessForIEAppContainer": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "IEObjectType"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hObject",
-                    "ieObjectType",
-                    "dwAccessMask"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "SetSoftwareUpdateAdvertisementState": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "szDistUnit",
-                    "dwAdState",
-                    "dwAdvertisedVersionMS",
-                    "dwAdvertisedVersionLS"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLDownloadToCacheFileA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "cchFileName",
-                    "param4",
-                    "param5"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLDownloadToCacheFileW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "cchFileName",
-                    "param4",
-                    "param5"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLDownloadToFileA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "param3",
-                    "param4"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLDownloadToFileW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "param3",
-                    "param4"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLOpenBlockingStreamA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IStream"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "param3",
-                    "param4"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLOpenBlockingStreamW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "IStream"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "param3",
-                    "param4"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLOpenPullStreamA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "param3"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLOpenPullStreamW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "param3"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLOpenStreamA": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "param3"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "URLOpenStreamW": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IUnknown"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "IBindStatusCallback"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "param0",
-                    "param1",
-                    "param2",
-                    "param3"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "UrlMkGetSessionOption": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwOption",
-                    "pBuffer",
-                    "dwBufferLength",
-                    "pdwBufferLengthOut",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "UrlMkSetSessionOption": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwOption",
-                    "pBuffer",
-                    "dwBufferLength",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WriteHitLogging": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "HIT_LOGGING_INFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "lpLogginginfo"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"urlmon.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CoGetClassObjectFromURL": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "CLSCTX"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"rCLASSID",
+					"szCODE",
+					"dwFileVersionMS",
+					"dwFileVersionLS",
+					"szTYPE",
+					"pBindCtx",
+					"dwClsContext",
+					"pvReserved",
+					"riid",
+					"ppv"
+				]
+			}
+		},
+		"CoInternetCombineIUri": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUri"
+					},
+					{
+						"_t": "bot",
+						"label": "IUri"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IUri"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBaseUri",
+					"pRelativeUri",
+					"dwCombineFlags",
+					"ppCombinedUri",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetCombineUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwzBaseUrl",
+					"pwzRelativeUrl",
+					"dwCombineFlags",
+					"pszResult",
+					"cchResult",
+					"pcchResult",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetCombineUrlEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUri"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IUri"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBaseUri",
+					"pwzRelativeUrl",
+					"dwCombineFlags",
+					"ppCombinedUri",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetCompareUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwzUrl1",
+					"pwzUrl2",
+					"dwFlags"
+				]
+			}
+		},
+		"CoInternetCreateSecurityManager": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IServiceProvider"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IInternetSecurityManager"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSP",
+					"ppSM",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetCreateZoneManager": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IServiceProvider"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IInternetZoneManager"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSP",
+					"ppZM",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetGetProtocolFlags": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwzUrl",
+					"pdwFlags",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetGetSecurityUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "PSUACTION"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszUrl",
+					"ppwszSecUrl",
+					"psuAction",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetGetSecurityUrlEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUri"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IUri"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "PSUACTION"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pUri",
+					"ppSecUri",
+					"psuAction",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetGetSession": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IInternetSession"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwSessionMode",
+					"ppIInternetSession",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetIsFeatureEnabled": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "INTERNETFEATURELIST"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"FeatureEntry",
+					"dwFlags"
+				]
+			}
+		},
+		"CoInternetIsFeatureEnabledForIUri": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "INTERNETFEATURELIST"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IUri"
+					},
+					{
+						"_t": "bot",
+						"label": "IInternetSecurityManagerEx2"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"FeatureEntry",
+					"dwFlags",
+					"pIUri",
+					"pSecMgr"
+				]
+			}
+		},
+		"CoInternetIsFeatureEnabledForUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "INTERNETFEATURELIST"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IInternetSecurityManager"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"FeatureEntry",
+					"dwFlags",
+					"szURL",
+					"pSecMgr"
+				]
+			}
+		},
+		"CoInternetIsFeatureZoneElevationEnabled": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IInternetSecurityManager"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"szFromURL",
+					"szToURL",
+					"pSecMgr",
+					"dwFlags"
+				]
+			}
+		},
+		"CoInternetParseIUri": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUri"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "PARSEACTION"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIUri",
+					"ParseAction",
+					"dwFlags",
+					"pwzResult",
+					"cchResult",
+					"pcchResult",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetParseUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "PARSEACTION"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwzUrl",
+					"ParseAction",
+					"dwFlags",
+					"pszResult",
+					"cchResult",
+					"pcchResult",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetQueryInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "QUERYOPTION"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwzUrl",
+					"QueryOptions",
+					"dwQueryFlags",
+					"pvBuffer",
+					"cbBuffer",
+					"pcbBuffer",
+					"dwReserved"
+				]
+			}
+		},
+		"CoInternetSetFeatureEnabled": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "INTERNETFEATURELIST"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"FeatureEntry",
+					"dwFlags",
+					"fEnable"
+				]
+			}
+		},
+		"CompareSecurityIds": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pbSecurityId1",
+					"dwLen1",
+					"pbSecurityId2",
+					"dwLen2",
+					"dwReserved"
+				]
+			}
+		},
+		"CompatFlagsFromClsid": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pclsid",
+					"pdwCompatFlags",
+					"pdwMiscStatusFlags"
+				]
+			}
+		},
+		"CopyBindInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "BINDINFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "BINDINFO",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pcbiSrc",
+					"pbiDest"
+				]
+			}
+		},
+		"CopyStgMedium": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STGMEDIUM",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "STGMEDIUM",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pcstgmedSrc",
+					"pstgmedDest"
+				]
+			}
+		},
+		"CreateAsyncBindCtx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					},
+					{
+						"_t": "bot",
+						"label": "IEnumFORMATETC"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IBindCtx"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"reserved",
+					"pBSCb",
+					"pEFetc",
+					"ppBC"
+				]
+			}
+		},
+		"CreateAsyncBindCtxEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					},
+					{
+						"_t": "bot",
+						"label": "IEnumFORMATETC"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IBindCtx"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pbc",
+					"dwOptions",
+					"pBSCb",
+					"pEnum",
+					"ppBC",
+					"reserved"
+				]
+			}
+		},
+		"CreateFormatEnumerator": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "FORMATETC",
+							"ot": "struct"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IEnumFORMATETC"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"cfmtetc",
+					"rgfmtetc",
+					"ppenumfmtetc"
+				]
+			}
+		},
+		"CreateIUriBuilder": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUri"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IUriBuilder"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pIUri",
+					"dwFlags",
+					"dwReserved",
+					"ppIUriBuilder"
+				]
+			}
+		},
+		"CreateURLMoniker": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMoniker"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMoniker"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pMkCtx",
+					"szURL",
+					"ppmk"
+				]
+			}
+		},
+		"CreateURLMonikerEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMoniker"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMoniker"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pMkCtx",
+					"szURL",
+					"ppmk",
+					"dwFlags"
+				]
+			}
+		},
+		"CreateURLMonikerEx2": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMoniker"
+					},
+					{
+						"_t": "bot",
+						"label": "IUri"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMoniker"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pMkCtx",
+					"pUri",
+					"ppmk",
+					"dwFlags"
+				]
+			}
+		},
+		"CreateUri": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "URI_CREATE_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IUri"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwzURI",
+					"dwFlags",
+					"dwReserved",
+					"ppURI"
+				]
+			}
+		},
+		"CreateUriFromMultiByteString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IUri"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pszANSIInputUri",
+					"dwEncodingFlags",
+					"dwCodePage",
+					"dwCreateFlags",
+					"dwReserved",
+					"ppUri"
+				]
+			}
+		},
+		"CreateUriWithFragment": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IUri"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwzURI",
+					"pwzFragment",
+					"dwFlags",
+					"dwReserved",
+					"ppURI"
+				]
+			}
+		},
+		"FaultInIEFeature": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "uCLSSPEC",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "QUERYCONTEXT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hWnd",
+					"pClassSpec",
+					"pQuery",
+					"dwFlags"
+				]
+			}
+		},
+		"FindMediaType": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "short",
+							"signed": false,
+							"label": "UInt16"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"rgszTypes",
+					"rgcfTypes"
+				]
+			}
+		},
+		"FindMediaTypeClass": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"szType",
+					"pclsID",
+					"reserved"
+				]
+			}
+		},
+		"FindMimeFromData": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"pwzUrl",
+					"pBuffer",
+					"cbSize",
+					"pwzMimeProposed",
+					"dwMimeFlags",
+					"ppwzMimeOut",
+					"dwReserved"
+				]
+			}
+		},
+		"GetClassFileOrMime": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"szFilename",
+					"pBuffer",
+					"cbSize",
+					"szMime",
+					"dwReserved",
+					"pclsid"
+				]
+			}
+		},
+		"GetClassURL": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"szURL",
+					"pClsID"
+				]
+			}
+		},
+		"GetComponentIDFromCLSSPEC": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "uCLSSPEC",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": false,
+								"label": "Byte"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pClassspec",
+					"ppszComponentID"
+				]
+			}
+		},
+		"GetSoftwareUpdateInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SOFTDISTINFO",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"szDistUnit",
+					"psdi"
+				]
+			}
+		},
+		"HlinkGoBack": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pUnk"
+				]
+			}
+		},
+		"HlinkGoForward": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pUnk"
+				]
+			}
+		},
+		"HlinkNavigateMoniker": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "bot",
+						"label": "IMoniker"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pUnk",
+					"pmkTarget"
+				]
+			}
+		},
+		"HlinkNavigateString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pUnk",
+					"szTarget"
+				]
+			}
+		},
+		"HlinkSimpleNavigateToMoniker": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMoniker"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pmkTarget",
+					"szLocation",
+					"szTargetFrameName",
+					"pUnk",
+					"pbc",
+					"param5",
+					"grfHLNF",
+					"dwReserved"
+				]
+			}
+		},
+		"HlinkSimpleNavigateToString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"szTarget",
+					"szLocation",
+					"szTargetFrameName",
+					"pUnk",
+					"pbc",
+					"param5",
+					"grfHLNF",
+					"dwReserved"
+				]
+			}
+		},
+		"IEGetUserPrivateNamespaceName": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "char",
+						"signed": true,
+						"label": "Char"
+					}
+				},
+				"arg_names": []
+			}
+		},
+		"IEInstallScope": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pdwScope"
+				]
+			}
+		},
+		"IsAsyncMoniker": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IMoniker"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pmk"
+				]
+			}
+		},
+		"IsLoggingEnabledA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pszUrl"
+				]
+			}
+		},
+		"IsLoggingEnabledW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszUrl"
+				]
+			}
+		},
+		"IsValidURL": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"szURL",
+					"dwReserved"
+				]
+			}
+		},
+		"MkParseDisplayNameEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IMoniker"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pbc",
+					"szDisplayName",
+					"pchEaten",
+					"ppmk"
+				]
+			}
+		},
+		"ObtainUserAgentString": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwOption",
+					"pszUAOut",
+					"cbSize"
+				]
+			}
+		},
+		"RegisterBindStatusCallback": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IBindStatusCallback"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"pBSCb",
+					"ppBSCBPrev",
+					"dwReserved"
+				]
+			}
+		},
+		"RegisterFormatEnumerator": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "bot",
+						"label": "IEnumFORMATETC"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"pEFetc",
+					"reserved"
+				]
+			}
+		},
+		"RegisterMediaTypeClass": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": false,
+								"label": "Byte"
+							}
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"ctypes",
+					"rgszTypes",
+					"rgclsID",
+					"reserved"
+				]
+			}
+		},
+		"RegisterMediaTypes": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": false,
+								"label": "Byte"
+							}
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "short",
+							"signed": false,
+							"label": "UInt16"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ctypes",
+					"rgszTypes",
+					"rgcfTypes"
+				]
+			}
+		},
+		"ReleaseBindInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "BINDINFO",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pbindinfo"
+				]
+			}
+		},
+		"RevokeBindStatusCallback": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"pBSCb"
+				]
+			}
+		},
+		"RevokeFormatEnumerator": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IBindCtx"
+					},
+					{
+						"_t": "bot",
+						"label": "IEnumFORMATETC"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pBC",
+					"pEFetc"
+				]
+			}
+		},
+		"SetAccessForIEAppContainer": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "IEObjectType"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hObject",
+					"ieObjectType",
+					"dwAccessMask"
+				]
+			}
+		},
+		"SetSoftwareUpdateAdvertisementState": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"szDistUnit",
+					"dwAdState",
+					"dwAdvertisedVersionMS",
+					"dwAdvertisedVersionLS"
+				]
+			}
+		},
+		"URLDownloadToCacheFileA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"cchFileName",
+					"param4",
+					"param5"
+				]
+			}
+		},
+		"URLDownloadToCacheFileW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"cchFileName",
+					"param4",
+					"param5"
+				]
+			}
+		},
+		"URLDownloadToFileA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"param3",
+					"param4"
+				]
+			}
+		},
+		"URLDownloadToFileW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"param3",
+					"param4"
+				]
+			}
+		},
+		"URLOpenBlockingStreamA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IStream"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"param3",
+					"param4"
+				]
+			}
+		},
+		"URLOpenBlockingStreamW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "IStream"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"param3",
+					"param4"
+				]
+			}
+		},
+		"URLOpenPullStreamA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"param3"
+				]
+			}
+		},
+		"URLOpenPullStreamW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"param3"
+				]
+			}
+		},
+		"URLOpenStreamA": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"param3"
+				]
+			}
+		},
+		"URLOpenStreamW": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "bot",
+						"label": "IUnknown"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "bot",
+						"label": "IBindStatusCallback"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"param0",
+					"param1",
+					"param2",
+					"param3"
+				]
+			}
+		},
+		"UrlMkGetSessionOption": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwOption",
+					"pBuffer",
+					"dwBufferLength",
+					"pdwBufferLengthOut",
+					"dwReserved"
+				]
+			}
+		},
+		"UrlMkSetSessionOption": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwOption",
+					"pBuffer",
+					"dwBufferLength",
+					"dwReserved"
+				]
+			}
+		},
+		"WriteHitLogging": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "HIT_LOGGING_INFO",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"lpLogginginfo"
+				]
+			}
+		}
+	}
 }

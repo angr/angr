@@ -1,834 +1,664 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "ndfapi.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "NdfCancelIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCloseIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateConnectivityIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateDNSIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hostname",
-                    "queryType",
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateGroupingIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SOCKET_ADDRESS_LIST",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "CloudName",
-                    "GroupName",
-                    "Identity",
-                    "Invitation",
-                    "Addresses",
-                    "appId",
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "HELPER_ATTRIBUTE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "helperClassName",
-                    "celt",
-                    "attributes",
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateNetConnectionIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeBottom",
-                        "label": "Guid"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "handle",
-                    "id"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreatePnrpIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "cloudname",
-                    "peername",
-                    "diagnosePublish",
-                    "appId",
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateSharingIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "UNCPath",
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateWebIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "url",
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateWebIncidentEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "url",
-                    "useWinHTTP",
-                    "moduleName",
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfCreateWinSockIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SID",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "sock",
-                    "host",
-                    "port",
-                    "appId",
-                    "userId",
-                    "handle"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfDiagnoseIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeRef",
-                                "name": "RootCauseInfo",
-                                "original_type_name": "SimStruct"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Handle",
-                    "RootCauseCount",
-                    "RootCauses",
-                    "dwWait",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfExecuteDiagnosis": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "handle",
-                    "hwnd"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfGetTraceFile": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": true,
-                                "label": "Char"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Handle",
-                    "TraceFileLocation"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "NdfRepairIncident": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RepairInfoEx",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Handle",
-                    "RepairEx",
-                    "dwWait"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"ndfapi.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"NdfCancelIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Handle"
+				]
+			}
+		},
+		"NdfCloseIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"handle"
+				]
+			}
+		},
+		"NdfCreateConnectivityIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"handle"
+				]
+			}
+		},
+		"NdfCreateDNSIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hostname",
+					"queryType",
+					"handle"
+				]
+			}
+		},
+		"NdfCreateGroupingIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SOCKET_ADDRESS_LIST",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"CloudName",
+					"GroupName",
+					"Identity",
+					"Invitation",
+					"Addresses",
+					"appId",
+					"handle"
+				]
+			}
+		},
+		"NdfCreateIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "HELPER_ATTRIBUTE",
+							"ot": "struct"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"helperClassName",
+					"celt",
+					"attributes",
+					"handle"
+				]
+			}
+		},
+		"NdfCreateNetConnectionIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					},
+					{
+						"_t": "bot",
+						"label": "Guid"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"handle",
+					"id"
+				]
+			}
+		},
+		"NdfCreatePnrpIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"cloudname",
+					"peername",
+					"diagnosePublish",
+					"appId",
+					"handle"
+				]
+			}
+		},
+		"NdfCreateSharingIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"UNCPath",
+					"handle"
+				]
+			}
+		},
+		"NdfCreateWebIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"url",
+					"handle"
+				]
+			}
+		},
+		"NdfCreateWebIncidentEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"url",
+					"useWinHTTP",
+					"moduleName",
+					"handle"
+				]
+			}
+		},
+		"NdfCreateWinSockIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SID",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"sock",
+					"host",
+					"port",
+					"appId",
+					"userId",
+					"handle"
+				]
+			}
+		},
+		"NdfDiagnoseIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "_ref",
+								"name": "RootCauseInfo",
+								"ot": "struct"
+							}
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Handle",
+					"RootCauseCount",
+					"RootCauses",
+					"dwWait",
+					"dwFlags"
+				]
+			}
+		},
+		"NdfExecuteDiagnosis": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"handle",
+					"hwnd"
+				]
+			}
+		},
+		"NdfGetTraceFile": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Handle",
+					"TraceFileLocation"
+				]
+			}
+		},
+		"NdfRepairIncident": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RepairInfoEx",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Handle",
+					"RepairEx",
+					"dwWait"
+				]
+			}
+		}
+	}
 }

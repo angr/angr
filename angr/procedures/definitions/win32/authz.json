@@ -1,2130 +1,1725 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "authz.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "AuthzAccessCheck": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "AUTHZ_ACCESS_CHECK_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_ACCESS_REQUEST",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_ACCESS_REPLY",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "hAuthzClientContext",
-                    "pRequest",
-                    "hAuditEvent",
-                    "pSecurityDescriptor",
-                    "OptionalSecurityDescriptorArray",
-                    "OptionalSecurityDescriptorCount",
-                    "pReply",
-                    "phAccessCheckResults"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzAddSidsToContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SID_AND_ATTRIBUTES",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SID_AND_ATTRIBUTES",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuthzClientContext",
-                    "Sids",
-                    "SidCount",
-                    "RestrictedSids",
-                    "RestrictedSidCount",
-                    "phNewAuthzClientContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzCachedAccessCheck": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_ACCESS_REQUEST",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_ACCESS_REPLY",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "hAccessCheckResults",
-                    "pRequest",
-                    "hAuditEvent",
-                    "pReply"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzEnumerateSecurityEventSources": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_SOURCE_SCHEMA_REGISTRATION",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags",
-                    "Buffer",
-                    "pdwCount",
-                    "pdwLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzEvaluateSacl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_ACCESS_REQUEST",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "ACL",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "AuthzClientContext",
-                    "pRequest",
-                    "Sacl",
-                    "GrantedAccess",
-                    "AccessGranted",
-                    "pbGenerateAudit"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzFreeAuditEvent": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuditEvent"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzFreeCentralAccessPolicyCache": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzFreeContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuthzClientContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzFreeHandle": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAccessCheckResults"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzFreeResourceManager": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuthzResourceManager"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzGetInformationFromContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuthzClientContext",
-                    "InfoClass",
-                    "BufferSize",
-                    "pSizeRequired",
-                    "Buffer"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeCompoundContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "UserContext",
-                    "DeviceContext",
-                    "phCompoundContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeContextFromAuthzContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeLongLong",
-                            "signed": true,
-                            "label": "Int64"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeRef",
-                        "name": "LUID",
-                        "original_type_name": "SimStruct"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "hAuthzClientContext",
-                    "pExpirationTime",
-                    "Identifier",
-                    "DynamicGroupArgs",
-                    "phNewAuthzClientContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeContextFromSid": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeLongLong",
-                            "signed": true,
-                            "label": "Int64"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeRef",
-                        "name": "LUID",
-                        "original_type_name": "SimStruct"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "UserSid",
-                    "hAuthzResourceManager",
-                    "pExpirationTime",
-                    "Identifier",
-                    "DynamicGroupArgs",
-                    "phAuthzClientContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeContextFromToken": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeLongLong",
-                            "signed": true,
-                            "label": "Int64"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeRef",
-                        "name": "LUID",
-                        "original_type_name": "SimStruct"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "TokenHandle",
-                    "hAuthzResourceManager",
-                    "pExpirationTime",
-                    "Identifier",
-                    "DynamicGroupArgs",
-                    "phAuthzClientContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeObjectAccessAuditEvent": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "AUTHZ_INITIALIZE_OBJECT_ACCESS_AUDIT_EVENT_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "hAuditEventType",
-                    "szOperationType",
-                    "szObjectType",
-                    "szObjectName",
-                    "szAdditionalInfo",
-                    "phAuditEvent",
-                    "dwAdditionalParameterCount"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeObjectAccessAuditEvent2": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "hAuditEventType",
-                    "szOperationType",
-                    "szObjectType",
-                    "szObjectName",
-                    "szAdditionalInfo",
-                    "szAdditionalInfo2",
-                    "phAuditEvent",
-                    "dwAdditionalParameterCount"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeRemoteResourceManager": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_RPC_INIT_INFO_CLIENT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pRpcInitInfo",
-                    "phAuthzResourceManager"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeResourceManager": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeRef",
-                                        "name": "ACE_HEADER",
-                                        "original_type_name": "SimStruct"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int32"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "hAuthzClientContext",
-                                "pAce",
-                                "pArgs",
-                                "pbAceApplicable"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypePointer",
-                                        "pts_to": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SID_AND_ATTRIBUTES",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "label": null,
-                                        "offset": 0
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": false,
-                                        "label": "UInt32"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypePointer",
-                                        "pts_to": {
-                                            "__type__": "SimTypeRef",
-                                            "name": "SID_AND_ATTRIBUTES",
-                                            "original_type_name": "SimStruct"
-                                        },
-                                        "label": null,
-                                        "offset": 0
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": false,
-                                        "label": "UInt32"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "hAuthzClientContext",
-                                "Args",
-                                "pSidAttrArray",
-                                "pSidCount",
-                                "pRestrictedSidAttrArray",
-                                "pRestrictedSidCount"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeRef",
-                                        "name": "SID_AND_ATTRIBUTES",
-                                        "original_type_name": "SimStruct"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "pSidAttrArray"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "pfnDynamicAccessCheck",
-                    "pfnComputeDynamicGroups",
-                    "pfnFreeDynamicGroups",
-                    "szResourceManagerName",
-                    "phAuthzResourceManager"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInitializeResourceManagerEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "AUTHZ_RESOURCE_MANAGER_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_INIT_INFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "pAuthzInitInfo",
-                    "phAuthzResourceManager"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzInstallSecurityEventSource": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_SOURCE_SCHEMA_REGISTRATION",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags",
-                    "pRegistration"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzModifyClaims": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "AUTHZ_SECURITY_ATTRIBUTE_OPERATION"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_SECURITY_ATTRIBUTES_INFORMATION",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuthzClientContext",
-                    "ClaimClass",
-                    "pClaimOperations",
-                    "pClaims"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzModifySecurityAttributes": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "AUTHZ_SECURITY_ATTRIBUTE_OPERATION"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_SECURITY_ATTRIBUTES_INFORMATION",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuthzClientContext",
-                    "pOperations",
-                    "pAttributes"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzModifySids": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "AUTHZ_SID_OPERATION"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "TOKEN_GROUPS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuthzClientContext",
-                    "SidClass",
-                    "pSidOperations",
-                    "pSids"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzOpenObjectAudit": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_ACCESS_REQUEST",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUTHZ_ACCESS_REPLY",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "Flags",
-                    "hAuthzClientContext",
-                    "pRequest",
-                    "hAuditEvent",
-                    "pSecurityDescriptor",
-                    "OptionalSecurityDescriptorArray",
-                    "OptionalSecurityDescriptorCount",
-                    "pReply"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzRegisterCapChangeNotification": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": false,
-                                "label": "UInt32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "lpThreadParameter"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "phCapChangeSubscription",
-                    "pfnCapChangeCallback",
-                    "pCallbackContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzRegisterSecurityEventSource": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags",
-                    "szEventSourceName",
-                    "phEventProvider"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzReportSecurityEvent": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags",
-                    "hEventProvider",
-                    "dwAuditId",
-                    "pUserSid",
-                    "dwCount"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzReportSecurityEventFromParams": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "AUDIT_PARAMS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags",
-                    "hEventProvider",
-                    "dwAuditId",
-                    "pUserSid",
-                    "pParams"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzSetAppContainerInformation": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SID_AND_ATTRIBUTES",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hAuthzClientContext",
-                    "pAppContainerSid",
-                    "CapabilityCount",
-                    "pCapabilitySids"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzUninstallSecurityEventSource": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags",
-                    "szEventSourceName"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzUnregisterCapChangeNotification": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCapChangeSubscription"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "AuthzUnregisterSecurityEventSource": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags",
-                    "phEventProvider"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"authz.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AuthzAccessCheck": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "AUTHZ_ACCESS_CHECK_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_ACCESS_REQUEST",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_ACCESS_REPLY",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"hAuthzClientContext",
+					"pRequest",
+					"hAuditEvent",
+					"pSecurityDescriptor",
+					"OptionalSecurityDescriptorArray",
+					"OptionalSecurityDescriptorCount",
+					"pReply",
+					"phAccessCheckResults"
+				]
+			}
+		},
+		"AuthzAddSidsToContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SID_AND_ATTRIBUTES",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SID_AND_ATTRIBUTES",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuthzClientContext",
+					"Sids",
+					"SidCount",
+					"RestrictedSids",
+					"RestrictedSidCount",
+					"phNewAuthzClientContext"
+				]
+			}
+		},
+		"AuthzCachedAccessCheck": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_ACCESS_REQUEST",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_ACCESS_REPLY",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"hAccessCheckResults",
+					"pRequest",
+					"hAuditEvent",
+					"pReply"
+				]
+			}
+		},
+		"AuthzEnumerateSecurityEventSources": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_SOURCE_SCHEMA_REGISTRATION",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwFlags",
+					"Buffer",
+					"pdwCount",
+					"pdwLength"
+				]
+			}
+		},
+		"AuthzEvaluateSacl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_ACCESS_REQUEST",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "ACL",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"AuthzClientContext",
+					"pRequest",
+					"Sacl",
+					"GrantedAccess",
+					"AccessGranted",
+					"pbGenerateAudit"
+				]
+			}
+		},
+		"AuthzFreeAuditEvent": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuditEvent"
+				]
+			}
+		},
+		"AuthzFreeCentralAccessPolicyCache": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		},
+		"AuthzFreeContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuthzClientContext"
+				]
+			}
+		},
+		"AuthzFreeHandle": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAccessCheckResults"
+				]
+			}
+		},
+		"AuthzFreeResourceManager": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuthzResourceManager"
+				]
+			}
+		},
+		"AuthzGetInformationFromContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuthzClientContext",
+					"InfoClass",
+					"BufferSize",
+					"pSizeRequired",
+					"Buffer"
+				]
+			}
+		},
+		"AuthzInitializeCompoundContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"UserContext",
+					"DeviceContext",
+					"phCompoundContext"
+				]
+			}
+		},
+		"AuthzInitializeContextFromAuthzContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "llong",
+							"label": "Int64"
+						}
+					},
+					{
+						"_t": "_ref",
+						"name": "LUID",
+						"ot": "struct"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"hAuthzClientContext",
+					"pExpirationTime",
+					"Identifier",
+					"DynamicGroupArgs",
+					"phNewAuthzClientContext"
+				]
+			}
+		},
+		"AuthzInitializeContextFromSid": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "llong",
+							"label": "Int64"
+						}
+					},
+					{
+						"_t": "_ref",
+						"name": "LUID",
+						"ot": "struct"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"UserSid",
+					"hAuthzResourceManager",
+					"pExpirationTime",
+					"Identifier",
+					"DynamicGroupArgs",
+					"phAuthzClientContext"
+				]
+			}
+		},
+		"AuthzInitializeContextFromToken": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "llong",
+							"label": "Int64"
+						}
+					},
+					{
+						"_t": "_ref",
+						"name": "LUID",
+						"ot": "struct"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"TokenHandle",
+					"hAuthzResourceManager",
+					"pExpirationTime",
+					"Identifier",
+					"DynamicGroupArgs",
+					"phAuthzClientContext"
+				]
+			}
+		},
+		"AuthzInitializeObjectAccessAuditEvent": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "AUTHZ_INITIALIZE_OBJECT_ACCESS_AUDIT_EVENT_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"hAuditEventType",
+					"szOperationType",
+					"szObjectType",
+					"szObjectName",
+					"szAdditionalInfo",
+					"phAuditEvent",
+					"dwAdditionalParameterCount"
+				]
+			}
+		},
+		"AuthzInitializeObjectAccessAuditEvent2": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"hAuditEventType",
+					"szOperationType",
+					"szObjectType",
+					"szObjectName",
+					"szAdditionalInfo",
+					"szAdditionalInfo2",
+					"phAuditEvent",
+					"dwAdditionalParameterCount"
+				]
+			}
+		},
+		"AuthzInitializeRemoteResourceManager": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_RPC_INIT_INFO_CLIENT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pRpcInitInfo",
+					"phAuthzResourceManager"
+				]
+			}
+		},
+		"AuthzInitializeResourceManager": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "_ref",
+										"name": "ACE_HEADER",
+										"ot": "struct"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int32"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"hAuthzClientContext",
+								"pAce",
+								"pArgs",
+								"pbAceApplicable"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "ptr",
+										"pts_to": {
+											"_t": "_ref",
+											"name": "SID_AND_ATTRIBUTES",
+											"ot": "struct"
+										}
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"signed": false,
+										"label": "UInt32"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "ptr",
+										"pts_to": {
+											"_t": "_ref",
+											"name": "SID_AND_ATTRIBUTES",
+											"ot": "struct"
+										}
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"signed": false,
+										"label": "UInt32"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"hAuthzClientContext",
+								"Args",
+								"pSidAttrArray",
+								"pSidCount",
+								"pRestrictedSidAttrArray",
+								"pRestrictedSidCount"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "_ref",
+										"name": "SID_AND_ATTRIBUTES",
+										"ot": "struct"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"pSidAttrArray"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"pfnDynamicAccessCheck",
+					"pfnComputeDynamicGroups",
+					"pfnFreeDynamicGroups",
+					"szResourceManagerName",
+					"phAuthzResourceManager"
+				]
+			}
+		},
+		"AuthzInitializeResourceManagerEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "AUTHZ_RESOURCE_MANAGER_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_INIT_INFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"pAuthzInitInfo",
+					"phAuthzResourceManager"
+				]
+			}
+		},
+		"AuthzInstallSecurityEventSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_SOURCE_SCHEMA_REGISTRATION",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwFlags",
+					"pRegistration"
+				]
+			}
+		},
+		"AuthzModifyClaims": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "AUTHZ_SECURITY_ATTRIBUTE_OPERATION"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_SECURITY_ATTRIBUTES_INFORMATION",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuthzClientContext",
+					"ClaimClass",
+					"pClaimOperations",
+					"pClaims"
+				]
+			}
+		},
+		"AuthzModifySecurityAttributes": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "AUTHZ_SECURITY_ATTRIBUTE_OPERATION"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_SECURITY_ATTRIBUTES_INFORMATION",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuthzClientContext",
+					"pOperations",
+					"pAttributes"
+				]
+			}
+		},
+		"AuthzModifySids": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "AUTHZ_SID_OPERATION"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "TOKEN_GROUPS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuthzClientContext",
+					"SidClass",
+					"pSidOperations",
+					"pSids"
+				]
+			}
+		},
+		"AuthzOpenObjectAudit": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_ACCESS_REQUEST",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUTHZ_ACCESS_REPLY",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"Flags",
+					"hAuthzClientContext",
+					"pRequest",
+					"hAuditEvent",
+					"pSecurityDescriptor",
+					"OptionalSecurityDescriptorArray",
+					"OptionalSecurityDescriptorCount",
+					"pReply"
+				]
+			}
+		},
+		"AuthzRegisterCapChangeNotification": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"signed": false,
+								"label": "UInt32"
+							},
+							"arg_names": [
+								"lpThreadParameter"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"phCapChangeSubscription",
+					"pfnCapChangeCallback",
+					"pCallbackContext"
+				]
+			}
+		},
+		"AuthzRegisterSecurityEventSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwFlags",
+					"szEventSourceName",
+					"phEventProvider"
+				]
+			}
+		},
+		"AuthzReportSecurityEvent": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwFlags",
+					"hEventProvider",
+					"dwAuditId",
+					"pUserSid",
+					"dwCount"
+				]
+			}
+		},
+		"AuthzReportSecurityEventFromParams": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "AUDIT_PARAMS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwFlags",
+					"hEventProvider",
+					"dwAuditId",
+					"pUserSid",
+					"pParams"
+				]
+			}
+		},
+		"AuthzSetAppContainerInformation": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SID_AND_ATTRIBUTES",
+							"ot": "struct"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hAuthzClientContext",
+					"pAppContainerSid",
+					"CapabilityCount",
+					"pCapabilitySids"
+				]
+			}
+		},
+		"AuthzUninstallSecurityEventSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwFlags",
+					"szEventSourceName"
+				]
+			}
+		},
+		"AuthzUnregisterCapChangeNotification": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCapChangeSubscription"
+				]
+			}
+		},
+		"AuthzUnregisterSecurityEventSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwFlags",
+					"phEventProvider"
+				]
+			}
+		}
+	}
 }

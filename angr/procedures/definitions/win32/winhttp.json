@@ -1,2946 +1,2440 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "winhttp.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "WinHttpAddRequestHeaders": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "lpszHeaders",
-                    "dwHeadersLength",
-                    "dwModifiers"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpAddRequestHeadersEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeLongLong",
-                        "signed": false,
-                        "label": "UInt64"
-                    },
-                    {
-                        "__type__": "SimTypeLongLong",
-                        "signed": false,
-                        "label": "UInt64"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_EXTENDED_HEADER",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "dwModifiers",
-                    "ullFlags",
-                    "ullExtra",
-                    "cHeaders",
-                    "pHeaders"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpCheckPlatform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpCloseHandle": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hInternet"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpConnect": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeBottom",
-                        "label": "Void"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hSession",
-                    "pswzServerName",
-                    "nServerPort",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpCrackUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "URL_COMPONENTS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszUrl",
-                    "dwUrlLength",
-                    "dwFlags",
-                    "lpUrlComponents"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpCreateProxyResolver": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hSession",
-                    "phResolver"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpCreateUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "URL_COMPONENTS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WIN_HTTP_CREATE_URL_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "lpUrlComponents",
-                    "dwFlags",
-                    "pwszUrl",
-                    "pdwUrlLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpDetectAutoProxyConfigUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": true,
-                                "label": "Char"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwAutoDetectFlags",
-                    "ppwstrAutoConfigUrl"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpFreeProxyResult": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_RESULT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "pProxyResult"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpFreeProxyResultEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_RESULT_EX",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "pProxyResultEx"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpFreeProxySettings": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_SETTINGS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "pWinHttpProxySettings"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpFreeProxySettingsEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WINHTTP_PROXY_SETTINGS_TYPE"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "ProxySettingsType",
-                    "pProxySettingsEx"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpFreeQueryConnectionGroupResult": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_QUERY_CONNECTION_GROUP_RESULT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "pResult"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetDefaultProxyConfiguration": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_INFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pProxyInfo"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetIEProxyConfigForCurrentUser": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_CURRENT_USER_IE_PROXY_CONFIG",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pProxyConfig"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetProxyForUrl": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_AUTOPROXY_OPTIONS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_INFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hSession",
-                    "lpcwszUrl",
-                    "pAutoProxyOptions",
-                    "pProxyInfo"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetProxyForUrlEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_AUTOPROXY_OPTIONS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hResolver",
-                    "pcwszUrl",
-                    "pAutoProxyOptions",
-                    "pContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetProxyForUrlEx2": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_AUTOPROXY_OPTIONS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hResolver",
-                    "pcwszUrl",
-                    "pAutoProxyOptions",
-                    "cbInterfaceSelectionContext",
-                    "pInterfaceSelectionContext",
-                    "pContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetProxyResult": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_RESULT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hResolver",
-                    "pProxyResult"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetProxyResultEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_RESULT_EX",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hResolver",
-                    "pProxyResultEx"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetProxySettingsEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WINHTTP_PROXY_SETTINGS_TYPE"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_SETTINGS_PARAM",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hResolver",
-                    "ProxySettingsType",
-                    "pProxySettingsParam",
-                    "pContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetProxySettingsResultEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hResolver",
-                    "pProxySettingsEx"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpGetProxySettingsVersion": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hSession",
-                    "pdwProxySettingsVersion"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpOpen": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WINHTTP_ACCESS_TYPE"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeBottom",
-                        "label": "Void"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pszAgentW",
-                    "dwAccessType",
-                    "pszProxyW",
-                    "pszProxyBypassW",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpOpenRequest": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeChar",
-                                "signed": true,
-                                "label": "Char"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WINHTTP_OPEN_REQUEST_FLAGS"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeBottom",
-                        "label": "Void"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hConnect",
-                    "pwszVerb",
-                    "pwszObjectName",
-                    "pwszVersion",
-                    "pwszReferrer",
-                    "ppwszAcceptTypes",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpQueryAuthSchemes": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "lpdwSupportedSchemes",
-                    "lpdwFirstScheme",
-                    "pdwAuthTarget"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpQueryConnectionGroup": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeLongLong",
-                        "signed": false,
-                        "label": "UInt64"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeRef",
-                                "name": "WINHTTP_QUERY_CONNECTION_GROUP_RESULT",
-                                "original_type_name": "SimStruct"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hInternet",
-                    "pGuidConnection",
-                    "ullFlags",
-                    "ppResult"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpQueryDataAvailable": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "lpdwNumberOfBytesAvailable"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpQueryHeaders": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "dwInfoLevel",
-                    "pwszName",
-                    "lpBuffer",
-                    "lpdwBufferLength",
-                    "lpdwIndex"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpQueryHeadersEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeLongLong",
-                        "signed": false,
-                        "label": "UInt64"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimUnion",
-                            "members": {
-                                "pwszName": {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                "pszName": {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": false,
-                                        "label": "Byte"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            },
-                            "name": "<anon>",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeRef",
-                                "name": "WINHTTP_EXTENDED_HEADER",
-                                "original_type_name": "SimStruct"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "dwInfoLevel",
-                    "ullFlags",
-                    "uiCodePage",
-                    "pdwIndex",
-                    "pHeaderName",
-                    "pBuffer",
-                    "pdwBufferLength",
-                    "ppHeaders",
-                    "pdwHeadersCount"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpQueryOption": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hInternet",
-                    "dwOption",
-                    "lpBuffer",
-                    "lpdwBufferLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpReadData": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "lpBuffer",
-                    "dwNumberOfBytesToRead",
-                    "lpdwNumberOfBytesRead"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpReadDataEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeLongLong",
-                        "signed": false,
-                        "label": "UInt64"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "lpBuffer",
-                    "dwNumberOfBytesToRead",
-                    "lpdwNumberOfBytesRead",
-                    "ullFlags",
-                    "cbProperty",
-                    "pvProperty"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpReadProxySettings": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_SETTINGS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hSession",
-                    "pcwszConnectionName",
-                    "fFallBackToDefaultSettings",
-                    "fSetAutoDiscoverForDefaultSettings",
-                    "pdwSettingsVersion",
-                    "pfDefaultSettingsAreReturned",
-                    "pWinHttpProxySettings"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpReceiveResponse": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "lpReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpRegisterProxyChangeNotification": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeLongLong",
-                        "signed": false,
-                        "label": "UInt64"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypeLongLong",
-                                    "signed": false,
-                                    "label": "UInt64"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "ullFlags",
-                                "pvContext"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "ullFlags",
-                    "pfnCallback",
-                    "pvContext",
-                    "hRegistration"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpResetAutoProxy": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hSession",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpSendRequest": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "lpszHeaders",
-                    "dwHeadersLength",
-                    "lpOptional",
-                    "dwOptionalLength",
-                    "dwTotalLength",
-                    "dwContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpSetCredentials": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "AuthTargets",
-                    "AuthScheme",
-                    "pwszUserName",
-                    "pwszPassword",
-                    "pAuthParams"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpSetDefaultProxyConfiguration": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_INFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pProxyInfo"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpSetOption": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hInternet",
-                    "dwOption",
-                    "lpBuffer",
-                    "dwBufferLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpSetProxySettingsPerUser": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "fProxySettingsPerUser"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpSetStatusCallback": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": false,
-                                        "label": "UInt"
-                                    },
-                                    "label": "UIntPtr",
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "hInternet",
-                                "dwContext",
-                                "dwInternetStatus",
-                                "lpvStatusInformation",
-                                "dwStatusInformationLength"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeFunction",
-                        "args": [
-                            {
-                                "__type__": "SimTypePointer",
-                                "pts_to": {
-                                    "__type__": "SimTypeBottom",
-                                    "label": "Void"
-                                },
-                                "label": null,
-                                "offset": 0
-                            },
-                            {
-                                "__type__": "SimTypePointer",
-                                "pts_to": {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt"
-                                },
-                                "label": "UIntPtr",
-                                "offset": 0
-                            },
-                            {
-                                "__type__": "SimTypeInt",
-                                "signed": false,
-                                "label": "UInt32"
-                            },
-                            {
-                                "__type__": "SimTypePointer",
-                                "pts_to": {
-                                    "__type__": "SimTypeBottom",
-                                    "label": "Void"
-                                },
-                                "label": null,
-                                "offset": 0
-                            },
-                            {
-                                "__type__": "SimTypeInt",
-                                "signed": false,
-                                "label": "UInt32"
-                            }
-                        ],
-                        "returnty": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "arg_names": [
-                            "hInternet",
-                            "dwContext",
-                            "dwInternetStatus",
-                            "lpvStatusInformation",
-                            "dwStatusInformationLength"
-                        ],
-                        "variadic": false
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hInternet",
-                    "lpfnInternetCallback",
-                    "dwNotificationFlags",
-                    "dwReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpSetTimeouts": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hInternet",
-                    "nResolveTimeout",
-                    "nConnectTimeout",
-                    "nSendTimeout",
-                    "nReceiveTimeout"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpTimeFromSystemTime": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SYSTEMTIME",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pst",
-                    "pwszTime"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpTimeToSystemTime": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SYSTEMTIME",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszTime",
-                    "pst"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpUnregisterProxyChangeNotification": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRegistration"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpWebSocketClose": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hWebSocket",
-                    "usStatus",
-                    "pvReason",
-                    "dwReasonLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpWebSocketCompleteUpgrade": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeBottom",
-                        "label": "Void"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "pContext"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpWebSocketQueryCloseStatus": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeShort",
-                            "signed": false,
-                            "label": "UInt16"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hWebSocket",
-                    "pusStatus",
-                    "pvReason",
-                    "dwReasonLength",
-                    "pdwReasonLengthConsumed"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpWebSocketReceive": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "WINHTTP_WEB_SOCKET_BUFFER_TYPE"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hWebSocket",
-                    "pvBuffer",
-                    "dwBufferLength",
-                    "pdwBytesRead",
-                    "peBufferType"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpWebSocketSend": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WINHTTP_WEB_SOCKET_BUFFER_TYPE"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hWebSocket",
-                    "eBufferType",
-                    "pvBuffer",
-                    "dwBufferLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpWebSocketShutdown": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeShort",
-                        "signed": false,
-                        "label": "UInt16"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hWebSocket",
-                    "usStatus",
-                    "pvReason",
-                    "dwReasonLength"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpWriteData": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hRequest",
-                    "lpBuffer",
-                    "dwNumberOfBytesToWrite",
-                    "lpdwNumberOfBytesWritten"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinHttpWriteProxySettings": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINHTTP_PROXY_SETTINGS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hSession",
-                    "fForceUpdate",
-                    "pWinHttpProxySettings"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"winhttp.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"WinHttpAddRequestHeaders": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"lpszHeaders",
+					"dwHeadersLength",
+					"dwModifiers"
+				]
+			}
+		},
+		"WinHttpAddRequestHeadersEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					},
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_EXTENDED_HEADER",
+							"ot": "struct"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hRequest",
+					"dwModifiers",
+					"ullFlags",
+					"ullExtra",
+					"cHeaders",
+					"pHeaders"
+				]
+			}
+		},
+		"WinHttpCheckPlatform": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		},
+		"WinHttpCloseHandle": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hInternet"
+				]
+			}
+		},
+		"WinHttpConnect": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "bot",
+						"label": "Void"
+					}
+				},
+				"arg_names": [
+					"hSession",
+					"pswzServerName",
+					"nServerPort",
+					"dwReserved"
+				]
+			}
+		},
+		"WinHttpCrackUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "URL_COMPONENTS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszUrl",
+					"dwUrlLength",
+					"dwFlags",
+					"lpUrlComponents"
+				]
+			}
+		},
+		"WinHttpCreateProxyResolver": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hSession",
+					"phResolver"
+				]
+			}
+		},
+		"WinHttpCreateUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "URL_COMPONENTS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WIN_HTTP_CREATE_URL_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"lpUrlComponents",
+					"dwFlags",
+					"pwszUrl",
+					"pdwUrlLength"
+				]
+			}
+		},
+		"WinHttpDetectAutoProxyConfigUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwAutoDetectFlags",
+					"ppwstrAutoConfigUrl"
+				]
+			}
+		},
+		"WinHttpFreeProxyResult": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_RESULT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pProxyResult"
+				]
+			}
+		},
+		"WinHttpFreeProxyResultEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_RESULT_EX",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pProxyResultEx"
+				]
+			}
+		},
+		"WinHttpFreeProxySettings": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_SETTINGS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pWinHttpProxySettings"
+				]
+			}
+		},
+		"WinHttpFreeProxySettingsEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WINHTTP_PROXY_SETTINGS_TYPE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"ProxySettingsType",
+					"pProxySettingsEx"
+				]
+			}
+		},
+		"WinHttpFreeQueryConnectionGroupResult": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_QUERY_CONNECTION_GROUP_RESULT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pResult"
+				]
+			}
+		},
+		"WinHttpGetDefaultProxyConfiguration": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_INFO",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pProxyInfo"
+				]
+			}
+		},
+		"WinHttpGetIEProxyConfigForCurrentUser": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_CURRENT_USER_IE_PROXY_CONFIG",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pProxyConfig"
+				]
+			}
+		},
+		"WinHttpGetProxyForUrl": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_AUTOPROXY_OPTIONS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_INFO",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hSession",
+					"lpcwszUrl",
+					"pAutoProxyOptions",
+					"pProxyInfo"
+				]
+			}
+		},
+		"WinHttpGetProxyForUrlEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_AUTOPROXY_OPTIONS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hResolver",
+					"pcwszUrl",
+					"pAutoProxyOptions",
+					"pContext"
+				]
+			}
+		},
+		"WinHttpGetProxyForUrlEx2": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_AUTOPROXY_OPTIONS",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hResolver",
+					"pcwszUrl",
+					"pAutoProxyOptions",
+					"cbInterfaceSelectionContext",
+					"pInterfaceSelectionContext",
+					"pContext"
+				]
+			}
+		},
+		"WinHttpGetProxyResult": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_RESULT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hResolver",
+					"pProxyResult"
+				]
+			}
+		},
+		"WinHttpGetProxyResultEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_RESULT_EX",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hResolver",
+					"pProxyResultEx"
+				]
+			}
+		},
+		"WinHttpGetProxySettingsEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WINHTTP_PROXY_SETTINGS_TYPE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_SETTINGS_PARAM",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hResolver",
+					"ProxySettingsType",
+					"pProxySettingsParam",
+					"pContext"
+				]
+			}
+		},
+		"WinHttpGetProxySettingsResultEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hResolver",
+					"pProxySettingsEx"
+				]
+			}
+		},
+		"WinHttpGetProxySettingsVersion": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hSession",
+					"pdwProxySettingsVersion"
+				]
+			}
+		},
+		"WinHttpOpen": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WINHTTP_ACCESS_TYPE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "bot",
+						"label": "Void"
+					}
+				},
+				"arg_names": [
+					"pszAgentW",
+					"dwAccessType",
+					"pszProxyW",
+					"pszProxyBypassW",
+					"dwFlags"
+				]
+			}
+		},
+		"WinHttpOpenRequest": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "char",
+								"signed": true,
+								"label": "Char"
+							}
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WINHTTP_OPEN_REQUEST_FLAGS"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "bot",
+						"label": "Void"
+					}
+				},
+				"arg_names": [
+					"hConnect",
+					"pwszVerb",
+					"pwszObjectName",
+					"pwszVersion",
+					"pwszReferrer",
+					"ppwszAcceptTypes",
+					"dwFlags"
+				]
+			}
+		},
+		"WinHttpQueryAuthSchemes": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"lpdwSupportedSchemes",
+					"lpdwFirstScheme",
+					"pdwAuthTarget"
+				]
+			}
+		},
+		"WinHttpQueryConnectionGroup": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "_ref",
+								"name": "WINHTTP_QUERY_CONNECTION_GROUP_RESULT",
+								"ot": "struct"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hInternet",
+					"pGuidConnection",
+					"ullFlags",
+					"ppResult"
+				]
+			}
+		},
+		"WinHttpQueryDataAvailable": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"lpdwNumberOfBytesAvailable"
+				]
+			}
+		},
+		"WinHttpQueryHeaders": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"dwInfoLevel",
+					"pwszName",
+					"lpBuffer",
+					"lpdwBufferLength",
+					"lpdwIndex"
+				]
+			}
+		},
+		"WinHttpQueryHeadersEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "union",
+							"members": {
+								"pwszName": {
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								},
+								"pszName": {
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": false,
+										"label": "Byte"
+									}
+								}
+							},
+							"name": "<anon>"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "_ref",
+								"name": "WINHTTP_EXTENDED_HEADER",
+								"ot": "struct"
+							}
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hRequest",
+					"dwInfoLevel",
+					"ullFlags",
+					"uiCodePage",
+					"pdwIndex",
+					"pHeaderName",
+					"pBuffer",
+					"pdwBufferLength",
+					"ppHeaders",
+					"pdwHeadersCount"
+				]
+			}
+		},
+		"WinHttpQueryOption": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hInternet",
+					"dwOption",
+					"lpBuffer",
+					"lpdwBufferLength"
+				]
+			}
+		},
+		"WinHttpReadData": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"lpBuffer",
+					"dwNumberOfBytesToRead",
+					"lpdwNumberOfBytesRead"
+				]
+			}
+		},
+		"WinHttpReadDataEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hRequest",
+					"lpBuffer",
+					"dwNumberOfBytesToRead",
+					"lpdwNumberOfBytesRead",
+					"ullFlags",
+					"cbProperty",
+					"pvProperty"
+				]
+			}
+		},
+		"WinHttpReadProxySettings": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_SETTINGS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hSession",
+					"pcwszConnectionName",
+					"fFallBackToDefaultSettings",
+					"fSetAutoDiscoverForDefaultSettings",
+					"pdwSettingsVersion",
+					"pfDefaultSettingsAreReturned",
+					"pWinHttpProxySettings"
+				]
+			}
+		},
+		"WinHttpReceiveResponse": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"lpReserved"
+				]
+			}
+		},
+		"WinHttpRegisterProxyChangeNotification": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "llong",
+						"signed": false,
+						"label": "UInt64"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "llong",
+									"signed": false,
+									"label": "UInt64"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"ullFlags",
+								"pvContext"
+							]
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"ullFlags",
+					"pfnCallback",
+					"pvContext",
+					"hRegistration"
+				]
+			}
+		},
+		"WinHttpResetAutoProxy": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hSession",
+					"dwFlags"
+				]
+			}
+		},
+		"WinHttpSendRequest": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"lpszHeaders",
+					"dwHeadersLength",
+					"lpOptional",
+					"dwOptionalLength",
+					"dwTotalLength",
+					"dwContext"
+				]
+			}
+		},
+		"WinHttpSetCredentials": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"AuthTargets",
+					"AuthScheme",
+					"pwszUserName",
+					"pwszPassword",
+					"pAuthParams"
+				]
+			}
+		},
+		"WinHttpSetDefaultProxyConfiguration": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_INFO",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pProxyInfo"
+				]
+			}
+		},
+		"WinHttpSetOption": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hInternet",
+					"dwOption",
+					"lpBuffer",
+					"dwBufferLength"
+				]
+			}
+		},
+		"WinHttpSetProxySettingsPerUser": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"fProxySettingsPerUser"
+				]
+			}
+		},
+		"WinHttpSetStatusCallback": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"signed": false,
+										"label": "UInt"
+									},
+									"label": "UIntPtr"
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"hInternet",
+								"dwContext",
+								"dwInternetStatus",
+								"lpvStatusInformation",
+								"dwStatusInformationLength"
+							]
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "func",
+						"args": [
+							{
+								"_t": "ptr",
+								"pts_to": {
+									"_t": "bot",
+									"label": "Void"
+								}
+							},
+							{
+								"_t": "ptr",
+								"pts_to": {
+									"_t": "int",
+									"signed": false,
+									"label": "UInt"
+								},
+								"label": "UIntPtr"
+							},
+							{
+								"_t": "int",
+								"signed": false,
+								"label": "UInt32"
+							},
+							{
+								"_t": "ptr",
+								"pts_to": {
+									"_t": "bot",
+									"label": "Void"
+								}
+							},
+							{
+								"_t": "int",
+								"signed": false,
+								"label": "UInt32"
+							}
+						],
+						"returnty": {
+							"_t": "bot",
+							"label": "Void"
+						},
+						"arg_names": [
+							"hInternet",
+							"dwContext",
+							"dwInternetStatus",
+							"lpvStatusInformation",
+							"dwStatusInformationLength"
+						]
+					}
+				},
+				"arg_names": [
+					"hInternet",
+					"lpfnInternetCallback",
+					"dwNotificationFlags",
+					"dwReserved"
+				]
+			}
+		},
+		"WinHttpSetTimeouts": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hInternet",
+					"nResolveTimeout",
+					"nConnectTimeout",
+					"nSendTimeout",
+					"nReceiveTimeout"
+				]
+			}
+		},
+		"WinHttpTimeFromSystemTime": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SYSTEMTIME",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						},
+						"label": "LPArray"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pst",
+					"pwszTime"
+				]
+			}
+		},
+		"WinHttpTimeToSystemTime": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SYSTEMTIME",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pwszTime",
+					"pst"
+				]
+			}
+		},
+		"WinHttpUnregisterProxyChangeNotification": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hRegistration"
+				]
+			}
+		},
+		"WinHttpWebSocketClose": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hWebSocket",
+					"usStatus",
+					"pvReason",
+					"dwReasonLength"
+				]
+			}
+		},
+		"WinHttpWebSocketCompleteUpgrade": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "bot",
+						"label": "Void"
+					}
+				},
+				"arg_names": [
+					"hRequest",
+					"pContext"
+				]
+			}
+		},
+		"WinHttpWebSocketQueryCloseStatus": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "short",
+							"signed": false,
+							"label": "UInt16"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hWebSocket",
+					"pusStatus",
+					"pvReason",
+					"dwReasonLength",
+					"pdwReasonLengthConsumed"
+				]
+			}
+		},
+		"WinHttpWebSocketReceive": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "WINHTTP_WEB_SOCKET_BUFFER_TYPE"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hWebSocket",
+					"pvBuffer",
+					"dwBufferLength",
+					"pdwBytesRead",
+					"peBufferType"
+				]
+			}
+		},
+		"WinHttpWebSocketSend": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WINHTTP_WEB_SOCKET_BUFFER_TYPE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hWebSocket",
+					"eBufferType",
+					"pvBuffer",
+					"dwBufferLength"
+				]
+			}
+		},
+		"WinHttpWebSocketShutdown": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "short",
+						"signed": false,
+						"label": "UInt16"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hWebSocket",
+					"usStatus",
+					"pvReason",
+					"dwReasonLength"
+				]
+			}
+		},
+		"WinHttpWriteData": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hRequest",
+					"lpBuffer",
+					"dwNumberOfBytesToWrite",
+					"lpdwNumberOfBytesWritten"
+				]
+			}
+		},
+		"WinHttpWriteProxySettings": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINHTTP_PROXY_SETTINGS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"hSession",
+					"fForceUpdate",
+					"pWinHttpProxySettings"
+				]
+			}
+		}
+	}
 }

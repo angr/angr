@@ -1,58 +1,49 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "apphelp.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "ApphelpCheckShellObject": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeLongLong",
-                            "signed": false,
-                            "label": "UInt64"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "ObjectCLSID",
-                    "bShimIfNecessary",
-                    "pullFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"apphelp.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"ApphelpCheckShellObject": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "llong",
+							"signed": false,
+							"label": "UInt64"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"ObjectCLSID",
+					"bShimIfNecessary",
+					"pullFlags"
+				]
+			}
+		}
+	}
 }

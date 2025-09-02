@@ -1,2949 +1,2405 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "wintrust.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "CryptCATAdminAcquireContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "phCatAdmin",
-                    "pgSubsystem",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminAcquireContext2": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CERT_STRONG_SIGN_PARA",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "phCatAdmin",
-                    "pgSubsystem",
-                    "pwszHashAlgorithm",
-                    "pStrongHashPolicy",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminAddCatalog": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatAdmin",
-                    "pwszCatalogFile",
-                    "pwszSelectBaseName",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminCalcHashFromFileHandle": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hFile",
-                    "pcbHash",
-                    "pbHash",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminCalcHashFromFileHandle2": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatAdmin",
-                    "hFile",
-                    "pcbHash",
-                    "pbHash",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminEnumCatalogFromHash": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatAdmin",
-                    "pbHash",
-                    "cbHash",
-                    "dwFlags",
-                    "phPrevCatInfo"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminPauseServiceForBackup": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwFlags",
-                    "fResume"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminReleaseCatalogContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatAdmin",
-                    "hCatInfo",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminReleaseContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatAdmin",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminRemoveCatalog": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatAdmin",
-                    "pwszCatalogFile",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAdminResolveCatalogPath": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CATALOG_INFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatAdmin",
-                    "pwszCatalogFile",
-                    "psCatInfo",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATAllocSortedMemberInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATMEMBER",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pwszReferenceTag"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATCDFClose": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATCDF",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pCDF"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATCDFEnumAttributes": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATCDF",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATMEMBER",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATATTRIBUTE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "dwErrorArea",
-                                "dwLocalError",
-                                "pwszLine"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATATTRIBUTE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pCDF",
-                    "pMember",
-                    "pPrevAttr",
-                    "pfnParseError"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATCDFEnumCatAttributes": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATCDF",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATATTRIBUTE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "dwErrorArea",
-                                "dwLocalError",
-                                "pwszLine"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATATTRIBUTE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pCDF",
-                    "pPrevAttr",
-                    "pfnParseError"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATCDFEnumMembers": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATCDF",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATMEMBER",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "dwErrorArea",
-                                "dwLocalError",
-                                "pwszLine"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATMEMBER",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pCDF",
-                    "pPrevMember",
-                    "pfnParseError"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATCDFOpen": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypeInt",
-                                    "signed": false,
-                                    "label": "UInt32"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeChar",
-                                        "signed": true,
-                                        "label": "Char"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "dwErrorArea",
-                                "dwLocalError",
-                                "pwszLine"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATCDF",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszFilePath",
-                    "pfnParseError"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATCatalogInfoFromContext": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CATALOG_INFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatInfo",
-                    "psCatInfo",
-                    "dwFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATClose": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATEnumerateAttr": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATMEMBER",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATATTRIBUTE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATATTRIBUTE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pCatMember",
-                    "pPrevAttr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATEnumerateCatAttr": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATATTRIBUTE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATATTRIBUTE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pPrevAttr"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATEnumerateMember": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATMEMBER",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATMEMBER",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pPrevMember"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATFreeSortedMemberInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATMEMBER",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pCatMember"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATGetAttrInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATMEMBER",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATATTRIBUTE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pCatMember",
-                    "pwszReferenceTag"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATGetCatAttrInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATATTRIBUTE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pwszReferenceTag"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATGetMemberInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATMEMBER",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pwszReferenceTag"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATHandleFromStore": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATSTORE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pCatStore"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATOpen": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "CRYPTCAT_OPEN_FLAGS"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt"
-                        },
-                        "label": "UIntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "CRYPTCAT_VERSION"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int"
-                    },
-                    "label": "IntPtr",
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pwszFileName",
-                    "fdwOpenFlags",
-                    "hProv",
-                    "dwPublicVersion",
-                    "dwEncodingType"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATPersistStore": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATPutAttrInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPTCATMEMBER",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATATTRIBUTE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pCatMember",
-                    "pwszReferenceTag",
-                    "dwAttrTypeAndAction",
-                    "cbData",
-                    "pbData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATPutCatAttrInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATATTRIBUTE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pwszReferenceTag",
-                    "dwAttrTypeAndAction",
-                    "cbData",
-                    "pbData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATPutMemberInfo": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATMEMBER",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog",
-                    "pwszFileName",
-                    "pwszReferenceTag",
-                    "pgSubjectType",
-                    "dwCertVersion",
-                    "cbSIPIndirectData",
-                    "pbSIPIndirectData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptCATStoreFromHandle": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPTCATSTORE",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hCatalog"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptSIPCreateIndirectData": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_SUBJECTINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_INDIRECT_DATA",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSubjectInfo",
-                    "pcbIndirectData",
-                    "pIndirectData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptSIPGetCaps": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_SUBJECTINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_CAP_SET_V3",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSubjInfo",
-                    "pCaps"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptSIPGetSealedDigest": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_SUBJECTINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": "LPArray",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSubjectInfo",
-                    "pSig",
-                    "dwSig",
-                    "pbDigest",
-                    "pcbDigest"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptSIPGetSignedDataMsg": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_SUBJECTINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "CERT_QUERY_ENCODING_TYPE"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSubjectInfo",
-                    "pdwEncodingType",
-                    "dwIndex",
-                    "pcbSignedDataMsg",
-                    "pbSignedDataMsg"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptSIPPutSignedDataMsg": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_SUBJECTINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "CERT_QUERY_ENCODING_TYPE"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSubjectInfo",
-                    "dwEncodingType",
-                    "pdwIndex",
-                    "cbSignedDataMsg",
-                    "pbSignedDataMsg"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptSIPRemoveSignedDataMsg": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_SUBJECTINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSubjectInfo",
-                    "dwIndex"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "CryptSIPVerifyIndirectData": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_SUBJECTINFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "SIP_INDIRECT_DATA",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pSubjectInfo",
-                    "pIndirectData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "FindCertsByIssuer": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CERT_CHAIN",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "UInt32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pCertChains",
-                    "pcbCertChains",
-                    "pcCertChains",
-                    "pbEncodedIssuerName",
-                    "cbEncodedIssuerName",
-                    "pwszPurpose",
-                    "dwKeySpec"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "IsCatalogFile": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": true,
-                            "label": "Char"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hFile",
-                    "pwszFileName"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "OpenPersonalTrustDBDialog": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwndParent"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "OpenPersonalTrustDBDialogEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeBottom",
-                                "label": "Void"
-                            },
-                            "label": null,
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwndParent",
-                    "dwFlags",
-                    "pvReserved"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WTHelperCertCheckValidSignature": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPT_PROVIDER_DATA",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pProvData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WTHelperCertIsSelfSigned": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CERT_INFO",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwEncoding",
-                    "pCert"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WTHelperGetProvCertFromChain": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPT_PROVIDER_SGNR",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPT_PROVIDER_CERT",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pSgnr",
-                    "idxCert"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WTHelperGetProvPrivateDataFromChain": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPT_PROVIDER_DATA",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPT_PROVIDER_PRIVDATA",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pProvData",
-                    "pgProviderID"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WTHelperGetProvSignerFromChain": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPT_PROVIDER_DATA",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPT_PROVIDER_SGNR",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "pProvData",
-                    "idxSigner",
-                    "fCounterSigner",
-                    "idxCounterSigner"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WTHelperProvDataFromStateData": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeRef",
-                        "name": "CRYPT_PROVIDER_DATA",
-                        "original_type_name": "SimStruct"
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hStateData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinVerifyTrust": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Void"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pgActionID",
-                    "pWVTData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WinVerifyTrustEx": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "WINTRUST_DATA",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pgActionID",
-                    "pWinTrustData"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WintrustAddActionID": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPT_REGISTER_ACTIONID",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pgActionID",
-                    "fdwFlags",
-                    "psProvInfo"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WintrustAddDefaultForUsage": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPT_PROVIDER_REGDEFUSAGE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pszUsageOID",
-                    "psDefUsage"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WintrustGetDefaultForUsage": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WINTRUST_GET_DEFAULT_FOR_USAGE_ACTION"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeChar",
-                            "signed": false,
-                            "label": "Byte"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPT_PROVIDER_DEFUSAGE",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwAction",
-                    "pszUsageOID",
-                    "psUsage"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WintrustGetRegPolicyFlags": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "WINTRUST_POLICY_FLAGS"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "pdwPolicyFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WintrustLoadFunctionPointers": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "CRYPT_PROVIDER_FUNCTIONS",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pgActionID",
-                    "pPfns"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WintrustRemoveActionID": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeBottom",
-                            "label": "Guid"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pgActionID"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WintrustSetDefaultIncludePEPageHashes": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeBottom",
-                    "label": "Void"
-                },
-                "label": null,
-                "arg_names": [
-                    "fIncludePEPageHashes"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "WintrustSetRegPolicyFlags": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "WINTRUST_POLICY_FLAGS"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwPolicyFlags"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"wintrust.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CryptCATAdminAcquireContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"phCatAdmin",
+					"pgSubsystem",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAdminAcquireContext2": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CERT_STRONG_SIGN_PARA",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"phCatAdmin",
+					"pgSubsystem",
+					"pwszHashAlgorithm",
+					"pStrongHashPolicy",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAdminAddCatalog": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hCatAdmin",
+					"pwszCatalogFile",
+					"pwszSelectBaseName",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAdminCalcHashFromFileHandle": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hFile",
+					"pcbHash",
+					"pbHash",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAdminCalcHashFromFileHandle2": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCatAdmin",
+					"hFile",
+					"pcbHash",
+					"pbHash",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAdminEnumCatalogFromHash": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"hCatAdmin",
+					"pbHash",
+					"cbHash",
+					"dwFlags",
+					"phPrevCatInfo"
+				]
+			}
+		},
+		"CryptCATAdminPauseServiceForBackup": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwFlags",
+					"fResume"
+				]
+			}
+		},
+		"CryptCATAdminReleaseCatalogContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCatAdmin",
+					"hCatInfo",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAdminReleaseContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCatAdmin",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAdminRemoveCatalog": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCatAdmin",
+					"pwszCatalogFile",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAdminResolveCatalogPath": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CATALOG_INFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCatAdmin",
+					"pwszCatalogFile",
+					"psCatInfo",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATAllocSortedMemberInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATMEMBER",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pwszReferenceTag"
+				]
+			}
+		},
+		"CryptCATCDFClose": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATCDF",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pCDF"
+				]
+			}
+		},
+		"CryptCATCDFEnumAttributes": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATCDF",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATMEMBER",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATATTRIBUTE",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"dwErrorArea",
+								"dwLocalError",
+								"pwszLine"
+							]
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATATTRIBUTE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"pCDF",
+					"pMember",
+					"pPrevAttr",
+					"pfnParseError"
+				]
+			}
+		},
+		"CryptCATCDFEnumCatAttributes": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATCDF",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATATTRIBUTE",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"dwErrorArea",
+								"dwLocalError",
+								"pwszLine"
+							]
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATATTRIBUTE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"pCDF",
+					"pPrevAttr",
+					"pfnParseError"
+				]
+			}
+		},
+		"CryptCATCDFEnumMembers": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATCDF",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATMEMBER",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"dwErrorArea",
+								"dwLocalError",
+								"pwszLine"
+							]
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATMEMBER",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"pCDF",
+					"pPrevMember",
+					"pfnParseError"
+				]
+			}
+		},
+		"CryptCATCDFOpen": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "int",
+									"signed": false,
+									"label": "UInt32"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "char",
+										"signed": true,
+										"label": "Char"
+									}
+								}
+							],
+							"returnty": {
+								"_t": "bot",
+								"label": "Void"
+							},
+							"arg_names": [
+								"dwErrorArea",
+								"dwLocalError",
+								"pwszLine"
+							]
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATCDF",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"pwszFilePath",
+					"pfnParseError"
+				]
+			}
+		},
+		"CryptCATCatalogInfoFromContext": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CATALOG_INFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCatInfo",
+					"psCatInfo",
+					"dwFlags"
+				]
+			}
+		},
+		"CryptCATClose": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCatalog"
+				]
+			}
+		},
+		"CryptCATEnumerateAttr": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATMEMBER",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATATTRIBUTE",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATATTRIBUTE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pCatMember",
+					"pPrevAttr"
+				]
+			}
+		},
+		"CryptCATEnumerateCatAttr": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATATTRIBUTE",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATATTRIBUTE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pPrevAttr"
+				]
+			}
+		},
+		"CryptCATEnumerateMember": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATMEMBER",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATMEMBER",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pPrevMember"
+				]
+			}
+		},
+		"CryptCATFreeSortedMemberInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATMEMBER",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"hCatalog",
+					"pCatMember"
+				]
+			}
+		},
+		"CryptCATGetAttrInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATMEMBER",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATATTRIBUTE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pCatMember",
+					"pwszReferenceTag"
+				]
+			}
+		},
+		"CryptCATGetCatAttrInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATATTRIBUTE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pwszReferenceTag"
+				]
+			}
+		},
+		"CryptCATGetMemberInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATMEMBER",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pwszReferenceTag"
+				]
+			}
+		},
+		"CryptCATHandleFromStore": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATSTORE",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"pCatStore"
+				]
+			}
+		},
+		"CryptCATOpen": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "CRYPTCAT_OPEN_FLAGS"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt"
+						},
+						"label": "UIntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "CRYPTCAT_VERSION"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "int",
+						"label": "Int"
+					},
+					"label": "IntPtr"
+				},
+				"arg_names": [
+					"pwszFileName",
+					"fdwOpenFlags",
+					"hProv",
+					"dwPublicVersion",
+					"dwEncodingType"
+				]
+			}
+		},
+		"CryptCATPersistStore": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hCatalog"
+				]
+			}
+		},
+		"CryptCATPutAttrInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPTCATMEMBER",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATATTRIBUTE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pCatMember",
+					"pwszReferenceTag",
+					"dwAttrTypeAndAction",
+					"cbData",
+					"pbData"
+				]
+			}
+		},
+		"CryptCATPutCatAttrInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATATTRIBUTE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pwszReferenceTag",
+					"dwAttrTypeAndAction",
+					"cbData",
+					"pbData"
+				]
+			}
+		},
+		"CryptCATPutMemberInfo": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATMEMBER",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog",
+					"pwszFileName",
+					"pwszReferenceTag",
+					"pgSubjectType",
+					"dwCertVersion",
+					"cbSIPIndirectData",
+					"pbSIPIndirectData"
+				]
+			}
+		},
+		"CryptCATStoreFromHandle": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPTCATSTORE",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hCatalog"
+				]
+			}
+		},
+		"CryptSIPCreateIndirectData": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_SUBJECTINFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_INDIRECT_DATA",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSubjectInfo",
+					"pcbIndirectData",
+					"pIndirectData"
+				]
+			}
+		},
+		"CryptSIPGetCaps": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_SUBJECTINFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_CAP_SET_V3",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSubjInfo",
+					"pCaps"
+				]
+			}
+		},
+		"CryptSIPGetSealedDigest": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_SUBJECTINFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						},
+						"label": "LPArray"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSubjectInfo",
+					"pSig",
+					"dwSig",
+					"pbDigest",
+					"pcbDigest"
+				]
+			}
+		},
+		"CryptSIPGetSignedDataMsg": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_SUBJECTINFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "CERT_QUERY_ENCODING_TYPE"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSubjectInfo",
+					"pdwEncodingType",
+					"dwIndex",
+					"pcbSignedDataMsg",
+					"pbSignedDataMsg"
+				]
+			}
+		},
+		"CryptSIPPutSignedDataMsg": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_SUBJECTINFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "CERT_QUERY_ENCODING_TYPE"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSubjectInfo",
+					"dwEncodingType",
+					"pdwIndex",
+					"cbSignedDataMsg",
+					"pbSignedDataMsg"
+				]
+			}
+		},
+		"CryptSIPRemoveSignedDataMsg": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_SUBJECTINFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSubjectInfo",
+					"dwIndex"
+				]
+			}
+		},
+		"CryptSIPVerifyIndirectData": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_SUBJECTINFO",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "SIP_INDIRECT_DATA",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pSubjectInfo",
+					"pIndirectData"
+				]
+			}
+		},
+		"FindCertsByIssuer": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CERT_CHAIN",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pCertChains",
+					"pcbCertChains",
+					"pcCertChains",
+					"pbEncodedIssuerName",
+					"cbEncodedIssuerName",
+					"pwszPurpose",
+					"dwKeySpec"
+				]
+			}
+		},
+		"IsCatalogFile": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": true,
+							"label": "Char"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hFile",
+					"pwszFileName"
+				]
+			}
+		},
+		"OpenPersonalTrustDBDialog": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwndParent"
+				]
+			}
+		},
+		"OpenPersonalTrustDBDialogEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "bot",
+								"label": "Void"
+							}
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwndParent",
+					"dwFlags",
+					"pvReserved"
+				]
+			}
+		},
+		"WTHelperCertCheckValidSignature": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPT_PROVIDER_DATA",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pProvData"
+				]
+			}
+		},
+		"WTHelperCertIsSelfSigned": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CERT_INFO",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwEncoding",
+					"pCert"
+				]
+			}
+		},
+		"WTHelperGetProvCertFromChain": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPT_PROVIDER_SGNR",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPT_PROVIDER_CERT",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"pSgnr",
+					"idxCert"
+				]
+			}
+		},
+		"WTHelperGetProvPrivateDataFromChain": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPT_PROVIDER_DATA",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPT_PROVIDER_PRIVDATA",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"pProvData",
+					"pgProviderID"
+				]
+			}
+		},
+		"WTHelperGetProvSignerFromChain": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPT_PROVIDER_DATA",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPT_PROVIDER_SGNR",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"pProvData",
+					"idxSigner",
+					"fCounterSigner",
+					"idxCounterSigner"
+				]
+			}
+		},
+		"WTHelperProvDataFromStateData": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "_ref",
+						"name": "CRYPT_PROVIDER_DATA",
+						"ot": "struct"
+					}
+				},
+				"arg_names": [
+					"hStateData"
+				]
+			}
+		},
+		"WinVerifyTrust": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pgActionID",
+					"pWVTData"
+				]
+			}
+		},
+		"WinVerifyTrustEx": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WINTRUST_DATA",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pgActionID",
+					"pWinTrustData"
+				]
+			}
+		},
+		"WintrustAddActionID": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPT_REGISTER_ACTIONID",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pgActionID",
+					"fdwFlags",
+					"psProvInfo"
+				]
+			}
+		},
+		"WintrustAddDefaultForUsage": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPT_PROVIDER_REGDEFUSAGE",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pszUsageOID",
+					"psDefUsage"
+				]
+			}
+		},
+		"WintrustGetDefaultForUsage": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WINTRUST_GET_DEFAULT_FOR_USAGE_ACTION"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "char",
+							"signed": false,
+							"label": "Byte"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPT_PROVIDER_DEFUSAGE",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwAction",
+					"pszUsageOID",
+					"psUsage"
+				]
+			}
+		},
+		"WintrustGetRegPolicyFlags": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "WINTRUST_POLICY_FLAGS"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"pdwPolicyFlags"
+				]
+			}
+		},
+		"WintrustLoadFunctionPointers": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "CRYPT_PROVIDER_FUNCTIONS",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pgActionID",
+					"pPfns"
+				]
+			}
+		},
+		"WintrustRemoveActionID": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Guid"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pgActionID"
+				]
+			}
+		},
+		"WintrustSetDefaultIncludePEPageHashes": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "bot",
+					"label": "Void"
+				},
+				"arg_names": [
+					"fIncludePEPageHashes"
+				]
+			}
+		},
+		"WintrustSetRegPolicyFlags": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "WINTRUST_POLICY_FLAGS"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"dwPolicyFlags"
+				]
+			}
+		}
+	}
 }

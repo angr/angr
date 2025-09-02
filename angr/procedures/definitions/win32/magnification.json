@@ -1,869 +1,697 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "magnification.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "MagGetColorEffect": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "MAGCOLOREFFECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pEffect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagGetFullscreenColorEffect": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "MAGCOLOREFFECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pEffect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagGetFullscreenTransform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFloat",
-                            "label": null
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pMagLevel",
-                    "pxOffset",
-                    "pyOffset"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagGetImageScalingCallback": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypePointer",
-                    "pts_to": {
-                        "__type__": "SimTypeFunction",
-                        "args": [
-                            {
-                                "__type__": "SimTypePointer",
-                                "pts_to": {
-                                    "__type__": "SimTypeInt",
-                                    "signed": true,
-                                    "label": "Int"
-                                },
-                                "label": "IntPtr",
-                                "offset": 0
-                            },
-                            {
-                                "__type__": "SimTypePointer",
-                                "pts_to": {
-                                    "__type__": "SimTypeBottom",
-                                    "label": "Void"
-                                },
-                                "label": null,
-                                "offset": 0
-                            },
-                            {
-                                "__type__": "SimTypeRef",
-                                "name": "MAGIMAGEHEADER",
-                                "original_type_name": "SimStruct"
-                            },
-                            {
-                                "__type__": "SimTypePointer",
-                                "pts_to": {
-                                    "__type__": "SimTypeBottom",
-                                    "label": "Void"
-                                },
-                                "label": null,
-                                "offset": 0
-                            },
-                            {
-                                "__type__": "SimTypeRef",
-                                "name": "MAGIMAGEHEADER",
-                                "original_type_name": "SimStruct"
-                            },
-                            {
-                                "__type__": "SimTypeRef",
-                                "name": "RECT",
-                                "original_type_name": "SimStruct"
-                            },
-                            {
-                                "__type__": "SimTypeRef",
-                                "name": "RECT",
-                                "original_type_name": "SimStruct"
-                            },
-                            {
-                                "__type__": "SimTypePointer",
-                                "pts_to": {
-                                    "__type__": "SimTypeInt",
-                                    "signed": true,
-                                    "label": "Int"
-                                },
-                                "label": "IntPtr",
-                                "offset": 0
-                            }
-                        ],
-                        "returnty": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "arg_names": [
-                            "hwnd",
-                            "srcdata",
-                            "srcheader",
-                            "destdata",
-                            "destheader",
-                            "unclipped",
-                            "clipped",
-                            "dirty"
-                        ],
-                        "variadic": false
-                    },
-                    "label": null,
-                    "offset": 0
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagGetInputTransform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int32"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pfEnabled",
-                    "pRectSource",
-                    "pRectDest"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagGetWindowFilterList": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": false,
-                            "label": "MW_FILTERMODE"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pdwFilterMode",
-                    "count",
-                    "pHWND"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagGetWindowSource": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pRect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagGetWindowTransform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "MAGTRANSFORM",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pTransform"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagInitialize": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagSetColorEffect": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "MAGCOLOREFFECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pEffect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagSetFullscreenColorEffect": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "MAGCOLOREFFECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "pEffect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagSetFullscreenTransform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeFloat",
-                        "label": null
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "magLevel",
-                    "xOffset",
-                    "yOffset"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagSetImageScalingCallback": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeFunction",
-                            "args": [
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeRef",
-                                    "name": "MAGIMAGEHEADER",
-                                    "original_type_name": "SimStruct"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeBottom",
-                                        "label": "Void"
-                                    },
-                                    "label": null,
-                                    "offset": 0
-                                },
-                                {
-                                    "__type__": "SimTypeRef",
-                                    "name": "MAGIMAGEHEADER",
-                                    "original_type_name": "SimStruct"
-                                },
-                                {
-                                    "__type__": "SimTypeRef",
-                                    "name": "RECT",
-                                    "original_type_name": "SimStruct"
-                                },
-                                {
-                                    "__type__": "SimTypeRef",
-                                    "name": "RECT",
-                                    "original_type_name": "SimStruct"
-                                },
-                                {
-                                    "__type__": "SimTypePointer",
-                                    "pts_to": {
-                                        "__type__": "SimTypeInt",
-                                        "signed": true,
-                                        "label": "Int"
-                                    },
-                                    "label": "IntPtr",
-                                    "offset": 0
-                                }
-                            ],
-                            "returnty": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int32"
-                            },
-                            "label": null,
-                            "arg_names": [
-                                "hwnd",
-                                "srcdata",
-                                "srcheader",
-                                "destdata",
-                                "destheader",
-                                "unclipped",
-                                "clipped",
-                                "dirty"
-                            ],
-                            "variadic": false
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "callback"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagSetInputTransform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "RECT",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "fEnabled",
-                    "pRectSource",
-                    "pRectDest"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagSetWindowFilterList": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "MW_FILTERMODE"
-                    },
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypePointer",
-                            "pts_to": {
-                                "__type__": "SimTypeInt",
-                                "signed": true,
-                                "label": "Int"
-                            },
-                            "label": "IntPtr",
-                            "offset": 0
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "dwFilterMode",
-                    "count",
-                    "pHWND"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagSetWindowSource": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypeRef",
-                        "name": "RECT",
-                        "original_type_name": "SimStruct"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "rect"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagSetWindowTransform": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeInt",
-                            "signed": true,
-                            "label": "Int"
-                        },
-                        "label": "IntPtr",
-                        "offset": 0
-                    },
-                    {
-                        "__type__": "SimTypePointer",
-                        "pts_to": {
-                            "__type__": "SimTypeRef",
-                            "name": "MAGTRANSFORM",
-                            "original_type_name": "SimStruct"
-                        },
-                        "label": null,
-                        "offset": 0
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "hwnd",
-                    "pTransform"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagShowSystemCursor": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": true,
-                        "label": "Int32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [
-                    "fShowCursor"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        },
-        "MagUninitialize": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": true,
-                    "label": "Int32"
-                },
-                "label": null,
-                "arg_names": [],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"magnification.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"MagGetColorEffect": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "MAGCOLOREFFECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pEffect"
+				]
+			}
+		},
+		"MagGetFullscreenColorEffect": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "MAGCOLOREFFECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pEffect"
+				]
+			}
+		},
+		"MagGetFullscreenTransform": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "float"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pMagLevel",
+					"pxOffset",
+					"pyOffset"
+				]
+			}
+		},
+		"MagGetImageScalingCallback": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					}
+				],
+				"returnty": {
+					"_t": "ptr",
+					"pts_to": {
+						"_t": "func",
+						"args": [
+							{
+								"_t": "ptr",
+								"pts_to": {
+									"_t": "int",
+									"label": "Int"
+								},
+								"label": "IntPtr"
+							},
+							{
+								"_t": "ptr",
+								"pts_to": {
+									"_t": "bot",
+									"label": "Void"
+								}
+							},
+							{
+								"_t": "_ref",
+								"name": "MAGIMAGEHEADER",
+								"ot": "struct"
+							},
+							{
+								"_t": "ptr",
+								"pts_to": {
+									"_t": "bot",
+									"label": "Void"
+								}
+							},
+							{
+								"_t": "_ref",
+								"name": "MAGIMAGEHEADER",
+								"ot": "struct"
+							},
+							{
+								"_t": "_ref",
+								"name": "RECT",
+								"ot": "struct"
+							},
+							{
+								"_t": "_ref",
+								"name": "RECT",
+								"ot": "struct"
+							},
+							{
+								"_t": "ptr",
+								"pts_to": {
+									"_t": "int",
+									"label": "Int"
+								},
+								"label": "IntPtr"
+							}
+						],
+						"returnty": {
+							"_t": "int",
+							"label": "Int32"
+						},
+						"arg_names": [
+							"hwnd",
+							"srcdata",
+							"srcheader",
+							"destdata",
+							"destheader",
+							"unclipped",
+							"clipped",
+							"dirty"
+						]
+					}
+				},
+				"arg_names": [
+					"hwnd"
+				]
+			}
+		},
+		"MagGetInputTransform": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pfEnabled",
+					"pRectSource",
+					"pRectDest"
+				]
+			}
+		},
+		"MagGetWindowFilterList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"signed": false,
+							"label": "MW_FILTERMODE"
+						}
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pdwFilterMode",
+					"count",
+					"pHWND"
+				]
+			}
+		},
+		"MagGetWindowSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pRect"
+				]
+			}
+		},
+		"MagGetWindowTransform": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "MAGTRANSFORM",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pTransform"
+				]
+			}
+		},
+		"MagInitialize": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		},
+		"MagSetColorEffect": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "MAGCOLOREFFECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pEffect"
+				]
+			}
+		},
+		"MagSetFullscreenColorEffect": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "MAGCOLOREFFECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"pEffect"
+				]
+			}
+		},
+		"MagSetFullscreenTransform": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "float"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"magLevel",
+					"xOffset",
+					"yOffset"
+				]
+			}
+		},
+		"MagSetImageScalingCallback": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "func",
+							"args": [
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "_ref",
+									"name": "MAGIMAGEHEADER",
+									"ot": "struct"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "bot",
+										"label": "Void"
+									}
+								},
+								{
+									"_t": "_ref",
+									"name": "MAGIMAGEHEADER",
+									"ot": "struct"
+								},
+								{
+									"_t": "_ref",
+									"name": "RECT",
+									"ot": "struct"
+								},
+								{
+									"_t": "_ref",
+									"name": "RECT",
+									"ot": "struct"
+								},
+								{
+									"_t": "ptr",
+									"pts_to": {
+										"_t": "int",
+										"label": "Int"
+									},
+									"label": "IntPtr"
+								}
+							],
+							"returnty": {
+								"_t": "int",
+								"label": "Int32"
+							},
+							"arg_names": [
+								"hwnd",
+								"srcdata",
+								"srcheader",
+								"destdata",
+								"destheader",
+								"unclipped",
+								"clipped",
+								"dirty"
+							]
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"callback"
+				]
+			}
+		},
+		"MagSetInputTransform": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "RECT",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"fEnabled",
+					"pRectSource",
+					"pRectDest"
+				]
+			}
+		},
+		"MagSetWindowFilterList": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "MW_FILTERMODE"
+					},
+					{
+						"_t": "int",
+						"label": "Int32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "ptr",
+							"pts_to": {
+								"_t": "int",
+								"label": "Int"
+							},
+							"label": "IntPtr"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"dwFilterMode",
+					"count",
+					"pHWND"
+				]
+			}
+		},
+		"MagSetWindowSource": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "_ref",
+						"name": "RECT",
+						"ot": "struct"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"rect"
+				]
+			}
+		},
+		"MagSetWindowTransform": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "int",
+							"label": "Int"
+						},
+						"label": "IntPtr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "MAGTRANSFORM",
+							"ot": "struct"
+						}
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"hwnd",
+					"pTransform"
+				]
+			}
+		},
+		"MagShowSystemCursor": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"label": "Int32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": [
+					"fShowCursor"
+				]
+			}
+		},
+		"MagUninitialize": {
+			"proto": {
+				"_t": "func",
+				"args": [],
+				"returnty": {
+					"_t": "int",
+					"label": "Int32"
+				},
+				"arg_names": []
+			}
+		}
+	}
 }

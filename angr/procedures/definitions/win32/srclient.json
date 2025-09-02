@@ -1,37 +1,34 @@
 {
-    "type_collection_names": [
-        "win32"
-    ],
-    "library_names": [
-        "srclient.dll"
-    ],
-    "default_cc": {
-        "X86": "SimCCStdcall",
-        "AMD64": "SimCCMicrosoftAMD64"
-    },
-    "functions": {
-        "SRRemoveRestorePoint": {
-            "proto": {
-                "__type__": "SimTypeFunction",
-                "args": [
-                    {
-                        "__type__": "SimTypeInt",
-                        "signed": false,
-                        "label": "UInt32"
-                    }
-                ],
-                "returnty": {
-                    "__type__": "SimTypeInt",
-                    "signed": false,
-                    "label": "UInt32"
-                },
-                "label": null,
-                "arg_names": [
-                    "dwRPNum"
-                ],
-                "variadic": false
-            },
-            "doc": ""
-        }
-    }
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"srclient.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"SRRemoveRestorePoint": {
+			"proto": {
+				"_t": "func",
+				"args": [
+					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					}
+				],
+				"returnty": {
+					"_t": "int",
+					"signed": false,
+					"label": "UInt32"
+				},
+				"arg_names": [
+					"dwRPNum"
+				]
+			}
+		}
+	}
 }
