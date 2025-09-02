@@ -27,7 +27,7 @@ class SimCCPCodeBase(SimCC):
     LANGUAGE = None
 
     @classmethod
-    def ARCH(cls):
+    def ARCH(cls):  # type:ignore
         assert cls.LANGUAGE is not None
         return ArchPcode(cls.LANGUAGE)
 
