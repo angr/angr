@@ -1206,10 +1206,13 @@ class SimCC:
     def _guess_arg_count(cls, args, limit: int = 64) -> int:
         # pylint:disable=not-callable
         assert cls.ARCH is not None
+        if hasattr(cls, "LANGUAGE"):  # noqa: SIM108
+            # this is a PCode SimCC where cls.ARCH is directly callable
+            stack_arg_size = cls.ARCH().bytes  # type:ignore
+        else:
+            stack_arg_size = cls.ARCH(archinfo.Endness.LE).bytes
         stack_args = [a for a in args if isinstance(a, SimStackArg)]
-        stack_arg_count = (
-            (max(a.stack_offset for a in stack_args) // cls.ARCH(archinfo.Endness.LE).bytes + 1) if stack_args else 0
-        )
+        stack_arg_count = (max(a.stack_offset for a in stack_args) // stack_arg_size + 1) if stack_args else 0
         return min(limit, max(len(args), stack_arg_count))
 
     @staticmethod
@@ -1273,13 +1276,15 @@ class SimLyingRegArg(SimRegArg):
         # val = super(SimLyingRegArg, self).get_value(state, **kwargs)
         val = state.registers.load(self.reg_name).raw_to_fp()
         if self._real_size == 4:
-            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)
+            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)  # type:ignore
         return val
 
     def set_value(self, state, value, **kwargs):  # pylint:disable=arguments-differ,unused-argument
         value = self.check_value_set(value, state.arch)
         if self._real_size == 4:
-            value = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE)
+            value = claripy.fpToFP(
+                claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE  # type:ignore
+            )
         state.registers.store(self.reg_name, value)
         # super(SimLyingRegArg, self).set_value(state, value, endness=endness, **kwargs)
 
@@ -1366,7 +1371,9 @@ class SimCCMicrosoftThiscall(SimCCCdecl):
         session = self.arg_session(prototype.returnty)
         if not prototype.args:
             return []
-        return [SimRegArg("ecx", self.arch.bytes)] + [self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]]
+        return [SimRegArg("ecx", self.arch.bytes)] + [
+            self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]
+        ]  # type:ignore
 
 
 class SimCCStdcall(SimCCMicrosoftCdecl):
@@ -1381,12 +1388,8 @@ class SimCCMicrosoftFastcall(SimCC):
     ARCH = archinfo.ArchX86
 
 
-class MicrosoftAMD64ArgSession:
-    def __init__(self, cc):
-        self.cc = cc
-        self.int_iter = cc.int_args
-        self.fp_iter = cc.fp_args
-        self.both_iter = cc.memory_args
+class MicrosoftAMD64ArgSession(ArgSession):
+    pass
 
 
 class SimCCMicrosoftAMD64(SimCC):
@@ -1460,6 +1463,7 @@ class SimCCMicrosoftAMD64(SimCC):
                 ptr_loc = self.RETURN_VAL
             else:
                 ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()).with_arch(self.arch))
+            assert ptr_loc is not None
             return SimReferenceArgument(ptr_loc, referenced_loc)
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
@@ -1470,7 +1474,7 @@ class SimCCSyscall(SimCC):
     The base class of all syscall CCs.
     """
 
-    ERROR_REG: SimRegArg = None
+    ERROR_REG: SimRegArg = None  # type:ignore
     SYSCALL_ERRNO_START = None
 
     @staticmethod

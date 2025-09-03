@@ -280,7 +280,14 @@ class PCodeIRSBConverter(Converter):
             return Const(self._manager.next_atom(), None, varnode.offset, size)
         if space_name == "register":
             offset = self._map_register_name(varnode)
-            return Register(self._manager.next_atom(), None, offset, size, reg_name=varnode.getRegisterName())
+            return Register(
+                self._manager.next_atom(),
+                None,
+                offset,
+                size,
+                reg_name=varnode.getRegisterName(),
+                ins_addr=self._manager.ins_addr,
+            )
         if space_name == "unique":
             offset = self._remap_temp(varnode.offset, varnode.size, is_write)
             if offset is None:
@@ -516,7 +523,6 @@ class PCodeIRSBConverter(Converter):
         """
         Convert a p-code return operation
         """
-        Const(self._manager.next_atom(), None, self._irsb.next, self._manager.arch.bits)
         stmt = Return(
             self._statement_idx,
             [],
@@ -540,9 +546,14 @@ class PCodeIRSBConverter(Converter):
         """
         ret_reg_offset = self._manager.arch.ret_offset
         ret_expr = (
-            None if ret_reg_offset is None else Register(None, None, ret_reg_offset, self._manager.arch.bits)
+            None
+            if ret_reg_offset is None
+            else Register(None, None, ret_reg_offset, self._manager.arch.bits, ins_addr=self._manager.ins_addr)
         )  # ???
-        dest = Const(self._manager.next_atom(), None, self._irsb.next, self._manager.arch.bits)
+        if self._irsb.next is not None:
+            dest = Const(self._manager.next_atom(), None, self._irsb.next.con.value, self._manager.arch.bits)
+        else:
+            dest = None
         stmt = Call(
             self._manager.next_atom(),
             dest,
@@ -558,7 +569,7 @@ class PCodeIRSBConverter(Converter):
         Convert a p-code indirect call operation
         """
         ret_reg_offset = self._manager.arch.ret_offset
-        ret_expr = Register(None, None, ret_reg_offset, self._manager.arch.bits)  # ???
+        ret_expr = Register(None, None, ret_reg_offset, self._manager.arch.bits, ins_addr=self._manager.ins_addr)  # ???
         dest = self._get_value(self._current_op.inputs[0])
         stmt = Call(
             self._manager.next_atom(),
