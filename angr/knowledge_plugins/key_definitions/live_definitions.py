@@ -977,7 +977,8 @@ class LiveDefinitions:
 
                 if mv is None or 0 not in mv:
                     # If the sz is 0, then we found nothing and yolo the size
-                    # if the mv is None, then we went past the indexed memory and should use sz (mostly for the BVS case where no null terminator is guaranteed)
+                    # if the mv is None, then we went past the indexed memory and should use sz
+                    # (mostly for the BVS case where no null terminator is guaranteed)
                     size = MAX_SIZE if sz == 0 else sz
                     break
 
