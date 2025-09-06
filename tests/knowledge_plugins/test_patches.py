@@ -39,7 +39,7 @@ class PatchTests(unittest.TestCase):
         proj = angr.Project(binpath, auto_load_libs=False)
 
         addr = 0x4007D3
-        patch_bytes = proj.arch.keystone.asm("inc rax; leave; ret", addr, as_bytes=True)[0]
+        patch_bytes = proj.arch.keystone.asm("inc rax; leave; ret", addr)[0]
         proj.kb.patches.add_patch(addr, patch_bytes)
 
         b = proj.factory.block(addr)
