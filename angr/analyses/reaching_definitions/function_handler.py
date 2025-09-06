@@ -579,6 +579,7 @@ class FunctionHandler:
             observe_callback=state.analysis._observe_callback,
             dep_graph=state.dep_graph,
             function_handler=self,
+            max_iterations=state.analysis._max_iterations,
             init_state=state,
         )
         # migrate data from sub_rda to its parent
