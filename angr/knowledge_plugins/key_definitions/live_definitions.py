@@ -970,11 +970,20 @@ class LiveDefinitions:
                     return None
 
         if isinstance(size, DerefSize):
-            assert size == DerefSize.NULL_TERMINATE
-            for sz in range(4096):  # arbitrary
+            MAX_SIZE = 4096
+            for sz in range(MAX_SIZE):  # arbitrary
                 # truly evil that this is an abstraction we have to contend with
                 mv = self.get_values(MemoryLocation(addr + sz, 1, endness))
-                if mv is not None and 0 in mv and any(one.op == "BVV" and one.args[0] == 0 for one in mv[0]):
+
+                if mv is None or 0 not in mv:
+                    # If the sz is 0, then we found nothing and yolo the size
+                    # if the mv is None, then we went past the indexed memory and should use sz
+                    # (mostly for the BVS case where no null terminator is guaranteed)
+                    size = MAX_SIZE if sz == 0 else sz
+                    break
+
+                if any(one.op == "BVV" and one.args[0] == 0 for one in mv[0]):
+                    # We found a null terminator
                     size = sz + 1
                     break
             else:
@@ -982,7 +991,7 @@ class LiveDefinitions:
                     "Could not resolve cstring dereference at %s to a concrete size",
                     hex(addr) if isinstance(addr, int) else addr,
                 )
-                size = 4096
+                size = MAX_SIZE
 
         return MemoryLocation(addr, size, endness)
 
