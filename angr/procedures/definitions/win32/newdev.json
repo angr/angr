@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,27 +16,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDEVINFO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SP_DEVINFO_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -43,25 +38,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SP_DRVINFO_DATA_V2_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DIINSTALLDEVICE_FLAGS"
+						"_t": "_ref",
+						"name": "DIINSTALLDEVICE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -78,37 +75,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "DIINSTALLDRIVER_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "DIINSTALLDRIVER_FLAGS"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -123,37 +116,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "DIINSTALLDRIVER_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "DIINSTALLDRIVER_FLAGS"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -168,45 +157,41 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDEVINFO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SP_DEVINFO_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DIROLLBACKDRIVER_FLAGS"
+						"_t": "_ref",
+						"name": "DIROLLBACKDRIVER_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DeviceInfoSet",
@@ -222,27 +207,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDEVINFO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SP_DEVINFO_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -253,14 +232,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -276,20 +257,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -299,14 +274,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -321,27 +298,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDEVINFO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SP_DEVINFO_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -352,14 +323,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -375,37 +348,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "DIUNINSTALLDRIVER_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "DIUNINSTALLDRIVER_FLAGS"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -420,37 +389,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "DIUNINSTALLDRIVER_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "DIUNINSTALLDRIVER_FLAGS"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -465,45 +430,38 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "UPDATEDRIVERFORPLUGANDPLAYDEVICES_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UPDATEDRIVERFORPLUGANDPLAYDEVICES_FLAGS"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -519,45 +477,38 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "UPDATEDRIVERFORPLUGANDPLAYDEVICES_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UPDATEDRIVERFORPLUGANDPLAYDEVICES_FLAGS"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",

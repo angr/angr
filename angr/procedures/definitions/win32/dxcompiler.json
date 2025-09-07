@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -40,8 +41,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -55,8 +57,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMalloc"
+						"_t": "_ref",
+						"name": "IMalloc",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -84,8 +87,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMalloc",

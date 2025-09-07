@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -27,7 +28,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETCONNECTINFOSTRUCT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -51,7 +52,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -59,7 +60,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETCONNECTINFOSTRUCT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -83,24 +84,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -109,9 +104,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpNetResource",
@@ -130,24 +125,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -156,9 +145,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpNetResource",
@@ -173,36 +162,27 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -211,9 +191,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -229,36 +209,27 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -267,9 +238,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -285,19 +256,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -332,9 +300,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -352,19 +320,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -399,9 +364,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -419,34 +384,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpRemoteName",
@@ -460,34 +416,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpRemoteName",
@@ -501,12 +448,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -514,14 +458,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpName",
@@ -535,12 +480,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -548,14 +490,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpName",
@@ -569,22 +512,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpName",
@@ -597,22 +538,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpName",
@@ -625,18 +564,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hEnum"
@@ -648,12 +584,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -662,9 +595,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -681,14 +614,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CONNECTDLGSTRUCTA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpConnDlgStruct"
@@ -704,14 +637,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CONNECTDLGSTRUCTW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpConnDlgStruct"
@@ -723,12 +656,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -737,9 +667,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -756,14 +686,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DISCDLGSTRUCTA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpConnDlgStruct"
@@ -779,14 +709,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DISCDLGSTRUCTW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpConnDlgStruct"
@@ -798,12 +728,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -830,9 +757,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hEnum",
@@ -847,12 +774,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -879,9 +803,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hEnum",
@@ -896,12 +820,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -922,9 +843,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpLocalName",
@@ -938,12 +859,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -964,9 +882,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpLocalName",
@@ -1017,9 +935,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpError",
@@ -1072,9 +990,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpError",
@@ -1090,26 +1008,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETINFOSTRUCT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpProvider",
@@ -1122,26 +1037,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETINFOSTRUCT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpProvider",
@@ -1177,9 +1089,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwNetType",
@@ -1216,9 +1128,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwNetType",
@@ -1236,7 +1148,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1257,19 +1169,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpNetResource",
@@ -1288,7 +1197,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1309,19 +1218,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpNetResource",
@@ -1340,7 +1246,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1360,9 +1266,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpNetResource",
@@ -1380,7 +1286,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1400,9 +1306,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpNetResource",
@@ -1416,17 +1322,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "UNC_INFO_LEVEL"
+						"_t": "_ref",
+						"name": "UNC_INFO_LEVEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1445,9 +1348,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpLocalPath",
@@ -1462,17 +1365,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "UNC_INFO_LEVEL"
+						"_t": "_ref",
+						"name": "UNC_INFO_LEVEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1491,9 +1391,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpLocalPath",
@@ -1508,12 +1408,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1534,9 +1431,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpName",
@@ -1550,12 +1447,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1576,9 +1470,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpName",
@@ -1592,44 +1486,41 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "NET_RESOURCE_SCOPE"
+						"_t": "_ref",
+						"name": "NET_RESOURCE_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "NET_RESOURCE_TYPE"
+						"_t": "_ref",
+						"name": "NET_RESOURCE_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WNET_OPEN_ENUM_USAGE"
+						"_t": "_ref",
+						"name": "WNET_OPEN_ENUM_USAGE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwScope",
@@ -1645,44 +1536,41 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "NET_RESOURCE_SCOPE"
+						"_t": "_ref",
+						"name": "NET_RESOURCE_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "NET_RESOURCE_TYPE"
+						"_t": "_ref",
+						"name": "NET_RESOURCE_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WNET_OPEN_ENUM_USAGE"
+						"_t": "_ref",
+						"name": "WNET_OPEN_ENUM_USAGE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwScope",
@@ -1703,20 +1591,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1740,20 +1622,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1772,19 +1648,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1844,9 +1717,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -1867,19 +1740,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1939,9 +1809,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -1962,41 +1832,32 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "NET_USE_CONNECT_FLAGS"
+						"_t": "_ref",
+						"name": "NET_USE_CONNECT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2025,9 +1886,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -2046,41 +1907,32 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NETRESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "NET_USE_CONNECT_FLAGS"
+						"_t": "_ref",
+						"name": "NET_USE_CONNECT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2109,9 +1961,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",

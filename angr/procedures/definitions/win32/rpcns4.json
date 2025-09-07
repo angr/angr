@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,14 +20,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message"
@@ -42,13 +43,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_STATUS"
+						"_t": "_ref",
+						"name": "RPC_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -70,7 +71,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -85,9 +86,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message",
@@ -104,14 +105,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message"
@@ -129,15 +130,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_IF_ID_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfIdVector"
@@ -154,12 +155,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -173,7 +171,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -181,14 +179,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -209,12 +207,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -228,14 +223,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -255,12 +250,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -274,14 +266,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -301,12 +293,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -320,7 +309,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -328,14 +317,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -356,12 +345,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -389,9 +375,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -412,12 +398,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -445,9 +428,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -474,9 +457,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ImportContext"
@@ -506,9 +489,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ImportContext",
@@ -526,12 +509,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -564,9 +544,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -588,12 +568,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -626,9 +603,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -656,9 +633,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LookupContext"
@@ -683,15 +660,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_BINDING_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LookupContext",
@@ -708,7 +685,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -723,9 +700,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingVec",
@@ -743,12 +720,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -762,14 +736,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -789,12 +763,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -808,14 +779,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -835,12 +806,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -854,14 +822,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -881,12 +849,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -900,14 +865,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -927,29 +892,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -968,29 +927,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1009,12 +962,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1028,9 +978,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1049,12 +999,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1068,9 +1015,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1095,9 +1042,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext"
@@ -1124,9 +1071,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext",
@@ -1139,23 +1086,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "GROUP_NAME_SYNTAX"
+						"_t": "_ref",
+						"name": "GROUP_NAME_SYNTAX",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupNameSyntax",
@@ -1168,23 +1112,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "GROUP_NAME_SYNTAX"
+						"_t": "_ref",
+						"name": "GROUP_NAME_SYNTAX",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupNameSyntax",
@@ -1202,12 +1143,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1215,18 +1153,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupNameSyntax",
@@ -1246,12 +1181,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1259,18 +1191,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupNameSyntax",
@@ -1290,12 +1219,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1314,9 +1240,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupNameSyntax",
@@ -1336,12 +1262,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1360,9 +1283,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupNameSyntax",
@@ -1388,9 +1311,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext"
@@ -1411,19 +1334,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext",
@@ -1445,19 +1365,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext",
@@ -1475,12 +1392,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1488,18 +1402,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupNameSyntax",
@@ -1519,12 +1430,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1532,18 +1440,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupNameSyntax",
@@ -1563,19 +1468,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1588,14 +1490,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1616,19 +1518,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1641,14 +1540,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1669,18 +1568,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1698,18 +1594,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1727,18 +1620,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1756,18 +1646,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1785,12 +1672,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1799,15 +1683,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_IF_ID_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1826,12 +1710,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1840,15 +1721,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_IF_ID_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1875,9 +1756,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NsHandle",
@@ -1899,9 +1780,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ExpirationAge"
@@ -1919,9 +1800,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ExpirationAge"
@@ -1938,18 +1819,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileNameSyntax",
@@ -1967,18 +1845,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileNameSyntax",
@@ -1996,19 +1871,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2017,12 +1889,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2030,18 +1899,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileNameSyntax",
@@ -2064,19 +1930,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2085,12 +1948,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2098,18 +1958,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileNameSyntax",
@@ -2132,12 +1989,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2149,7 +2003,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2163,12 +2017,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2182,9 +2033,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileNameSyntax",
@@ -2208,12 +2059,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2225,7 +2073,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2239,12 +2087,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2258,9 +2103,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileNameSyntax",
@@ -2290,9 +2135,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext"
@@ -2315,18 +2160,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2340,19 +2182,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext",
@@ -2379,18 +2218,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2404,19 +2240,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext",
@@ -2437,19 +2270,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2458,18 +2288,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileNameSyntax",
@@ -2490,19 +2317,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2511,18 +2335,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileNameSyntax",

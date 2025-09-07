@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -37,12 +38,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -60,12 +58,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -89,12 +84,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -112,12 +104,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -166,7 +155,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WDS_TRANSPORTCLIENT_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -179,12 +168,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -205,12 +191,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -246,17 +229,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TRANSPORTCLIENT_CALLBACK_ID"
+						"_t": "_ref",
+						"name": "TRANSPORTCLIENT_CALLBACK_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -317,12 +297,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -340,12 +317,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",

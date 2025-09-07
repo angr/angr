@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -23,8 +24,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc"
@@ -44,8 +46,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc"
@@ -87,12 +90,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -105,8 +105,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -129,12 +130,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -147,8 +145,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -171,12 +170,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -189,8 +185,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -211,12 +208,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -232,8 +226,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -248,12 +243,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -261,9 +253,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CSBACKUP_TYPE"
+						"_t": "_ref",
+						"name": "CSBACKUP_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -277,8 +269,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwszServerName",
@@ -321,8 +314,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -345,8 +339,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc"
@@ -358,24 +353,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwszServerName",
@@ -396,8 +390,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc"
@@ -418,12 +413,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -436,8 +428,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -451,12 +444,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -475,8 +465,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwszServerName",
@@ -497,13 +488,15 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -523,27 +516,21 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CSEDB_RSTMAPW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -551,12 +538,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -570,8 +554,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -597,27 +582,21 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CSEDB_RSTMAPW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -625,12 +604,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -644,8 +620,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hbc",
@@ -664,12 +641,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -697,8 +671,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwszServerName",

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,33 +16,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -55,33 +48,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -110,9 +95,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BMFORMAT"
+						"_t": "_ref",
+						"name": "BMFORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -153,17 +138,15 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0",
@@ -173,17 +156,15 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hColorTransform",
@@ -218,47 +199,47 @@
 								"gray": {
 									"_t": "_ref",
 									"name": "GRAYCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"rgb": {
 									"_t": "_ref",
 									"name": "RGBCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"cmyk": {
 									"_t": "_ref",
 									"name": "CMYKCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"XYZ": {
 									"_t": "_ref",
 									"name": "XYZCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Yxy": {
 									"_t": "_ref",
 									"name": "YxyCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Lab": {
 									"_t": "_ref",
 									"name": "LabCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"gen3ch": {
 									"_t": "_ref",
 									"name": "GENERIC3CHANNEL",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"named": {
 									"_t": "_ref",
 									"name": "NAMEDCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"hifi": {
 									"_t": "_ref",
 									"name": "HiFiCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Anonymous": {
 									"_t": "struct",
@@ -277,8 +258,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -292,9 +271,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORTYPE"
+						"_t": "_ref",
+						"name": "COLORTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -307,8 +286,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hColorTransform",
@@ -333,8 +313,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile"
@@ -346,22 +327,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -369,17 +347,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -396,14 +377,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -411,30 +392,28 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILETYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILETYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILESUBTYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILESUBTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -451,14 +430,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -470,12 +449,9 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "char",
-									"signed": true,
-									"label": "Char"
-								}
+								"_t": "_ref",
+								"name": "PWSTR",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -489,8 +465,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -508,7 +485,7 @@
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -518,15 +495,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+							"_t": "_ref",
+							"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"targetAdapterID",
@@ -540,22 +518,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -563,13 +538,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -585,32 +562,29 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILETYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILETYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILESUBTYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILESUBTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -619,8 +593,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -672,8 +647,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -723,8 +699,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -743,7 +720,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -793,7 +770,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -892,8 +869,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -979,7 +957,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -995,8 +973,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pLogColorSpace",
@@ -1013,7 +992,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1029,8 +1008,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pLogColorSpace",
@@ -1052,8 +1032,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hxform"
@@ -1065,33 +1046,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1105,33 +1078,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1145,19 +1110,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ENUMTYPEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1186,8 +1148,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1203,19 +1166,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ENUMTYPEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1244,8 +1204,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1261,20 +1222,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1381,20 +1336,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1406,8 +1355,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1421,20 +1371,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1446,8 +1390,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1496,14 +1441,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1542,8 +1489,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1582,8 +1530,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1609,13 +1558,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILEHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1645,8 +1595,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1671,13 +1622,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NAMED_PROFILE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1721,14 +1673,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1774,8 +1728,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1826,14 +1781,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -1850,12 +1807,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1863,12 +1817,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1880,8 +1831,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1896,12 +1848,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1909,12 +1858,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1926,8 +1872,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1942,25 +1889,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -1973,25 +1915,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2019,14 +1956,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -2050,14 +1989,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -2074,7 +2015,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2118,7 +2059,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2158,12 +2099,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2171,17 +2109,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2195,12 +2131,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2208,17 +2141,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2238,8 +2169,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCMMType"
@@ -2286,8 +2218,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -2322,8 +2255,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -2356,8 +2290,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -2383,13 +2318,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILEHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -2402,12 +2338,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2415,17 +2348,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2439,12 +2370,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2452,17 +2380,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2476,20 +2402,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2498,8 +2418,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPrinterName",
@@ -2528,9 +2449,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BMFORMAT"
+						"_t": "_ref",
+						"name": "BMFORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2555,9 +2476,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BMFORMAT"
+						"_t": "_ref",
+						"name": "BMFORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2580,17 +2501,15 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0",
@@ -2600,17 +2519,15 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hColorTransform",
@@ -2647,47 +2564,47 @@
 								"gray": {
 									"_t": "_ref",
 									"name": "GRAYCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"rgb": {
 									"_t": "_ref",
 									"name": "RGBCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"cmyk": {
 									"_t": "_ref",
 									"name": "CMYKCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"XYZ": {
 									"_t": "_ref",
 									"name": "XYZCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Yxy": {
 									"_t": "_ref",
 									"name": "YxyCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Lab": {
 									"_t": "_ref",
 									"name": "LabCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"gen3ch": {
 									"_t": "_ref",
 									"name": "GENERIC3CHANNEL",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"named": {
 									"_t": "_ref",
 									"name": "NAMEDCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"hifi": {
 									"_t": "_ref",
 									"name": "HiFiCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Anonymous": {
 									"_t": "struct",
@@ -2706,8 +2623,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -2721,9 +2636,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORTYPE"
+						"_t": "_ref",
+						"name": "COLORTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2733,47 +2648,47 @@
 								"gray": {
 									"_t": "_ref",
 									"name": "GRAYCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"rgb": {
 									"_t": "_ref",
 									"name": "RGBCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"cmyk": {
 									"_t": "_ref",
 									"name": "CMYKCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"XYZ": {
 									"_t": "_ref",
 									"name": "XYZCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Yxy": {
 									"_t": "_ref",
 									"name": "YxyCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Lab": {
 									"_t": "_ref",
 									"name": "LabCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"gen3ch": {
 									"_t": "_ref",
 									"name": "GENERIC3CHANNEL",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"named": {
 									"_t": "_ref",
 									"name": "NAMEDCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"hifi": {
 									"_t": "_ref",
 									"name": "HiFiCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Anonymous": {
 									"_t": "struct",
@@ -2792,8 +2707,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -2802,14 +2715,15 @@
 						"label": "LPArray"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORTYPE"
+						"_t": "_ref",
+						"name": "COLORTYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hColorTransform",
@@ -2826,29 +2740,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2862,29 +2772,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2898,12 +2804,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2912,8 +2815,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2926,12 +2830,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2940,8 +2841,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMachineName",
@@ -2954,30 +2856,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3009,9 +2906,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORDATATYPE"
+						"_t": "_ref",
+						"name": "COLORDATATYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3036,8 +2933,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hColorTransform",
@@ -3087,30 +2985,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3124,16 +3017,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ENUMTYPEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3159,8 +3052,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3176,16 +3070,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ENUMTYPEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3198,8 +3092,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3215,14 +3110,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbIsEnabled"
@@ -3234,27 +3131,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILETYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILETYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILESUBTYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILESUBTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3267,17 +3161,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3295,27 +3187,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILETYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILETYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILESUBTYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILESUBTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3332,8 +3221,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3350,9 +3240,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3364,8 +3254,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3378,12 +3269,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3393,14 +3281,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceName",
@@ -3418,7 +3308,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3426,7 +3316,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3434,7 +3324,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3486,7 +3376,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3494,7 +3384,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3502,7 +3392,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3550,13 +3440,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIsEnabled"
@@ -3568,27 +3460,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILETYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILETYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORPROFILESUBTYPE"
+						"_t": "_ref",
+						"name": "COLORPROFILESUBTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3596,17 +3485,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3623,9 +3510,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCS_PROFILE_MANAGEMENT_SCOPE"
+						"_t": "_ref",
+						"name": "WCS_PROFILE_MANAGEMENT_SCOPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3634,8 +3521,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"scope",
@@ -3648,12 +3536,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3661,13 +3546,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceName",
@@ -3699,9 +3586,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORDATATYPE"
+						"_t": "_ref",
+						"name": "COLORDATATYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3721,9 +3608,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORDATATYPE"
+						"_t": "_ref",
+						"name": "COLORDATATYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3739,8 +3626,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hColorTransform",

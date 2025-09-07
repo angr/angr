@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -52,9 +53,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PRIORITY"
+						"_t": "_ref",
+						"name": "PRIORITY",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -63,9 +64,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plcLogConf",
@@ -97,9 +98,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PRIORITY"
+						"_t": "_ref",
+						"name": "PRIORITY",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -116,9 +117,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plcLogConf",
@@ -139,12 +140,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -153,9 +151,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -174,12 +172,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -188,9 +183,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -209,12 +204,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -231,9 +223,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -253,12 +245,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -275,9 +264,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -317,9 +306,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ullStartValue",
@@ -378,9 +367,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prdResDes",
@@ -449,9 +438,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prdResDes",
@@ -469,12 +458,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -489,9 +475,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"UNCServerName",
@@ -504,12 +490,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -524,9 +507,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"UNCServerName",
@@ -547,12 +530,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -566,9 +546,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -591,12 +571,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -610,9 +587,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -635,12 +612,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -662,9 +636,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -688,12 +662,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -715,9 +686,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -751,9 +722,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prlh",
@@ -779,9 +750,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -815,9 +786,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -847,9 +818,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevNode",
@@ -887,9 +858,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevNode",
@@ -904,12 +875,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -918,9 +886,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -933,12 +901,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -947,9 +912,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -962,12 +927,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -984,9 +946,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -1000,12 +962,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1022,9 +981,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -1063,9 +1022,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ullStartValue",
@@ -1104,8 +1063,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1115,9 +1075,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -1158,8 +1118,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1177,9 +1138,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -1208,9 +1169,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -1242,9 +1203,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -1267,9 +1228,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hMachine"
@@ -1305,9 +1266,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rlhOld",
@@ -1332,9 +1293,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -1366,9 +1327,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -1394,15 +1355,15 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_ENUMERATE_FLAGS"
+						"_t": "_ref",
+						"name": "CM_ENUMERATE_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulClassIndex",
@@ -1428,9 +1389,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_ENUMERATE_FLAGS"
+						"_t": "_ref",
+						"name": "CM_ENUMERATE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1442,9 +1403,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulClassIndex",
@@ -1487,9 +1448,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulEnumIndex",
@@ -1532,9 +1493,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulEnumIndex",
@@ -1585,9 +1546,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulEnumIndex",
@@ -1639,9 +1600,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulEnumIndex",
@@ -1700,9 +1661,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pullStart",
@@ -1763,9 +1724,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rlh",
@@ -1796,9 +1757,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lcLogConfToBeFreed",
@@ -1834,9 +1795,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lcLogConfToBeFreed",
@@ -1860,9 +1821,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lcLogConf"
@@ -1889,9 +1850,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rlh",
@@ -1931,9 +1892,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prdResDes",
@@ -1982,9 +1943,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prdResDes",
@@ -2009,9 +1970,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rdResDes"
@@ -2033,9 +1994,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clConflictList"
@@ -2066,9 +2027,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -2109,9 +2070,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -2156,9 +2117,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2203,9 +2164,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2258,9 +2219,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2314,9 +2275,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2362,9 +2323,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2409,9 +2370,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2464,9 +2425,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2520,9 +2481,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2549,15 +2510,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVPROPTYPE"
+							"_t": "_ref",
+							"name": "DEVPROPTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2583,9 +2544,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGUID",
@@ -2613,15 +2574,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVPROPTYPE"
+							"_t": "_ref",
+							"name": "DEVPROPTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2655,9 +2616,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGUID",
@@ -2686,7 +2647,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2705,9 +2666,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGUID",
@@ -2733,7 +2694,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2760,9 +2721,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGUID",
@@ -2827,9 +2788,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2896,9 +2857,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -2935,9 +2896,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulDepth",
@@ -2978,9 +2939,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulDepth",
@@ -3000,12 +2961,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3037,9 +2995,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3061,12 +3019,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3098,9 +3053,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3122,12 +3077,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3167,9 +3119,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3192,12 +3144,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3237,9 +3186,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3266,15 +3215,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVPROPTYPE"
+							"_t": "_ref",
+							"name": "DEVPROPTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3300,9 +3249,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3328,15 +3277,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVPROPTYPE"
+							"_t": "_ref",
+							"name": "DEVPROPTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3370,9 +3319,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3399,7 +3348,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3418,9 +3367,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3444,7 +3393,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3471,9 +3420,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3528,9 +3477,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3586,9 +3535,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3652,9 +3601,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3719,9 +3668,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3741,17 +3690,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CM_DEVNODE_STATUS_FLAGS"
+							"_t": "_ref",
+							"name": "CM_DEVNODE_STATUS_FLAGS",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CM_PROB"
+							"_t": "_ref",
+							"name": "CM_PROB",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3766,9 +3715,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulStatus",
@@ -3785,17 +3734,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CM_DEVNODE_STATUS_FLAGS"
+							"_t": "_ref",
+							"name": "CM_DEVNODE_STATUS_FLAGS",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CM_PROB"
+							"_t": "_ref",
+							"name": "CM_PROB",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3818,9 +3767,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulStatus",
@@ -3861,9 +3810,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3903,9 +3852,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -3953,9 +3902,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -4004,9 +3953,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -4022,12 +3971,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4050,9 +3996,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszFilter",
@@ -4067,12 +4013,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4095,9 +4038,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszFilter",
@@ -4112,12 +4055,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4148,9 +4088,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszFilter",
@@ -4166,12 +4106,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4202,9 +4139,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszFilter",
@@ -4228,12 +4165,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4242,9 +4176,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -4266,12 +4200,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4280,9 +4211,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -4304,12 +4235,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4326,9 +4254,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -4351,12 +4279,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4373,9 +4298,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -4409,9 +4334,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -4452,9 +4377,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -4469,12 +4394,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4507,9 +4429,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -4525,12 +4447,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4563,9 +4482,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -4581,12 +4500,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4627,9 +4543,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -4646,12 +4562,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4692,9 +4605,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -4718,12 +4631,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4740,15 +4650,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS"
+						"_t": "_ref",
+						"name": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceClassGuid",
@@ -4771,12 +4681,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4793,15 +4700,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS"
+						"_t": "_ref",
+						"name": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceClassGuid",
@@ -4824,12 +4731,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4846,9 +4750,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS"
+						"_t": "_ref",
+						"name": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4860,9 +4764,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceClassGuid",
@@ -4886,12 +4790,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4908,9 +4809,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS"
+						"_t": "_ref",
+						"name": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4922,9 +4823,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceClassGuid",
@@ -4956,23 +4857,20 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS"
+						"_t": "_ref",
+						"name": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -5002,23 +4900,20 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS"
+						"_t": "_ref",
+						"name": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -5048,17 +4943,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS"
+						"_t": "_ref",
+						"name": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5070,9 +4962,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -5103,17 +4995,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS"
+						"_t": "_ref",
+						"name": "CM_GET_DEVICE_INTERFACE_LIST_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5125,9 +5014,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulLen",
@@ -5143,27 +5032,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVPROPTYPE"
+							"_t": "_ref",
+							"name": "DEVPROPTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5189,9 +5075,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -5208,27 +5094,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVPROPTYPE"
+							"_t": "_ref",
+							"name": "DEVPROPTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5262,9 +5145,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -5282,19 +5165,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -5313,9 +5193,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -5330,19 +5210,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -5369,9 +5246,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -5404,15 +5281,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_LOG_CONF"
+						"_t": "_ref",
+						"name": "CM_LOG_CONF",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plcLogConf",
@@ -5443,9 +5320,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_LOG_CONF"
+						"_t": "_ref",
+						"name": "CM_LOG_CONF",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5457,9 +5334,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plcLogConf",
@@ -5488,9 +5365,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulState",
@@ -5525,9 +5402,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulState",
@@ -5541,12 +5418,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5568,9 +5442,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceID",
@@ -5585,12 +5459,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5612,9 +5483,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceID",
@@ -5629,12 +5500,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5664,9 +5532,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceID",
@@ -5682,12 +5550,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5717,9 +5582,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceID",
@@ -5744,7 +5609,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HWPROFILEINFO_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5754,9 +5619,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIndex",
@@ -5779,7 +5644,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HWPROFILEINFO_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5789,9 +5654,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIndex",
@@ -5814,7 +5679,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HWPROFILEINFO_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5832,9 +5697,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIndex",
@@ -5858,7 +5723,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HWPROFILEINFO_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5876,9 +5741,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIndex",
@@ -5916,9 +5781,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lcLogConf",
@@ -5963,9 +5828,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lcLogConf",
@@ -6007,9 +5872,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plcLogConf",
@@ -6058,9 +5923,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plcLogConf",
@@ -6096,16 +5961,16 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_RESTYPE"
+						"_t": "_ref",
+						"name": "CM_RESTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CM_RESTYPE"
+							"_t": "_ref",
+							"name": "CM_RESTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6115,9 +5980,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prdResDes",
@@ -6154,16 +6019,16 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_RESTYPE"
+						"_t": "_ref",
+						"name": "CM_RESTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CM_RESTYPE"
+							"_t": "_ref",
+							"name": "CM_RESTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6181,9 +6046,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prdResDes",
@@ -6219,9 +6084,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -6262,9 +6127,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -6306,9 +6171,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rdResDes",
@@ -6358,9 +6223,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rdResDes",
@@ -6399,9 +6264,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulSize",
@@ -6446,9 +6311,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulSize",
@@ -6481,9 +6346,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clConflictList",
@@ -6514,14 +6379,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CONFLICT_DETAILS_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clConflictList",
@@ -6553,14 +6418,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CONFLICT_DETAILS_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clConflictList",
@@ -6593,9 +6458,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -6636,9 +6501,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -6721,9 +6586,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rlhOld1",
@@ -6767,9 +6632,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rlhOld",
@@ -6786,15 +6651,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbPresent"
@@ -6808,8 +6674,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6822,9 +6689,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbPresent",
@@ -6843,8 +6710,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"wVersion"
@@ -6870,8 +6738,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"wVersion",
@@ -6892,23 +6761,20 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_LOCATE_DEVNODE_FLAGS"
+						"_t": "_ref",
+						"name": "CM_LOCATE_DEVNODE_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -6930,23 +6796,20 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_LOCATE_DEVNODE_FLAGS"
+						"_t": "_ref",
+						"name": "CM_LOCATE_DEVNODE_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -6968,12 +6831,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6990,9 +6850,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -7015,12 +6875,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7037,9 +6894,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdnDevInst",
@@ -7054,9 +6911,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CONFIGRET"
+						"_t": "_ref",
+						"name": "CONFIGRET",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7113,9 +6970,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rlhOld1",
@@ -7174,9 +7031,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prdResDes",
@@ -7245,9 +7102,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prdResDes",
@@ -7281,9 +7138,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnFromDevInst",
@@ -7321,9 +7178,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnFromDevInst",
@@ -7372,9 +7229,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"preElement",
@@ -7396,12 +7253,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7416,12 +7270,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7431,9 +7282,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -7457,12 +7308,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7477,12 +7325,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7492,9 +7337,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -7518,12 +7363,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7538,12 +7380,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7561,9 +7400,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -7588,12 +7427,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7608,12 +7444,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7631,9 +7464,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -7673,12 +7506,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7688,9 +7518,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevNode",
@@ -7729,12 +7559,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7752,9 +7579,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevNode",
@@ -7772,12 +7599,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7792,12 +7616,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7807,9 +7628,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -7825,12 +7646,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7845,12 +7663,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7860,9 +7675,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -7878,12 +7693,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7898,12 +7710,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7921,9 +7730,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -7940,12 +7749,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7960,12 +7766,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7983,9 +7786,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -8009,9 +7812,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PNP_VETO_TYPE"
+							"_t": "_ref",
+							"name": "PNP_VETO_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8035,9 +7838,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnAncestor",
@@ -8060,9 +7863,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PNP_VETO_TYPE"
+							"_t": "_ref",
+							"name": "PNP_VETO_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8086,9 +7889,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnAncestor",
@@ -8111,9 +7914,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PNP_VETO_TYPE"
+							"_t": "_ref",
+							"name": "PNP_VETO_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8145,9 +7948,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnAncestor",
@@ -8171,9 +7974,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PNP_VETO_TYPE"
+							"_t": "_ref",
+							"name": "PNP_VETO_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8205,9 +8008,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnAncestor",
@@ -8252,9 +8055,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pData",
@@ -8306,9 +8109,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pData",
@@ -8349,9 +8152,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulSize",
@@ -8398,9 +8201,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulSize",
@@ -8427,9 +8230,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnAncestor",
@@ -8461,9 +8264,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnAncestor",
@@ -8494,9 +8297,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_RESTYPE"
+						"_t": "_ref",
+						"name": "CM_RESTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8525,9 +8328,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pclConflictList",
@@ -8550,15 +8353,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CM_REENUMERATE_FLAGS"
+						"_t": "_ref",
+						"name": "CM_REENUMERATE_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -8590,9 +8393,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -8617,9 +8420,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -8651,9 +8454,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -8679,12 +8482,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8710,9 +8510,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -8741,12 +8541,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8772,9 +8569,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -8803,12 +8600,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8842,9 +8636,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -8874,12 +8668,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8913,9 +8704,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -8937,7 +8728,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CM_NOTIFY_FILTER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8953,12 +8744,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HCMNOTIFICATION",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -8968,16 +8756,16 @@
 									}
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "CM_NOTIFY_ACTION"
+									"_t": "_ref",
+									"name": "CM_NOTIFY_ACTION",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CM_NOTIFY_EVENT_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -9003,19 +8791,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HCMNOTIFICATION",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pFilter",
@@ -9041,9 +8826,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnAncestor",
@@ -9075,9 +8860,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnAncestor",
@@ -9098,9 +8883,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PNP_VETO_TYPE"
+							"_t": "_ref",
+							"name": "PNP_VETO_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9124,9 +8909,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9149,9 +8934,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PNP_VETO_TYPE"
+							"_t": "_ref",
+							"name": "PNP_VETO_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9175,9 +8960,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9200,9 +8985,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PNP_VETO_TYPE"
+							"_t": "_ref",
+							"name": "PNP_VETO_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9234,9 +9019,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9260,9 +9045,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PNP_VETO_TYPE"
+							"_t": "_ref",
+							"name": "PNP_VETO_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9294,9 +9079,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9313,9 +9098,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -9334,9 +9119,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hMachine"
@@ -9354,9 +9139,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulFlags"
@@ -9382,9 +9167,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulFlags",
@@ -9408,13 +9193,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEVPROPTYPE"
+						"_t": "_ref",
+						"name": "DEVPROPTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9436,9 +9221,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGUID",
@@ -9466,13 +9251,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEVPROPTYPE"
+						"_t": "_ref",
+						"name": "DEVPROPTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9502,9 +9287,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGUID",
@@ -9560,9 +9345,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -9617,9 +9402,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClassGuid",
@@ -9652,9 +9437,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9692,9 +9477,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9718,13 +9503,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEVPROPTYPE"
+						"_t": "_ref",
+						"name": "DEVPROPTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9746,9 +9531,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9774,13 +9559,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEVPROPTYPE"
+						"_t": "_ref",
+						"name": "DEVPROPTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9810,9 +9595,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9858,9 +9643,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9904,9 +9689,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -9958,9 +9743,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -10013,9 +9798,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -10032,25 +9817,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEVPROPTYPE"
+						"_t": "_ref",
+						"name": "DEVPROPTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10072,9 +9854,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -10091,25 +9873,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEVPROPTYPE"
+						"_t": "_ref",
+						"name": "DEVPROPTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10139,9 +9918,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -10170,9 +9949,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulHardwareProfile",
@@ -10204,9 +9983,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulHardwareProfile",
@@ -10220,12 +9999,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10244,9 +10020,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceID",
@@ -10261,12 +10037,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10285,9 +10058,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceID",
@@ -10302,12 +10075,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10334,9 +10104,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceID",
@@ -10352,12 +10122,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10384,9 +10151,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDeviceID",
@@ -10413,9 +10180,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -10447,9 +10214,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -10488,9 +10255,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ullStartValue",
@@ -10516,9 +10283,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -10550,9 +10317,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dnDevInst",
@@ -10566,12 +10333,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10580,9 +10344,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -10595,12 +10359,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10609,9 +10370,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -10624,12 +10385,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10646,9 +10404,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -10662,12 +10420,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10684,9 +10439,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceInterface",
@@ -10700,18 +10455,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCMNOTIFICATION",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CONFIGRET"
+					"_t": "_ref",
+					"name": "CONFIGRET",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NotifyContext"
@@ -10723,12 +10475,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HSWDEVICE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -10745,27 +10494,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SW_DEVICE_CREATE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10778,7 +10521,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -10788,16 +10531,14 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HSWDEVICE",
+									"ot": "ptr"
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "HRESULT",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -10807,12 +10548,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -10837,18 +10575,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HSWDEVICE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszEnumeratorName",
@@ -10867,25 +10603,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HSWDEVICE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SW_DEVICE_LIFETIME"
+							"_t": "_ref",
+							"name": "SW_DEVICE_LIFETIME",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSwDevice",
@@ -10898,20 +10632,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HSWDEVICE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10923,14 +10651,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSwDevice",
@@ -10945,12 +10674,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HSWDEVICE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10960,12 +10686,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10977,29 +10700,28 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSwDevice",
@@ -11017,29 +10739,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HSWDEVICE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSwDevice",
@@ -11053,12 +10771,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HSWDEVICE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11070,14 +10785,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSwDevice",
@@ -11091,22 +10807,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HSWDEVICE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SW_DEVICE_LIFETIME"
+						"_t": "_ref",
+						"name": "SW_DEVICE_LIFETIME",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSwDevice",

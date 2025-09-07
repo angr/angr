@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,17 +16,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szApplication"
@@ -37,17 +36,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"wszApplication"
@@ -63,7 +60,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EXCEPTION_POINTERS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -73,9 +70,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "EFaultRepRetVal"
+					"_t": "_ref",
+					"name": "EFaultRepRetVal",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pep",
@@ -88,25 +85,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndHungApp",

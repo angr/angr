@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENCARDNAMEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -41,7 +42,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENCARDNAMEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -74,7 +75,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENCARDNAME_EXA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -96,7 +97,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENCARDNAME_EXW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,22 +16,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -45,7 +38,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_COLUMNDEF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -89,22 +82,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -119,7 +104,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_COLUMNDEF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -163,13 +148,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -207,13 +188,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -251,13 +228,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -289,13 +262,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -345,13 +314,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -400,13 +365,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -427,13 +388,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -483,13 +440,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -510,13 +463,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -584,13 +533,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -658,13 +603,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -687,24 +628,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_SESID",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -741,24 +674,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_SESID",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -795,13 +720,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -818,13 +739,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -847,13 +764,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -881,13 +794,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -916,13 +825,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -939,22 +844,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -972,22 +869,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1005,13 +894,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1034,13 +919,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1057,7 +938,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_COMMIT_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1078,13 +959,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1108,13 +985,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -1151,7 +1024,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_CONVERT_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1179,13 +1052,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1209,13 +1078,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -1252,7 +1117,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_CONVERT_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1280,22 +1145,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1332,13 +1189,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1385,13 +1238,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1438,13 +1287,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1494,13 +1339,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1550,29 +1391,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXCREATE_A",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1599,29 +1432,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXCREATE_W",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1648,29 +1473,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXCREATE2_A",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1697,29 +1514,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXCREATE2_W",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1746,29 +1555,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXCREATE3_A",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1795,29 +1596,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXCREATE3_W",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1844,22 +1637,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1875,12 +1660,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1913,22 +1695,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1944,12 +1718,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1984,13 +1755,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2034,13 +1801,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2084,13 +1847,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2119,13 +1878,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2152,13 +1907,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2186,13 +1937,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_TABLEID",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2215,13 +1962,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2233,7 +1976,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_TABLECREATE2_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2253,13 +1996,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2271,7 +2010,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_TABLECREATE2_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2291,13 +2030,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2309,7 +2044,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_TABLECREATE3_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2329,13 +2064,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2347,7 +2078,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_TABLECREATE3_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2367,13 +2098,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2385,7 +2112,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_TABLECREATE4_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2405,13 +2132,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2423,7 +2146,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_TABLECREATE4_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2443,13 +2166,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2461,7 +2180,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_TABLECREATE_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2481,13 +2200,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2499,7 +2214,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_TABLECREATE_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2519,13 +2234,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2553,13 +2264,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_TABLEID",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2582,13 +2289,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2625,13 +2328,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2639,13 +2338,9 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_TABLEID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2674,13 +2369,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_API_PTR",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -2725,13 +2416,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2768,13 +2455,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2782,13 +2465,9 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_TABLEID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2817,13 +2496,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_API_PTR",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -2868,13 +2543,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2914,13 +2585,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2928,13 +2595,9 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_TABLEID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2963,13 +2626,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_API_PTR",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -3022,13 +2681,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3068,13 +2723,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -3082,13 +2733,9 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_TABLEID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -3117,13 +2764,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_API_PTR",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -3176,13 +2819,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3238,13 +2877,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3300,22 +2935,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3333,22 +2960,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3381,22 +3000,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3429,22 +3040,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3471,22 +3074,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3513,22 +3108,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3555,22 +3142,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3597,13 +3176,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3635,13 +3210,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3673,13 +3244,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3711,13 +3278,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3749,13 +3312,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3781,13 +3340,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3813,33 +3368,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_TABLEID",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3865,24 +3408,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_SESID",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3905,7 +3440,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_SETSYSPARAM_A",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3943,7 +3478,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_SETSYSPARAM_W",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3988,13 +3523,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -4011,13 +3542,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4040,13 +3567,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4069,22 +3592,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4096,7 +3611,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_ENUMCOLUMNID",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4115,7 +3630,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "JET_ENUMCOLUMN",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4199,22 +3714,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4301,7 +3808,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RSTMAP_A",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4322,7 +3829,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_LOGINFO_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4355,13 +3862,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -4437,7 +3940,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RSTMAP_W",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4458,7 +3961,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_LOGINFO_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4491,13 +3994,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -4573,7 +4072,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RSTMAP_A",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4603,13 +4102,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -4683,7 +4178,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RSTMAP_W",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4713,13 +4208,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -4773,12 +4264,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -4832,13 +4320,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4879,13 +4363,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4963,22 +4443,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5019,13 +4491,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5086,13 +4554,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5153,22 +4617,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5201,22 +4657,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5249,22 +4697,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5386,13 +4826,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5435,13 +4871,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5531,13 +4963,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5598,13 +5026,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5679,7 +5103,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "JET_INSTANCE_INFO_A",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5713,7 +5137,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "JET_INSTANCE_INFO_W",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5733,13 +5157,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5776,33 +5196,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_LS",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5828,22 +5236,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5904,13 +5304,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5938,7 +5334,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_LOGINFO_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5960,13 +5356,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5994,7 +5386,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_LOGINFO_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6016,13 +5408,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6063,13 +5451,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6147,13 +5531,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6220,13 +5600,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6293,29 +5669,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RECPOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6341,29 +5709,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RECSIZE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6389,29 +5749,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RECSIZE2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6437,22 +5789,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6522,13 +5866,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6575,22 +5915,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6600,13 +5932,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_API_PTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6642,22 +5970,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6667,13 +5987,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_API_PTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6709,22 +6025,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6771,22 +6079,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6833,22 +6133,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6895,22 +6187,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6957,22 +6241,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7010,22 +6286,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7090,13 +6358,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7137,13 +6401,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7184,13 +6444,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7216,22 +6472,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7263,29 +6511,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RECPOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7305,22 +6545,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7372,13 +6604,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7416,13 +6644,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7445,22 +6669,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7495,13 +6711,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7521,13 +6733,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7553,13 +6761,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7567,7 +6771,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RSTINFO_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7594,13 +6798,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7608,7 +6808,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RSTINFO_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7633,20 +6833,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXRANGE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -7660,7 +6856,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RECORDLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7687,22 +6883,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7740,22 +6928,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7784,13 +6964,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7813,13 +6989,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7842,13 +7014,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7865,7 +7033,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "JET_INSTANCE_INFO_A",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7892,13 +7060,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7915,7 +7079,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "JET_INSTANCE_INFO_W",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7942,13 +7106,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7965,7 +7125,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "JET_INSTANCE_INFO_A",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7992,13 +7152,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8015,7 +7171,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "JET_INSTANCE_INFO_W",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -8044,13 +7200,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_OSSNAPID",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8074,22 +7226,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8113,13 +7257,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8142,13 +7282,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8171,22 +7307,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_OSSNAPID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8210,13 +7338,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8266,13 +7390,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8332,13 +7452,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8375,13 +7491,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8394,13 +7506,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8438,13 +7546,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8457,13 +7561,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8511,13 +7611,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8554,13 +7650,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8595,13 +7687,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_TABLEID",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8625,13 +7713,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8666,13 +7750,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_TABLEID",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8696,20 +7776,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_COLUMNDEF",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -8726,13 +7802,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_TABLEID",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8764,20 +7836,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_COLUMNDEF",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -8799,13 +7867,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_TABLEID",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8838,20 +7902,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_COLUMNDEF",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -8865,7 +7925,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_UNICODEINDEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8876,13 +7936,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_TABLEID",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8915,20 +7971,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_OPENTEMPORARYTABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8947,20 +7999,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_OPENTEMPORARYTABLE2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8979,22 +8027,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9018,29 +8058,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEX_RANGE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -9098,22 +8130,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9172,13 +8196,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9218,22 +8238,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9274,22 +8286,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9302,13 +8306,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -9316,13 +8316,9 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_TABLEID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -9351,13 +8347,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_API_PTR",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -9386,13 +8378,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9415,22 +8403,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9472,22 +8452,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9529,13 +8501,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9576,13 +8544,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9623,13 +8587,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -9646,22 +8606,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9685,13 +8637,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9756,13 +8704,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -9832,13 +8776,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -9900,13 +8840,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -9954,13 +8890,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9984,13 +8916,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -10040,13 +8968,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10070,13 +8994,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -10139,13 +9059,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "JET_SESID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -10193,22 +9109,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10245,7 +9153,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RETINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10270,29 +9178,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_RETRIEVECOLUMN",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -10319,22 +9219,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10381,13 +9273,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10410,22 +9298,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10449,22 +9329,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10493,7 +9365,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_SETINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10517,13 +9389,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10584,13 +9452,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10651,29 +9515,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_SETCOLUMN",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -10700,22 +9556,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10748,22 +9596,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10796,22 +9636,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10850,22 +9682,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10904,22 +9728,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10934,7 +9750,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10967,22 +9783,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10997,7 +9805,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEXID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11030,22 +9838,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11072,22 +9872,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11114,29 +9906,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JET_INDEX_COLUMN",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -11169,13 +9953,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11216,13 +9996,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11263,22 +10039,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11302,31 +10070,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_LS",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11351,22 +10107,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_API_PTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -11384,13 +10132,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11429,23 +10173,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11453,13 +10189,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_API_PTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11490,23 +10222,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "JET_INSTANCE",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11514,13 +10238,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_API_PTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11549,22 +10269,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11599,13 +10311,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -11633,13 +10341,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -11656,13 +10360,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11685,13 +10385,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -11708,13 +10404,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11748,13 +10440,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -11771,22 +10459,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11794,13 +10474,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -11820,22 +10496,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11876,22 +10544,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_SESID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "JET_TABLEID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",

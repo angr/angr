@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -42,8 +43,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -89,7 +91,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_EXTENDED_HEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
@@ -114,8 +116,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -133,8 +136,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hInternet"
@@ -153,12 +157,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -214,13 +215,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "URL_COMPONENTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwszUrl",
@@ -272,13 +274,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "URL_COMPONENTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WIN_HTTP_CREATE_URL_FLAGS"
+						"_t": "_ref",
+						"name": "WIN_HTTP_CREATE_URL_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -299,8 +301,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpUrlComponents",
@@ -322,18 +325,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwAutoDetectFlags",
@@ -350,7 +351,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_RESULT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -372,7 +373,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_RESULT_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -394,7 +395,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -412,9 +413,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINHTTP_PROXY_SETTINGS_TYPE"
+						"_t": "_ref",
+						"name": "WINHTTP_PROXY_SETTINGS_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -444,7 +445,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_QUERY_CONNECTION_GROUP_RESULT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -466,13 +467,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pProxyInfo"
@@ -488,13 +490,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_CURRENT_USER_IE_PROXY_CONFIG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pProxyConfig"
@@ -513,19 +516,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_AUTOPROXY_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -533,13 +533,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSession",
@@ -561,19 +562,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_AUTOPROXY_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -611,19 +609,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_AUTOPROXY_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -680,7 +675,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_RESULT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -711,7 +706,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_RESULT_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -738,16 +733,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINHTTP_PROXY_SETTINGS_TYPE"
+						"_t": "_ref",
+						"name": "WINHTTP_PROXY_SETTINGS_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_SETTINGS_PARAM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -839,33 +834,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINHTTP_ACCESS_TYPE"
+						"_t": "_ref",
+						"name": "WINHTTP_ACCESS_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -901,52 +887,37 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
-						}
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINHTTP_OPEN_REQUEST_FLAGS"
+						"_t": "_ref",
+						"name": "WINHTTP_OPEN_REQUEST_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1004,8 +975,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -1045,7 +1017,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WINHTTP_QUERY_CONNECTION_GROUP_RESULT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1084,8 +1056,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -1110,12 +1083,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1142,8 +1112,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -1195,20 +1166,14 @@
 							"_t": "union",
 							"members": {
 								"pwszName": {
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "_ref"
 								},
 								"pszName": {
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -1236,7 +1201,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WINHTTP_EXTENDED_HEADER",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -1302,8 +1267,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hInternet",
@@ -1346,8 +1312,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -1434,20 +1401,19 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1460,8 +1426,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1469,7 +1436,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1509,8 +1476,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -1667,8 +1635,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -1703,20 +1672,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1727,8 +1690,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -1749,13 +1713,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pProxyInfo"
@@ -1793,8 +1758,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hInternet",
@@ -1809,8 +1775,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1990,8 +1957,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hInternet",
@@ -2011,7 +1979,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SYSTEMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2025,8 +1993,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pst",
@@ -2039,25 +2008,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SYSTEMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwszTime",
@@ -2251,9 +2218,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WINHTTP_WEB_SOCKET_BUFFER_TYPE"
+							"_t": "_ref",
+							"name": "WINHTTP_WEB_SOCKET_BUFFER_TYPE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2283,9 +2250,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINHTTP_WEB_SOCKET_BUFFER_TYPE"
+						"_t": "_ref",
+						"name": "WINHTTP_WEB_SOCKET_BUFFER_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2389,8 +2356,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRequest",
@@ -2412,15 +2380,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINHTTP_PROXY_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

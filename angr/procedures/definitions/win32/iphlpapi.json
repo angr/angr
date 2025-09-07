@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -69,13 +70,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"notifyOverlapped"
@@ -87,12 +89,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIFTIMESTAMPCHANGE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -109,18 +108,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NotificationHandle"
@@ -144,7 +140,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -155,7 +151,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "INTERFACE_HARDWARE_CROSSTIMESTAMP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -191,9 +187,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompartmentGuid",
@@ -219,9 +215,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompartmentId",
@@ -234,12 +230,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -254,7 +247,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -262,9 +255,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceAlias",
@@ -296,7 +289,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -304,9 +297,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceGuid",
@@ -336,7 +329,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -344,9 +337,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceIndex",
@@ -371,7 +364,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -397,9 +390,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceLuid",
@@ -425,7 +418,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -440,9 +433,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceLuid",
@@ -467,7 +460,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -483,9 +476,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceLuid",
@@ -510,7 +503,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -536,9 +529,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceLuid",
@@ -564,7 +557,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -590,9 +583,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceLuid",
@@ -606,12 +599,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -626,7 +616,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -634,9 +624,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceName",
@@ -649,12 +639,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -669,7 +656,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -677,9 +664,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceName",
@@ -706,9 +693,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Mask",
@@ -735,9 +722,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"MaskLength",
@@ -754,14 +741,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_ANYCASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -777,7 +764,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARDROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -800,14 +787,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARD_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -823,7 +810,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNETROW_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -846,14 +833,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNET_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -971,7 +958,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR_IN6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -984,7 +971,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR_IN6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1004,7 +991,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SOCKADDR_IN6_PAIR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1018,9 +1005,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceAddressList",
@@ -1042,14 +1029,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UNICASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -1065,14 +1052,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_ANYCASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -1108,7 +1095,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARDROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1131,14 +1118,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARD_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -1154,7 +1141,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNETROW_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1177,14 +1164,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNET_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -1284,14 +1271,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UNICASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -1305,12 +1292,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1318,7 +1302,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1340,12 +1324,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1353,7 +1334,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1393,9 +1374,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1404,9 +1385,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -1419,15 +1400,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family"
@@ -1443,7 +1424,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1465,7 +1446,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_INTERFACE_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1504,12 +1485,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1540,7 +1518,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "IP_ADAPTER_ORDER_MAP",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": []
@@ -1556,9 +1534,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "GET_ADAPTERS_ADDRESSES_FLAGS"
+						"_t": "_ref",
+						"name": "GET_ADAPTERS_ADDRESSES_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1572,7 +1550,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_ADAPTER_ADDRESSES_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1607,7 +1585,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_ADAPTER_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1639,14 +1617,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_ANYCASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -1658,9 +1636,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1669,15 +1647,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_ANYCASTIPADDRESS_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -1723,7 +1701,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1765,7 +1743,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARDROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1798,7 +1776,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -1817,17 +1795,17 @@
 								"Ipv4": {
 									"_t": "_ref",
 									"name": "SOCKADDR_IN",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Ipv6": {
 									"_t": "_ref",
 									"name": "SOCKADDR_IN6",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"si_family": {
-									"_t": "int",
-									"signed": false,
-									"label": "ADDRESS_FAMILY"
+									"_t": "_ref",
+									"name": "ADDRESS_FAMILY",
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -1841,17 +1819,17 @@
 								"Ipv4": {
 									"_t": "_ref",
 									"name": "SOCKADDR_IN",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Ipv6": {
 									"_t": "_ref",
 									"name": "SOCKADDR_IN6",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"si_family": {
-									"_t": "int",
-									"signed": false,
-									"label": "ADDRESS_FAMILY"
+									"_t": "_ref",
+									"name": "ADDRESS_FAMILY",
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -1867,7 +1845,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARD_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1878,17 +1856,17 @@
 								"Ipv4": {
 									"_t": "_ref",
 									"name": "SOCKADDR_IN",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Ipv6": {
 									"_t": "_ref",
 									"name": "SOCKADDR_IN6",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"si_family": {
-									"_t": "int",
-									"signed": false,
-									"label": "ADDRESS_FAMILY"
+									"_t": "_ref",
+									"name": "ADDRESS_FAMILY",
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -1896,9 +1874,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceLuid",
@@ -1916,9 +1894,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1959,9 +1937,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1975,14 +1953,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Settings"
@@ -2009,8 +1987,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2018,9 +1997,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCP_TABLE_CLASS"
+						"_t": "_ref",
+						"name": "TCP_TABLE_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2063,8 +2042,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2072,9 +2052,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "UDP_TABLE_CLASS"
+						"_t": "_ref",
+						"name": "UDP_TABLE_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2126,7 +2106,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_ICMP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2149,7 +2129,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_ICMP_EX_XPSP1",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2178,7 +2158,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IFROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2201,14 +2181,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IF_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -2220,23 +2200,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MIB_IF_ENTRY_LEVEL"
+						"_t": "_ref",
+						"name": "MIB_IF_ENTRY_LEVEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IF_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Level",
@@ -2255,15 +2235,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_IFSTACK_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Table"
@@ -2279,7 +2259,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IFTABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2291,8 +2271,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2318,15 +2299,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_IF_TABLE2",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Table"
@@ -2338,9 +2319,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MIB_IF_TABLE_LEVEL"
+						"_t": "_ref",
+						"name": "MIB_IF_TABLE_LEVEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2349,15 +2330,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_IF_TABLE2",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Level",
@@ -2382,7 +2363,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -2393,7 +2374,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "INTERFACE_TIMESTAMP_CAPABILITIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2425,7 +2406,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -2436,7 +2417,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "INTERFACE_TIMESTAMP_CAPABILITIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2464,14 +2445,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_INTERFACE_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Interface",
@@ -2496,7 +2477,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -2507,7 +2488,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "INTERFACE_TIMESTAMP_CAPABILITIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2531,7 +2512,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_INTERFACE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2571,7 +2552,7 @@
 								"Info": {
 									"_t": "_ref",
 									"name": "_Info_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -2582,7 +2563,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "INTERFACE_TIMESTAMP_CAPABILITIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2608,15 +2589,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_INVERTEDIFSTACK_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Table"
@@ -2632,7 +2613,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPADDRTABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2644,8 +2625,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2670,12 +2652,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2707,14 +2686,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARD_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -2730,7 +2709,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARDTABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2742,8 +2721,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2763,9 +2743,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2774,15 +2754,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_IPFORWARD_TABLE2",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -2799,14 +2779,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPINTERFACE_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -2818,9 +2798,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2829,15 +2809,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_IPINTERFACE_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -2854,14 +2834,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNET_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -2877,7 +2857,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNETTABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2889,8 +2869,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2910,9 +2891,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2921,15 +2902,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_IPNET_TABLE2",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -2947,23 +2928,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IP_NETWORK_CONNECTION_BANDWIDTH_ESTIMATES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceIndex",
@@ -2981,14 +2962,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPPATH_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -3000,9 +2981,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3011,15 +2992,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_IPPATH_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -3036,7 +3017,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPSTATS_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3059,7 +3040,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPSTATS_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3084,12 +3065,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3111,14 +3089,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_MULTICASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -3130,9 +3108,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3141,15 +3119,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_MULTICASTIPADDRESS_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -3166,14 +3144,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NL_NETWORK_CONNECTIVITY_HINT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ConnectivityHint"
@@ -3194,14 +3172,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NL_NETWORK_CONNECTIVITY_HINT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InterfaceIndex",
@@ -3252,9 +3230,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NetworkGuid",
@@ -3274,7 +3252,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FIXED_INFO_W2KSP1",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3287,9 +3265,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pFixedInfo",
@@ -3338,9 +3316,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCPIP_OWNER_MODULE_INFO_CLASS"
+						"_t": "_ref",
+						"name": "TCPIP_OWNER_MODULE_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3381,13 +3359,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCP6ROW_OWNER_MODULE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCPIP_OWNER_MODULE_INFO_CLASS"
+						"_t": "_ref",
+						"name": "TCPIP_OWNER_MODULE_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3427,13 +3405,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPROW_OWNER_MODULE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCPIP_OWNER_MODULE_INFO_CLASS"
+						"_t": "_ref",
+						"name": "TCPIP_OWNER_MODULE_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3473,13 +3451,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UDP6ROW_OWNER_MODULE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCPIP_OWNER_MODULE_INFO_CLASS"
+						"_t": "_ref",
+						"name": "TCPIP_OWNER_MODULE_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3519,13 +3497,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UDPROW_OWNER_MODULE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCPIP_OWNER_MODULE_INFO_CLASS"
+						"_t": "_ref",
+						"name": "TCPIP_OWNER_MODULE_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3570,7 +3548,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_PER_ADAPTER_INFO_W2KSP1",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3603,13 +3581,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCP6ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCP_ESTATS_TYPE"
+						"_t": "_ref",
+						"name": "TCP_ESTATS_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3695,13 +3673,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPROW_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCP_ESTATS_TYPE"
+						"_t": "_ref",
+						"name": "TCP_ESTATS_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3810,8 +3788,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DestIpAddress",
@@ -3832,9 +3811,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionId"
@@ -3850,7 +3829,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCP6TABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3862,8 +3841,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -3887,7 +3867,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCP6TABLE2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3899,8 +3879,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -3924,7 +3905,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPSTATS_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3947,7 +3928,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPSTATS_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3976,7 +3957,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPSTATS2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4005,7 +3986,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPTABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4017,8 +3998,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -4042,7 +4024,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPTABLE2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4054,8 +4036,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -4084,9 +4067,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Port"
@@ -4102,7 +4085,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UDP6TABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4114,8 +4097,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -4139,7 +4123,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UDPSTATS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4162,7 +4146,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UDPSTATS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4191,7 +4175,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UDPSTATS2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4220,7 +4204,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UDPTABLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4232,8 +4216,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -4257,7 +4242,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_UNIDIRECTIONAL_ADAPTER_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4289,14 +4274,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UNICASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -4308,9 +4293,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4319,15 +4304,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_UNICASTIPADDRESS_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -4340,12 +4325,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": []
 			}
@@ -4383,20 +4365,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4415,7 +4391,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "IO_STATUS_BLOCK",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -4447,7 +4423,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR_IN6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4455,7 +4431,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR_IN6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4475,7 +4451,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_OPTION_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4522,17 +4498,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IcmpHandle"
@@ -4544,12 +4518,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": []
 			}
@@ -4587,12 +4558,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4616,7 +4584,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_OPTION_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4659,20 +4627,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4691,7 +4653,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "IO_STATUS_BLOCK",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -4740,7 +4702,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_OPTION_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4786,20 +4748,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4818,7 +4774,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "IO_STATUS_BLOCK",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -4872,7 +4828,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_OPTION_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4923,7 +4879,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARD_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4945,7 +4901,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPINTERFACE_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4967,7 +4923,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UNICASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4989,7 +4945,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_ADAPTER_INDEX_MAP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5012,7 +4968,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IP_ADAPTER_INDEX_MAP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5107,7 +5063,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "IP_INTERFACE_NAME_INFO_W2KSP1",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -5120,16 +5076,14 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5158,12 +5112,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5171,7 +5122,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5222,12 +5173,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HIFTIMESTAMPCHANGE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5248,9 +5196,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5269,13 +5217,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "MIB_IPINTERFACE_ROW",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "MIB_NOTIFICATION_TYPE"
+									"_t": "_ref",
+									"name": "MIB_NOTIFICATION_TYPE",
+									"ot": "int"
 								}
 							],
 							"returnty": {
@@ -5297,26 +5245,23 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -5346,7 +5291,7 @@
 								{
 									"_t": "_ref",
 									"name": "NL_NETWORK_CONNECTIVITY_HINT",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							],
 							"returnty": {
@@ -5367,26 +5312,23 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Callback",
@@ -5403,12 +5345,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5416,7 +5355,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5436,9 +5375,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5457,13 +5396,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "MIB_IPFORWARD_ROW2",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "MIB_NOTIFICATION_TYPE"
+									"_t": "_ref",
+									"name": "MIB_NOTIFICATION_TYPE",
+									"ot": "int"
 								}
 							],
 							"returnty": {
@@ -5485,26 +5424,23 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AddressFamily",
@@ -5520,9 +5456,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5531,7 +5467,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MIB_UNICASTIPADDRESS_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -5552,7 +5488,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "MIB_UNICASTIPADDRESS_TABLE",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -5576,19 +5512,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -5621,9 +5554,9 @@
 									"label": "UInt16"
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "MIB_NOTIFICATION_TYPE"
+									"_t": "_ref",
+									"name": "MIB_NOTIFICATION_TYPE",
+									"ot": "int"
 								}
 							],
 							"returnty": {
@@ -5645,26 +5578,23 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Callback",
@@ -5679,9 +5609,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ADDRESS_FAMILY"
+						"_t": "_ref",
+						"name": "ADDRESS_FAMILY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5700,13 +5630,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "MIB_UNICASTIPADDRESS_ROW",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "MIB_NOTIFICATION_TYPE"
+									"_t": "_ref",
+									"name": "MIB_NOTIFICATION_TYPE",
+									"ot": "int"
 								}
 							],
 							"returnty": {
@@ -5728,26 +5658,23 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Family",
@@ -5763,12 +5690,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5780,7 +5704,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NET_ADDRESS_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5835,7 +5759,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PF_FILTER_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5848,7 +5772,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PF_FILTER_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5889,9 +5813,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "GLOBAL_FILTER"
+						"_t": "_ref",
+						"name": "GLOBAL_FILTER",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -5917,9 +5841,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PFADDRESSTYPE"
+						"_t": "_ref",
+						"name": "PFADDRESSTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5959,9 +5883,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PFADDRESSTYPE"
+						"_t": "_ref",
+						"name": "PFADDRESSTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5995,22 +5919,24 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PFFORWARD_ACTION"
+						"_t": "_ref",
+						"name": "PFFORWARD_ACTION",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PFFORWARD_ACTION"
+						"_t": "_ref",
+						"name": "PFFORWARD_ACTION",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -6088,7 +6014,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PF_INTERFACE_STATS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6100,8 +6026,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -6122,12 +6049,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6156,7 +6080,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PF_LATEBIND_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6231,7 +6155,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PF_FILTER_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6244,7 +6168,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PF_FILTER_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6274,9 +6198,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "GLOBAL_FILTER"
+						"_t": "_ref",
+						"name": "GLOBAL_FILTER",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -6392,9 +6316,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PFFORWARD_ACTION"
+							"_t": "_ref",
+							"name": "PFFORWARD_ACTION",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6470,12 +6394,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HIFTIMESTAMPCHANGE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6500,7 +6421,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNET_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6511,17 +6432,17 @@
 								"Ipv4": {
 									"_t": "_ref",
 									"name": "SOCKADDR_IN",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Ipv6": {
 									"_t": "_ref",
 									"name": "SOCKADDR_IN6",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"si_family": {
-									"_t": "int",
-									"signed": false,
-									"label": "ADDRESS_FAMILY"
+									"_t": "_ref",
+									"name": "ADDRESS_FAMILY",
+									"ot": "_ref"
 								}
 							},
 							"name": "<anon>"
@@ -6529,9 +6450,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row",
@@ -6548,7 +6469,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6588,7 +6509,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6665,9 +6586,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompartmentId"
@@ -6685,9 +6606,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompartmentScope"
@@ -6703,14 +6624,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Settings"
@@ -6726,7 +6647,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IFROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6753,14 +6674,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_INTERFACE_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Interface",
@@ -6777,7 +6698,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARDROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6800,14 +6721,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPFORWARD_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Route"
@@ -6823,14 +6744,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPINTERFACE_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -6846,7 +6767,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNETROW_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6869,14 +6790,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPNET_ROW2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -6892,7 +6813,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPSTATS_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6915,7 +6836,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPSTATS_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6960,12 +6881,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6974,9 +6892,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"JobHandle",
@@ -7001,18 +6919,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NetworkGuid",
@@ -7030,13 +6945,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCP6ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCP_ESTATS_TYPE"
+						"_t": "_ref",
+						"name": "TCP_ESTATS_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -7086,13 +7001,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPROW_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TCP_ESTATS_TYPE"
+						"_t": "_ref",
+						"name": "TCP_ESTATS_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -7149,9 +7064,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionId",
@@ -7168,7 +7083,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_TCPROW_LH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7191,14 +7106,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_UNICASTIPADDRESS_ROW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Row"
@@ -7214,7 +7129,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7242,12 +7157,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIFTIMESTAMPCHANGE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -7279,12 +7191,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"InterfaceIndex",
@@ -7297,12 +7206,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {

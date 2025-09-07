@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -17,14 +18,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IPropertyStore"
+							"_t": "_ref",
+							"name": "IPropertyStore",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppStore"
@@ -41,8 +44,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "bot",
-									"label": "IUnknown"
+									"_t": "_ref",
+									"name": "IUnknown",
+									"ot": "bot"
 								}
 							],
 							"returnty": {
@@ -55,8 +59,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -68,8 +73,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Callback",
@@ -97,8 +103,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueue",
@@ -120,8 +127,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdwWorkQueue"
@@ -133,9 +141,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MFASYNC_WORKQUEUE_TYPE"
+						"_t": "_ref",
+						"name": "MFASYNC_WORKQUEUE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -147,8 +155,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"WorkQueueType",
@@ -183,8 +192,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"unAverageTimePerFrame",
@@ -198,47 +208,48 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_ACCESSMODE"
+						"_t": "_ref",
+						"name": "MF_FILE_ACCESSMODE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_OPENMODE"
+						"_t": "_ref",
+						"name": "MF_FILE_OPENMODE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_FLAGS"
+						"_t": "_ref",
+						"name": "MF_FILE_FLAGS",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "IMFAsyncCallback",
+						"ot": "bot"
+					},
+					{
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "bot",
-						"label": "IMFAsyncCallback"
-					},
-					{
-						"_t": "bot",
-						"label": "IUnknown"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AccessMode",
@@ -261,12 +272,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -274,17 +282,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncCallback"
+						"_t": "_ref",
+						"name": "IMFAsyncCallback",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueueId",
@@ -305,12 +316,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -322,17 +330,20 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncCallback"
+						"_t": "_ref",
+						"name": "IMFAsyncCallback",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueueId",
@@ -354,17 +365,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncCallback"
+						"_t": "_ref",
+						"name": "IMFAsyncCallback",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueueId",
@@ -382,7 +396,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -401,14 +415,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pBMIH",
@@ -449,8 +465,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guidSubtype",
@@ -465,13 +482,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCancelCookie"
@@ -489,8 +508,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Key"
@@ -502,12 +522,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFSample"
+						"_t": "_ref",
+						"name": "IMFSample",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFSample"
+						"_t": "_ref",
+						"name": "IMFSample",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -517,14 +539,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSample",
@@ -539,17 +563,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFTypeFull",
@@ -566,7 +593,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFVIDEOFORMAT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -576,8 +603,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pToFormat",
@@ -602,13 +630,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFVIDEOFORMAT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdwToDXVA",
@@ -643,8 +672,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDest",
@@ -680,8 +710,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDest",
@@ -730,8 +761,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDest",
@@ -763,20 +795,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaBuffer"
+							"_t": "_ref",
+							"name": "IMFMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWidth",
@@ -792,8 +827,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "bot",
@@ -806,14 +842,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "AM_MEDIA_TYPE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -839,14 +876,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaBuffer"
+							"_t": "_ref",
+							"name": "IMFMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cbMaxLength",
@@ -860,28 +899,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncCallback"
+						"_t": "_ref",
+						"name": "IMFAsyncCallback",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFAsyncResult"
+							"_t": "_ref",
+							"name": "IMFAsyncResult",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punkObject",
@@ -898,8 +942,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFAttributes"
+							"_t": "_ref",
+							"name": "IMFAttributes",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -909,8 +954,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppMFAttributes",
@@ -927,20 +973,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFORMATEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFAudioMediaType"
+							"_t": "_ref",
+							"name": "IMFAudioMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAudioFormat",
@@ -955,14 +1003,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFCollection"
+							"_t": "_ref",
+							"name": "IMFCollection",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppIMFCollection"
@@ -981,24 +1031,28 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IMFDXGIDeviceManager"
+						"_t": "_ref",
+						"name": "IMFDXGIDeviceManager",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFContentProtectionDevice"
+						"_t": "_ref",
+						"name": "IMFContentProtectionDevice",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFContentDecryptorContext"
+							"_t": "_ref",
+							"name": "IMFContentDecryptorContext",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guidMediaProtectionSystemId",
@@ -1022,14 +1076,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFContentProtectionDevice"
+							"_t": "_ref",
+							"name": "IMFContentProtectionDevice",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProtectionSystemId",
@@ -1042,8 +1098,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ID3D12Device"
+						"_t": "_ref",
+						"name": "ID3D12Device",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1064,8 +1121,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDevice",
@@ -1089,14 +1147,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFDXGIDeviceManager"
+							"_t": "_ref",
+							"name": "IMFDXGIDeviceManager",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"resetToken",
@@ -1116,8 +1176,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1125,20 +1186,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaBuffer"
+							"_t": "_ref",
+							"name": "IMFMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -1161,24 +1225,28 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaBuffer"
+							"_t": "_ref",
+							"name": "IMFMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -1195,14 +1263,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaEventQueue"
+							"_t": "_ref",
+							"name": "IMFMediaEventQueue",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppMediaEventQueue"
@@ -1214,39 +1284,38 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_ACCESSMODE"
+						"_t": "_ref",
+						"name": "MF_FILE_ACCESSMODE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_OPENMODE"
+						"_t": "_ref",
+						"name": "MF_FILE_OPENMODE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_FLAGS"
+						"_t": "_ref",
+						"name": "MF_FILE_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFByteStream"
+							"_t": "_ref",
+							"name": "IMFByteStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AccessMode",
@@ -1262,12 +1331,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFSample"
+						"_t": "_ref",
+						"name": "IMFSample",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFMediaBuffer"
+						"_t": "_ref",
+						"name": "IMFMediaBuffer",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1277,14 +1348,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMediaBuffer"
+							"_t": "_ref",
+							"name": "IMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSample",
@@ -1299,20 +1372,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFByteStream"
+							"_t": "_ref",
+							"name": "IMFByteStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStream",
@@ -1325,20 +1401,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFByteStream"
+							"_t": "_ref",
+							"name": "IMFByteStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punkStream",
@@ -1351,20 +1430,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFByteStream"
+						"_t": "_ref",
+						"name": "IMFByteStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFByteStream"
+							"_t": "_ref",
+							"name": "IMFByteStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStream",
@@ -1377,8 +1459,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1387,7 +1470,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MFVIDEOFORMAT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1401,8 +1484,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -1416,8 +1500,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "llong",
@@ -1436,14 +1521,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaBuffer"
+							"_t": "_ref",
+							"name": "IMFMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMediaType",
@@ -1459,8 +1546,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaBuffer"
+						"_t": "_ref",
+						"name": "IMFMediaBuffer",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1475,14 +1563,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaBuffer"
+							"_t": "_ref",
+							"name": "IMFMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pBuffer",
@@ -1509,28 +1599,31 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaEvent"
+							"_t": "_ref",
+							"name": "IMFMediaEvent",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"met",
@@ -1546,16 +1639,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1576,8 +1667,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szActivatableClassId",
@@ -1594,14 +1686,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaType"
+							"_t": "_ref",
+							"name": "IMFMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppMFType"
@@ -1613,20 +1707,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaType"
+							"_t": "_ref",
+							"name": "IMFMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punkStream",
@@ -1652,14 +1749,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaType"
+							"_t": "_ref",
+							"name": "IMFMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guidRepresentation",
@@ -1680,14 +1779,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaBuffer"
+							"_t": "_ref",
+							"name": "IMFMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cbMaxLength",
@@ -1700,20 +1801,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFCollection"
+						"_t": "_ref",
+						"name": "IMFCollection",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFAttributes"
+							"_t": "_ref",
+							"name": "IMFAttributes",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAttributesToMux",
@@ -1726,20 +1830,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFCollection"
+						"_t": "_ref",
+						"name": "IMFCollection",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaType"
+							"_t": "_ref",
+							"name": "IMFMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMediaTypesToMux",
@@ -1752,20 +1859,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFCollection"
+						"_t": "_ref",
+						"name": "IMFCollection",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFSample"
+							"_t": "_ref",
+							"name": "IMFSample",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSamplesToMux",
@@ -1785,22 +1895,25 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFStreamDescriptor"
+							"_t": "_ref",
+							"name": "IMFStreamDescriptor",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFPresentationDescriptor"
+							"_t": "_ref",
+							"name": "IMFPresentationDescriptor",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cStreamDescriptors",
@@ -1814,8 +1927,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1836,8 +1950,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMediaType",
@@ -1853,14 +1968,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFSample"
+							"_t": "_ref",
+							"name": "IMFSample",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppIMFSample"
@@ -1874,14 +1991,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFSourceResolver"
+							"_t": "_ref",
+							"name": "IMFSourceResolver",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppISourceResolver"
@@ -1905,22 +2024,25 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaType"
+							"_t": "_ref",
+							"name": "IMFMediaType",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFStreamDescriptor"
+							"_t": "_ref",
+							"name": "IMFStreamDescriptor",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwStreamIdentifier",
@@ -1935,20 +2057,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFByteStream"
+						"_t": "_ref",
+						"name": "IMFByteStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStream"
+							"_t": "_ref",
+							"name": "IStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pByteStream",
@@ -1961,8 +2086,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFByteStream"
+						"_t": "_ref",
+						"name": "IMFByteStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1983,8 +2109,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pByteStream",
@@ -2000,14 +2127,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFPresentationTimeSource"
+							"_t": "_ref",
+							"name": "IMFPresentationTimeSource",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppSystemTimeSource"
@@ -2019,31 +2148,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_ACCESSMODE"
+						"_t": "_ref",
+						"name": "MF_FILE_ACCESSMODE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_OPENMODE"
+						"_t": "_ref",
+						"name": "MF_FILE_OPENMODE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MF_FILE_FLAGS"
+						"_t": "_ref",
+						"name": "MF_FILE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFByteStream"
+							"_t": "_ref",
+							"name": "IMFByteStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AccessMode",
@@ -2060,14 +2191,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFTrackedSample"
+							"_t": "_ref",
+							"name": "IMFTrackedSample",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppMFSample"
@@ -2081,14 +2214,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFActivate"
+							"_t": "_ref",
+							"name": "IMFActivate",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppActivate"
@@ -2104,20 +2239,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFVIDEOFORMAT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFVideoMediaType"
+							"_t": "_ref",
+							"name": "IMFVideoMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVideoFormat",
@@ -2134,7 +2271,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2148,9 +2285,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MFVideoInterlaceMode"
+						"_t": "_ref",
+						"name": "MFVideoInterlaceMode",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -2175,14 +2312,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFVideoMediaType"
+							"_t": "_ref",
+							"name": "IMFVideoMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbmihBitMapInfoHeader",
@@ -2206,7 +2345,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2225,9 +2364,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MFVideoInterlaceMode"
+						"_t": "_ref",
+						"name": "MFVideoInterlaceMode",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -2252,14 +2391,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFVideoMediaType"
+							"_t": "_ref",
+							"name": "IMFVideoMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbmihBitMapInfoHeader",
@@ -2289,14 +2430,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFVideoMediaType"
+							"_t": "_ref",
+							"name": "IMFVideoMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAMSubtype",
@@ -2327,8 +2470,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -2348,20 +2492,23 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaBuffer"
+							"_t": "_ref",
+							"name": "IMFMediaBuffer",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -2375,8 +2522,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2385,7 +2533,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WAVEFORMATEX",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2404,8 +2552,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -2420,8 +2569,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAttributes"
+						"_t": "_ref",
+						"name": "IMFAttributes",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -2429,13 +2579,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAttr",
@@ -2465,14 +2617,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFPresentationDescriptor"
+							"_t": "_ref",
+							"name": "IMFPresentationDescriptor",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cbData",
@@ -2486,20 +2640,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAsyncResult"
+						"_t": "_ref",
+						"name": "IMFAsyncResult",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFByteStream"
+							"_t": "_ref",
+							"name": "IMFByteStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pResult",
@@ -2512,8 +2669,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAsyncResult"
+						"_t": "_ref",
+						"name": "IMFAsyncResult",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2525,8 +2683,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pResult",
@@ -2539,13 +2698,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAsyncResult"
+						"_t": "_ref",
+						"name": "IMFAsyncResult",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pResult"
@@ -2576,8 +2737,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"unNumerator",
@@ -2591,8 +2753,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAttributes"
+						"_t": "_ref",
+						"name": "IMFAttributes",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2609,8 +2772,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAttributes",
@@ -2624,8 +2788,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAttributes"
+						"_t": "_ref",
+						"name": "IMFAttributes",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2637,8 +2802,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAttributes",
@@ -2666,8 +2832,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guidProtectionSystemID",
@@ -2680,8 +2847,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -2706,8 +2874,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFT",
@@ -2724,14 +2893,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFPluginControl"
+							"_t": "_ref",
+							"name": "IMFPluginControl",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppPluginControl"
@@ -2761,8 +2932,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"format",
@@ -2780,13 +2952,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPropVarMimeTypeArray"
@@ -2802,13 +2975,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPropVarSchemeArray"
@@ -2840,8 +3014,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Periodicity"
@@ -2857,7 +3032,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFVIDEOFORMAT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2899,8 +3074,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueueId",
@@ -2927,8 +3103,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueueId",
@@ -2955,8 +3132,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueueId",
@@ -2983,21 +3161,18 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EAllocationType"
+						"_t": "_ref",
+						"name": "EAllocationType",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -3042,8 +3217,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "bot",
@@ -3054,13 +3230,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AM_MEDIA_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -3074,8 +3251,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAttributes"
+						"_t": "_ref",
+						"name": "IMFAttributes",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -3092,8 +3270,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAttributes",
@@ -3107,21 +3286,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AM_MEDIA_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -3134,15 +3315,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFVIDEOFORMAT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3152,8 +3334,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -3167,15 +3350,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MPEG1VIDEOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3192,8 +3376,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -3208,15 +3393,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MPEG2VIDEOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3233,8 +3419,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -3249,15 +3436,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VIDEOINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3274,8 +3462,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -3290,15 +3479,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VIDEOINFOHEADER2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3315,8 +3505,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -3331,15 +3522,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFORMATEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3349,8 +3541,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMFType",
@@ -3368,18 +3561,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFVIDEOFORMAT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MFStandardVideoFormat"
+						"_t": "_ref",
+						"name": "MFStandardVideoFormat",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVideoFormat",
@@ -3396,7 +3590,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFVIDEOFORMAT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3416,8 +3610,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVideoFormat",
@@ -3432,13 +3627,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAsyncResult"
+						"_t": "_ref",
+						"name": "IMFAsyncResult",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsyncResult"
@@ -3459,14 +3656,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProtectionSystemId",
@@ -3489,14 +3688,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFDXGIDeviceManager"
+							"_t": "_ref",
+							"name": "IMFDXGIDeviceManager",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pResetToken",
@@ -3509,8 +3710,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -3520,12 +3722,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3549,8 +3748,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"wszClass",
@@ -3571,8 +3771,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueue"
@@ -3590,9 +3791,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "DXGI_FORMAT"
+					"_t": "_ref",
+					"name": "DXGI_FORMAT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dx9"
@@ -3604,9 +3805,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DXGI_FORMAT"
+						"_t": "_ref",
+						"name": "DXGI_FORMAT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -3624,20 +3825,18 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
 						"label": "Int32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncResult"
+						"_t": "_ref",
+						"name": "IMFAsyncResult",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -3649,8 +3848,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hEvent",
@@ -3670,17 +3870,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncCallback"
+						"_t": "_ref",
+						"name": "IMFAsyncCallback",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwQueue",
@@ -3703,17 +3906,20 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncCallback"
+						"_t": "_ref",
+						"name": "IMFAsyncCallback",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwQueue",
@@ -3733,13 +3939,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncResult"
+						"_t": "_ref",
+						"name": "IMFAsyncResult",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwQueue",
@@ -3761,13 +3969,15 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAsyncResult"
+						"_t": "_ref",
+						"name": "IMFAsyncResult",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwQueue",
@@ -3781,29 +3991,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFActivate"
+						"_t": "_ref",
+						"name": "IMFActivate",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szFileExtension",
@@ -3817,21 +4023,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFActivate"
+						"_t": "_ref",
+						"name": "IMFActivate",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szScheme",
@@ -3844,12 +4049,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3865,8 +4067,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"wszClass",
@@ -3886,8 +4089,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwKey"
@@ -3899,12 +4103,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAsyncCallback"
+						"_t": "_ref",
+						"name": "IMFAsyncCallback",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "llong",
@@ -3920,8 +4126,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCallback",
@@ -3936,8 +4143,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAsyncResult"
+						"_t": "_ref",
+						"name": "IMFAsyncResult",
+						"ot": "bot"
 					},
 					{
 						"_t": "llong",
@@ -3953,8 +4161,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pResult",
@@ -3968,8 +4177,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFAttributes"
+						"_t": "_ref",
+						"name": "IMFAttributes",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -3977,13 +4187,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAttr",
@@ -3997,8 +4209,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFPresentationDescriptor"
+						"_t": "_ref",
+						"name": "IMFPresentationDescriptor",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -4021,8 +4234,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPD",
@@ -4036,8 +4250,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -4047,14 +4262,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFSample"
+						"_t": "_ref",
+						"name": "IMFSample",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFSample"
+							"_t": "_ref",
+							"name": "IMFSample",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4073,8 +4290,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSample",
@@ -4100,8 +4318,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Version",
@@ -4127,7 +4346,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4135,12 +4354,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAttributes"
+						"_t": "_ref",
+						"name": "IMFAttributes",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -4162,8 +4382,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guidCategory",
@@ -4194,7 +4415,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4202,20 +4423,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAttributes"
+						"_t": "_ref",
+						"name": "IMFAttributes",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "bot",
-								"label": "IMFActivate"
+								"_t": "_ref",
+								"name": "IMFActivate",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4229,8 +4452,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guidCategory",
@@ -4261,7 +4485,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4269,7 +4493,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4277,8 +4501,9 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "bot",
-								"label": "IMFActivate"
+								"_t": "_ref",
+								"name": "IMFActivate",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4292,8 +4517,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guidCategory",
@@ -4316,12 +4542,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4331,7 +4554,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MFT_REGISTER_TYPE_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4350,7 +4573,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MFT_REGISTER_TYPE_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4365,14 +4588,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFAttributes"
+							"_t": "_ref",
+							"name": "IMFAttributes",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidMFT",
@@ -4398,12 +4623,9 @@
 						"label": "Guid"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4420,7 +4642,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4434,18 +4656,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
-						"_t": "bot",
-						"label": "IMFAttributes"
+						"_t": "_ref",
+						"name": "IMFAttributes",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidMFT",
@@ -4465,8 +4689,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IClassFactory"
+						"_t": "_ref",
+						"name": "IClassFactory",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -4476,12 +4701,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4498,7 +4720,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4512,14 +4734,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pClassFactory",
@@ -4552,12 +4775,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4574,7 +4794,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4588,14 +4808,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MFT_REGISTER_TYPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clisdMFT",
@@ -4619,8 +4840,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidMFT"
@@ -4632,13 +4854,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IClassFactory"
+						"_t": "_ref",
+						"name": "IClassFactory",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pClassFactory"
@@ -4655,8 +4879,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidMFT"
@@ -4668,8 +4893,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -4679,8 +4905,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -4696,8 +4923,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwWorkQueue"
@@ -4709,8 +4937,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -4720,20 +4949,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaType"
+							"_t": "_ref",
+							"name": "IMFMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pWrap",
@@ -4764,8 +4996,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FormatType",
@@ -4779,8 +5012,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMFMediaType"
+						"_t": "_ref",
+						"name": "IMFMediaType",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -4799,14 +5033,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMFMediaType"
+							"_t": "_ref",
+							"name": "IMFMediaType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pOrig",

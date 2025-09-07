@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_MATRIX_3X2_F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -36,28 +37,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D2D1_COLOR_SPACE"
+						"_t": "_ref",
+						"name": "D2D1_COLOR_SPACE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D2D1_COLOR_SPACE"
+						"_t": "_ref",
+						"name": "D2D1_COLOR_SPACE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D1_COLOR_F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
 					"_t": "_ref",
 					"name": "D2D1_COLOR_F",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"sourceColorSpace",
@@ -71,28 +72,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDXGIDevice"
+						"_t": "_ref",
+						"name": "IDXGIDevice",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D1_CREATION_PROPERTIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID2D1Device"
+							"_t": "_ref",
+							"name": "ID2D1Device",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dxgiDevice",
@@ -106,28 +110,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDXGISurface"
+						"_t": "_ref",
+						"name": "IDXGISurface",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D1_CREATION_PROPERTIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID2D1DeviceContext"
+							"_t": "_ref",
+							"name": "ID2D1DeviceContext",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dxgiSurface",
@@ -141,9 +148,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D2D1_FACTORY_TYPE"
+						"_t": "_ref",
+						"name": "D2D1_FACTORY_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -157,7 +164,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D1_FACTORY_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -172,8 +179,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"factoryType",
@@ -192,7 +200,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -200,7 +208,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -208,7 +216,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -216,7 +224,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -224,7 +232,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -232,7 +240,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -240,7 +248,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -248,7 +256,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -256,7 +264,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -264,7 +272,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -272,7 +280,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -280,7 +288,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -288,7 +296,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -296,7 +304,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -304,7 +312,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -312,7 +320,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_POINT_2F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -349,13 +357,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_MATRIX_3X2_F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"matrix"
@@ -371,13 +380,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_MATRIX_3X2_F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"matrix"
@@ -394,14 +404,14 @@
 					{
 						"_t": "_ref",
 						"name": "D2D_POINT_2F",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_MATRIX_3X2_F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -429,14 +439,14 @@
 					{
 						"_t": "_ref",
 						"name": "D2D_POINT_2F",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D2D_MATRIX_3X2_F",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -31,9 +32,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
+								"_t": "_ref",
+								"name": "BOOLEAN",
+								"ot": "char"
 							},
 							"arg_names": [
 								"Columns",
@@ -58,12 +59,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -71,7 +69,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAIT_CONTEXT_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -91,7 +89,7 @@
 										"pts_to": {
 											"_t": "_ref",
 											"name": "DEVICE_OBJECT",
-											"ot": "struct"
+											"ot": "_ref"
 										}
 									},
 									{
@@ -99,7 +97,7 @@
 										"pts_to": {
 											"_t": "_ref",
 											"name": "IRP",
-											"ot": "struct"
+											"ot": "_ref"
 										}
 									},
 									{
@@ -118,9 +116,9 @@
 									}
 								],
 								"returnty": {
-									"_t": "int",
-									"signed": false,
-									"label": "IO_ALLOCATION_ACTION"
+									"_t": "_ref",
+									"name": "IO_ALLOCATION_ACTION",
+									"ot": "int"
 								},
 								"arg_names": [
 									"DeviceObject",
@@ -133,8 +131,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AdapterObject",
@@ -151,12 +150,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -172,9 +168,9 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
@@ -199,12 +195,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -238,7 +231,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "GROUP_AFFINITY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -252,24 +245,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHYSICAL_COUNTER_RESOURCE_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"GroupAffinty",
@@ -288,7 +279,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -296,7 +287,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -304,7 +295,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DRIVER_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -312,13 +303,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVICE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "INTERFACE_TYPE"
+						"_t": "_ref",
+						"name": "INTERFACE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -337,14 +328,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CM_RESOURCE_LIST",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"RegistryPath",
@@ -367,7 +359,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHEA_ERROR_SOURCE_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -375,7 +367,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHEA_ERROR_RECORD",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -396,12 +388,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -410,9 +399,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HAL_DMA_CRASH_DUMP_REGISTER_TYPE"
+						"_t": "_ref",
+						"name": "HAL_DMA_CRASH_DUMP_REGISTER_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -434,8 +423,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Adapter",
@@ -453,23 +443,21 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HAL_DMA_CRASH_DUMP_REGISTER_TYPE"
+						"_t": "_ref",
+						"name": "HAL_DMA_CRASH_DUMP_REGISTER_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Adapter",
@@ -484,12 +472,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -509,9 +494,9 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
@@ -532,17 +517,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CounterSetHandle"
@@ -558,7 +541,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVICE_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -573,12 +556,9 @@
 				"returnty": {
 					"_t": "ptr",
 					"pts_to": {
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "_ADAPTER_OBJECT",
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -592,9 +572,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BUS_DATA_TYPE"
+						"_t": "_ref",
+						"name": "BUS_DATA_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -638,9 +618,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BUS_DATA_TYPE"
+						"_t": "_ref",
+						"name": "BUS_DATA_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -690,9 +670,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "INTERFACE_TYPE"
+						"_t": "_ref",
+						"name": "INTERFACE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -756,9 +736,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Frequency"
@@ -772,12 +752,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -796,9 +773,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BUS_DATA_TYPE"
+						"_t": "_ref",
+						"name": "BUS_DATA_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -842,9 +819,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BUS_DATA_TYPE"
+						"_t": "_ref",
+						"name": "BUS_DATA_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -894,9 +871,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "INTERFACE_TYPE"
+						"_t": "_ref",
+						"name": "INTERFACE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -924,9 +901,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"InterfaceType",
@@ -944,12 +921,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -957,7 +931,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -980,15 +954,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"AdapterObject",
@@ -1007,12 +981,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1032,12 +1003,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1071,12 +1039,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "_ADAPTER_OBJECT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1084,7 +1049,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1110,9 +1075,9 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {

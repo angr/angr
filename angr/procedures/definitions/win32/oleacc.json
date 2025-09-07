@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,30 +16,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "POINT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndApp",
@@ -52,12 +48,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -65,14 +58,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ACC_UTILITY_STATE_FLAGS"
+						"_t": "_ref",
+						"name": "ACC_UTILITY_STATE_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndApp",
@@ -86,8 +80,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAccessible"
+						"_t": "_ref",
+						"name": "IAccessible",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -102,7 +97,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -115,8 +110,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"paccContainer",
@@ -132,12 +128,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -152,8 +145,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAccessible"
+							"_t": "_ref",
+							"name": "IAccessible",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -161,13 +155,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -185,13 +180,14 @@
 					{
 						"_t": "_ref",
 						"name": "POINT",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAccessible"
+							"_t": "_ref",
+							"name": "IAccessible",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -199,13 +195,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ptScreen",
@@ -219,12 +216,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -250,8 +244,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -266,12 +261,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -296,8 +288,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -312,20 +305,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -350,8 +337,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -367,20 +355,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -405,8 +387,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -604,26 +587,20 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "WPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"riid",
@@ -637,12 +614,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LRESULT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -652,13 +626,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "WPARAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -672,8 +642,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lResult",
@@ -688,24 +659,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAccessible"
+						"_t": "_ref",
+						"name": "IAccessible",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0",

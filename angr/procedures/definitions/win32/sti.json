@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,12 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -30,18 +28,21 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStillImageW"
+							"_t": "_ref",
+							"name": "IStillImageW",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hinst",

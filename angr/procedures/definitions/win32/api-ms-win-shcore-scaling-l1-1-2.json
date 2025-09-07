@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,9 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SHELL_UI_COMPONENT"
+						"_t": "_ref",
+						"name": "SHELL_UI_COMPONENT",
+						"ot": "int"
 					}
 				],
 				"returnty": {

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,8 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -42,8 +44,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmk",
@@ -372,12 +375,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -388,8 +388,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszProgID",
@@ -402,12 +403,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -418,8 +416,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszProgID",
@@ -432,12 +431,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -448,8 +444,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpsz",
@@ -474,8 +471,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -486,8 +484,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnk",
@@ -508,8 +507,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid"
@@ -544,8 +544,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwThreadId",
@@ -558,20 +559,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pProxy",
@@ -584,20 +588,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punkOuter",
@@ -618,8 +625,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pguid"
@@ -638,13 +646,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLSCTX"
+						"_t": "_ref",
+						"name": "CLSCTX",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -665,8 +674,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -689,20 +699,21 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLSCTX"
+						"_t": "_ref",
+						"name": "CLSCTX",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COSERVERINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -715,14 +726,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MULTI_QI",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Clsid",
@@ -746,13 +758,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLSCTX"
+						"_t": "_ref",
+						"name": "CLSCTX",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -771,14 +784,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MULTI_QI",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Clsid",
@@ -795,17 +809,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "CO_MTA_USAGE_COOKIE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Cookie"
@@ -825,8 +837,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pReserved"
@@ -844,8 +857,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwTimeout"
@@ -857,8 +871,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -867,8 +882,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnk",
@@ -895,13 +911,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"nDosDate",
@@ -923,8 +940,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pReserved"
@@ -940,13 +958,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpFileTime"
@@ -962,7 +981,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -983,8 +1002,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpFileTime",
@@ -1009,12 +1029,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1069,23 +1086,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "APTTYPE"
+							"_t": "_ref",
+							"name": "APTTYPE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "APTTYPEQUALIFIER"
+							"_t": "_ref",
+							"name": "APTTYPEQUALIFIER",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAptType",
@@ -1116,8 +1134,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -1139,8 +1158,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpdwTID"
@@ -1175,8 +1195,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwThreadId",
@@ -1227,8 +1248,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -1257,8 +1279,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pToken"
@@ -1278,8 +1301,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pguid"
@@ -1303,9 +1327,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "APTTYPE"
+						"_t": "_ref",
+						"name": "APTTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1326,8 +1350,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"aptType",
@@ -1345,7 +1370,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COSERVERINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1356,13 +1381,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLSCTX"
+						"_t": "_ref",
+						"name": "CLSCTX",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1370,12 +1396,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1387,14 +1410,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MULTI_QI",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pServerInfo",
@@ -1417,7 +1441,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COSERVERINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1428,17 +1452,19 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLSCTX"
+						"_t": "_ref",
+						"name": "CLSCTX",
+						"ot": "int"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1450,14 +1476,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MULTI_QI",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pServerInfo",
@@ -1482,8 +1509,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1504,8 +1532,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"iidIntercepted",
@@ -1527,12 +1556,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "ITypeInfo"
+						"_t": "_ref",
+						"name": "ITypeInfo",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1553,8 +1584,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"iidIntercepted",
@@ -1570,8 +1602,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1592,8 +1625,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStm",
@@ -1614,14 +1648,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMalloc"
+							"_t": "_ref",
+							"name": "IMalloc",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwMemContext",
@@ -1649,8 +1685,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1671,8 +1708,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pulSize",
@@ -1689,19 +1727,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BIND_OPTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1723,8 +1758,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszName",
@@ -1757,8 +1793,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -1786,8 +1823,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -1807,8 +1845,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1830,14 +1869,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMarshal"
+							"_t": "_ref",
+							"name": "IMarshal",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -1854,8 +1895,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1865,14 +1907,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnkOuter",
@@ -1886,24 +1930,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COMSD"
+						"_t": "_ref",
+						"name": "COMSD",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PSECURITY_DESCRIPTOR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"comSDType",
@@ -1931,8 +1974,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidOld",
@@ -1945,8 +1989,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1958,18 +2003,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_MTA_USAGE_COOKIE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCookie"
@@ -1989,8 +2032,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvReserved"
@@ -2015,8 +2059,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvReserved",
@@ -2029,11 +2074,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2044,7 +2087,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOLE_AUTHENTICATION_SERVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2055,14 +2098,14 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_C_AUTHN_LEVEL"
+						"_t": "_ref",
+						"name": "RPC_C_AUTHN_LEVEL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_C_IMP_LEVEL"
+						"_t": "_ref",
+						"name": "RPC_C_IMP_LEVEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2085,8 +2128,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSecDesc",
@@ -2106,8 +2150,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IBindCtx"
+						"_t": "_ref",
+						"name": "IBindCtx",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -2119,7 +2164,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "uCLSSPEC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2127,21 +2172,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "QUERYCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbc",
@@ -2157,17 +2200,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszMachineName"
@@ -2179,13 +2220,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnk"
@@ -2205,8 +2248,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid"
@@ -2218,25 +2262,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HINSTANCE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"lpszLibName",
@@ -2249,21 +2288,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnk",
@@ -2277,17 +2320,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstm",
@@ -2307,20 +2353,23 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStream"
+							"_t": "_ref",
+							"name": "IStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -2334,8 +2383,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2345,8 +2395,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -2367,8 +2418,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStm",
@@ -2399,14 +2451,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SOLE_AUTHENTICATION_SERVICE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pcAuthSvc",
@@ -2437,12 +2490,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2481,8 +2531,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAuthnSvc",
@@ -2500,8 +2551,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2522,12 +2574,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2566,8 +2615,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pProxy",
@@ -2586,13 +2636,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IActivationFilter"
+						"_t": "_ref",
+						"name": "IActivationFilter",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pActivationFilter"
@@ -2611,13 +2663,15 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IChannelHook"
+						"_t": "_ref",
+						"name": "IChannelHook",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ExtensionUuid",
@@ -2637,13 +2691,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLSCTX"
+						"_t": "_ref",
+						"name": "CLSCTX",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2660,8 +2715,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -2677,28 +2733,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_DEVICE_CATALOG_COOKIE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"deviceInstanceId",
@@ -2711,8 +2762,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IInitializeSpy"
+						"_t": "_ref",
+						"name": "IInitializeSpy",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2724,8 +2776,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSpy",
@@ -2738,13 +2791,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMallocSpy"
+						"_t": "_ref",
+						"name": "IMallocSpy",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMallocSpy"
@@ -2756,20 +2811,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMessageFilter"
+						"_t": "_ref",
+						"name": "IMessageFilter",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMessageFilter"
+							"_t": "_ref",
+							"name": "IMessageFilter",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpMessageFilter",
@@ -2797,8 +2855,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -2811,13 +2870,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ISurrogate"
+						"_t": "_ref",
+						"name": "ISurrogate",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSurrogate"
@@ -2829,13 +2890,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStm"
@@ -2859,8 +2922,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -2870,8 +2934,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -2887,8 +2952,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwRegister"
@@ -2900,17 +2966,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "CO_DEVICE_CATALOG_COOKIE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cookie"
@@ -2928,8 +2992,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uliCookie"
@@ -2941,8 +3006,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -2952,13 +3018,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnk"
@@ -2970,8 +3038,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -2984,22 +3053,19 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_C_AUTHN_LEVEL"
+						"_t": "_ref",
+						"name": "RPC_C_AUTHN_LEVEL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_C_IMP_LEVEL"
+						"_t": "_ref",
+						"name": "RPC_C_IMP_LEVEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3015,8 +3081,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pProxy",
@@ -3035,8 +3102,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -3046,20 +3114,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pNewObject",
@@ -3153,8 +3224,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -3179,8 +3251,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidOld",
@@ -3204,20 +3277,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "HRESULT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstm",
@@ -3230,8 +3306,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -3252,8 +3329,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStm",
@@ -3284,12 +3362,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3303,8 +3378,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -3337,12 +3413,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3356,8 +3429,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -3375,14 +3449,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppmk"
@@ -3401,14 +3477,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IBindCtx"
+							"_t": "_ref",
+							"name": "IBindCtx",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reserved",
@@ -3430,14 +3508,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -3452,14 +3532,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDataAdviseHolder"
+							"_t": "_ref",
+							"name": "IDataAdviseHolder",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppDAHolder"
@@ -3471,8 +3553,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -3500,8 +3583,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnkOuter",
@@ -3516,24 +3600,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszPathName",
@@ -3546,24 +3629,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmkFirst",
@@ -3577,27 +3664,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HGLOBAL",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ILockBytes"
+							"_t": "_ref",
+							"name": "ILockBytes",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hGlobal",
@@ -3611,32 +3699,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszDelim",
@@ -3650,20 +3734,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punk",
@@ -3678,14 +3765,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IOleAdviseHolder"
+							"_t": "_ref",
+							"name": "IOleAdviseHolder",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppOAHolder"
@@ -3697,20 +3786,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punk",
@@ -3723,36 +3815,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "IBindStatusCallback",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "bot",
-						"label": "IBindStatusCallback"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "IBindStatusCallback"
+							"_t": "_ref",
+							"name": "IBindStatusCallback",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -3767,27 +3856,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HGLOBAL",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStream"
+							"_t": "_ref",
+							"name": "IStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hGlobal",
@@ -3816,13 +3906,15 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvReserved",
@@ -3836,30 +3928,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IDropSource"
+						"_t": "_ref",
+						"name": "IDropSource",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DROPEFFECT"
+						"_t": "_ref",
+						"name": "DROPEFFECT",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DROPEFFECT"
+							"_t": "_ref",
+							"name": "DROPEFFECT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDataObj",
@@ -3881,17 +3976,15 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfmtid",
@@ -3913,14 +4006,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cVariants",
@@ -3933,12 +4027,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3949,8 +4040,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szFilename",
@@ -3963,13 +4055,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStg"
@@ -3981,23 +4075,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ILockBytes"
+						"_t": "_ref",
+						"name": "ILockBytes",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plkbyt",
@@ -4010,23 +4104,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstm",
@@ -4046,14 +4140,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IRunningObjectTable"
+							"_t": "_ref",
+							"name": "IRunningObjectTable",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reserved",
@@ -4076,12 +4172,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACCEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4110,12 +4203,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACCEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4152,12 +4242,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACCEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4199,12 +4286,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACCEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4243,12 +4327,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACCEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4284,12 +4365,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACCEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4328,12 +4406,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACCEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4375,12 +4450,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACCEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4414,12 +4486,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HBITMAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4448,12 +4517,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HBITMAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4490,12 +4556,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HBITMAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4537,12 +4600,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HBITMAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4581,12 +4641,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HBITMAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4622,12 +4679,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HBITMAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4666,12 +4720,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HBITMAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4713,12 +4764,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HBITMAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4752,12 +4800,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDC",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4786,12 +4831,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDC",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4828,12 +4870,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDC",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4875,12 +4914,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDC",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4919,12 +4955,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDC",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4960,12 +4993,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDC",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5004,12 +5034,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDC",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5051,12 +5078,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDC",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5090,11 +5114,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5123,11 +5145,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5164,11 +5184,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5210,11 +5228,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5253,11 +5269,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5293,11 +5307,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5336,11 +5348,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5382,11 +5392,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HGLOBAL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5420,12 +5428,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5454,12 +5459,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5496,12 +5498,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5543,12 +5542,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5587,12 +5583,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5628,12 +5621,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5672,12 +5662,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5719,12 +5706,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5758,12 +5742,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5792,12 +5773,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5834,12 +5812,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5881,12 +5856,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5925,12 +5897,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5966,12 +5935,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6010,12 +5976,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6057,12 +6020,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6096,12 +6056,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMONITOR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6130,12 +6087,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMONITOR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6172,12 +6126,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMONITOR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6219,12 +6170,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMONITOR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6263,12 +6211,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMONITOR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6304,12 +6249,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMONITOR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6348,12 +6290,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMONITOR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6395,12 +6334,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMONITOR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6434,12 +6370,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HPALETTE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6468,12 +6401,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HPALETTE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6510,12 +6440,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HPALETTE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6557,12 +6484,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HPALETTE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6601,12 +6525,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HPALETTE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6642,12 +6563,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HPALETTE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6686,12 +6604,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HPALETTE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6733,12 +6648,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HPALETTE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6772,12 +6684,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HRGN",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6814,12 +6723,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HRGN",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6858,12 +6764,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HRGN",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6902,12 +6805,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HRGN",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6941,12 +6841,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6975,12 +6872,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7017,12 +6911,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7064,12 +6955,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7108,12 +6996,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7149,12 +7034,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7193,12 +7075,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7240,12 +7119,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWND",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7269,12 +7145,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7285,8 +7158,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpsz",
@@ -7299,12 +7173,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACCEL",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7315,7 +7186,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MSG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7328,8 +7199,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAccel",
@@ -7344,16 +7216,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IBindCtx"
+						"_t": "_ref",
+						"name": "IBindCtx",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7366,14 +7236,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbc",
@@ -7388,24 +7260,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmkThis",
@@ -7419,28 +7295,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMoniker"
+							"_t": "_ref",
+							"name": "IMoniker",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmkSrc",
@@ -7467,21 +7348,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLESTREAM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstg",
@@ -7494,8 +7377,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "short",
@@ -7520,7 +7404,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7528,13 +7412,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLESTREAM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstg",
@@ -7556,25 +7441,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLESTREAM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DVTARGETDEVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpolestream",
@@ -7592,19 +7479,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLESTREAM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DVTARGETDEVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7632,36 +7520,24 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -7677,8 +7553,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pClsid",
@@ -7693,8 +7570,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpolestream",
@@ -7715,12 +7593,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLESTREAM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -7757,13 +7636,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"polestm",
@@ -7785,12 +7665,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLESTREAM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -7827,7 +7708,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7855,36 +7736,24 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -7900,8 +7769,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pClsid",
@@ -7916,8 +7786,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"polestm",
@@ -7961,16 +7832,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -7984,8 +7857,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -8010,8 +7884,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8032,8 +7907,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid",
@@ -8055,17 +7931,19 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EMBDHLP_FLAGS"
+						"_t": "_ref",
+						"name": "EMBDHLP_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "bot",
-						"label": "IClassFactory"
+						"_t": "_ref",
+						"name": "IClassFactory",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8086,8 +7964,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid",
@@ -8118,9 +7997,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OLECREATE"
+						"_t": "_ref",
+						"name": "OLECREATE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8145,12 +8024,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAdviseSink"
+						"_t": "_ref",
+						"name": "IAdviseSink",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8161,12 +8041,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8180,8 +8062,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -8204,8 +8087,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8224,16 +8108,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8247,8 +8133,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcDataObj",
@@ -8266,8 +8153,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8277,9 +8165,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OLECREATE"
+						"_t": "_ref",
+						"name": "OLECREATE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8304,12 +8192,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAdviseSink"
+						"_t": "_ref",
+						"name": "IAdviseSink",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8320,12 +8209,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8339,8 +8230,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcDataObj",
@@ -8370,12 +8262,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8394,16 +8283,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8417,8 +8308,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -8444,12 +8336,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8459,9 +8348,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OLECREATE"
+						"_t": "_ref",
+						"name": "OLECREATE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8486,12 +8375,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAdviseSink"
+						"_t": "_ref",
+						"name": "IAdviseSink",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8502,12 +8392,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8521,8 +8413,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -8546,8 +8439,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8566,16 +8460,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8589,8 +8485,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmkLinkSrc",
@@ -8608,8 +8505,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMoniker"
+						"_t": "_ref",
+						"name": "IMoniker",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8619,9 +8517,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OLECREATE"
+						"_t": "_ref",
+						"name": "OLECREATE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8646,12 +8544,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAdviseSink"
+						"_t": "_ref",
+						"name": "IAdviseSink",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8662,12 +8561,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8681,8 +8582,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmkLinkSrc",
@@ -8705,8 +8607,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8725,16 +8628,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8748,8 +8653,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcDataObj",
@@ -8767,8 +8673,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8778,9 +8685,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OLECREATE"
+						"_t": "_ref",
+						"name": "OLECREATE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8805,12 +8712,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAdviseSink"
+						"_t": "_ref",
+						"name": "IAdviseSink",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8821,12 +8729,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8840,8 +8750,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcDataObj",
@@ -8864,12 +8775,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8888,16 +8796,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8911,8 +8821,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszFileName",
@@ -8930,12 +8841,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8945,9 +8853,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OLECREATE"
+						"_t": "_ref",
+						"name": "OLECREATE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8972,12 +8880,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAdviseSink"
+						"_t": "_ref",
+						"name": "IAdviseSink",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -8988,12 +8897,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -9007,8 +8918,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszFileName",
@@ -9031,19 +8943,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMENU",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEMENUGROUPWIDTHS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9066,8 +8975,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -9086,16 +8996,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FORMATETC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -9109,8 +9021,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcDataObj",
@@ -9137,8 +9050,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"holemenu"
@@ -9150,8 +9064,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -9162,8 +9077,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStg",
@@ -9176,8 +9092,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -9185,25 +9102,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnknown",
@@ -9218,31 +9133,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLIPBOARD_FORMAT"
+						"_t": "_ref",
+						"name": "CLIPBOARD_FORMAT",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "GLOBAL_ALLOC_FLAGS"
+						"_t": "_ref",
+						"name": "GLOBAL_ALLOC_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hSrc",
@@ -9256,8 +9165,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -9282,8 +9192,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidOld",
@@ -9298,14 +9209,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDataObject"
+							"_t": "_ref",
+							"name": "IDataObject",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppDataObj"
@@ -9319,58 +9232,48 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDataObject"
+							"_t": "_ref",
+							"name": "IDataObject",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dataObject",
@@ -9393,24 +9296,20 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HGLOBAL",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"rclsid",
@@ -9424,24 +9323,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HGLOBAL",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"lpszPath",
@@ -9462,8 +9357,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvReserved"
@@ -9475,13 +9371,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDataObj"
@@ -9493,13 +9391,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IOleObject"
+						"_t": "_ref",
+						"name": "IOleObject",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pObject"
@@ -9511,8 +9411,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -9522,8 +9423,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IOleClientSite"
+						"_t": "_ref",
+						"name": "IOleClientSite",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -9537,8 +9439,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStg",
@@ -9553,8 +9456,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -9575,8 +9479,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStm",
@@ -9590,21 +9495,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnknown",
@@ -9618,28 +9527,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HICON",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9648,11 +9548,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HGLOBAL",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hIcon",
@@ -9667,17 +9565,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnknown",
@@ -9690,13 +9591,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcDataObject"
@@ -9708,13 +9611,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcDataObject"
@@ -9740,14 +9645,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IEnumFORMATETC"
+							"_t": "_ref",
+							"name": "IEnumFORMATETC",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid",
@@ -9770,14 +9677,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IEnumOLEVERB"
+							"_t": "_ref",
+							"name": "IEnumOLEVERB",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid",
@@ -9811,8 +9720,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid",
@@ -9840,18 +9750,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid",
@@ -9865,13 +9773,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnknown"
@@ -9883,21 +9793,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPersistStorage"
+						"_t": "_ref",
+						"name": "IPersistStorage",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPS",
@@ -9911,17 +9825,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPersistStream"
+						"_t": "_ref",
+						"name": "IPersistStream",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPStm",
@@ -9949,8 +9866,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidOld",
@@ -9963,13 +9881,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDataObject"
+						"_t": "_ref",
+						"name": "IDataObject",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDataObj"
@@ -9981,17 +9901,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnknown",
@@ -10012,33 +9935,30 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IOleInPlaceFrame"
+						"_t": "_ref",
+						"name": "IOleInPlaceFrame",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IOleInPlaceActiveObject"
+						"_t": "_ref",
+						"name": "IOleInPlaceActiveObject",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"holemenu",
@@ -10054,15 +9974,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IOleInPlaceFrame"
+						"_t": "_ref",
+						"name": "IOleInPlaceFrame",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEINPLACEFRAMEINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10070,13 +9991,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MSG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpFrame",
@@ -10110,18 +10032,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid",
@@ -10134,12 +10054,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10150,8 +10067,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"oszName",
@@ -10168,13 +10086,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvar"
@@ -10190,7 +10109,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10198,13 +10117,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarDest",
@@ -10217,8 +10137,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -10229,8 +10150,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStg",
@@ -10243,8 +10165,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -10255,8 +10178,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStm",
@@ -10269,8 +10193,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -10283,18 +10208,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstg",
@@ -10308,21 +10231,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IDropTarget"
+						"_t": "_ref",
+						"name": "IDropTarget",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -10339,7 +10261,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10357,17 +10279,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd"
@@ -10753,7 +10673,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10784,7 +10704,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10823,7 +10743,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10867,7 +10787,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10908,7 +10828,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10946,7 +10866,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10987,7 +10907,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -11031,7 +10951,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGMEDIUM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -11055,17 +10975,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStg",
@@ -11082,7 +11005,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SERIALIZEDPROPERTYVALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11095,18 +11018,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IMemoryAllocator"
+						"_t": "_ref",
+						"name": "IMemoryAllocator",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"pprop",
@@ -11125,7 +11049,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11138,7 +11062,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SERIALIZEDPROPERTYVALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11155,9 +11079,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -11173,7 +11097,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SERIALIZEDPROPERTYVALUE",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -11192,17 +11116,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "STGM"
+						"_t": "_ref",
+						"name": "STGM",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -11212,14 +11133,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStorage"
+							"_t": "_ref",
+							"name": "IStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcsName",
@@ -11234,13 +11157,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ILockBytes"
+						"_t": "_ref",
+						"name": "ILockBytes",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "STGM"
+						"_t": "_ref",
+						"name": "STGM",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -11250,14 +11174,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStorage"
+							"_t": "_ref",
+							"name": "IStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plkbyt",
@@ -11272,8 +11198,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -11283,14 +11210,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IPropertySetStorage"
+							"_t": "_ref",
+							"name": "IPropertySetStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStorage",
@@ -11304,8 +11233,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -11334,14 +11264,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IPropertyStorage"
+							"_t": "_ref",
+							"name": "IPropertyStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnk",
@@ -11358,22 +11290,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "STGM"
+						"_t": "_ref",
+						"name": "STGM",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "STGFMT"
+						"_t": "_ref",
+						"name": "STGFMT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -11385,15 +11314,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGOPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11414,8 +11341,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcsName",
@@ -11434,24 +11362,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IFillLockBytes"
+							"_t": "_ref",
+							"name": "IFillLockBytes",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcsName",
@@ -11464,20 +11391,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ILockBytes"
+						"_t": "_ref",
+						"name": "ILockBytes",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IFillLockBytes"
+							"_t": "_ref",
+							"name": "IFillLockBytes",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pilb",
@@ -11490,17 +11420,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcsName"
@@ -11512,13 +11440,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ILockBytes"
+						"_t": "_ref",
+						"name": "ILockBytes",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plkbyt"
@@ -11530,8 +11460,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IFillLockBytes"
+						"_t": "_ref",
+						"name": "IFillLockBytes",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -11546,14 +11477,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStorage"
+							"_t": "_ref",
+							"name": "IStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pflb",
@@ -11568,8 +11501,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -11591,14 +11525,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IPropertyStorage"
+							"_t": "_ref",
+							"name": "IPropertyStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pUnk",
@@ -11614,21 +11550,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "STGM"
+						"_t": "_ref",
+						"name": "STGM",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -11649,14 +11583,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStorage"
+							"_t": "_ref",
+							"name": "IStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcsName",
@@ -11673,22 +11609,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "STGM"
+						"_t": "_ref",
+						"name": "STGM",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "STGFMT"
+						"_t": "_ref",
+						"name": "STGFMT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -11700,15 +11633,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STGOPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11729,8 +11660,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcsName",
@@ -11749,17 +11681,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ILockBytes"
+						"_t": "_ref",
+						"name": "ILockBytes",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "STGM"
+						"_t": "_ref",
+						"name": "STGM",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -11780,14 +11714,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStorage"
+							"_t": "_ref",
+							"name": "IStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plkbyt",
@@ -11808,7 +11744,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SERIALIZEDPROPERTYVALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11845,11 +11781,16 @@
 				"_t": "func",
 				"args": [
 					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
+							"_t": "_ref",
+							"name": "FILETIME",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11857,7 +11798,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11865,21 +11806,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "_ref",
-							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszName",
@@ -11903,18 +11837,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -11972,18 +11904,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -11996,8 +11926,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -12008,8 +11939,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStg",
@@ -12022,8 +11954,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -12034,8 +11967,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStm",
@@ -12048,8 +11982,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "short",
@@ -12057,17 +11992,15 @@
 						"label": "UInt16"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstg",

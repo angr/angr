@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -49,7 +50,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WCM_PROFILE_INFO_LIST",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -77,17 +78,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCM_PROPERTY"
+						"_t": "_ref",
+						"name": "WCM_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -140,7 +138,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WCM_PROFILE_INFO_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -149,8 +147,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -185,17 +184,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WCM_PROPERTY"
+						"_t": "_ref",
+						"name": "WCM_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",

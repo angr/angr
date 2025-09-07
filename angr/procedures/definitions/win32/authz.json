@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,49 +16,39 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "AUTHZ_ACCESS_CHECK_FLAGS"
+						"_t": "_ref",
+						"name": "AUTHZ_ACCESS_CHECK_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_ACCESS_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_AUDIT_EVENT_HANDLE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PSECURITY_DESCRIPTOR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -71,24 +62,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_ACCESS_REPLY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_ACCESS_CHECK_RESULTS_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -108,19 +97,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SID_AND_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -133,7 +119,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SID_AND_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -144,18 +130,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuthzClientContext",
@@ -177,41 +161,36 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_ACCESS_CHECK_RESULTS_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_ACCESS_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_AUDIT_EVENT_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_ACCESS_REPLY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -236,7 +215,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_SOURCE_SCHEMA_REGISTRATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -257,8 +236,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -273,19 +253,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_ACCESS_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -293,7 +270,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -302,20 +279,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthzClientContext",
@@ -332,17 +312,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_AUDIT_EVENT_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuditEvent"
@@ -354,8 +332,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -365,17 +344,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuthzClientContext"
@@ -387,17 +364,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_ACCESS_CHECK_RESULTS_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAccessCheckResults"
@@ -409,17 +384,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_RESOURCE_MANAGER_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuthzResourceManager"
@@ -431,17 +404,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "AUTHZ_CONTEXT_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -465,8 +435,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuthzClientContext",
@@ -482,36 +453,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"UserContext",
@@ -530,12 +493,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -547,7 +507,7 @@
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -559,18 +519,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -592,19 +550,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_RESOURCE_MANAGER_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -616,7 +569,7 @@
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -628,18 +581,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -662,20 +613,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_RESOURCE_MANAGER_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -687,7 +632,7 @@
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -699,18 +644,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -728,59 +671,41 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "AUTHZ_INITIALIZE_OBJECT_ACCESS_AUDIT_EVENT_FLAGS"
+						"_t": "_ref",
+						"name": "AUTHZ_INITIALIZE_OBJECT_ACCESS_AUDIT_EVENT_FLAGS",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "AUTHZ_AUDIT_EVENT_TYPE_HANDLE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_AUDIT_EVENT_HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -790,8 +715,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -815,62 +741,41 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_AUDIT_EVENT_TYPE_HANDLE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_AUDIT_EVENT_HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -880,8 +785,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -905,24 +811,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_RPC_INIT_INFO_CLIENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_RESOURCE_MANAGER_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pRpcInitInfo",
@@ -945,19 +849,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "ACE_HEADER",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -970,14 +871,16 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"label": "Int32"
+										"_t": "_ref",
+										"name": "BOOL",
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hAuthzClientContext",
@@ -993,12 +896,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -1014,7 +914,7 @@
 										"pts_to": {
 											"_t": "_ref",
 											"name": "SID_AND_ATTRIBUTES",
-											"ot": "struct"
+											"ot": "_ref"
 										}
 									}
 								},
@@ -1033,7 +933,7 @@
 										"pts_to": {
 											"_t": "_ref",
 											"name": "SID_AND_ATTRIBUTES",
-											"ot": "struct"
+											"ot": "_ref"
 										}
 									}
 								},
@@ -1047,8 +947,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hAuthzClientContext",
@@ -1070,7 +971,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "SID_AND_ATTRIBUTES",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -1084,28 +985,23 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_RESOURCE_MANAGER_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -1122,33 +1018,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "AUTHZ_RESOURCE_MANAGER_FLAGS"
+						"_t": "_ref",
+						"name": "AUTHZ_RESOURCE_MANAGER_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_INIT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_RESOURCE_MANAGER_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -1171,13 +1065,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_SOURCE_SCHEMA_REGISTRATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -1190,24 +1085,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "AUTHZ_CONTEXT_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "AUTHZ_SECURITY_ATTRIBUTE_OPERATION"
+							"_t": "_ref",
+							"name": "AUTHZ_SECURITY_ATTRIBUTE_OPERATION",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1215,13 +1107,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_SECURITY_ATTRIBUTES_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuthzClientContext",
@@ -1236,19 +1129,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "AUTHZ_SECURITY_ATTRIBUTE_OPERATION"
+							"_t": "_ref",
+							"name": "AUTHZ_SECURITY_ATTRIBUTE_OPERATION",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1256,13 +1146,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_SECURITY_ATTRIBUTES_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuthzClientContext",
@@ -1276,24 +1167,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "AUTHZ_CONTEXT_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "AUTHZ_CONTEXT_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "AUTHZ_SID_OPERATION"
+							"_t": "_ref",
+							"name": "AUTHZ_SID_OPERATION",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1301,13 +1189,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TOKEN_GROUPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuthzClientContext",
@@ -1327,44 +1216,34 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_ACCESS_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_AUDIT_EVENT_HANDLE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PSECURITY_DESCRIPTOR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1378,13 +1257,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUTHZ_ACCESS_REPLY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags",
@@ -1405,12 +1285,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_CAP_CHANGE_SUBSCRIPTION_HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1445,8 +1322,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCapChangeSubscription",
@@ -1465,28 +1343,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_SECURITY_EVENT_PROVIDER_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -1505,12 +1378,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_SECURITY_EVENT_PROVIDER_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1518,11 +1388,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1531,8 +1399,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -1553,12 +1422,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_SECURITY_EVENT_PROVIDER_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1566,24 +1432,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUDIT_PARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -1599,19 +1464,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CLIENT_CONTEXT_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1623,14 +1483,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SID_AND_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAuthzClientContext",
@@ -1650,17 +1511,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -1673,17 +1532,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "AUTHZ_CAP_CHANGE_SUBSCRIPTION_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCapChangeSubscription"
@@ -1702,18 +1559,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "AUTHZ_SECURITY_EVENT_PROVIDER_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",

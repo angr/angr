@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -20,12 +21,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -49,20 +47,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -89,20 +81,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -129,20 +115,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -244,12 +224,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -278,12 +255,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -312,12 +286,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -346,12 +317,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -479,20 +447,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -516,20 +478,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -553,20 +509,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -585,7 +535,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -613,20 +563,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -645,7 +589,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -673,20 +617,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -705,7 +643,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -733,20 +671,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -765,12 +697,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -798,20 +727,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -849,12 +772,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -906,12 +826,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -958,20 +875,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1107,12 +1018,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1141,12 +1049,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1175,12 +1080,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1209,12 +1111,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1257,7 +1156,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEFORWARDLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1278,7 +1177,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1321,7 +1220,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEFORWARDLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1342,7 +1241,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1385,7 +1284,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEFORWARDLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1406,7 +1305,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1454,12 +1353,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1516,12 +1412,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1578,12 +1471,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1626,12 +1516,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1666,12 +1553,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1706,12 +1590,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1760,7 +1641,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEGENERATETONE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1811,7 +1692,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEADDRESSCAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1863,7 +1744,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEADDRESSCAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1915,7 +1796,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEADDRESSCAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1956,12 +1837,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2005,12 +1883,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2054,12 +1929,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2099,7 +1971,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEADDRESSSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2133,7 +2005,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEADDRESSSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2167,7 +2039,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEADDRESSSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2201,7 +2073,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTACTIVITYLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2235,7 +2107,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTACTIVITYLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2279,7 +2151,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTCAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2325,7 +2197,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTCAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2361,7 +2233,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTGROUPLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2395,7 +2267,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTGROUPLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2429,7 +2301,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2463,7 +2335,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTSESSIONINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2497,7 +2369,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTSESSIONLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2531,7 +2403,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2565,7 +2437,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2585,12 +2457,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2602,7 +2471,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEEXTENSIONID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2615,7 +2484,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2646,12 +2515,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2663,7 +2529,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEEXTENSIONID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2676,7 +2542,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2707,12 +2573,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2724,7 +2587,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEEXTENSIONID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2737,7 +2600,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2777,7 +2640,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2805,7 +2668,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2833,7 +2696,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2861,7 +2724,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2889,7 +2752,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2922,7 +2785,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECOUNTRYLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2956,7 +2819,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECOUNTRYLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2990,7 +2853,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECOUNTRYLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3034,7 +2897,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEDEVCAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3080,7 +2943,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEDEVCAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3126,7 +2989,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEDEVCAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3157,16 +3020,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3194,16 +3054,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3231,16 +3088,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3268,7 +3122,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTGROUPLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3296,7 +3150,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTGROUPLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3339,16 +3193,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3394,16 +3245,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3449,16 +3297,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3485,22 +3330,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3525,22 +3364,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3565,22 +3398,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3609,7 +3436,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEDEVSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3637,7 +3464,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEDEVSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3665,7 +3492,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEDEVSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3693,7 +3520,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEMESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3737,7 +3564,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3801,7 +3628,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEPROVIDERLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3829,7 +3656,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEPROVIDERLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3857,7 +3684,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEPROVIDERLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3895,7 +3722,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEPROXYREQUESTLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3930,7 +3757,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEQUEUEINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3966,7 +3793,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEQUEUELIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4002,7 +3829,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEQUEUELIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4172,7 +3999,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINETRANSLATECAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4206,7 +4033,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINETRANSLATECAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4240,7 +4067,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINETRANSLATECAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4265,12 +4092,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4299,12 +4123,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4333,12 +4154,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4389,12 +4207,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4463,12 +4278,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4505,12 +4317,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4579,12 +4388,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4607,7 +4413,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEINITIALIZEEXPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4639,12 +4445,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4713,12 +4516,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4741,7 +4541,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEINITIALIZEEXPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4778,12 +4578,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4795,7 +4592,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4830,12 +4627,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4847,7 +4641,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4882,12 +4676,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4899,7 +4690,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4980,7 +4771,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEMONITORTONE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5037,7 +4828,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEEXTENSIONID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5163,7 +4954,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5240,7 +5031,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5317,7 +5108,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5353,19 +5144,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5396,19 +5184,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5439,19 +5224,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5490,20 +5272,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5542,20 +5318,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5594,20 +5364,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5645,7 +5409,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5682,7 +5446,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5719,7 +5483,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5797,7 +5561,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEPROXYREQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5827,12 +5591,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5861,12 +5622,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5895,12 +5653,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6004,12 +5759,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6051,12 +5803,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6125,7 +5874,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEAGENTGROUPLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6287,12 +6036,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6304,7 +6050,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEEXTENSIONID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6313,12 +6059,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6345,12 +6088,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6362,7 +6102,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEEXTENSIONID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6371,12 +6111,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6403,12 +6140,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6420,7 +6154,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEEXTENSIONID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6429,12 +6163,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6543,7 +6274,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEDIALPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6704,12 +6435,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6746,12 +6474,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6788,12 +6513,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6868,7 +6590,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEMEDIACONTROLDIGIT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6881,7 +6603,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEMEDIACONTROLMEDIA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6894,7 +6616,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEMEDIACONTROLTONE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6907,7 +6629,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINEMEDIACONTROLCALLSTATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7124,12 +6846,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7164,12 +6883,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7204,12 +6920,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7269,7 +6982,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7327,7 +7040,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7385,7 +7098,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7425,7 +7138,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7462,7 +7175,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7499,7 +7212,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINECALLPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7578,12 +7291,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7600,7 +7310,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINETRANSLATEOUTPUT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7639,12 +7349,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7661,7 +7368,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINETRANSLATEOUTPUT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7700,12 +7407,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7722,7 +7426,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LINETRANSLATEOUTPUT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7761,20 +7465,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -7810,20 +7508,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -7859,20 +7551,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -7955,12 +7641,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -7998,12 +7681,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8041,12 +7721,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8090,20 +7767,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8127,20 +7798,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8164,20 +7829,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8243,7 +7902,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEBUTTONINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8277,7 +7936,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEBUTTONINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8311,7 +7970,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEBUTTONINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8394,7 +8053,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONECAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8440,7 +8099,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONECAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8486,7 +8145,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONECAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8517,7 +8176,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8607,16 +8266,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8644,16 +8300,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8681,16 +8334,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARSTRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8714,22 +8364,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8754,22 +8398,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8794,22 +8432,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HICON",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8872,7 +8504,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEMESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8943,7 +8575,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONESTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8971,7 +8603,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONESTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9045,7 +8677,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONESTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9106,12 +8738,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9180,12 +8809,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9222,12 +8848,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9296,12 +8919,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9324,7 +8944,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEINITIALIZEEXPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9356,12 +8976,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9430,12 +9047,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9458,7 +9072,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEINITIALIZEEXPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9514,7 +9128,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEEXTENSIONID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9665,7 +9279,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEBUTTONINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9699,7 +9313,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEBUTTONINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9733,7 +9347,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHONEBUTTONINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9807,12 +9421,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10148,21 +9759,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "WPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -10180,36 +9784,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -10229,36 +9821,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -10278,36 +9858,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -10327,37 +9895,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "WPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10370,36 +9925,24 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -10425,37 +9968,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "WPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10468,36 +9998,24 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -10523,37 +10041,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "WPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10566,36 +10071,24 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {

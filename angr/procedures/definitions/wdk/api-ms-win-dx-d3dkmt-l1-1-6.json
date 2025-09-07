@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,13 +20,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_ENUMADAPTERS3",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"

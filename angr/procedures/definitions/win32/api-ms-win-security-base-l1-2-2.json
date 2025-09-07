@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,23 +16,18 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "bot",
-									"label": "Void"
-								}
+								"_t": "_ref",
+								"name": "PSID",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -48,11 +44,9 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "bot",
-									"label": "Void"
-								}
+								"_t": "_ref",
+								"name": "PSID",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -66,8 +60,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CapName",

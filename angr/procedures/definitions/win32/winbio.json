@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,8 +16,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -37,8 +39,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FrameworkHandle",
@@ -62,8 +65,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FrameworkHandle",
@@ -87,8 +91,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FrameworkHandle",
@@ -112,8 +117,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FrameworkHandle",
@@ -126,17 +132,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_ASYNC_NOTIFICATION_METHOD"
+						"_t": "_ref",
+						"name": "WINBIO_ASYNC_NOTIFICATION_METHOD",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -153,7 +156,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WINBIO_ASYNC_RESULT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -174,8 +177,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -187,8 +191,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NotificationMethod",
@@ -211,9 +216,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_POOL"
+						"_t": "_ref",
+						"name": "WINBIO_POOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -246,17 +251,14 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_ASYNC_NOTIFICATION_METHOD"
+						"_t": "_ref",
+						"name": "WINBIO_ASYNC_NOTIFICATION_METHOD",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -273,7 +275,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WINBIO_ASYNC_RESULT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -294,8 +296,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -307,8 +310,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Factor",
@@ -338,8 +342,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle"
@@ -380,7 +385,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WINBIO_BIR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -406,8 +411,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -452,8 +458,9 @@
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "HRESULT",
+									"ot": "int"
 								},
 								{
 									"_t": "int",
@@ -465,7 +472,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WINBIO_BIR",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -506,8 +513,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -529,8 +537,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FrameworkHandle"
@@ -548,8 +557,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle"
@@ -571,9 +581,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_COMPONENT"
+						"_t": "_ref",
+						"name": "WINBIO_COMPONENT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -636,8 +646,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -668,9 +679,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_COMPONENT"
+						"_t": "_ref",
+						"name": "WINBIO_COMPONENT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -733,8 +744,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -769,7 +781,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -779,8 +791,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -811,8 +824,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -840,8 +854,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -871,8 +886,9 @@
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "HRESULT",
+									"ot": "int"
 								},
 								{
 									"_t": "int",
@@ -900,8 +916,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -924,7 +941,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -937,8 +954,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -958,8 +976,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle"
@@ -982,8 +1001,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1007,7 +1027,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WINBIO_UNIT_SCHEMA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1025,8 +1045,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Factor",
@@ -1051,7 +1072,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WINBIO_STORAGE_SCHEMA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1069,8 +1090,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Factor",
@@ -1098,7 +1120,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1126,8 +1148,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1154,7 +1177,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WINBIO_BSP_SCHEMA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1172,8 +1195,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Factor",
@@ -1195,8 +1219,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Address"
@@ -1210,25 +1235,26 @@
 					{
 						"_t": "_ref",
 						"name": "WINBIO_IDENTITY",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_CREDENTIAL_TYPE"
+						"_t": "_ref",
+						"name": "WINBIO_CREDENTIAL_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WINBIO_CREDENTIAL_STATE"
+							"_t": "_ref",
+							"name": "WINBIO_CREDENTIAL_STATE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Identity",
@@ -1252,9 +1278,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WINBIO_SETTING_SOURCE"
+							"_t": "_ref",
+							"name": "WINBIO_SETTING_SOURCE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1283,9 +1309,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WINBIO_SETTING_SOURCE"
+							"_t": "_ref",
+							"name": "WINBIO_SETTING_SOURCE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1308,7 +1334,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1321,8 +1347,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AccountOwner",
@@ -1345,9 +1372,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WINBIO_SETTING_SOURCE"
+							"_t": "_ref",
+							"name": "WINBIO_SETTING_SOURCE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1390,7 +1417,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1422,8 +1449,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1459,7 +1487,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1480,8 +1508,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1514,8 +1543,9 @@
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "HRESULT",
+									"ot": "int"
 								},
 								{
 									"_t": "int",
@@ -1527,7 +1557,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WINBIO_IDENTITY",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1564,8 +1594,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1590,8 +1621,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1610,8 +1642,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle"
@@ -1637,8 +1670,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1668,8 +1702,9 @@
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "HRESULT",
+									"ot": "int"
 								},
 								{
 									"_t": "int",
@@ -1697,8 +1732,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1723,8 +1759,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1743,8 +1780,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle"
@@ -1767,8 +1805,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1786,9 +1825,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_POOL"
+						"_t": "_ref",
+						"name": "WINBIO_POOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1830,8 +1869,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Factor",
@@ -1871,15 +1911,16 @@
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "HRESULT",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WINBIO_EVENT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -1903,8 +1944,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -1919,8 +1961,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1930,8 +1973,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1941,8 +1985,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1954,17 +1999,18 @@
 					{
 						"_t": "_ref",
 						"name": "WINBIO_IDENTITY",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_CREDENTIAL_TYPE"
+						"_t": "_ref",
+						"name": "WINBIO_CREDENTIAL_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Identity",
@@ -1977,9 +2023,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_CREDENTIAL_TYPE"
+						"_t": "_ref",
+						"name": "WINBIO_CREDENTIAL_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1999,14 +2045,15 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINBIO_CREDENTIAL_FORMAT"
+						"_t": "_ref",
+						"name": "WINBIO_CREDENTIAL_FORMAT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Type",
@@ -2045,7 +2092,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2071,8 +2118,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -2102,8 +2150,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -2122,8 +2171,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle"
@@ -2144,7 +2194,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2178,8 +2228,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -2205,7 +2256,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WINBIO_IDENTITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2226,8 +2277,9 @@
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "HRESULT",
+									"ot": "int"
 								},
 								{
 									"_t": "int",
@@ -2235,9 +2287,9 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "char",
-									"signed": false,
-									"label": "Byte"
+									"_t": "_ref",
+									"name": "BOOLEAN",
+									"ot": "char"
 								},
 								{
 									"_t": "int",
@@ -2267,8 +2319,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle",
@@ -2290,8 +2343,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SessionHandle"

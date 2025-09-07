@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,13 +20,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_ACQUIREKEYEDMUTEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -41,13 +43,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_ACQUIREKEYEDMUTEX2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -63,13 +66,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_ADJUSTFULLSCREENGAMMA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -85,13 +89,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CANCEL_PRESENTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -107,13 +112,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHANGESURFACEPOINTER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -129,13 +135,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHANGEVIDEOMEMORYRESERVATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -147,9 +154,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": []
 			}
@@ -163,13 +170,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHECKMONITORPOWERSTATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -185,13 +193,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHECKMULTIPLANEOVERLAYSUPPORT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -207,13 +216,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHECKMULTIPLANEOVERLAYSUPPORT2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -229,13 +239,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHECKMULTIPLANEOVERLAYSUPPORT3",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -251,13 +262,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHECKOCCLUSION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -273,13 +285,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHECKSHAREDRESOURCEACCESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -295,13 +308,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CHECKVIDPNEXCLUSIVEOWNERSHIP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -317,13 +331,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CLOSEADAPTER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -339,13 +354,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CONFIGURESHAREDRESOURCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -361,13 +377,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEALLOCATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -383,13 +400,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEALLOCATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -405,13 +423,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATECONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -427,13 +446,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATECONTEXTVIRTUAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -449,13 +469,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEDCFROMMEMORY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -471,13 +492,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEDEVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -493,13 +515,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEHWCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -515,13 +538,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEHWQUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -537,13 +561,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEKEYEDMUTEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -559,13 +584,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEKEYEDMUTEX2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -581,13 +607,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATE_OUTPUTDUPL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -603,13 +630,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEOVERLAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -625,13 +653,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEPAGINGQUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -647,13 +676,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATEPROTECTEDSESSION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -669,13 +699,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATESYNCHRONIZATIONOBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -691,13 +722,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_CREATESYNCHRONIZATIONOBJECT2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -713,13 +745,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYALLOCATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -735,13 +768,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYALLOCATION2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -757,13 +791,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -779,13 +814,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYDCFROMMEMORY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -801,13 +837,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYDEVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -823,13 +860,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYHWCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -845,13 +883,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYHWQUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -867,13 +906,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYKEYEDMUTEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -889,13 +929,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROY_OUTPUTDUPL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -911,13 +952,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYOVERLAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -933,13 +975,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DDDI_DESTROYPAGINGQUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -955,13 +998,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYPROTECTEDSESSION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -977,13 +1021,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_DESTROYSYNCHRONIZATIONOBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -999,13 +1044,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_ENUMADAPTERS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1021,13 +1067,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_ENUMADAPTERS2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1043,13 +1090,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_ESCAPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1065,13 +1113,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_EVICT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1087,13 +1136,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_FLIPOVERLAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1109,13 +1159,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_FLUSHHEAPTRANSITIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1131,13 +1182,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_FREEGPUVIRTUALADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1153,13 +1205,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETALLOCATIONPRIORITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1175,13 +1228,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETCONTEXTINPROCESSSCHEDULINGPRIORITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1197,13 +1251,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETCONTEXTSCHEDULINGPRIORITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1219,13 +1274,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETVERTICALBLANKEVENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1241,13 +1297,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETDEVICESTATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1263,13 +1320,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETDISPLAYMODELIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1285,13 +1343,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GET_MULTIPLANE_OVERLAY_CAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1307,13 +1366,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETMULTISAMPLEMETHODLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1329,13 +1389,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETOVERLAYSTATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1351,13 +1412,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GET_POST_COMPOSITION_CAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1373,13 +1435,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETPRESENTHISTORY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1398,18 +1461,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAdapter",
@@ -1426,13 +1487,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETPROCESSDEVICEREMOVALSUPPORT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1444,25 +1506,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "D3DKMT_SCHEDULINGPRIORITYCLASS"
+							"_t": "_ref",
+							"name": "D3DKMT_SCHEDULINGPRIORITYCLASS",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0",
@@ -1479,13 +1539,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DDDI_GETRESOURCEPRESENTPRIVATEDRIVERDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1501,13 +1562,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETRUNTIMEDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1523,13 +1585,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETSCANLINE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1545,13 +1608,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETSHAREDPRIMARYHANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1567,13 +1631,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_GETSHAREDRESOURCEADAPTERLUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1589,13 +1654,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_INVALIDATEACTIVEVIDPN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1611,13 +1677,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_INVALIDATECACHE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1633,13 +1700,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1655,13 +1723,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_LOCK2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1677,13 +1746,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DDDI_MAKERESIDENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1699,13 +1769,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DDDI_MAPGPUVIRTUALADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1721,13 +1792,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_MARKDEVICEASERROR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1743,13 +1815,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OFFERALLOCATIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1765,13 +1838,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENADAPTERFROMDEVICENAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1787,13 +1861,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1809,13 +1884,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENADAPTERFROMHDC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1831,13 +1907,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENADAPTERFROMLUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1853,13 +1930,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENKEYEDMUTEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1875,13 +1953,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENKEYEDMUTEX2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1897,13 +1976,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENKEYEDMUTEXFROMNTHANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1919,13 +1999,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENNTHANDLEFROMNAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1941,13 +2022,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENPROTECTEDSESSIONFROMNTHANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1963,13 +2045,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENRESOURCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -1985,13 +2068,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENRESOURCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2007,13 +2091,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENRESOURCEFROMNTHANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2029,13 +2114,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENSYNCOBJECTFROMNTHANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2051,13 +2137,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENSYNCOBJECTFROMNTHANDLE2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2073,13 +2160,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENSYNCOBJECTNTHANDLEFROMNAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2095,13 +2183,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OPENSYNCHRONIZATIONOBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2117,13 +2206,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OUTPUTDUPL_GET_FRAMEINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2139,13 +2229,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OUTPUTDUPL_METADATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2161,13 +2252,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OUTPUTDUPL_GET_POINTER_SHAPE_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2183,13 +2275,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OUTPUTDUPLPRESENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2205,13 +2298,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_OUTPUTDUPL_RELEASE_FRAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2227,13 +2321,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_POLLDISPLAYCHILDREN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2249,13 +2344,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_PRESENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2271,13 +2367,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_PRESENT_MULTIPLANE_OVERLAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2293,13 +2390,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_PRESENT_MULTIPLANE_OVERLAY2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2315,13 +2413,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_PRESENT_MULTIPLANE_OVERLAY3",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2337,13 +2436,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_PRESENT_REDIRECTED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2359,13 +2459,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYADAPTERINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2381,13 +2482,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYALLOCATIONRESIDENCY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2403,13 +2505,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYCLOCKCALIBRATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2425,13 +2528,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYFSEBLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2447,13 +2551,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYPROCESSOFFERINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2469,13 +2574,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYPROTECTEDSESSIONINFOFROMNTHANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2491,13 +2597,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYPROTECTEDSESSIONSTATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2513,13 +2620,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYREMOTEVIDPNSOURCEFROMGDIDISPLAYNAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2535,13 +2643,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYRESOURCEINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2557,13 +2666,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2579,13 +2689,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYSTATISTICS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2601,13 +2712,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYVIDPNEXCLUSIVEOWNERSHIP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2623,13 +2735,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_QUERYVIDEOMEMORYINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2645,13 +2758,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_RECLAIMALLOCATIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2667,13 +2781,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_RECLAIMALLOCATIONS2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2689,13 +2804,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_REGISTERTRIMNOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2715,8 +2831,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2732,13 +2849,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_RELEASEKEYEDMUTEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2754,13 +2872,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_RELEASEKEYEDMUTEX2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2772,17 +2891,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2798,13 +2915,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_RENDER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2820,13 +2938,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DDDI_RESERVEGPUVIRTUALADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2842,13 +2961,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETALLOCATIONPRIORITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2864,13 +2984,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETCONTEXTINPROCESSSCHEDULINGPRIORITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2886,13 +3007,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETCONTEXTSCHEDULINGPRIORITY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2908,13 +3030,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETDISPLAYMODE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2930,13 +3053,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETDISPLAYPRIVATEDRIVERFORMAT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2952,13 +3076,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETFSEBLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2974,13 +3099,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETGAMMARAMP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -2996,13 +3122,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETHWPROTECTIONTEARDOWNRECOVERY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3018,13 +3145,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SET_COLORSPACE_TRANSFORM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3036,22 +3164,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3DKMT_SCHEDULINGPRIORITYCLASS"
+						"_t": "_ref",
+						"name": "D3DKMT_SCHEDULINGPRIORITYCLASS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0",
@@ -3068,13 +3194,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETQUEUEDLIMIT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3090,13 +3217,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETSTABLEPOWERSTATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3112,13 +3240,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETSYNCREFRESHCOUNTWAITTARGET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3134,13 +3263,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETVIDPNSOURCEHWPROTECTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3156,13 +3286,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETVIDPNSOURCEOWNER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3178,13 +3309,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETVIDPNSOURCEOWNER1",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3200,13 +3332,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SETVIDPNSOURCEOWNER2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3236,7 +3369,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3247,18 +3380,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cObjects",
@@ -3278,13 +3409,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SHAREDPRIMARYLOCKNOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3300,13 +3432,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SHAREDPRIMARYUNLOCKNOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3322,13 +3455,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SIGNALSYNCHRONIZATIONOBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3344,13 +3478,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SIGNALSYNCHRONIZATIONOBJECT2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3366,13 +3501,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SIGNALSYNCHRONIZATIONOBJECTFROMCPU",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3388,13 +3524,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SIGNALSYNCHRONIZATIONOBJECTFROMGPU",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3410,13 +3547,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SIGNALSYNCHRONIZATIONOBJECTFROMGPU2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3432,13 +3570,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SUBMITCOMMAND",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3454,13 +3593,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SUBMITCOMMANDTOHWQUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3476,13 +3616,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SUBMITSIGNALSYNCOBJECTSTOHWQUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3498,13 +3639,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_SUBMITWAITFORSYNCOBJECTSTOHWQUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3520,13 +3662,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_TRIMPROCESSCOMMITMENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3542,13 +3685,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_UNLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3564,13 +3708,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_UNLOCK2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3586,13 +3731,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_UNREGISTERTRIMNOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3608,13 +3754,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DDDI_UPDATEALLOCPROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3630,13 +3777,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_UPDATEGPUVIRTUALADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3652,13 +3800,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_UPDATEOVERLAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3674,13 +3823,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_WAITFORIDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3696,13 +3846,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_WAITFORSYNCHRONIZATIONOBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3718,13 +3869,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_WAITFORSYNCHRONIZATIONOBJECT2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3740,13 +3892,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_WAITFORSYNCHRONIZATIONOBJECTFROMCPU",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3762,13 +3915,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_WAITFORSYNCHRONIZATIONOBJECTFROMGPU",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3784,13 +3938,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_WAITFORVERTICALBLANKEVENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -3806,13 +3961,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3DKMT_WAITFORVERTICALBLANKEVENT2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"

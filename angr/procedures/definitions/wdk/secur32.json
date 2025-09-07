@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -27,13 +28,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -50,7 +52,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -58,13 +60,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -81,7 +84,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -94,7 +97,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBuffer",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -109,8 +112,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -129,7 +133,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -144,14 +148,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SECURITY_USER_DATA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogonId",
@@ -169,7 +174,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -182,7 +187,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -192,8 +197,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -212,7 +218,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -227,8 +233,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -245,7 +252,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -267,8 +274,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -287,7 +295,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -295,7 +303,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -313,8 +321,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",

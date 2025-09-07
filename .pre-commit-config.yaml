@@ -23,7 +23,8 @@ repos:
     -   id: check-symlinks
         fail_fast: true
     -   id: check-added-large-files
-        args: ["--maxkb=4096"]
+        args: ["--maxkb=1024"]
+        exclude: ^angr/procedures/definitions/.*/.*\.json$
         fail_fast: false
     # Syntax
     -   id: check-toml

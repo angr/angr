@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,12 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -75,12 +73,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -112,29 +107,26 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TTEMBED_FLAGS"
+						"_t": "_ref",
+						"name": "TTEMBED_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EMBED_FONT_CHARSET"
+						"_t": "_ref",
+						"name": "EMBED_FONT_CHARSET",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "EMBEDDED_FONT_PRIV_STATUS"
+							"_t": "_ref",
+							"name": "EMBEDDED_FONT_PRIV_STATUS",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -213,7 +205,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TTEMBEDINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -241,29 +233,26 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TTEMBED_FLAGS"
+						"_t": "_ref",
+						"name": "TTEMBED_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EMBED_FONT_CHARSET"
+						"_t": "_ref",
+						"name": "EMBED_FONT_CHARSET",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "EMBEDDED_FONT_PRIV_STATUS"
+							"_t": "_ref",
+							"name": "EMBEDDED_FONT_PRIV_STATUS",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -342,7 +331,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TTEMBEDINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -370,20 +359,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -391,21 +374,21 @@
 						"label": "UInt16"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TTEMBED_FLAGS"
+						"_t": "_ref",
+						"name": "TTEMBED_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EMBED_FONT_CHARSET"
+						"_t": "_ref",
+						"name": "EMBED_FONT_CHARSET",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "EMBEDDED_FONT_PRIV_STATUS"
+							"_t": "_ref",
+							"name": "EMBEDDED_FONT_PRIV_STATUS",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -484,7 +467,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TTEMBEDINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -514,16 +497,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -541,9 +522,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TTEMBED_FLAGS"
+						"_t": "_ref",
+						"name": "TTEMBED_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -554,9 +535,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FONT_LICENSE_PRIVS"
+						"_t": "_ref",
+						"name": "FONT_LICENSE_PRIVS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -615,7 +596,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TTLOADINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -639,19 +620,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "EMBEDDED_FONT_PRIV_STATUS"
+							"_t": "_ref",
+							"name": "EMBEDDED_FONT_PRIV_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -672,12 +650,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -725,18 +700,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -755,18 +728,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -787,12 +758,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -803,22 +771,22 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "EMBEDDED_FONT_PRIV_STATUS"
+							"_t": "_ref",
+							"name": "EMBEDDED_FONT_PRIV_STATUS",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FONT_LICENSE_PRIVS"
+						"_t": "_ref",
+						"name": "FONT_LICENSE_PRIVS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "TTLOAD_EMBEDDED_FONT_STATUS"
+							"_t": "_ref",
+							"name": "TTLOAD_EMBEDDED_FONT_STATUS",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -866,27 +834,21 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TTLOADINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -913,19 +875,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TTVALIDATIONTESTSPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -944,19 +903,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TTVALIDATIONTESTSPARAMSEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

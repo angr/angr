@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -22,9 +23,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WLDP_EXECUTION_EVALUATION_OPTIONS"
+						"_t": "_ref",
+						"name": "WLDP_EXECUTION_EVALUATION_OPTIONS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -41,25 +42,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WLDP_EXECUTION_POLICY"
+							"_t": "_ref",
+							"name": "WLDP_EXECUTION_POLICY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"host",
@@ -83,38 +82,33 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WLDP_EXECUTION_EVALUATION_OPTIONS"
+						"_t": "_ref",
+						"name": "WLDP_EXECUTION_EVALUATION_OPTIONS",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WLDP_EXECUTION_POLICY"
+							"_t": "_ref",
+							"name": "WLDP_EXECUTION_POLICY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"host",
@@ -137,34 +131,33 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WLDP_EXECUTION_EVALUATION_OPTIONS"
+						"_t": "_ref",
+						"name": "WLDP_EXECUTION_EVALUATION_OPTIONS",
+						"ot": "int"
 					},
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WLDP_EXECUTION_POLICY"
+							"_t": "_ref",
+							"name": "WLDP_EXECUTION_POLICY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"host",
@@ -184,7 +177,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WLDP_HOST_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -202,8 +195,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hostInformation",
@@ -228,14 +222,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WLDP_HOST_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -245,8 +240,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"classID",
@@ -263,14 +259,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"isEnabled"
@@ -286,7 +284,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WLDP_DEVICE_SECURITY_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -305,8 +303,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"information",
@@ -320,12 +319,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -341,8 +337,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fileHandle",
@@ -356,17 +353,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fileHandle"

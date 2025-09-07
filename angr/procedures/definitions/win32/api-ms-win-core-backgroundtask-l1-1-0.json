@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

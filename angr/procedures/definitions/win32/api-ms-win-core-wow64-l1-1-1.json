@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -29,9 +30,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "IMAGE_FILE_MACHINE"
+						"_t": "_ref",
+						"name": "IMAGE_FILE_MACHINE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -65,9 +66,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "IMAGE_FILE_MACHINE"
+						"_t": "_ref",
+						"name": "IMAGE_FILE_MACHINE",
+						"ot": "int"
 					}
 				],
 				"returnty": {

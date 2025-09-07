@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -30,47 +31,47 @@
 								"gray": {
 									"_t": "_ref",
 									"name": "GRAYCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"rgb": {
 									"_t": "_ref",
 									"name": "RGBCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"cmyk": {
 									"_t": "_ref",
 									"name": "CMYKCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"XYZ": {
 									"_t": "_ref",
 									"name": "XYZCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Yxy": {
 									"_t": "_ref",
 									"name": "YxyCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Lab": {
 									"_t": "_ref",
 									"name": "LabCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"gen3ch": {
 									"_t": "_ref",
 									"name": "GENERIC3CHANNEL",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"named": {
 									"_t": "_ref",
 									"name": "NAMEDCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"hifi": {
 									"_t": "_ref",
 									"name": "HiFiCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Anonymous": {
 									"_t": "struct",
@@ -89,8 +90,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -104,9 +103,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORTYPE"
+						"_t": "_ref",
+						"name": "COLORTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -119,8 +118,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hcmTransform",
@@ -148,7 +148,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RGBTRIPLE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -167,8 +167,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hcmTransform",
@@ -198,9 +199,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BMFORMAT"
+						"_t": "_ref",
+						"name": "BMFORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -241,17 +242,15 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0",
@@ -261,17 +260,15 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hcmTransform",
@@ -326,8 +323,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -377,8 +375,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -441,8 +440,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pahProfiles",
@@ -521,7 +521,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -536,8 +536,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpColorSpace",
@@ -554,7 +555,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -569,8 +570,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpColorSpace",
@@ -587,7 +589,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -629,7 +631,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -677,7 +679,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -725,7 +727,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOGCOLORSPACEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -772,8 +774,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hcmTransform"
@@ -817,13 +820,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NAMED_PROFILE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -846,14 +850,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hProfile",
@@ -881,47 +887,47 @@
 								"gray": {
 									"_t": "_ref",
 									"name": "GRAYCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"rgb": {
 									"_t": "_ref",
 									"name": "RGBCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"cmyk": {
 									"_t": "_ref",
 									"name": "CMYKCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"XYZ": {
 									"_t": "_ref",
 									"name": "XYZCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Yxy": {
 									"_t": "_ref",
 									"name": "YxyCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Lab": {
 									"_t": "_ref",
 									"name": "LabCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"gen3ch": {
 									"_t": "_ref",
 									"name": "GENERIC3CHANNEL",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"named": {
 									"_t": "_ref",
 									"name": "NAMEDCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"hifi": {
 									"_t": "_ref",
 									"name": "HiFiCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Anonymous": {
 									"_t": "struct",
@@ -940,8 +946,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -955,9 +959,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORTYPE"
+						"_t": "_ref",
+						"name": "COLORTYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -967,47 +971,47 @@
 								"gray": {
 									"_t": "_ref",
 									"name": "GRAYCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"rgb": {
 									"_t": "_ref",
 									"name": "RGBCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"cmyk": {
 									"_t": "_ref",
 									"name": "CMYKCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"XYZ": {
 									"_t": "_ref",
 									"name": "XYZCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Yxy": {
 									"_t": "_ref",
 									"name": "YxyCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Lab": {
 									"_t": "_ref",
 									"name": "LabCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"gen3ch": {
 									"_t": "_ref",
 									"name": "GENERIC3CHANNEL",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"named": {
 									"_t": "_ref",
 									"name": "NAMEDCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"hifi": {
 									"_t": "_ref",
 									"name": "HiFiCOLOR",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Anonymous": {
 									"_t": "struct",
@@ -1026,8 +1030,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -1036,14 +1038,15 @@
 						"label": "LPArray"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COLORTYPE"
+						"_t": "_ref",
+						"name": "COLORTYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hcmTransform",
@@ -1068,9 +1071,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
+						"_t": "_ref",
+						"name": "COLORREF",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1087,8 +1090,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hcmTransform",
@@ -1118,9 +1122,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BMFORMAT"
+						"_t": "_ref",
+						"name": "BMFORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1145,9 +1149,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BMFORMAT"
+						"_t": "_ref",
+						"name": "BMFORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1156,8 +1160,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hcmTransform",
@@ -1192,9 +1197,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BMFORMAT"
+						"_t": "_ref",
+						"name": "BMFORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1219,9 +1224,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BMFORMAT"
+						"_t": "_ref",
+						"name": "BMFORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1244,17 +1249,15 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0",
@@ -1264,17 +1267,15 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hcmTransform",

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -33,9 +34,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -44,7 +45,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_FILTER_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -70,7 +71,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_FILTER_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -89,12 +90,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "TDH_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -123,13 +121,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "int",
@@ -141,7 +139,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PAYLOAD_FILTER_PREDICATE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -212,7 +210,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROVIDER_EVENT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -248,16 +246,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EVENT_FIELD_TYPE"
+						"_t": "_ref",
+						"name": "EVENT_FIELD_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROVIDER_FIELD_INFOARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -303,7 +301,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TDH_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -322,7 +320,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "PROVIDER_FILTER_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -359,7 +357,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROVIDER_ENUMERATION_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -387,16 +385,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DECODING_SOURCE"
+						"_t": "_ref",
+						"name": "DECODING_SOURCE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROVIDER_ENUMERATION_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -435,7 +433,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TRACE_EVENT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -443,7 +441,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_MAP_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -488,12 +486,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -529,19 +524,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "TDH_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TDH_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -565,7 +557,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_RECORD",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -578,7 +570,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TDH_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -587,7 +579,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TRACE_EVENT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -622,23 +614,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_RECORD",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_MAP_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -679,7 +668,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -687,7 +676,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TRACE_EVENT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -721,7 +710,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_RECORD",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -734,7 +723,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TDH_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -748,7 +737,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTY_DATA_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -791,7 +780,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_RECORD",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -804,7 +793,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TDH_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -818,7 +807,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTY_DATA_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -851,19 +840,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "TDH_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_RECORD",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -901,28 +887,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "TDH_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EVENT_RECORD",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -960,12 +940,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -983,12 +960,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1036,12 +1010,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "TDH_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1072,16 +1043,16 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EVENT_FIELD_TYPE"
+						"_t": "_ref",
+						"name": "EVENT_FIELD_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROVIDER_FIELD_INFOARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1112,19 +1083,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "TDH_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TDH_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1144,12 +1112,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {

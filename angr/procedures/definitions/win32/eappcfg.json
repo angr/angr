@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -22,7 +23,7 @@
 					{
 						"_t": "_ref",
 						"name": "EAP_METHOD_TYPE",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -41,8 +42,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IXMLDOMDocument2"
+							"_t": "_ref",
+							"name": "IXMLDOMDocument2",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -52,7 +54,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -82,8 +84,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IXMLDOMNode"
+						"_t": "_ref",
+						"name": "IXMLDOMNode",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -109,7 +112,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_METHOD_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -119,7 +122,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -149,8 +152,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IXMLDOMNode"
+						"_t": "_ref",
+						"name": "IXMLDOMNode",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -190,7 +194,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_METHOD_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -200,7 +204,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -231,7 +235,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_ERROR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -283,15 +287,12 @@
 					{
 						"_t": "_ref",
 						"name": "EAP_METHOD_TYPE",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -326,7 +327,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_METHOD_PROPERTY_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -336,7 +337,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -369,7 +370,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_METHOD_INFO_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -379,7 +380,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -400,12 +401,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -415,7 +413,7 @@
 					{
 						"_t": "_ref",
 						"name": "EAP_METHOD_TYPE",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -457,7 +455,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -491,7 +489,7 @@
 					{
 						"_t": "_ref",
 						"name": "EAP_METHOD_TYPE",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -499,12 +497,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -556,12 +551,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -571,7 +563,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -613,12 +605,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -660,7 +649,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -685,17 +674,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "EAP_METHOD_TYPE",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -721,7 +707,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_CONFIG_INPUT_FIELD_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -731,7 +717,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -785,7 +771,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_INTERACTIVE_UI_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -795,7 +781,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -859,7 +845,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_INTERACTIVE_UI_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -888,7 +874,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -926,17 +912,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "EAP_METHOD_TYPE",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -962,7 +945,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EAP_CONFIG_INPUT_FIELD_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -992,7 +975,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "EAP_ERROR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}

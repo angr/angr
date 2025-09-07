@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -22,9 +23,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HDV_DEVICE_TYPE"
+						"_t": "_ref",
+						"name": "HDV_DEVICE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -66,8 +67,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"deviceHostHandle",
@@ -102,8 +104,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -117,8 +120,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",
@@ -141,9 +145,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HDV_PCI_BAR_SELECTOR"
+						"_t": "_ref",
+						"name": "HDV_PCI_BAR_SELECTOR",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -156,17 +160,14 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HDV_MMIO_MAPPING_FLAGS"
+						"_t": "_ref",
+						"name": "HDV_MMIO_MAPPING_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -175,8 +176,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",
@@ -212,8 +214,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",
@@ -242,8 +245,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",
@@ -263,9 +267,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HDV_PCI_BAR_SELECTOR"
+						"_t": "_ref",
+						"name": "HDV_PCI_BAR_SELECTOR",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -274,8 +278,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",
@@ -289,12 +294,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCS_SYSTEM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -308,8 +310,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"computeSystem",
@@ -322,17 +325,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCS_SYSTEM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HDV_DEVICE_HOST_FLAGS"
+						"_t": "_ref",
+						"name": "HDV_DEVICE_HOST_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -346,8 +346,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"computeSystem",
@@ -388,8 +389,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",
@@ -411,9 +413,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HDV_PCI_BAR_SELECTOR"
+						"_t": "_ref",
+						"name": "HDV_PCI_BAR_SELECTOR",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -431,17 +433,15 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",
@@ -466,8 +466,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"deviceHostHandle"
@@ -486,9 +487,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HDV_PCI_BAR_SELECTOR"
+						"_t": "_ref",
+						"name": "HDV_PCI_BAR_SELECTOR",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -507,8 +508,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",
@@ -551,8 +553,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"requestor",

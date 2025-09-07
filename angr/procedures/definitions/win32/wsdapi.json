@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -78,28 +79,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDDeviceHost"
+							"_t": "_ref",
+							"name": "IWSDDeviceHost",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszLocalId",
@@ -113,23 +114,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSD_CONFIG_PARAM",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -141,14 +140,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDDeviceHost"
+							"_t": "_ref",
+							"name": "IWSDDeviceHost",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszLocalId",
@@ -164,22 +165,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDAddress"
+							"_t": "_ref",
+							"name": "IWSDAddress",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -191,14 +191,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDDeviceHost"
+							"_t": "_ref",
+							"name": "IWSDDeviceHost",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszLocalId",
@@ -214,36 +216,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDDeviceProxy"
+							"_t": "_ref",
+							"name": "IWSDDeviceProxy",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceId",
@@ -258,31 +257,26 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSD_CONFIG_PARAM",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -294,14 +288,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDDeviceProxy"
+							"_t": "_ref",
+							"name": "IWSDDeviceProxy",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceId",
@@ -318,40 +314,38 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IWSDAddress"
+						"_t": "_ref",
+						"name": "IWSDAddress",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDDeviceProxy"
+							"_t": "_ref",
+							"name": "IWSDDeviceProxy",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszDeviceId",
@@ -367,20 +361,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDiscoveryProvider"
+							"_t": "_ref",
+							"name": "IWSDiscoveryProvider",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pContext",
@@ -393,15 +390,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSD_CONFIG_PARAM",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -413,14 +411,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDiscoveryProvider"
+							"_t": "_ref",
+							"name": "IWSDiscoveryProvider",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pContext",
@@ -435,20 +435,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDiscoveryPublisher"
+							"_t": "_ref",
+							"name": "IWSDiscoveryPublisher",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pContext",
@@ -461,15 +464,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSD_CONFIG_PARAM",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -481,14 +485,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDiscoveryPublisher"
+							"_t": "_ref",
+							"name": "IWSDiscoveryPublisher",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pContext",
@@ -505,14 +511,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDHttpAddress"
+							"_t": "_ref",
+							"name": "IWSDHttpAddress",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppAddress"
@@ -526,14 +534,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDHttpMessageParameters"
+							"_t": "_ref",
+							"name": "IWSDHttpMessageParameters",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppTxParams"
@@ -547,14 +557,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDOutboundAttachment"
+							"_t": "_ref",
+							"name": "IWSDOutboundAttachment",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppAttachment"
@@ -568,14 +580,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDUdpAddress"
+							"_t": "_ref",
+							"name": "IWSDUdpAddress",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppAddress"
@@ -589,14 +603,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDUdpMessageParameters"
+							"_t": "_ref",
+							"name": "IWSDUdpMessageParameters",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppTxParams"
@@ -650,40 +666,29 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IWSDXMLContext"
+						"_t": "_ref",
+						"name": "IWSDXMLContext",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -692,14 +697,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WSD_SOAP_FAULT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszCode",
@@ -720,7 +726,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_NAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -728,7 +734,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_NAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -736,16 +742,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSD_LOCALIZED_STRING_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -754,14 +757,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WSD_SOAP_FAULT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCode",
@@ -795,8 +799,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwOption",
@@ -828,8 +833,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwOption",
@@ -859,12 +865,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -878,8 +881,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"source",
@@ -910,12 +914,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -929,8 +930,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"source",
@@ -949,7 +951,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_ELEMENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -957,13 +959,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_ELEMENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pParent",
@@ -980,7 +983,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_ELEMENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -988,13 +991,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_ELEMENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pFirst",
@@ -1011,16 +1015,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_NAME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1029,14 +1030,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WSDXML_ELEMENT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pElementName",
@@ -1054,13 +1056,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_ELEMENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAny"
@@ -1074,14 +1077,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IWSDXMLContext"
+							"_t": "_ref",
+							"name": "IWSDXMLContext",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppContext"
@@ -1093,20 +1098,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1115,14 +1114,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WSDXML_NAME",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszNamespace",
@@ -1136,44 +1136,36 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSDXML_ELEMENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszNamespace",

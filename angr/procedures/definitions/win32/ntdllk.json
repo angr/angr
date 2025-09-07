@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,9 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RTL_SYSTEM_GLOBAL_DATA_ID"
+						"_t": "_ref",
+						"name": "RTL_SYSTEM_GLOBAL_DATA_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",

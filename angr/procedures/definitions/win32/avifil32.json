@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -28,13 +29,15 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszFilter",
@@ -61,13 +64,15 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpszFilter",
@@ -81,8 +86,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -92,8 +98,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
@@ -111,14 +118,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -126,13 +135,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVISTREAMINFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfile",
@@ -146,14 +156,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -161,13 +173,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVISTREAMINFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfile",
@@ -181,13 +194,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfile"
@@ -210,14 +225,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -231,8 +248,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfile",
@@ -247,15 +265,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVIFILEINFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -264,8 +283,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfile",
@@ -279,15 +299,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVIFILEINFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -296,8 +317,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfile",
@@ -324,17 +346,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIFile"
+							"_t": "_ref",
+							"name": "IAVIFile",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -350,8 +370,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppfile",
@@ -368,17 +389,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIFile"
+							"_t": "_ref",
+							"name": "IAVIFile",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -394,8 +413,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppfile",
@@ -410,8 +430,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -434,8 +455,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfile",
@@ -450,8 +472,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
@@ -469,8 +492,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -490,8 +514,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pfile",
@@ -508,14 +533,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIFile"
+							"_t": "_ref",
+							"name": "IAVIFile",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lppf"
@@ -529,20 +556,22 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVICOMPRESSOPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -554,8 +583,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppsCompressed",
@@ -572,8 +602,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIFile"
+							"_t": "_ref",
+							"name": "IAVIFile",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -583,15 +614,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppfile",
@@ -610,24 +643,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cfFormat",
@@ -641,13 +673,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIFile"
+						"_t": "_ref",
+						"name": "IAVIFile",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pf"
@@ -659,12 +693,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -684,8 +715,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0"
@@ -697,21 +729,23 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVICOMPRESSOPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szFile",
@@ -728,12 +762,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -747,8 +778,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -759,7 +791,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "AVICOMPRESSOPTIONS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -797,15 +829,16 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "AVICOMPRESSOPTIONS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"nStreams",
@@ -818,12 +851,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -843,8 +873,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0"
@@ -858,8 +889,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -870,15 +902,16 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "AVICOMPRESSOPTIONS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szFile",
@@ -895,12 +928,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -920,8 +950,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0"
@@ -935,8 +966,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -947,15 +979,16 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "AVICOMPRESSOPTIONS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szFile",
@@ -972,12 +1005,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -997,8 +1027,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0"
@@ -1010,21 +1041,23 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVICOMPRESSOPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szFile",
@@ -1041,8 +1074,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
@@ -1060,8 +1094,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1077,8 +1112,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1095,8 +1131,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1116,8 +1153,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppavi",
@@ -1132,13 +1170,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi"
@@ -1150,8 +1190,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1178,8 +1219,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IGetFrame"
+						"_t": "_ref",
+						"name": "IGetFrame",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1204,13 +1246,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IGetFrame"
+						"_t": "_ref",
+						"name": "IGetFrame",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pg"
@@ -1222,21 +1266,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "bot",
-					"label": "IGetFrame"
+					"_t": "_ref",
+					"name": "IGetFrame",
+					"ot": "bot"
 				},
 				"arg_names": [
 					"pavi",
@@ -1249,15 +1295,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVISTREAMINFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1266,8 +1313,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1281,15 +1329,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVISTREAMINFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1298,8 +1347,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1313,8 +1363,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
@@ -1333,17 +1384,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1368,8 +1417,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppavi",
@@ -1388,17 +1438,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1423,8 +1471,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppavi",
@@ -1441,8 +1490,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1479,8 +1529,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1498,8 +1549,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1522,8 +1574,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1538,8 +1591,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1561,8 +1615,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1577,8 +1632,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
@@ -1596,8 +1652,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1619,8 +1676,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1639,8 +1697,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1655,8 +1714,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
@@ -1673,8 +1733,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1696,8 +1757,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1739,8 +1801,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1759,8 +1822,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1780,8 +1844,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1798,18 +1863,21 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppsEditable",
@@ -1822,20 +1890,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1848,8 +1919,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1868,14 +1940,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1890,8 +1964,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1910,14 +1985,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IAVIStream"
+							"_t": "_ref",
+							"name": "IAVIStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1932,8 +2009,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1950,8 +2028,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1963,8 +2042,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -1981,15 +2061,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVISTREAMINFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1998,8 +2079,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -2013,15 +2095,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AVISTREAMINFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2030,8 +2113,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -2045,21 +2129,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",
@@ -2072,21 +2155,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IAVIStream"
+						"_t": "_ref",
+						"name": "IAVIStream",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pavi",

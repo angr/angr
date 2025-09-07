@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,9 +16,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FWPM_SERVICE_STATE"
+					"_t": "_ref",
+					"name": "FWPM_SERVICE_STATE",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -46,9 +47,9 @@
 									}
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "FWPM_SERVICE_STATE"
+									"_t": "_ref",
+									"name": "FWPM_SERVICE_STATE",
+									"ot": "int"
 								}
 							],
 							"returnty": {
@@ -71,18 +72,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"deviceObject",
@@ -97,17 +96,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"changeHandle"

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,18 +16,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -41,14 +40,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRL_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -63,18 +63,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -89,14 +87,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRL_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -111,18 +110,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -137,14 +134,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CTL_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -159,18 +157,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -185,14 +181,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CTL_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -207,18 +204,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -233,14 +228,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -255,18 +251,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -281,14 +275,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -303,16 +298,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -339,14 +332,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRL_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -363,16 +357,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -399,14 +391,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CTL_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -423,16 +416,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -459,14 +450,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -483,12 +475,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -505,8 +494,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szCertStoreName",
@@ -520,12 +510,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -542,8 +529,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szCertStoreName",
@@ -561,21 +549,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -613,7 +599,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SERVER_OCSP_RESPONSE_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -631,11 +617,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -685,8 +669,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -705,18 +690,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -730,8 +711,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCollectionStore",
@@ -752,12 +734,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"dwAlgId"
@@ -796,11 +775,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -809,8 +786,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -823,16 +801,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -840,13 +818,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -860,16 +839,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -877,13 +856,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -901,7 +881,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -909,13 +889,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pInt1",
@@ -928,16 +909,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -945,13 +926,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -965,16 +947,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_CONTROL_STORE_FLAGS"
+						"_t": "_ref",
+						"name": "CERT_CONTROL_STORE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -990,8 +970,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -1006,9 +987,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1029,7 +1010,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CRL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1067,7 +1048,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CTL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1086,7 +1067,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1099,7 +1080,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_ATTRIBUTE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1120,7 +1101,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1133,8 +1114,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -1156,24 +1138,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_ENGINE_CONFIG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HCERTCHAINENGINE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pConfig",
@@ -1186,9 +1166,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1209,7 +1189,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1256,7 +1236,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CREATE_CONTEXT_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1282,33 +1262,29 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_OR_NCRYPT_KEY_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_CREATE_SELFSIGN_FLAGS"
+						"_t": "_ref",
+						"name": "CERT_CREATE_SELFSIGN_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_KEY_PROV_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1316,7 +1292,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_ALGORITHM_IDENTIFIER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1324,7 +1300,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SYSTEMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1332,7 +1308,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SYSTEMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1340,7 +1316,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_EXTENSIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1349,7 +1325,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1373,13 +1349,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCrlContext"
@@ -1395,13 +1372,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCtlContext"
@@ -1417,13 +1395,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext"
@@ -1439,7 +1418,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1448,7 +1427,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CRL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1465,7 +1444,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1474,7 +1453,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CTL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1491,7 +1470,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1500,7 +1479,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CHAIN_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1517,7 +1496,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1526,7 +1505,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1539,19 +1518,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HCERTSTORE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hCertStore"
@@ -1567,7 +1542,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1592,18 +1567,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1612,7 +1585,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CRL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1630,7 +1603,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1655,18 +1628,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1675,7 +1646,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CTL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1693,7 +1664,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1718,18 +1689,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1738,7 +1707,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1788,19 +1757,16 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CERT_PHYSICAL_STORE_INFO",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1819,8 +1785,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pvSystemStore",
@@ -1834,8 +1801,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvSystemStore",
@@ -1854,7 +1822,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1872,7 +1840,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1880,13 +1848,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCtlContext",
@@ -1932,16 +1901,16 @@
 									}
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "CERT_SYSTEM_STORE_FLAGS"
+									"_t": "_ref",
+									"name": "CERT_SYSTEM_STORE_FLAGS",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CERT_SYSTEM_STORE_INFO",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1960,8 +1929,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pvSystemStore",
@@ -1974,8 +1944,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -2007,12 +1978,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2035,8 +2003,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pwszStoreLocation",
@@ -2048,8 +2017,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -2063,12 +2033,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2080,7 +2047,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_ATTRIBUTE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
@@ -2090,7 +2057,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CRYPT_ATTRIBUTE",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2105,16 +2072,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2138,7 +2103,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2147,7 +2112,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CRL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2165,11 +2130,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2182,9 +2145,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_FIND_TYPE"
+						"_t": "_ref",
+						"name": "CERT_FIND_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2198,7 +2161,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2207,7 +2170,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CTL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2229,7 +2192,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2237,7 +2200,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2259,14 +2222,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRL_ENTRY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCert",
@@ -2282,16 +2246,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2299,9 +2261,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_FIND_FLAGS"
+						"_t": "_ref",
+						"name": "CERT_FIND_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2315,7 +2277,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2324,7 +2286,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2342,21 +2304,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_FIND_CHAIN_IN_STORE_FLAGS"
+						"_t": "_ref",
+						"name": "CERT_FIND_CHAIN_IN_STORE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2375,7 +2335,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2384,7 +2344,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CHAIN_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2402,12 +2362,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2419,7 +2376,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_EXTENSION",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
@@ -2429,7 +2386,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_EXTENSION",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2444,19 +2401,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_NAME_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2465,7 +2419,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_RDN_ATTR",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2500,7 +2454,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2514,7 +2468,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CTL_ENTRY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2535,7 +2489,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2543,7 +2497,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2563,13 +2517,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSubjectIdentifier",
@@ -2589,13 +2544,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCrlContext"
@@ -2611,13 +2567,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCtlContext"
@@ -2633,7 +2590,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2651,12 +2608,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCERTCHAINENGINE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2679,7 +2633,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CHAIN_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -2702,13 +2656,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext"
@@ -2724,7 +2679,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SERVER_OCSP_RESPONSE_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2746,7 +2701,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2771,8 +2726,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCrlContext",
@@ -2787,18 +2743,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2806,7 +2760,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2823,7 +2777,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CRL_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2843,7 +2797,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2868,8 +2822,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCtlContext",
@@ -2884,19 +2839,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCERTCHAINENGINE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2904,22 +2856,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2941,14 +2891,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CHAIN_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hChainEngine",
@@ -2971,7 +2922,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2996,8 +2947,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -3016,7 +2968,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3029,7 +2981,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_USAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3042,8 +2994,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -3058,16 +3011,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3085,8 +3038,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -3101,10 +3055,16 @@
 				"_t": "func",
 				"args": [
 					{
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
+					},
+					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
+							"_t": "_ref",
+							"name": "CERT_CONTEXT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3112,15 +3072,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "_ref",
-							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3137,7 +3089,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -3157,7 +3109,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3216,7 +3168,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3271,16 +3223,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3324,7 +3276,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_SERVER_OCSP_RESPONSE_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -3339,11 +3291,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3367,8 +3317,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -3383,23 +3334,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3408,7 +3357,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CERT_CONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -3434,7 +3383,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -3449,12 +3398,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3467,8 +3413,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cCerts",
@@ -3484,9 +3431,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3498,7 +3445,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3506,13 +3453,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_RDN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -3531,29 +3479,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_STRONG_SIGN_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStrongSignPara",
@@ -3571,7 +3517,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3579,7 +3525,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3596,8 +3542,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCert",
@@ -3617,12 +3564,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3634,7 +3578,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3642,21 +3586,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwHashUseType",
@@ -3673,22 +3615,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_STRING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_STRING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3724,22 +3666,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_STRING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_STRING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3775,12 +3717,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3802,7 +3741,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3815,7 +3754,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SERVER_OCSP_RESPONSE_OPEN_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3838,31 +3777,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_OPEN_STORE_FLAGS"
+						"_t": "_ref",
+						"name": "CERT_OPEN_STORE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3873,11 +3805,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HCERTSTORE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"lpszStoreProvider",
@@ -3893,29 +3823,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HCERTSTORE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hProv",
@@ -3928,29 +3849,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HCERTSTORE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hProv",
@@ -3972,7 +3884,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4017,7 +3929,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4065,19 +3977,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PHYSICAL_STORE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4089,8 +3998,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvSystemStore",
@@ -4122,7 +4032,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SYSTEM_STORE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4134,8 +4044,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvSystemStore",
@@ -4154,21 +4065,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -4181,18 +4090,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -4210,17 +4115,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCERTCHAINENGINE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hChainEngine"
@@ -4236,16 +4139,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4291,18 +4191,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -4322,26 +4220,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_STORE_SAVE_AS"
+						"_t": "_ref",
+						"name": "CERT_STORE_SAVE_AS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_STORE_SAVE_TO"
+						"_t": "_ref",
+						"name": "CERT_STORE_SAVE_TO",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4357,8 +4253,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -4391,7 +4288,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SELECT_CHAIN_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4404,16 +4301,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SELECT_CRITERIA",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4432,15 +4327,16 @@
 								"pts_to": {
 									"_t": "_ref",
 									"name": "CERT_CHAIN_CONTEXT",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSelectionContext",
@@ -4463,7 +4359,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4489,8 +4385,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCrlContext",
@@ -4509,7 +4406,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4535,8 +4432,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCtlContext",
@@ -4555,7 +4453,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4581,8 +4479,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -4601,7 +4500,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4623,8 +4522,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCrlContext",
@@ -4643,7 +4543,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4665,8 +4565,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCtlContext",
@@ -4685,7 +4586,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4693,7 +4594,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4703,8 +4604,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -4722,7 +4624,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4744,8 +4646,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -4764,7 +4667,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4772,13 +4675,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_USAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -4791,11 +4695,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4816,8 +4718,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCertStore",
@@ -4832,22 +4735,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_STRING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_STRING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4875,18 +4775,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -4904,22 +4802,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_STRING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_STRING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4947,18 +4842,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -4988,17 +4881,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvSystemStore",
@@ -5025,8 +4916,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvSystemStore",
@@ -5039,16 +4931,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5063,15 +4955,16 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRL_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -5090,7 +4983,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5098,7 +4991,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRL_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5138,7 +5031,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_USAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5151,7 +5044,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_VERIFY_USAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5159,13 +5052,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_VERIFY_USAGE_STATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -5183,19 +5077,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5203,7 +5094,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_POLICY_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5211,13 +5102,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CHAIN_POLICY_STATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPolicyOID",
@@ -5267,7 +5159,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_REVOCATION_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5275,13 +5167,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_REVOCATION_STATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -5303,7 +5196,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5311,7 +5204,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5324,8 +5217,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSubject",
@@ -5343,7 +5237,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5351,7 +5245,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5374,7 +5268,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5382,13 +5276,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSubjectInfo",
@@ -5405,13 +5300,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_ACQUIRE_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_ACQUIRE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5423,34 +5318,32 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"signed": false,
-								"label": "UInt"
-							},
-							"label": "UIntPtr"
+							"_t": "_ref",
+							"name": "HCRYPTPROV_OR_NCRYPT_KEY_HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CERT_KEY_SPEC"
+							"_t": "_ref",
+							"name": "CERT_KEY_SPEC",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCert",
@@ -5480,9 +5373,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_STRING"
+						"_t": "_ref",
+						"name": "CRYPT_STRING",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5503,8 +5396,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbBinary",
@@ -5533,9 +5427,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_STRING"
+						"_t": "_ref",
+						"name": "CRYPT_STRING",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5556,8 +5450,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbBinary",
@@ -5573,17 +5468,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTASYNC",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAsync"
@@ -5602,18 +5495,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HCRYPTASYNC",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -5626,24 +5517,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PUBLICKEYSTRUC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5681,8 +5569,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -5710,7 +5599,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_DECRYPT_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5718,7 +5607,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_VERIFY_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5783,7 +5672,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -5794,14 +5683,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwMsgTypeFlags",
@@ -5825,17 +5715,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5872,8 +5759,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -5891,17 +5779,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5926,7 +5811,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_DECODE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5946,8 +5831,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -5970,7 +5856,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_DECRYPT_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5978,7 +5864,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_VERIFY_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6022,7 +5908,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -6033,14 +5919,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDecryptPara",
@@ -6064,7 +5951,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_DECRYPT_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6103,14 +5990,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDecryptPara",
@@ -6127,17 +6015,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6164,8 +6049,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -6181,17 +6067,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6201,16 +6084,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_ENCODE_OBJECT_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_ENCODE_OBJECT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_ENCODE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6230,8 +6113,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -6253,7 +6137,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_ENCRYPT_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6268,7 +6152,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -6304,8 +6188,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pEncryptPara",
@@ -6327,7 +6212,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6341,12 +6226,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6372,7 +6254,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CRYPT_INTEGER_BLOB",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -6430,8 +6312,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pKeyIdentifier",
@@ -6447,8 +6330,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pKeyIdentifier",
@@ -6471,20 +6355,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6509,20 +6387,14 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -6541,12 +6413,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "char",
-											"signed": true,
-											"label": "Char"
-										}
+										"_t": "_ref",
+										"name": "PWSTR",
+										"ot": "_ref"
 									},
 									"label": "LPArray"
 								},
@@ -6580,8 +6449,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"dwEncodingType",
@@ -6598,8 +6468,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -6642,7 +6513,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CRYPT_OID_INFO",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -6654,8 +6525,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pInfo",
@@ -6665,8 +6537,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwGroupId",
@@ -6695,12 +6568,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6732,8 +6602,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -6751,13 +6622,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_OR_NCRYPT_KEY_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6765,16 +6632,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6787,8 +6654,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProvOrNCryptKey",
@@ -6804,13 +6672,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_OR_NCRYPT_KEY_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6818,17 +6682,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6847,7 +6708,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6860,8 +6721,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProvOrNCryptKey",
@@ -6880,24 +6742,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "BCRYPT_KEY_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6916,7 +6773,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6929,8 +6786,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hBCryptKey",
@@ -6952,13 +6810,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_FIND_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_FIND_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -6969,8 +6827,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCert",
@@ -6984,21 +6843,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pwszCryptName"
@@ -7032,7 +6885,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CRYPT_OID_INFO",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -7047,9 +6900,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7069,12 +6922,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7106,8 +6956,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -7140,8 +6991,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hFuncAddr",
@@ -7154,20 +7006,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTASYNC",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7187,12 +7033,9 @@
 								"_t": "func",
 								"args": [
 									{
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "char",
-											"signed": false,
-											"label": "Byte"
-										}
+										"_t": "_ref",
+										"name": "PSTR",
+										"ot": "ptr"
 									},
 									{
 										"_t": "ptr",
@@ -7215,8 +7058,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAsync",
@@ -7261,8 +7105,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hFuncSet",
@@ -7289,12 +7134,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7323,8 +7165,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hFuncSet",
@@ -7345,7 +7188,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7359,12 +7202,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7390,8 +7230,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pKeyIdentifier",
@@ -7414,13 +7255,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7442,11 +7279,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HCERTSTORE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"dwMsgAndCertEncodingType",
@@ -7508,12 +7343,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7542,8 +7374,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hFuncSet",
@@ -7565,28 +7398,19 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7614,8 +7438,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -7633,18 +7458,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ALG_ID"
+						"_t": "_ref",
+						"name": "ALG_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7682,8 +7503,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -7701,12 +7523,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7751,8 +7570,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwszCNGHashAlgid",
@@ -7774,12 +7594,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_HASH_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7841,8 +7662,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pHashPara",
@@ -7862,18 +7684,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ALG_ID"
+						"_t": "_ref",
+						"name": "ALG_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7881,16 +7699,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7911,8 +7729,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -7930,18 +7749,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -7974,8 +7789,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -7994,12 +7810,12 @@
 					{
 						"_t": "_ref",
 						"name": "CRYPT_PKCS8_IMPORT_PARAMS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_KEY_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_KEY_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8022,8 +7838,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sPrivateKeyAndParams",
@@ -8047,16 +7864,16 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8073,8 +7890,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -8098,22 +7916,22 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ALG_ID"
+						"_t": "_ref",
+						"name": "ALG_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8141,8 +7959,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -8160,22 +7979,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_IMPORT_PUBLIC_KEY_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_IMPORT_PUBLIC_KEY_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8187,17 +8006,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "BCRYPT_KEY_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCertEncodingType",
@@ -8213,12 +8031,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8253,9 +8068,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_DEFAULT_CONTEXT_TYPE"
+						"_t": "_ref",
+						"name": "CRYPT_DEFAULT_CONTEXT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8265,9 +8080,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_DEFAULT_CONTEXT_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_DEFAULT_CONTEXT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8288,8 +8103,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -8306,12 +8122,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMODULE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8319,12 +8132,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8336,7 +8146,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_OID_FUNC_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -8347,8 +8157,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hModule",
@@ -8460,12 +8271,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8501,8 +8309,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptMsg"
@@ -8539,8 +8348,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptMsg",
@@ -8576,14 +8386,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CMSG_SIGNER_ENCODE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptMsg",
@@ -8625,7 +8436,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CMSG_SIGNER_ENCODE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -8647,8 +8458,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -8699,7 +8511,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CTL_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8707,7 +8519,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CMSG_SIGNED_ENCODE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8733,8 +8545,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwMsgEncodingType",
@@ -8765,11 +8578,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HCERTSTORE",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -8785,7 +8596,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -8799,8 +8610,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptMsg",
@@ -8850,8 +8662,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptMsg",
@@ -8882,20 +8695,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8903,7 +8712,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CMSG_STREAM_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8939,9 +8748,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_MSG_TYPE"
+						"_t": "_ref",
+						"name": "CRYPT_MSG_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8951,19 +8760,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CMSG_STREAM_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9011,7 +8817,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CMSG_SIGNED_ENCODE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9037,8 +8843,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwMsgEncodingType",
@@ -9076,13 +8883,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptMsg",
@@ -9097,13 +8906,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9141,13 +8946,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -9165,13 +8971,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9230,8 +9032,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -9256,23 +9059,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9287,7 +9087,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPTPROTECT_PROMPTSTRUCT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9300,13 +9100,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDataIn",
@@ -9342,8 +9143,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDataIn",
@@ -9357,9 +9159,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_OBJECT_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_OBJECT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9369,14 +9171,14 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_CONTENT_TYPE_FLAGS"
+						"_t": "_ref",
+						"name": "CERT_QUERY_CONTENT_TYPE_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_FORMAT_TYPE_FLAGS"
+						"_t": "_ref",
+						"name": "CERT_QUERY_FORMAT_TYPE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -9386,35 +9188,33 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CERT_QUERY_ENCODING_TYPE"
+							"_t": "_ref",
+							"name": "CERT_QUERY_ENCODING_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CERT_QUERY_CONTENT_TYPE"
+							"_t": "_ref",
+							"name": "CERT_QUERY_CONTENT_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CERT_QUERY_FORMAT_TYPE"
+							"_t": "_ref",
+							"name": "CERT_QUERY_FORMAT_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HCERTSTORE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9439,8 +9239,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwObjectType",
@@ -9467,12 +9268,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9480,17 +9278,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -9510,41 +9306,30 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -9564,7 +9349,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_OID_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9574,8 +9359,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pInfo",
@@ -9588,12 +9374,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9606,19 +9389,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_TIMESTAMP_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9641,7 +9421,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRYPT_TIMESTAMP_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -9652,24 +9432,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HCERTSTORE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"wszUrl",
@@ -9694,13 +9473,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SIP_ADD_NEWPROVIDER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psNewProv"
@@ -9728,13 +9508,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SIP_DISPATCH_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pgSubject",
@@ -9756,8 +9537,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pgProv"
@@ -9769,20 +9551,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9793,8 +9569,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileName",
@@ -9808,20 +9585,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9832,8 +9603,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileName",
@@ -9847,20 +9619,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTASYNC",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9875,12 +9641,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -9902,8 +9665,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hAsync",
@@ -9922,7 +9686,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9936,12 +9700,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9959,8 +9720,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pKeyIdentifier",
@@ -9982,33 +9744,24 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "REG_VALUE_TYPE"
+						"_t": "_ref",
+						"name": "REG_VALUE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10025,8 +9778,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -10044,31 +9798,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_OR_NCRYPT_KEY_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_KEY_SPEC"
+						"_t": "_ref",
+						"name": "CERT_KEY_SPEC",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10082,7 +9829,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_ALGORITHM_IDENTIFIER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10110,8 +9857,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProvOrNCryptKey",
@@ -10135,7 +9883,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_SIGN_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10143,7 +9891,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_ENCRYPT_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10158,7 +9906,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -10194,8 +9942,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSignPara",
@@ -10214,13 +9963,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_OR_NCRYPT_KEY_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10228,9 +9973,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10250,7 +9995,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_ALGORITHM_IDENTIFIER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10278,8 +10023,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProvOrNCryptKey",
@@ -10303,12 +10049,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_SIGN_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -10354,8 +10101,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSignPara",
@@ -10377,7 +10125,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_KEY_SIGN_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10411,8 +10159,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSignPara",
@@ -10442,9 +10191,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_STRING"
+						"_t": "_ref",
+						"name": "CRYPT_STRING",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10480,8 +10229,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszString",
@@ -10513,9 +10263,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_STRING"
+						"_t": "_ref",
+						"name": "CRYPT_STRING",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10551,8 +10301,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszString",
@@ -10590,8 +10341,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDefaultContext",
@@ -10609,18 +10361,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10628,7 +10377,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10643,7 +10392,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPTPROTECT_PROMPTSTRUCT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10656,13 +10405,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDataIn",
@@ -10698,8 +10448,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDataIn",
@@ -10718,25 +10469,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -10755,25 +10501,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwEncodingType",
@@ -10791,13 +10532,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_OID_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pInfo"
@@ -10809,19 +10551,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10846,8 +10583,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pOldSid",
@@ -10863,18 +10601,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10894,13 +10628,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -10916,30 +10651,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_LEGACY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_QUERY_ENCODING_TYPE"
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "CERT_QUERY_ENCODING_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -10956,7 +10675,19 @@
 					{
 						"_t": "int",
 						"signed": false,
-						"label": "CRYPT_VERIFY_CERT_FLAGS"
+						"label": "UInt32"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "bot",
+							"label": "Void"
+						}
+					},
+					{
+						"_t": "_ref",
+						"name": "CRYPT_VERIFY_CERT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10967,8 +10698,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptProv",
@@ -10991,7 +10723,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_HASH_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11051,8 +10783,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pHashPara",
@@ -11075,7 +10808,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_VERIFY_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11129,14 +10862,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVerifyPara",
@@ -11159,7 +10893,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_HASH_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11209,8 +10943,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pHashPara",
@@ -11232,7 +10967,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_VERIFY_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11276,14 +11011,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVerifyPara",
@@ -11305,7 +11041,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_KEY_VERIFY_MESSAGE_PARA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11313,7 +11049,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_PUBLIC_KEY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11347,8 +11083,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVerifyPara",
@@ -11391,11 +11128,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11404,7 +11139,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRYPT_TIMESTAMP_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -11415,24 +11150,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HCERTSTORE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbTSContentInfo",
@@ -11451,27 +11185,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11480,8 +11209,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hStore",
@@ -11496,27 +11226,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "HCERTSTORE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -11532,8 +11257,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hStore",
@@ -11553,29 +11279,24 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_KEY_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_KEY_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "bot",
-						"label": "Void"
-					}
+					"_t": "_ref",
+					"name": "HCERTSTORE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pPFX",
@@ -11593,13 +11314,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPFX"
@@ -11615,16 +11337,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_INTEGER_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11633,8 +11352,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPFX",

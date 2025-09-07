@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -31,9 +32,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ref",
@@ -62,9 +63,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -93,9 +94,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -142,9 +143,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"function",
@@ -167,9 +168,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime"
@@ -215,9 +216,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"function",
@@ -250,9 +251,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -283,9 +284,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -316,9 +317,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -349,9 +350,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -380,9 +381,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"length",
@@ -402,8 +403,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IDebugApplication32"
+						"_t": "_ref",
+						"name": "IDebugApplication32",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -417,9 +419,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime",
@@ -451,9 +453,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -506,9 +508,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"data",
@@ -596,9 +598,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"nativeFunction",
@@ -623,9 +625,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object"
@@ -655,9 +657,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -688,9 +690,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -703,14 +705,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "JsRuntimeAttributes"
+						"_t": "_ref",
+						"name": "JsRuntimeAttributes",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "JsRuntimeVersion"
+						"_t": "_ref",
+						"name": "JsRuntimeVersion",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -770,9 +772,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"attributes",
@@ -805,9 +807,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -838,9 +840,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -871,9 +873,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -916,9 +918,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -948,9 +950,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -993,9 +995,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1018,9 +1020,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime"
@@ -1040,9 +1042,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime"
@@ -1068,9 +1070,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"doubleValue",
@@ -1091,9 +1093,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime"
@@ -1107,15 +1109,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IActiveScriptProfilerHeapEnum"
+							"_t": "_ref",
+							"name": "IActiveScriptProfilerHeapEnum",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"enumerator"
@@ -1150,9 +1153,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object1",
@@ -1177,9 +1180,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"exception"
@@ -1202,9 +1205,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"currentContext"
@@ -1232,9 +1235,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1265,9 +1268,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1291,9 +1294,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"falseValue"
@@ -1316,9 +1319,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"globalObject"
@@ -1355,9 +1358,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1382,9 +1385,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"nullValue"
@@ -1421,9 +1424,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1455,9 +1458,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1495,9 +1498,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1511,12 +1514,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1530,9 +1530,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"name",
@@ -1564,9 +1564,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propertyId",
@@ -1597,9 +1597,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1630,9 +1630,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"context",
@@ -1665,9 +1665,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime",
@@ -1700,9 +1700,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime",
@@ -1730,9 +1730,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"stringValue",
@@ -1756,9 +1756,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"trueValue"
@@ -1781,9 +1781,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"undefinedValue"
@@ -1804,16 +1804,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "JsValueType"
+							"_t": "_ref",
+							"name": "JsValueType",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -1835,9 +1835,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hasException"
@@ -1865,9 +1865,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1903,9 +1903,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1942,9 +1942,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -1967,9 +1967,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"nextIdleTick"
@@ -1996,9 +1996,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"intValue",
@@ -2020,9 +2020,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"isEnumeratingHeap"
@@ -2050,9 +2050,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime",
@@ -2079,9 +2079,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -2094,12 +2094,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2111,12 +2108,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2130,9 +2124,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"script",
@@ -2147,12 +2141,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2172,12 +2163,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2191,9 +2179,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"script",
@@ -2238,9 +2226,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"stringValue",
@@ -2262,9 +2250,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object"
@@ -2292,9 +2280,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ref",
@@ -2307,12 +2295,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2324,12 +2309,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2343,9 +2325,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"script",
@@ -2360,12 +2342,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2385,12 +2364,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2404,9 +2380,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"script",
@@ -2422,12 +2398,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2448,9 +2421,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"script",
@@ -2472,9 +2445,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"context"
@@ -2494,9 +2467,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"exception"
@@ -2523,9 +2496,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -2560,9 +2533,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -2603,9 +2576,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -2635,9 +2608,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -2687,9 +2660,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime",
@@ -2729,9 +2702,9 @@
 									}
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "JsMemoryEventType"
+									"_t": "_ref",
+									"name": "JsMemoryEventType",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -2757,9 +2730,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime",
@@ -2790,9 +2763,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"runtime",
@@ -2805,14 +2778,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDebugApplication32"
+						"_t": "_ref",
+						"name": "IDebugApplication32",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"debugApplication"
@@ -2824,13 +2798,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IActiveScriptProfilerCallback"
+						"_t": "_ref",
+						"name": "IActiveScriptProfilerCallback",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PROFILER_EVENT_MASK"
+						"_t": "_ref",
+						"name": "PROFILER_EVENT_MASK",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2839,9 +2814,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"callback",
@@ -2855,14 +2830,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reason"
@@ -2897,9 +2873,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object1",
@@ -2944,9 +2920,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"value",
@@ -2971,14 +2947,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"object",
@@ -2995,7 +2971,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3010,9 +2986,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "JsErrorCode"
+					"_t": "_ref",
+					"name": "JsErrorCode",
+					"ot": "int"
 				},
 				"arg_names": [
 					"variant",

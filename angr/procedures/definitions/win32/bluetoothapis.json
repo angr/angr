@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,21 +16,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRadio",
@@ -42,21 +42,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRadio",
@@ -69,19 +68,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -119,17 +115,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HBLUETOOTH_DEVICE_FIND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hFind"
@@ -145,7 +139,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_SEARCH_PARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -153,17 +147,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HBLUETOOTH_DEVICE_FIND",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pbtsp",
@@ -180,28 +171,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_FIND_RADIO_PARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HBLUETOOTH_RADIO_FIND",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pbtfrp",
@@ -214,25 +199,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HBLUETOOTH_DEVICE_FIND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hFind",
@@ -245,28 +228,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HBLUETOOTH_RADIO_FIND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hFind",
@@ -279,17 +257,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HBLUETOOTH_RADIO_FIND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hFind"
@@ -301,12 +277,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -320,8 +293,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -335,12 +309,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -357,8 +328,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -372,12 +344,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -391,8 +360,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -406,19 +376,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_CHARACTERISTIC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -431,7 +398,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_CHARACTERISTIC_VALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -449,8 +416,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -467,19 +435,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_SERVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -492,7 +457,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_CHARACTERISTIC",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -511,8 +476,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -529,19 +495,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -554,7 +517,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_DESCRIPTOR_VALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -572,8 +535,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -590,19 +554,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_CHARACTERISTIC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -615,7 +576,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -634,8 +595,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -652,19 +614,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_SERVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -677,7 +636,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_SERVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -696,8 +655,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -714,12 +674,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -731,7 +688,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_SERVICE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -750,8 +707,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -767,17 +725,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "BTH_LE_GATT_EVENT_TYPE"
+						"_t": "_ref",
+						"name": "BTH_LE_GATT_EVENT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -792,9 +747,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "BTH_LE_GATT_EVENT_TYPE"
+									"_t": "_ref",
+									"name": "BTH_LE_GATT_EVENT_TYPE",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -847,8 +802,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hService",
@@ -866,19 +822,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_CHARACTERISTIC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -886,7 +839,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_CHARACTERISTIC_VALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -901,8 +854,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -918,19 +872,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -938,7 +889,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BTH_LE_GATT_DESCRIPTOR_VALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -948,8 +899,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hDevice",
@@ -978,8 +930,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EventHandle",
@@ -992,19 +945,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1024,19 +974,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_RADIO_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1056,17 +1003,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRadio"
@@ -1078,17 +1023,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRadio"
@@ -1111,8 +1054,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"MajorVersion",
@@ -1129,7 +1073,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1160,13 +1104,14 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "BLUETOOTH_DEVICE_INFO",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pvParam",
@@ -1204,7 +1149,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1235,13 +1180,14 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "BLUETOOTH_AUTHENTICATION_CALLBACK_PARAMS",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pvParam",
@@ -1279,7 +1225,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1342,8 +1288,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"uAttribId",
@@ -1362,8 +1309,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSDPStream",
@@ -1400,7 +1348,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SDP_ELEMENT_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1450,7 +1398,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SDP_ELEMENT_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1489,7 +1437,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SDP_ELEMENT_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1527,7 +1475,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SDP_STRING_TYPE_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1573,28 +1521,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1614,19 +1556,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_AUTHENTICATE_RESPONSE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1646,12 +1585,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1670,7 +1606,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_LOCAL_SERVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1692,19 +1628,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1747,8 +1680,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hRegHandle"
@@ -1764,7 +1698,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLUETOOTH_DEVICE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

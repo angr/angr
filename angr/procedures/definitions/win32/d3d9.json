@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -20,12 +21,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -66,8 +64,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -82,12 +81,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -129,12 +125,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -158,8 +151,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "bot",
-					"label": "IDirect3D9"
+					"_t": "_ref",
+					"name": "IDirect3D9",
+					"ot": "bot"
 				},
 				"arg_names": [
 					"SDKVersion"
@@ -178,14 +172,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDirect3D9Ex"
+							"_t": "_ref",
+							"name": "IDirect3D9Ex",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SDKVersion",
@@ -207,7 +203,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D9ON12_ARGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -217,8 +213,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "bot",
-					"label": "IDirect3D9"
+					"_t": "_ref",
+					"name": "IDirect3D9",
+					"ot": "bot"
 				},
 				"arg_names": [
 					"SDKVersion",
@@ -241,7 +238,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D9ON12_ARGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -252,14 +249,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDirect3D9Ex"
+							"_t": "_ref",
+							"name": "IDirect3D9Ex",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SDKVersion",

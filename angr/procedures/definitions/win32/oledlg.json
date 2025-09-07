@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,24 +16,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IOleObject"
+						"_t": "_ref",
+						"name": "IOleObject",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMENU",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -50,8 +46,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -61,18 +58,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpOleObj",
@@ -92,24 +87,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IOleObject"
+						"_t": "_ref",
+						"name": "IOleObject",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMENU",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -127,8 +117,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -138,18 +129,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMENU",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpOleObj",
@@ -173,7 +162,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIBUSYA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -196,7 +185,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIBUSYW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -222,8 +211,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "short",
@@ -232,8 +222,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rClsid",
@@ -251,7 +242,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUICHANGEICONA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -274,7 +265,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUICHANGEICONW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -297,7 +288,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUICHANGESOURCEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -320,7 +311,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUICHANGESOURCEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -343,7 +334,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUICONVERTA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -366,7 +357,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUICONVERTW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -389,7 +380,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIEDITLINKSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -412,7 +403,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIEDITLINKSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -435,7 +426,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIINSERTOBJECTA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -458,7 +449,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIINSERTOBJECTW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -481,7 +472,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIOBJECTPROPSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -504,7 +495,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIOBJECTPROPSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -527,7 +518,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIPASTESPECIALA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -550,7 +541,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OLEUIPASTESPECIALW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -573,12 +564,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -600,12 +588,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -623,24 +608,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IOleUILinkContainerA"
+						"_t": "_ref",
+						"name": "IOleUILinkContainerA",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -648,8 +628,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpOleUILinkCntr",
@@ -664,24 +645,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IOleUILinkContainerW"
+						"_t": "_ref",
+						"name": "IOleUILinkContainerW",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -689,8 +665,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpOleUILinkCntr",

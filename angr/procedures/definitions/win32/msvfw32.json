@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -23,12 +24,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -43,7 +41,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -61,8 +59,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd",
@@ -101,14 +100,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PALETTEENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd",
@@ -132,8 +132,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd"
@@ -153,12 +154,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -181,7 +179,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -214,8 +212,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd",
@@ -248,8 +247,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd"
@@ -273,7 +273,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -316,12 +316,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HPALETTE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hdd"
@@ -352,17 +349,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"lpbi"
@@ -382,16 +376,14 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -419,17 +411,15 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HPALETTE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd",
@@ -456,8 +446,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd",
@@ -479,8 +470,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd"
@@ -504,13 +496,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DRAWDIBTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdd",
@@ -527,13 +520,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENFILENAMEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpofn"
@@ -549,13 +543,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENFILENAMEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpofn"
@@ -571,13 +566,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENFILENAMEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpofn"
@@ -593,13 +589,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENFILENAMEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpofn"
@@ -611,21 +608,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hic"
@@ -637,12 +628,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -654,7 +642,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -669,7 +657,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -714,7 +702,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -752,12 +740,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -783,21 +768,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPVARS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwnd",
@@ -818,7 +801,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPVARS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -836,12 +819,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -853,7 +833,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -868,7 +848,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -899,12 +879,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -955,12 +932,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -968,28 +942,19 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HPALETTE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1012,7 +977,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1072,19 +1037,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1092,7 +1054,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1109,12 +1071,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HIC",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hic",
@@ -1131,19 +1090,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ICINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1153,12 +1109,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hic",
@@ -1172,12 +1125,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1189,7 +1139,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1204,7 +1154,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1220,12 +1170,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hic",
@@ -1243,12 +1190,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1260,7 +1204,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1275,17 +1219,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hic",
@@ -1315,13 +1256,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ICINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fccType",
@@ -1345,20 +1287,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1367,8 +1303,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fccType",
@@ -1398,7 +1335,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1406,7 +1343,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFOHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1416,12 +1353,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HIC",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"fccType",
@@ -1453,12 +1387,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HIC",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"fccType",
@@ -1504,12 +1435,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HIC",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"fccType",
@@ -1540,8 +1468,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fccType",
@@ -1555,12 +1484,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HIC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1587,12 +1513,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hic",
@@ -1611,7 +1534,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPVARS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1629,8 +1552,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1666,7 +1590,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPVARS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1688,7 +1612,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPVARS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1696,13 +1620,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BITMAPINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pc",
@@ -1715,20 +1640,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1736,21 +1655,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HWND",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -1765,20 +1678,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1786,21 +1693,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HWND",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hwndParent",
@@ -1815,8 +1716,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": []
 			}

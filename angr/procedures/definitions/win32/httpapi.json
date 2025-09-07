@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,27 +16,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_DATA_CHUNK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -43,7 +38,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_CACHE_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -51,7 +46,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -74,20 +69,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -119,12 +108,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -155,12 +141,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -172,7 +155,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -193,12 +176,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -258,12 +238,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -290,22 +267,19 @@
 					{
 						"_t": "_ref",
 						"name": "HTTPAPI_VERSION",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SECURITY_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -316,12 +290,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -346,7 +317,7 @@
 					{
 						"_t": "_ref",
 						"name": "HTTPAPI_VERSION",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -414,12 +385,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -427,32 +395,26 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_VERB"
+						"_t": "_ref",
+						"name": "HTTP_VERB",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_REQUEST_HEADERS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -476,20 +438,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -511,7 +467,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_DELEGATE_REQUEST_PROPERTY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -535,17 +491,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVICE_CONFIG_ID"
+						"_t": "_ref",
+						"name": "HTTP_SERVICE_CONFIG_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -564,7 +517,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -587,20 +540,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -628,20 +575,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -653,7 +594,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -677,7 +618,7 @@
 					{
 						"_t": "_ref",
 						"name": "HTTPAPI_VERSION",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -717,12 +658,12 @@
 					{
 						"_t": "_ref",
 						"name": "HTTPAPI_VERSION",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_INITIALIZE"
+						"_t": "_ref",
+						"name": "HTTP_INITIALIZE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -749,14 +690,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_FEATURE_ID"
+						"_t": "_ref",
+						"name": "HTTP_FEATURE_ID",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FeatureId"
@@ -780,22 +722,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -817,17 +753,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVER_PROPERTY"
+						"_t": "_ref",
+						"name": "HTTP_SERVER_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -888,9 +821,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVER_PROPERTY"
+						"_t": "_ref",
+						"name": "HTTP_SERVER_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -932,17 +865,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVICE_CONFIG_ID"
+						"_t": "_ref",
+						"name": "HTTP_SERVICE_CONFIG_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -981,7 +911,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1012,9 +942,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVER_PROPERTY"
+						"_t": "_ref",
+						"name": "HTTP_SERVER_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1056,27 +986,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_BYTE_RANGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1104,7 +1028,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1129,12 +1053,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1151,7 +1072,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_SSL_CLIENT_CERT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1172,7 +1093,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1197,12 +1118,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1210,16 +1128,16 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_RECEIVE_HTTP_REQUEST_FLAGS"
+						"_t": "_ref",
+						"name": "HTTP_RECEIVE_HTTP_REQUEST_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_REQUEST_V2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1240,7 +1158,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1265,12 +1183,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1307,7 +1222,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1332,20 +1247,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1369,12 +1278,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1399,12 +1305,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1421,7 +1324,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_RESPONSE_V2",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1429,7 +1332,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_CACHE_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1457,7 +1360,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1465,7 +1368,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_LOG_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1493,12 +1396,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1520,7 +1420,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_DATA_CHUNK",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1549,7 +1449,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1557,7 +1457,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_LOG_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1585,12 +1485,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1598,9 +1495,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_REQUEST_PROPERTY"
+						"_t": "_ref",
+						"name": "HTTP_REQUEST_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1619,7 +1516,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1643,17 +1540,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVER_PROPERTY"
+						"_t": "_ref",
+						"name": "HTTP_SERVER_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1705,9 +1599,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVER_PROPERTY"
+						"_t": "_ref",
+						"name": "HTTP_SERVER_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1740,17 +1634,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVICE_CONFIG_ID"
+						"_t": "_ref",
+						"name": "HTTP_SERVICE_CONFIG_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1769,7 +1660,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1797,9 +1688,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVER_PROPERTY"
+						"_t": "_ref",
+						"name": "HTTP_SERVER_PROPERTY",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1832,12 +1723,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1855,9 +1743,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_INITIALIZE"
+						"_t": "_ref",
+						"name": "HTTP_INITIALIZE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1883,17 +1771,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "HTTP_SERVICE_CONFIG_ID"
+						"_t": "_ref",
+						"name": "HTTP_SERVICE_CONFIG_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1912,7 +1797,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1935,19 +1820,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1967,12 +1849,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1984,7 +1863,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2005,12 +1884,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -2027,7 +1903,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

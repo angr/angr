@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,18 +16,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle"
@@ -38,18 +36,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"KeyHandle"
@@ -63,19 +58,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ORHKEY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"HORKey"
@@ -87,28 +79,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -116,21 +99,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ORHKEY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -143,9 +121,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"KeyHandle",
@@ -163,26 +141,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -195,26 +167,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -227,12 +193,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -278,14 +241,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -303,12 +266,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -358,9 +318,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -378,12 +338,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -391,11 +348,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -407,9 +362,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -424,28 +379,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -472,9 +418,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -508,9 +454,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdwMajorVersion",
@@ -523,12 +469,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -540,9 +483,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -557,12 +500,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ORHKEY",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -574,19 +514,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ORHKEY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"HiveHandles",
@@ -600,29 +537,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ORHKEY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FilePath",
@@ -635,29 +566,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ORHKEY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -670,37 +595,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ORHKEY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -714,12 +630,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -799,14 +712,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -828,26 +741,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -860,20 +767,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -887,9 +788,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"HORKey",
@@ -904,12 +805,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -917,17 +815,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -941,20 +837,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -976,9 +866,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -994,12 +884,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "ORHKEY",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1008,9 +895,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -1023,9 +910,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1035,9 +922,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": []
 			}

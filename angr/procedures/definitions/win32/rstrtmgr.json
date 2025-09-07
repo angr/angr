@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -20,39 +21,33 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RM_UNIQUE_PROCESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RM_FILTER_ACTION"
+						"_t": "_ref",
+						"name": "RM_FILTER_ACTION",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle",
@@ -74,9 +69,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle"
@@ -94,9 +89,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle"
@@ -135,9 +130,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle",
@@ -177,7 +172,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RM_PROCESS_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -191,9 +186,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle",
@@ -217,18 +212,15 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSessionHandle",
@@ -253,12 +245,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -272,7 +261,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RM_UNIQUE_PROCESS",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -284,20 +273,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle",
@@ -320,34 +306,28 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RM_UNIQUE_PROCESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle",
@@ -393,9 +373,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle",
@@ -440,9 +420,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwSessionHandle",
@@ -469,18 +449,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSessionHandle",

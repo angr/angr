@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,13 +16,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SecStatus"
@@ -37,7 +40,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -49,18 +52,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SID_NAME_USE"
+							"_t": "_ref",
+							"name": "SID_NAME_USE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -76,13 +77,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Name",
@@ -99,10 +101,24 @@
 				"_t": "func",
 				"args": [
 					{
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
+					},
+					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "UNICODE_STRING",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -118,37 +134,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt32"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
-							"name": "UNICODE_STRING",
-							"ot": "struct"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SID_NAME_USE"
+							"name": "SID_NAME_USE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Sid",
@@ -165,16 +166,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WELL_KNOWN_SID_TYPE"
+						"_t": "_ref",
+						"name": "WELL_KNOWN_SID_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -191,8 +190,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SidType",
@@ -211,7 +211,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -219,7 +219,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -227,7 +227,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -240,7 +240,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -248,7 +248,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -260,14 +260,15 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ServiceClass",
@@ -290,7 +291,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -298,7 +299,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -306,7 +307,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -319,7 +320,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -327,7 +328,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -335,7 +336,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -347,14 +348,15 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ServiceClass",
@@ -378,7 +380,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -386,7 +388,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -394,7 +396,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -407,7 +409,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -415,7 +417,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -423,7 +425,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -435,19 +437,20 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ServiceClass",
@@ -470,12 +473,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -483,7 +483,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -491,7 +491,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -499,7 +499,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -517,7 +517,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -525,7 +525,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -545,8 +545,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AsyncContext",
@@ -569,29 +570,20 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -649,8 +641,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"label": "Int32"
+										"_t": "_ref",
+										"name": "HRESULT",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -679,7 +672,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -691,8 +684,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AsyncContext",
@@ -715,12 +709,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -728,7 +719,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -736,7 +727,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -795,8 +786,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"label": "Int32"
+										"_t": "_ref",
+										"name": "HRESULT",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -825,7 +817,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -837,8 +829,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AsyncContext",
@@ -861,12 +854,9 @@
 				"returnty": {
 					"_t": "ptr",
 					"pts_to": {
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "SspiAsyncContext",
+						"ot": "_ref"
 					}
 				},
 				"arg_names": []
@@ -879,12 +869,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -892,13 +879,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AsyncContext",
@@ -913,12 +901,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -938,12 +923,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -951,13 +933,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AsyncContext",
@@ -972,18 +955,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle"
@@ -997,12 +978,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1010,7 +988,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1018,16 +996,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1049,7 +1024,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1062,7 +1037,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1070,7 +1045,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1090,8 +1065,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AsyncContext",
@@ -1117,12 +1093,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1130,7 +1103,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1138,7 +1111,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1146,7 +1119,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1169,7 +1142,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1182,7 +1155,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1190,7 +1163,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1210,8 +1183,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AsyncContext",
@@ -1237,18 +1211,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle"
@@ -1262,12 +1234,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "SspiAsyncContext",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1278,12 +1247,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "SspiAsyncContext",
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1313,8 +1279,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Context",

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,8 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -37,8 +39,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"d3dDevice",
@@ -52,25 +55,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDCompositionVisual"
+						"_t": "_ref",
+						"name": "IDCompositionVisual",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"visual",
@@ -84,25 +87,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDCompositionVisual"
+						"_t": "_ref",
+						"name": "IDCompositionVisual",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"visual",
@@ -116,13 +119,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"enable"
@@ -134,8 +139,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDXGIDevice"
+						"_t": "_ref",
+						"name": "IDXGIDevice",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -156,8 +162,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dxgiDevice",
@@ -171,8 +178,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -193,8 +201,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"renderingDevice",
@@ -208,8 +217,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -230,8 +240,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"renderingDevice",
@@ -254,24 +265,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SECURITY_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"desiredAccess",
@@ -285,9 +294,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COMPOSITION_FRAME_ID_TYPE"
+						"_t": "_ref",
+						"name": "COMPOSITION_FRAME_ID_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -299,8 +308,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"frameIdType",
@@ -322,7 +332,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPOSITION_FRAME_STATS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -335,7 +345,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPOSITION_TARGET_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -348,8 +358,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"frameId",
@@ -374,7 +385,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPOSITION_TARGET_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -382,13 +393,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPOSITION_TARGET_STATS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"frameId",
@@ -409,12 +421,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},

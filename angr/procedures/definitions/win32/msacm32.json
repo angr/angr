@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -17,29 +18,20 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACMDRIVERID",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -73,29 +65,20 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACMDRIVERID",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -127,12 +110,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -156,19 +136,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVERID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMDRIVERDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -194,19 +171,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVERID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMDRIVERDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -237,12 +211,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -260,8 +231,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -302,22 +274,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMOBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACMDRIVERID",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -343,12 +309,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -356,29 +319,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"had",
@@ -395,21 +349,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACMDRIVER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVERID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -434,12 +382,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVERID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -469,12 +414,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVERID",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -502,7 +444,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERCHOOSEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -525,7 +467,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERCHOOSEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -544,19 +486,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -582,19 +521,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -620,19 +556,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -641,19 +574,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "ACMFILTERDETAILSA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -672,8 +602,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -717,19 +648,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -738,19 +666,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "ACMFILTERDETAILSW",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -769,8 +694,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -814,19 +740,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERTAGDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -852,19 +775,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERTAGDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -890,19 +810,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERTAGDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -911,19 +828,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "ACMFILTERTAGDETAILSA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -942,8 +856,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -987,19 +902,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFILTERTAGDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1008,19 +920,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "ACMFILTERTAGDETAILSW",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1039,8 +948,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -1088,7 +998,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFORMATCHOOSEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1111,7 +1021,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFORMATCHOOSEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1130,19 +1040,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFORMATDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1168,19 +1075,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "tACMFORMATDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1206,19 +1110,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFORMATDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1227,19 +1128,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "ACMFORMATDETAILSA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1258,8 +1156,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -1303,19 +1202,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "tACMFORMATDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1324,19 +1220,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "tACMFORMATDETAILSW",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1355,8 +1248,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -1400,19 +1294,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFORMATEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1420,7 +1311,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFORMATEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1453,19 +1344,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFORMATTAGDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1491,19 +1379,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFORMATTAGDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1529,19 +1414,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFORMATTAGDETAILSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1550,19 +1432,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "ACMFORMATTAGDETAILSA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1581,8 +1460,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -1626,19 +1506,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMFORMATTAGDETAILSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1647,19 +1524,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HACMDRIVERID",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "ACMFORMATTAGDETAILSW",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1678,8 +1552,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hadid",
@@ -1735,12 +1610,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMOBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1772,12 +1644,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMSTREAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1801,19 +1670,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMSTREAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMSTREAMHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1839,12 +1705,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMSTREAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1852,20 +1715,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1888,28 +1745,22 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HACMSTREAM",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMDRIVER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFORMATEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1917,7 +1768,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFORMATEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1925,7 +1776,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFILTER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1974,19 +1825,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMSTREAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMSTREAMHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2012,12 +1860,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMSTREAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2041,12 +1886,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMSTREAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2085,19 +1927,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HACMSTREAM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ACMSTREAMHEADER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{

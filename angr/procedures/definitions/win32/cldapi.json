@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,12 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -37,19 +35,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_CALLBACK_REGISTRATION",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -61,21 +56,23 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_CONNECT_FLAGS"
+						"_t": "_ref",
+						"name": "CF_CONNECT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "llong",
-							"label": "Int64"
+							"_t": "_ref",
+							"name": "CF_CONNECTION_KEY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SyncRootPath",
@@ -91,12 +88,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -111,9 +105,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_CONVERT_FLAGS"
+						"_t": "_ref",
+						"name": "CF_CONVERT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -127,13 +121,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -150,19 +145,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_PLACEHOLDER_CREATE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -172,9 +164,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_CREATE_FLAGS"
+						"_t": "_ref",
+						"name": "CF_CREATE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -186,8 +178,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BaseDirectoryPath",
@@ -203,12 +196,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -219,22 +209,23 @@
 						"label": "Int64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_DEHYDRATE_FLAGS"
+						"_t": "_ref",
+						"name": "CF_DEHYDRATE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -250,13 +241,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "llong",
-						"label": "Int64"
+						"_t": "_ref",
+						"name": "CF_CONNECTION_KEY",
+						"ot": "llong"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ConnectionKey"
@@ -272,7 +265,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_OPERATION_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -280,13 +273,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_OPERATION_PARAMETERS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"OpInfo",
@@ -299,25 +293,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CORRELATION_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -330,17 +322,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_PLACEHOLDER_INFO_CLASS"
+						"_t": "_ref",
+						"name": "CF_PLACEHOLDER_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -364,8 +353,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -381,17 +371,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_PLACEHOLDER_RANGE_INFO_CLASS"
+						"_t": "_ref",
+						"name": "CF_PLACEHOLDER_RANGE_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -423,8 +410,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -442,8 +430,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "llong",
-						"label": "Int64"
+						"_t": "_ref",
+						"name": "CF_CONNECTION_KEY",
+						"ot": "llong"
 					},
 					{
 						"_t": "llong",
@@ -454,9 +443,9 @@
 						"label": "Int64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_PLACEHOLDER_RANGE_INFO_CLASS"
+						"_t": "_ref",
+						"name": "CF_PLACEHOLDER_RANGE_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -488,8 +477,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ConnectionKey",
@@ -520,9 +510,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CF_PLACEHOLDER_STATE"
+					"_t": "_ref",
+					"name": "CF_PLACEHOLDER_STATE",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileAttributes",
@@ -542,15 +532,15 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_INFO_BY_HANDLE_CLASS"
+						"_t": "_ref",
+						"name": "FILE_INFO_BY_HANDLE_CLASS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CF_PLACEHOLDER_STATE"
+					"_t": "_ref",
+					"name": "CF_PLACEHOLDER_STATE",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InfoBuffer",
@@ -567,14 +557,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WIN32_FIND_DATAA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "CF_PLACEHOLDER_STATE"
+					"_t": "_ref",
+					"name": "CF_PLACEHOLDER_STATE",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FindData"
@@ -590,13 +580,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_PLATFORM_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"PlatformVersion"
@@ -608,17 +599,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_SYNC_ROOT_INFO_CLASS"
+						"_t": "_ref",
+						"name": "CF_SYNC_ROOT_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -642,8 +630,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -659,17 +648,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_SYNC_ROOT_INFO_CLASS"
+						"_t": "_ref",
+						"name": "CF_SYNC_ROOT_INFO_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -693,8 +679,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FilePath",
@@ -710,12 +697,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -726,8 +710,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -740,21 +725,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"ProtectedHandle"
@@ -766,12 +745,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -782,22 +758,23 @@
 						"label": "Int64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_HYDRATE_FLAGS"
+						"_t": "_ref",
+						"name": "CF_HYDRATE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -813,33 +790,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_OPEN_FILE_FLAGS"
+						"_t": "_ref",
+						"name": "CF_OPEN_FILE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FilePath",
@@ -853,21 +825,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "llong",
-						"label": "Int64"
+						"_t": "_ref",
+						"name": "CF_CONNECTION_KEY",
+						"ot": "llong"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "CF_SYNC_PROVIDER_STATUS"
+							"_t": "_ref",
+							"name": "CF_SYNC_PROVIDER_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ConnectionKey",
@@ -880,18 +854,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"ProtectedHandle"
@@ -903,19 +874,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_SYNC_REGISTRATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -923,18 +891,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_SYNC_POLICIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_REGISTER_FLAGS"
+						"_t": "_ref",
+						"name": "CF_REGISTER_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SyncRootPath",
@@ -949,12 +918,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -971,12 +937,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1001,8 +964,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "llong",
-						"label": "Int64"
+						"_t": "_ref",
+						"name": "CF_CONNECTION_KEY",
+						"ot": "llong"
 					},
 					{
 						"_t": "llong",
@@ -1018,8 +982,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ConnectionKey",
@@ -1034,8 +999,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "llong",
-						"label": "Int64"
+						"_t": "_ref",
+						"name": "CF_CONNECTION_KEY",
+						"ot": "llong"
 					},
 					{
 						"_t": "llong",
@@ -1060,8 +1026,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ConnectionKey",
@@ -1078,25 +1045,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_SYNC_STATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SyncRootPath",
@@ -1109,30 +1074,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_REVERT_FLAGS"
+						"_t": "_ref",
+						"name": "CF_REVERT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -1146,25 +1109,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CORRELATION_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -1177,22 +1138,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_IN_SYNC_STATE"
+						"_t": "_ref",
+						"name": "CF_IN_SYNC_STATE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_SET_IN_SYNC_FLAGS"
+						"_t": "_ref",
+						"name": "CF_SET_IN_SYNC_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1203,8 +1161,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -1219,35 +1178,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_PIN_STATE"
+						"_t": "_ref",
+						"name": "CF_PIN_STATE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_SET_PIN_FLAGS"
+						"_t": "_ref",
+						"name": "CF_SET_PIN_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -1262,17 +1219,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SyncRootPath"
@@ -1284,19 +1239,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_FS_METADATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1316,7 +1268,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CF_FILE_RANGE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1326,9 +1278,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_UPDATE_FLAGS"
+						"_t": "_ref",
+						"name": "CF_UPDATE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1342,13 +1294,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle",
@@ -1368,18 +1321,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "llong",
-						"label": "Int64"
+						"_t": "_ref",
+						"name": "CF_CONNECTION_KEY",
+						"ot": "llong"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CF_SYNC_PROVIDER_STATUS"
+						"_t": "_ref",
+						"name": "CF_SYNC_PROVIDER_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ConnectionKey",

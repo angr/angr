@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,13 +16,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D_FEATURE_LEVEL"
+						"_t": "_ref",
+						"name": "D3D_FEATURE_LEVEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -42,8 +44,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAdapter",
@@ -92,8 +95,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcData",
@@ -142,8 +146,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcData",
@@ -189,8 +194,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NumFeatures",
@@ -223,8 +229,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -262,8 +269,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -281,32 +289,35 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D12_ROOT_SIGNATURE_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D_ROOT_SIGNATURE_VERSION"
+						"_t": "_ref",
+						"name": "D3D_ROOT_SIGNATURE_VERSION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pRootSignature",
@@ -325,27 +336,30 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D12_VERSIONED_ROOT_SIGNATURE_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pRootSignature",

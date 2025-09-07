@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,9 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_STATUS"
+						"_t": "_ref",
+						"name": "RPC_STATUS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -30,9 +31,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"RpcStatus",
@@ -45,9 +46,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_STATUS"
+						"_t": "_ref",
+						"name": "RPC_STATUS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -60,9 +61,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"RpcStatus",
@@ -75,8 +76,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
@@ -94,8 +96,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -116,8 +119,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"This",
@@ -131,8 +135,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
@@ -176,7 +181,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -186,9 +191,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsync",
@@ -205,7 +210,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -213,14 +218,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message",
@@ -251,9 +256,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceBinding",
@@ -266,28 +271,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -301,9 +297,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ServerName",
@@ -336,9 +332,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -362,7 +358,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -370,7 +366,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -378,14 +374,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -409,19 +405,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -443,19 +436,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -484,9 +474,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -516,19 +506,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -560,9 +547,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -590,9 +577,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -621,9 +608,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -652,9 +639,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -683,9 +670,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingHandle",
@@ -714,9 +701,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -751,9 +738,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hBinding",
@@ -786,9 +773,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -887,14 +874,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message"
@@ -910,14 +897,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message"
@@ -933,14 +920,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message"
@@ -956,7 +943,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -968,9 +955,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message",
@@ -1008,9 +995,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppSecurityDescriptor"
@@ -1022,9 +1009,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1045,7 +1032,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_TRANSFER_SYNTAX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1063,9 +1050,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"RpcIfHandle",
@@ -1080,9 +1067,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_STATUS"
+						"_t": "_ref",
+						"name": "RPC_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1099,9 +1086,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -1115,14 +1102,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message"
@@ -1146,18 +1133,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1183,18 +1167,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1225,14 +1206,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_SERVER_INTERFACE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1263,14 +1244,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_SERVER_INTERFACE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EntryNameSyntax",
@@ -1307,9 +1288,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1346,7 +1327,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1356,9 +1337,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message",
@@ -1375,7 +1356,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1385,9 +1366,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message",
@@ -1400,16 +1381,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_STATUS"
+						"_t": "_ref",
+						"name": "RPC_STATUS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RDR_CALLOUT_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1465,14 +1446,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message"
@@ -1488,14 +1469,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Message"
@@ -1515,9 +1496,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Context"
@@ -1556,9 +1537,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1634,9 +1615,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1682,9 +1663,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1708,9 +1689,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Type"
@@ -1740,7 +1721,7 @@
 										"pts_to": {
 											"_t": "_ref",
 											"name": "RPC_VERSION",
-											"ot": "struct"
+											"ot": "_ref"
 										}
 									},
 									{
@@ -1770,9 +1751,9 @@
 									}
 								],
 								"returnty": {
-									"_t": "int",
-									"signed": false,
-									"label": "RPC_STATUS"
+									"_t": "_ref",
+									"name": "RPC_STATUS",
+									"ot": "int"
 								},
 								"arg_names": [
 									"InterfaceId",
@@ -1786,9 +1767,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pForwardFunction"
@@ -1826,9 +1807,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAddressChangeFn"
@@ -1840,20 +1821,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1864,9 +1839,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -1895,9 +1870,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1932,9 +1907,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1960,9 +1935,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -1975,20 +1950,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2011,9 +1980,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NetworkAddress",
@@ -2029,20 +1998,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2065,9 +2028,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NetworkAddress",
@@ -2083,20 +2046,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2104,12 +2061,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2127,9 +2081,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NetworkAddress",
@@ -2146,20 +2100,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2167,12 +2115,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2190,9 +2135,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NetworkAddress",
@@ -2248,15 +2193,15 @@
 						"label": "Byte"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "LRPC_SYSTEM_HANDLE_MARSHAL_DIRECTION"
+						"_t": "_ref",
+						"name": "LRPC_SYSTEM_HANDLE_MARSHAL_DIRECTION",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -2271,9 +2216,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -2291,9 +2236,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Uuid"
@@ -2317,9 +2262,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MIDL_ES_CODE"
+						"_t": "_ref",
+						"name": "MIDL_ES_CODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2347,9 +2292,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -2366,12 +2311,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2390,9 +2332,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Buffer",
@@ -2467,9 +2409,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"UserState",
@@ -2513,9 +2455,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pBuffer",
@@ -2529,12 +2471,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2561,9 +2500,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pBuffer",
@@ -2640,12 +2579,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2676,9 +2612,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"UserState",
@@ -2701,9 +2637,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle"
@@ -2784,12 +2720,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -2852,15 +2785,15 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MIDL_ES_CODE"
+						"_t": "_ref",
+						"name": "MIDL_ES_CODE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -2888,7 +2821,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_SYNTAX_IDENTIFIER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2901,9 +2834,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Handle",
@@ -3023,7 +2956,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDR_SCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3083,7 +3016,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDR_SCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3158,7 +3091,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDR_SCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3225,7 +3158,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "NDR_SCONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -3275,7 +3208,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "NDR_SCONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -3316,7 +3249,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "NDR_SCONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -3335,7 +3268,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3388,7 +3321,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3410,7 +3343,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3432,7 +3365,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3481,19 +3414,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IRpcStubBuffer"
+						"_t": "_ref",
+						"name": "IRpcStubBuffer",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IRpcChannelBuffer"
+						"_t": "_ref",
+						"name": "IRpcChannelBuffer",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3526,7 +3461,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3561,7 +3496,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3609,7 +3544,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3631,7 +3566,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3671,7 +3606,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3711,7 +3646,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3755,7 +3690,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3808,7 +3743,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3847,7 +3782,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3895,7 +3830,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3948,7 +3883,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3984,7 +3919,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4026,7 +3961,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4034,7 +3969,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4042,7 +3977,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4072,7 +4007,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4080,7 +4015,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4088,7 +4023,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4118,7 +4053,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4158,7 +4093,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4198,7 +4133,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4242,7 +4177,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4274,7 +4209,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4327,7 +4262,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4367,7 +4302,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4407,7 +4342,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4451,7 +4386,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4483,7 +4418,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4536,7 +4471,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4576,7 +4511,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4616,7 +4551,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4660,7 +4595,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4692,7 +4627,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4745,7 +4680,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4785,7 +4720,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4829,7 +4764,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4861,7 +4796,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4914,7 +4849,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4954,7 +4889,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4994,7 +4929,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5038,7 +4973,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5070,7 +5005,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5123,7 +5058,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5163,7 +5098,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5203,7 +5138,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5247,7 +5182,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5279,7 +5214,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5332,7 +5267,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5372,7 +5307,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5412,7 +5347,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5456,7 +5391,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5488,7 +5423,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5541,7 +5476,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5558,7 +5493,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "NDR_SCONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -5576,7 +5511,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5616,7 +5551,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5647,7 +5582,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5683,7 +5618,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5705,7 +5640,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5747,7 +5682,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5765,22 +5700,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IRpcStubBuffer"
+						"_t": "_ref",
+						"name": "IRpcStubBuffer",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_SERVER_INTERFACE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStub",
@@ -5797,7 +5733,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5841,19 +5777,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IRpcStubBuffer"
+						"_t": "_ref",
+						"name": "IRpcStubBuffer",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IRpcChannelBuffer"
+						"_t": "_ref",
+						"name": "IRpcChannelBuffer",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5886,7 +5824,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5926,7 +5864,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5966,7 +5904,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6010,7 +5948,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6042,7 +5980,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6095,7 +6033,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6135,7 +6073,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6175,7 +6113,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6219,7 +6157,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6251,7 +6189,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6304,7 +6242,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6326,7 +6264,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FULL_PTR_XLAT_TABLES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6349,9 +6287,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "XLAT_SIDE"
+						"_t": "_ref",
+						"name": "XLAT_SIDE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -6359,7 +6297,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "FULL_PTR_XLAT_TABLES",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -6377,7 +6315,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6417,7 +6355,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6425,13 +6363,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_VERSION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStubMsg",
@@ -6461,14 +6400,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDR_USER_MARSHAL_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pFlags",
@@ -6486,7 +6425,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6526,7 +6465,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6566,7 +6505,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6610,7 +6549,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6642,7 +6581,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6695,7 +6634,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6715,15 +6654,15 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_STATUS"
+						"_t": "_ref",
+						"name": "RPC_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pStubMsg",
@@ -6749,7 +6688,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6788,7 +6727,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6844,7 +6783,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6931,7 +6870,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7000,7 +6939,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7043,7 +6982,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7086,7 +7025,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7129,7 +7068,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7181,7 +7120,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_TYPE_PICKLING_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7189,7 +7128,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7242,7 +7181,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_TYPE_PICKLING_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7250,7 +7189,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7312,7 +7251,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7359,7 +7298,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_TYPE_PICKLING_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7367,7 +7306,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7415,7 +7354,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_TYPE_PICKLING_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7423,7 +7362,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7480,7 +7419,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7527,7 +7466,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_TYPE_PICKLING_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7535,7 +7474,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7583,7 +7522,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_TYPE_PICKLING_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7591,7 +7530,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7648,7 +7587,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_TYPE_PICKLING_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7656,7 +7595,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7704,7 +7643,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_TYPE_PICKLING_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7712,7 +7651,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUBLESS_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7762,7 +7701,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7802,7 +7741,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7846,7 +7785,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7878,7 +7817,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7931,7 +7870,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7971,7 +7910,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8011,7 +7950,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8055,7 +7994,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8087,7 +8026,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8140,7 +8079,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8180,7 +8119,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8273,7 +8212,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8303,7 +8242,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8333,7 +8272,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8375,7 +8314,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8408,7 +8347,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8448,7 +8387,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8488,7 +8427,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8532,7 +8471,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8564,7 +8503,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8617,7 +8556,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8717,7 +8656,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8786,7 +8725,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8808,7 +8747,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8830,7 +8769,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8865,7 +8804,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8887,7 +8826,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8909,7 +8848,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8931,7 +8870,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8939,7 +8878,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDR_SCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8985,7 +8924,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8993,7 +8932,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDR_SCONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9048,7 +8987,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9065,7 +9004,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "NDR_SCONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -9083,7 +9022,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9092,7 +9031,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "NDR_SCONTEXT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -9109,7 +9048,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9117,7 +9056,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9125,7 +9064,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9153,7 +9092,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9161,7 +9100,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9184,7 +9123,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9192,7 +9131,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9200,7 +9139,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9228,7 +9167,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9236,7 +9175,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9244,7 +9183,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9274,7 +9213,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9282,7 +9221,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9290,7 +9229,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9318,7 +9257,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9358,7 +9297,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9398,7 +9337,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9442,7 +9381,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9474,7 +9413,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9527,7 +9466,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9564,7 +9503,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9615,7 +9554,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9662,7 +9601,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9695,7 +9634,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9735,7 +9674,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9775,7 +9714,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9819,7 +9758,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9892,7 +9831,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9945,7 +9884,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9985,7 +9924,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10025,7 +9964,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10069,7 +10008,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10101,7 +10040,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10154,7 +10093,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10194,7 +10133,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10234,7 +10173,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10278,7 +10217,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10310,7 +10249,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDL_STUB_MESSAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10363,7 +10302,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10373,9 +10312,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsync",
@@ -10392,18 +10331,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsync",
@@ -10420,7 +10360,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10432,9 +10372,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsync",
@@ -10451,14 +10391,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsync"
@@ -10474,7 +10414,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10484,9 +10424,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsync",
@@ -10503,14 +10443,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsync"
@@ -10526,7 +10466,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10545,9 +10485,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAsync",
@@ -10579,9 +10519,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceBinding",
@@ -10598,7 +10538,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_HANDLE_TEMPLATE_V1_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10606,7 +10546,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_HANDLE_SECURITY_V1_A",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10614,7 +10554,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_HANDLE_OPTIONS_V1",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10629,9 +10569,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Template",
@@ -10650,7 +10590,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_HANDLE_TEMPLATE_V1_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10658,7 +10598,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_HANDLE_SECURITY_V1_W",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10666,7 +10606,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_HANDLE_OPTIONS_V1",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10681,9 +10621,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Template",
@@ -10709,9 +10649,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding"
@@ -10723,12 +10663,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10742,9 +10679,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"StringBinding",
@@ -10757,12 +10694,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -10776,9 +10710,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"StringBinding",
@@ -10810,12 +10744,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10844,9 +10775,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientBinding",
@@ -10882,12 +10813,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10921,9 +10849,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientBinding",
@@ -10960,12 +10888,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10999,9 +10924,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientBinding",
@@ -11038,12 +10963,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11072,9 +10994,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientBinding",
@@ -11100,12 +11022,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11144,9 +11063,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11172,12 +11091,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11224,14 +11140,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_SECURITY_QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11259,12 +11175,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11311,14 +11224,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_SECURITY_QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11346,12 +11259,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11390,9 +11300,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11425,9 +11335,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11455,9 +11365,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11495,9 +11405,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hBinding",
@@ -11519,9 +11429,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding"
@@ -11551,9 +11461,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientBinding",
@@ -11573,12 +11483,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11604,9 +11511,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11630,12 +11537,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11664,14 +11568,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_SECURITY_QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11696,12 +11600,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11730,14 +11631,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_SECURITY_QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11762,12 +11663,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11793,9 +11691,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11827,9 +11725,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11864,9 +11762,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hBinding",
@@ -11889,19 +11787,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11923,19 +11818,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -11956,9 +11848,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding"
@@ -11976,15 +11868,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_BINDING_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingVector"
@@ -12004,9 +11896,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Thread"
@@ -12030,9 +11922,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Thread",
@@ -12049,7 +11941,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12060,19 +11952,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Context",
@@ -12090,7 +11979,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12101,19 +11990,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Context",
@@ -12138,7 +12024,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12146,22 +12032,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -12187,7 +12070,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12195,22 +12078,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -12236,7 +12116,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12244,22 +12124,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -12285,7 +12162,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12293,22 +12170,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -12338,9 +12212,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -12364,7 +12238,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_BINDING_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12372,14 +12246,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UUID_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -12397,14 +12271,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_EXTENDED_ERROR_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ErrorInfo"
@@ -12431,14 +12305,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ERROR_ENUM_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EnumHandle"
@@ -12454,26 +12328,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ERROR_ENUM_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_EXTENDED_ERROR_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EnumHandle",
@@ -12491,7 +12366,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ERROR_ENUM_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12503,9 +12378,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EnumHandle",
@@ -12538,14 +12413,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ERROR_ENUM_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ErrorBlob",
@@ -12563,14 +12438,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ERROR_ENUM_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EnumHandle"
@@ -12586,7 +12461,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ERROR_ENUM_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12613,9 +12488,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EnumHandle",
@@ -12633,14 +12508,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ERROR_ENUM_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EnumHandle"
@@ -12682,9 +12557,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAuthzClientContext"
@@ -12703,8 +12578,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -12723,7 +12599,7 @@
 					{
 						"_t": "_ref",
 						"name": "LUID",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -12749,9 +12625,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientBinding",
@@ -12781,14 +12657,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"RpcIfHandle",
@@ -12809,9 +12685,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingHandle"
@@ -12831,9 +12707,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingHandle"
@@ -12853,9 +12729,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingHandle"
@@ -12867,9 +12743,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -12895,7 +12771,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12925,9 +12801,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EpBinding",
@@ -12958,9 +12834,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext"
@@ -12986,7 +12862,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -13009,19 +12885,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext",
@@ -13051,7 +12924,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -13074,19 +12947,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryContext",
@@ -13113,7 +12983,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_IF_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -13132,9 +13002,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EpBinding",
@@ -13165,9 +13035,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -13194,9 +13064,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthnSvc",
@@ -13222,15 +13092,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_IF_ID_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -13257,19 +13127,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -13297,19 +13164,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -13336,15 +13200,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_STATS_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -13365,9 +13229,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding"
@@ -13398,9 +13262,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "RPC_STATUS"
+										"_t": "_ref",
+										"name": "RPC_STATUS",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -13417,9 +13281,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthorizationFn"
@@ -13436,9 +13300,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Timeout"
@@ -13463,9 +13327,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -13484,9 +13348,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ThreadStackSize"
@@ -13504,15 +13368,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_STATS_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"StatsVector"
@@ -13532,9 +13396,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding"
@@ -13546,9 +13410,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -13564,15 +13428,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_PROTSEQ_VECTORA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProtseqVector"
@@ -13590,15 +13454,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_PROTSEQ_VECTORW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProtseqVector"
@@ -13610,18 +13474,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq"
@@ -13633,18 +13494,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq"
@@ -13670,19 +13528,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -13710,19 +13565,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -13751,9 +13603,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjUuid",
@@ -13787,9 +13639,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "RPC_STATUS"
+										"_t": "_ref",
+										"name": "RPC_STATUS",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -13806,9 +13658,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InquiryFn"
@@ -13835,9 +13687,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjUuid",
@@ -13856,15 +13708,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_PROTSEQ_VECTORA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProtseqVector"
@@ -13882,15 +13734,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_PROTSEQ_VECTORW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProtseqVector"
@@ -13902,9 +13754,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_STATUS"
+						"_t": "_ref",
+						"name": "RPC_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -13921,9 +13773,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -13933,9 +13785,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -13953,9 +13805,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingHandle"
@@ -13974,15 +13826,15 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_STATUS"
+						"_t": "_ref",
+						"name": "RPC_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingHandle",
@@ -14006,9 +13858,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding"
@@ -14026,15 +13878,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_BINDING_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingVector"
@@ -14059,15 +13911,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_BINDING_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SecurityDescriptor",
@@ -14095,9 +13947,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientBinding",
@@ -14125,9 +13977,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientBinding",
@@ -14147,19 +13999,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthnSvc",
@@ -14179,19 +14028,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthnSvc",
@@ -14229,9 +14075,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -14253,9 +14099,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfGroup"
@@ -14275,9 +14121,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfGroup"
@@ -14293,7 +14139,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_INTERFACE_TEMPLATEA",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -14307,7 +14153,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ENDPOINT_TEMPLATEA",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -14376,9 +14222,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Interfaces",
@@ -14401,7 +14247,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_INTERFACE_TEMPLATEW",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -14415,7 +14261,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_ENDPOINT_TEMPLATEW",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -14484,9 +14330,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Interfaces",
@@ -14518,9 +14364,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfGroup",
@@ -14546,15 +14392,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RPC_BINDING_VECTOR",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfGroup",
@@ -14583,9 +14429,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"MinimumCallThreads",
@@ -14599,12 +14445,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -14624,12 +14467,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -14649,9 +14489,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "RPC_STATUS"
+										"_t": "_ref",
+										"name": "RPC_STATUS",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -14677,9 +14517,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ServerPrincName",
@@ -14694,12 +14534,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -14719,12 +14556,9 @@
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": true,
-										"label": "Char"
-									}
+									"_t": "_ref",
+									"name": "PWSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -14744,9 +14578,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "RPC_STATUS"
+										"_t": "_ref",
+										"name": "RPC_STATUS",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -14772,9 +14606,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ServerPrincName",
@@ -14811,9 +14645,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -14883,9 +14717,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"signed": false,
-								"label": "RPC_STATUS"
+								"_t": "_ref",
+								"name": "RPC_STATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"InterfaceUuid",
@@ -14895,9 +14729,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -14971,9 +14805,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"signed": false,
-								"label": "RPC_STATUS"
+								"_t": "_ref",
+								"name": "RPC_STATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"InterfaceUuid",
@@ -14990,9 +14824,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -15062,9 +14896,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"signed": false,
-								"label": "RPC_STATUS"
+								"_t": "_ref",
+								"name": "RPC_STATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"InterfaceUuid",
@@ -15074,9 +14908,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -15100,14 +14934,14 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_NOTIFICATIONS"
+						"_t": "_ref",
+						"name": "RPC_NOTIFICATIONS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_NOTIFICATION_TYPES"
+						"_t": "_ref",
+						"name": "RPC_NOTIFICATION_TYPES",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -15117,25 +14951,22 @@
 								"APC": {
 									"_t": "_ref",
 									"name": "_APC_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"IOC": {
 									"_t": "_ref",
 									"name": "_IOC_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"IntPtr": {
 									"_t": "_ref",
 									"name": "_IntPtr_e__Struct",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"hEvent": {
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HANDLE",
+									"ot": "_ref"
 								},
 								"NotificationRoutine": {
 									"_t": "ptr",
@@ -15147,7 +14978,7 @@
 												"pts_to": {
 													"_t": "_ref",
 													"name": "RPC_ASYNC_STATE",
-													"ot": "struct"
+													"ot": "_ref"
 												}
 											},
 											{
@@ -15158,9 +14989,9 @@
 												}
 											},
 											{
-												"_t": "int",
-												"signed": false,
-												"label": "RPC_ASYNC_EVENT"
+												"_t": "_ref",
+												"name": "RPC_ASYNC_EVENT",
+												"ot": "int"
 											}
 										],
 										"returnty": {
@@ -15180,9 +15011,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -15205,9 +15036,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BindingHandle"
@@ -15239,9 +15070,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -15274,9 +15105,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"IfSpec",
@@ -15297,9 +15128,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "RPC_NOTIFICATIONS"
+						"_t": "_ref",
+						"name": "RPC_NOTIFICATIONS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -15311,9 +15142,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Binding",
@@ -15340,9 +15171,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"MaxCalls",
@@ -15371,14 +15202,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"MaxCalls",
@@ -15412,9 +15243,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"MaxCalls",
@@ -15451,14 +15282,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"MaxCalls",
@@ -15473,12 +15304,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15494,9 +15322,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15510,12 +15338,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15523,12 +15348,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -15539,9 +15361,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15556,12 +15378,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15569,12 +15388,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -15588,14 +15404,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15611,12 +15427,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15624,12 +15437,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -15643,14 +15453,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15666,12 +15476,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15679,12 +15486,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -15695,9 +15499,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15712,12 +15516,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15736,14 +15537,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15758,12 +15559,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15782,14 +15580,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15804,12 +15602,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15832,9 +15627,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15849,12 +15644,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15880,14 +15672,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15903,12 +15695,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15934,14 +15723,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RPC_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -15957,12 +15746,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -15985,9 +15771,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -16002,12 +15788,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -16023,9 +15806,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Protseq",
@@ -16061,9 +15844,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "RPC_STATUS"
+							"_t": "_ref",
+							"name": "RPC_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -16093,9 +15876,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pNodeToFree"
@@ -16118,9 +15901,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ContextHandle"
@@ -16132,9 +15915,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -16144,9 +15927,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -16164,9 +15947,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NodeToFree"
@@ -16180,9 +15963,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "RPC_STATUS"
+							"_t": "_ref",
+							"name": "RPC_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -16253,9 +16036,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientAlloc",
@@ -16276,9 +16059,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Id"
@@ -16395,9 +16178,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientAlloc",
@@ -16453,9 +16236,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ServerBindingHandle",
@@ -16483,9 +16266,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ServerBindingHandle",
@@ -16594,9 +16377,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ContextHandle",
@@ -16829,61 +16612,43 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjUuid",
@@ -16900,61 +16665,43 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjUuid",
@@ -16971,73 +16718,55 @@
 				"_t": "func",
 				"args": [
 					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"StringBinding",
@@ -17054,73 +16783,55 @@
 				"_t": "func",
 				"args": [
 					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"StringBinding",
@@ -17139,19 +16850,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"String"
@@ -17165,19 +16873,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"String"
@@ -17189,9 +16894,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -17246,9 +16951,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "RPC_STATUS"
+							"_t": "_ref",
+							"name": "RPC_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -17276,9 +16981,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Uuid"
@@ -17298,9 +17003,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NilUuid"
@@ -17320,9 +17025,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Uuid"
@@ -17350,9 +17055,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "RPC_STATUS"
+							"_t": "_ref",
+							"name": "RPC_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -17372,12 +17077,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -17388,9 +17090,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"StringUuid",
@@ -17403,12 +17105,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -17419,9 +17118,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"StringUuid",
@@ -17443,9 +17142,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "RPC_STATUS"
+							"_t": "_ref",
+							"name": "RPC_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -17474,9 +17173,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "RPC_STATUS"
+							"_t": "_ref",
+							"name": "RPC_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -17504,19 +17203,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Uuid",
@@ -17538,19 +17234,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "RPC_STATUS"
+					"_t": "_ref",
+					"name": "RPC_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Uuid",

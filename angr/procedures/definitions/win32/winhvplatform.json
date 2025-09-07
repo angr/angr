@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,28 +16,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WHV_PARTITION_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"MigrationHandle",
@@ -49,19 +45,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_MEMORY_RANGE_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -71,9 +64,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_ADVISE_GPA_RANGE_CODE"
+						"_t": "_ref",
+						"name": "WHV_ADVISE_GPA_RANGE_CODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -89,8 +82,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -114,9 +108,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_ALLOCATE_VPCI_RESOURCE_FLAGS"
+						"_t": "_ref",
+						"name": "WHV_ALLOCATE_VPCI_RESOURCE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -134,18 +128,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProviderId",
@@ -161,17 +153,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition"
@@ -183,12 +173,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -202,8 +189,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -217,17 +205,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition"
@@ -239,28 +225,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_NOTIFICATION_PORT_PARAMETERS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -274,8 +254,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -292,18 +273,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WHV_PARTITION_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition"
@@ -315,19 +294,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_TRIGGER_PARAMETERS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -343,18 +319,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -369,12 +343,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -388,8 +359,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -403,12 +375,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -420,7 +389,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_VIRTUAL_PROCESSOR_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -431,8 +400,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -447,12 +417,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -460,30 +427,25 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_CREATE_VPCI_DEVICE_FLAGS"
+						"_t": "_ref",
+						"name": "WHV_CREATE_VPCI_DEVICE_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -499,12 +461,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -515,8 +474,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -529,17 +489,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition"
@@ -551,12 +509,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -567,8 +522,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -581,12 +537,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -595,8 +548,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -609,12 +563,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -623,8 +574,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -637,9 +589,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_CAPABILITY_CODE"
+						"_t": "_ref",
+						"name": "WHV_CAPABILITY_CODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -663,8 +615,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CapabilityCode",
@@ -679,12 +632,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -692,9 +642,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_INTERRUPT_DESTINATION_MODE"
+						"_t": "_ref",
+						"name": "WHV_INTERRUPT_DESTINATION_MODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -720,8 +670,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -738,17 +689,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_PARTITION_COUNTER_SET"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_COUNTER_SET",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -772,8 +720,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -789,17 +738,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_PARTITION_PROPERTY_CODE"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_PROPERTY_CODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -823,8 +769,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -840,12 +787,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -853,9 +797,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_PROCESSOR_COUNTER_SET"
+						"_t": "_ref",
+						"name": "WHV_PROCESSOR_COUNTER_SET",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -879,8 +823,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -897,12 +842,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -924,13 +866,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_CPUID_OUTPUT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -946,12 +889,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -980,8 +920,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -997,12 +938,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1031,8 +969,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -1048,12 +987,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1063,9 +999,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WHV_REGISTER_NAME"
+							"_t": "_ref",
+							"name": "WHV_REGISTER_NAME",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1097,8 +1033,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"Dword": {
@@ -1151,8 +1085,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -1173,8 +1105,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -1251,8 +1181,6 @@
 																}
 															},
 															"name": "_Anonymous_e__Struct",
-															"pack": false,
-															"align": null,
 															"anonymous": true
 														}
 													},
@@ -1260,8 +1188,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -1282,8 +1208,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -1335,8 +1259,6 @@
 																}
 															},
 															"name": "_Anonymous_e__Struct",
-															"pack": false,
-															"align": null,
 															"anonymous": true
 														}
 													},
@@ -1354,8 +1276,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -1376,8 +1296,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -1398,12 +1316,12 @@
 								"Segment": {
 									"_t": "_ref",
 									"name": "WHV_X64_SEGMENT_REGISTER",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Table": {
 									"_t": "_ref",
 									"name": "WHV_X64_TABLE_REGISTER",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"InterruptState": {
 									"_t": "union",
@@ -1418,8 +1336,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT64": {
@@ -1448,8 +1364,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT64": {
@@ -1473,8 +1387,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT64": {
@@ -1508,8 +1420,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -1530,8 +1440,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -1567,8 +1475,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -1589,8 +1495,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -1621,8 +1525,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT64": {
@@ -1651,8 +1553,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										}
 									},
@@ -1665,8 +1565,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -1682,12 +1583,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1695,9 +1593,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_VIRTUAL_PROCESSOR_STATE_TYPE"
+						"_t": "_ref",
+						"name": "WHV_VIRTUAL_PROCESSOR_STATE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1721,8 +1619,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -1739,12 +1638,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1773,8 +1669,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -1790,12 +1687,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1817,7 +1711,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_VPCI_INTERRUPT_TARGET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1835,8 +1729,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -1854,12 +1749,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1871,7 +1763,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_VPCI_DEVICE_NOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1881,8 +1773,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -1897,12 +1790,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -1910,9 +1800,9 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_VPCI_DEVICE_PROPERTY_CODE"
+						"_t": "_ref",
+						"name": "WHV_VPCI_DEVICE_PROPERTY_CODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1936,8 +1826,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -1954,12 +1845,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1979,14 +1867,15 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_MAP_GPA_RANGE_FLAGS"
+						"_t": "_ref",
+						"name": "WHV_MAP_GPA_RANGE_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2002,20 +1891,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2035,14 +1918,15 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_MAP_GPA_RANGE_FLAGS"
+						"_t": "_ref",
+						"name": "WHV_MAP_GPA_RANGE_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2059,12 +1943,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -2086,7 +1967,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_VPCI_INTERRUPT_TARGET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2107,8 +1988,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2126,12 +2008,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -2153,14 +2032,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WHV_VPCI_MMIO_MAPPING",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2175,12 +2055,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2206,8 +2083,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2223,12 +2101,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -2255,8 +2130,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2272,12 +2148,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2301,9 +2174,9 @@
 								"_t": "struct",
 								"fields": {
 									"CacheType": {
-										"_t": "int",
-										"signed": false,
-										"label": "WHV_CACHE_TYPE"
+										"_t": "_ref",
+										"name": "WHV_CACHE_TYPE",
+										"ot": "_ref"
 									},
 									"Reserved": {
 										"_t": "int",
@@ -2312,8 +2185,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							}
 						},
@@ -2333,8 +2204,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2351,12 +2223,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -2368,7 +2237,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_VPCI_DEVICE_REGISTER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2380,8 +2249,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2396,33 +2266,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_DOORBELL_MATCH_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2436,19 +2301,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_INTERRUPT_CONTROL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2458,8 +2320,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2473,12 +2336,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -2497,8 +2357,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2513,17 +2374,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition"
@@ -2535,17 +2394,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition"
@@ -2557,12 +2414,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -2584,13 +2438,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_VPCI_INTERRUPT_TARGET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2606,12 +2461,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2632,8 +2484,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2648,12 +2501,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2663,9 +2513,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_NOTIFICATION_PORT_PROPERTY_CODE"
+						"_t": "_ref",
+						"name": "WHV_NOTIFICATION_PORT_PROPERTY_CODE",
+						"ot": "int"
 					},
 					{
 						"_t": "llong",
@@ -2674,8 +2524,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2690,17 +2541,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_PARTITION_PROPERTY_CODE"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_PROPERTY_CODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2716,8 +2564,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2732,12 +2581,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2758,8 +2604,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2774,12 +2621,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2800,8 +2644,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -2816,12 +2661,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2831,9 +2673,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "WHV_REGISTER_NAME"
+							"_t": "_ref",
+							"name": "WHV_REGISTER_NAME",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2865,8 +2707,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"Dword": {
@@ -2919,8 +2759,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -2941,8 +2779,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -3019,8 +2855,6 @@
 																}
 															},
 															"name": "_Anonymous_e__Struct",
-															"pack": false,
-															"align": null,
 															"anonymous": true
 														}
 													},
@@ -3028,8 +2862,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -3050,8 +2882,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -3103,8 +2933,6 @@
 																}
 															},
 															"name": "_Anonymous_e__Struct",
-															"pack": false,
-															"align": null,
 															"anonymous": true
 														}
 													},
@@ -3122,8 +2950,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -3144,8 +2970,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -3166,12 +2990,12 @@
 								"Segment": {
 									"_t": "_ref",
 									"name": "WHV_X64_SEGMENT_REGISTER",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"Table": {
 									"_t": "_ref",
 									"name": "WHV_X64_TABLE_REGISTER",
-									"ot": "struct"
+									"ot": "_ref"
 								},
 								"InterruptState": {
 									"_t": "union",
@@ -3186,8 +3010,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT64": {
@@ -3216,8 +3038,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT64": {
@@ -3241,8 +3061,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT64": {
@@ -3276,8 +3094,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -3298,8 +3114,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -3335,8 +3149,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT128": {
@@ -3357,8 +3169,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												},
 												"Dword": {
@@ -3389,8 +3199,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										},
 										"AsUINT64": {
@@ -3419,8 +3227,6 @@
 												}
 											},
 											"name": "_Anonymous_e__Struct",
-											"pack": false,
-											"align": null,
 											"anonymous": true
 										}
 									},
@@ -3433,8 +3239,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3450,12 +3257,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3463,9 +3267,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_VIRTUAL_PROCESSOR_STATE_TYPE"
+						"_t": "_ref",
+						"name": "WHV_VIRTUAL_PROCESSOR_STATE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3481,8 +3285,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3498,12 +3303,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3524,8 +3326,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3540,12 +3343,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -3553,14 +3353,15 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEVICE_POWER_STATE"
+						"_t": "_ref",
+						"name": "DEVICE_POWER_STATE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3574,17 +3375,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition"
@@ -3596,29 +3395,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "WHV_SYNIC_EVENT_PARAMETERS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3632,28 +3430,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3666,17 +3459,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition"
@@ -3688,12 +3479,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3706,16 +3494,16 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WHV_TRANSLATE_GVA_FLAGS"
+						"_t": "_ref",
+						"name": "WHV_TRANSLATE_GVA_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_TRANSLATE_GVA_RESULT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3728,8 +3516,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3746,12 +3535,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -3765,8 +3551,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3780,12 +3567,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -3799,8 +3583,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3814,12 +3599,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -3828,8 +3610,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3842,25 +3625,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_DOORBELL_MATCH_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3873,19 +3654,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_TRIGGER_PARAMETERS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3897,8 +3675,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3912,12 +3691,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3941,9 +3717,9 @@
 								"_t": "struct",
 								"fields": {
 									"CacheType": {
-										"_t": "int",
-										"signed": false,
-										"label": "WHV_CACHE_TYPE"
+										"_t": "_ref",
+										"name": "WHV_CACHE_TYPE",
+										"ot": "_ref"
 									},
 									"Reserved": {
 										"_t": "int",
@@ -3952,8 +3728,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							}
 						},
@@ -3973,8 +3747,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",
@@ -3991,12 +3766,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "WHV_PARTITION_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -4008,7 +3780,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WHV_VPCI_DEVICE_REGISTER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4020,8 +3792,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Partition",

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,13 +20,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CHOOSECOLORA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -41,13 +43,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CHOOSECOLORW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -63,13 +66,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CHOOSEFONTA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -85,13 +89,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CHOOSEFONTW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -103,9 +108,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "COMMON_DLG_ERRORS"
+					"_t": "_ref",
+					"name": "COMMON_DLG_ERRORS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -119,17 +124,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FINDREPLACEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HWND",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"param0"
@@ -145,17 +147,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FINDREPLACEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HWND",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"param0"
@@ -167,12 +166,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -205,12 +201,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -247,13 +240,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENFILENAMEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -269,13 +263,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENFILENAMEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -291,13 +286,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENFILENAMEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -313,13 +309,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPENFILENAMEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -335,13 +332,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PAGESETUPDLGA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -357,13 +355,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PAGESETUPDLGW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"param0"
@@ -379,13 +378,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PRINTDLGA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPD"
@@ -401,13 +401,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PRINTDLGEXA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPD"
@@ -423,13 +424,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PRINTDLGEXW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPD"
@@ -445,13 +447,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PRINTDLGW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPD"
@@ -467,17 +470,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FINDREPLACEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HWND",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"param0"
@@ -493,17 +493,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FINDREPLACEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HWND",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"param0"

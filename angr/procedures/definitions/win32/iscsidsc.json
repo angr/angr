@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,12 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -38,12 +36,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -65,7 +60,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -85,7 +80,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -98,7 +93,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_LOGIN_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -120,7 +115,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -151,7 +146,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -171,7 +166,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -184,7 +179,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_LOGIN_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -206,7 +201,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -233,12 +228,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -250,7 +242,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_LOGIN_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -263,7 +255,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -286,12 +278,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -303,7 +292,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_LOGIN_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -316,7 +305,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -339,20 +328,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -360,16 +343,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_MAPPINGA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -377,7 +360,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_LOGIN_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -385,7 +368,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTAL_GROUPA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -410,20 +393,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -431,16 +408,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_MAPPINGW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -448,7 +425,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_LOGIN_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -456,7 +433,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTAL_GROUPW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -481,12 +458,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -504,12 +478,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -527,12 +498,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -550,12 +518,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -589,7 +554,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -605,7 +570,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_DEVICE_ON_SESSIONA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -630,7 +595,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -646,7 +611,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_DEVICE_ON_SESSIONW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -667,12 +632,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -692,7 +654,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IKE_AUTHENTICATION_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -714,12 +676,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -739,7 +698,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IKE_AUTHENTICATION_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -761,12 +720,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -784,12 +740,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -827,7 +780,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_SESSION_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -868,7 +821,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_SESSION_INFO_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -909,7 +862,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_SESSION_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -930,25 +883,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TARGET_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "TARGET_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -985,25 +932,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "TARGET_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "TARGET_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1044,7 +985,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_VERSION_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1063,25 +1004,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1093,7 +1028,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1106,7 +1041,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_MAPPINGA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1114,7 +1049,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_LOGIN_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1132,16 +1067,16 @@
 						"label": "LPArray"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1149,7 +1084,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1180,25 +1115,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1210,7 +1139,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1223,7 +1152,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_MAPPINGW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1231,7 +1160,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_LOGIN_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1249,16 +1178,16 @@
 						"label": "LPArray"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1266,7 +1195,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1301,7 +1230,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1320,12 +1249,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1343,12 +1269,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1366,12 +1289,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1383,7 +1303,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1404,12 +1324,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1421,7 +1338,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1442,12 +1359,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1465,12 +1379,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1492,7 +1403,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1500,7 +1411,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1520,12 +1431,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1533,19 +1441,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1567,12 +1472,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1580,19 +1482,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1614,12 +1513,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1631,7 +1527,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1652,12 +1548,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1669,7 +1562,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1690,12 +1583,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1713,12 +1603,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1736,12 +1623,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1759,12 +1643,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1782,12 +1663,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1805,12 +1683,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1848,7 +1723,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_MAPPINGA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1889,7 +1764,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_MAPPINGW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2054,7 +1929,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PERSISTENT_ISCSI_LOGIN_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2095,7 +1970,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PERSISTENT_ISCSI_LOGIN_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2136,7 +2011,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTAL_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2176,7 +2051,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTAL_INFO_EXA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2217,7 +2092,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTAL_INFO_EXW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2250,7 +2125,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTAL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2270,20 +2145,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2306,7 +2175,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2329,20 +2198,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2365,7 +2228,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_TARGET_PORTALW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2388,9 +2251,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -2427,9 +2290,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -2602,7 +2465,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2688,7 +2551,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2762,7 +2625,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ISCSI_UNIQUE_SESSION_ID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2839,9 +2702,9 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
@@ -2861,12 +2724,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2878,13 +2738,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IKE_AUTHENTICATION_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
@@ -2905,12 +2765,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2922,13 +2779,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IKE_AUTHENTICATION_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
@@ -2978,12 +2835,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3001,12 +2855,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3053,12 +2904,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3066,25 +2914,19 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
@@ -3106,12 +2948,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3119,25 +2958,19 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {

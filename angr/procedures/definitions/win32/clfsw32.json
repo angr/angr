@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,12 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -31,12 +29,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -47,8 +42,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -63,12 +59,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -86,12 +79,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -104,8 +94,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -132,7 +123,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -145,13 +136,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -193,8 +185,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -229,8 +222,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -244,17 +238,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog"
@@ -266,12 +258,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -293,7 +282,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_SCAN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -301,13 +290,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -324,12 +314,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -337,36 +324,33 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_SHARE_MODE"
+						"_t": "_ref",
+						"name": "FILE_SHARE_MODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SECURITY_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_CREATION_DISPOSITION"
+						"_t": "_ref",
+						"name": "FILE_CREATION_DISPOSITION",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_FLAGS_AND_ATTRIBUTES"
+						"_t": "_ref",
+						"name": "FILE_FLAGS_AND_ATTRIBUTES",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pszLogFileName",
@@ -383,12 +367,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -485,8 +466,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -505,17 +487,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog"
@@ -527,12 +507,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -543,8 +520,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszLogFileName",
@@ -565,8 +543,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal"
@@ -578,17 +557,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog"
@@ -611,13 +588,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -641,7 +619,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -649,7 +627,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -657,13 +635,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -698,8 +677,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -713,12 +693,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -726,12 +703,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -748,8 +722,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -765,19 +740,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -790,8 +762,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -805,12 +778,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -825,9 +795,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_IOSTATS_CLASS"
+						"_t": "_ref",
+						"name": "CLFS_IOSTATS_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -839,8 +809,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -886,8 +857,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -913,7 +885,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_ARCHIVE_DESCRIPTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -931,8 +903,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvArchiveContext",
@@ -947,17 +920,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog"
@@ -969,25 +940,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLFS_MGMT_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -1000,12 +969,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1014,8 +980,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -1032,7 +999,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1055,7 +1022,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1092,7 +1059,7 @@
 				"returnty": {
 					"_t": "_ref",
 					"name": "CLS_LSN",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"cidContainer",
@@ -1110,7 +1077,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1118,14 +1085,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn1",
@@ -1142,7 +1109,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1150,14 +1117,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn1",
@@ -1174,14 +1141,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
 					"_t": "_ref",
 					"name": "CLS_LSN",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"plsn"
@@ -1197,14 +1164,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn"
@@ -1220,7 +1187,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1228,14 +1195,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn1",
@@ -1252,14 +1219,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn"
@@ -1275,7 +1242,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1294,12 +1261,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1320,7 +1284,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1328,7 +1292,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1360,7 +1324,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1368,7 +1332,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1376,7 +1340,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1391,8 +1355,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -1415,24 +1380,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_MGMT_POLICY_TYPE"
+						"_t": "_ref",
+						"name": "CLFS_MGMT_POLICY_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLFS_MGMT_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1445,8 +1407,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -1495,8 +1458,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvArchiveContext",
@@ -1512,19 +1476,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLFS_MGMT_NOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1532,13 +1493,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -1563,13 +1525,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_CONTEXT_MODE"
+						"_t": "_ref",
+						"name": "CLFS_CONTEXT_MODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1602,7 +1564,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1610,7 +1572,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1628,13 +1590,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -1684,7 +1647,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1702,13 +1665,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -1762,7 +1726,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1770,7 +1734,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1778,7 +1742,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1786,7 +1750,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1794,13 +1758,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvReadContext",
@@ -1849,7 +1814,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1857,13 +1822,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvReadContext",
@@ -1879,12 +1845,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1892,13 +1855,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -1912,25 +1877,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOG_MANAGEMENT_CALLBACKS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -1943,24 +1906,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1971,8 +1929,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -1987,12 +1946,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -2002,18 +1958,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2024,8 +1978,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -2041,22 +1996,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_MGMT_POLICY_TYPE"
+						"_t": "_ref",
+						"name": "CLFS_MGMT_POLICY_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -2080,7 +2033,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_WRITE_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2093,7 +2046,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2101,7 +2054,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2117,16 +2070,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_FLAG"
+						"_t": "_ref",
+						"name": "CLFS_FLAG",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2134,13 +2087,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -2172,7 +2126,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_WRITE_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2190,7 +2144,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2198,7 +2152,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2214,16 +2168,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_FLAG"
+						"_t": "_ref",
+						"name": "CLFS_FLAG",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2231,13 +2185,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -2263,7 +2218,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_SCAN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2280,8 +2235,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pcxScan",
@@ -2295,19 +2251,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2315,13 +2268,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -2335,22 +2289,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_LOG_ARCHIVE_MODE"
+						"_t": "_ref",
+						"name": "CLFS_LOG_ARCHIVE_MODE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -2363,19 +2315,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2387,8 +2336,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -2402,12 +2352,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2427,8 +2374,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hLog",
@@ -2450,8 +2398,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvArchiveContext"
@@ -2471,8 +2420,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvCursorContext"
@@ -2495,7 +2445,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2503,13 +2453,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",
@@ -2523,19 +2474,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SECURITY_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2543,7 +2491,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2556,8 +2504,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszLogFileName",
@@ -2595,13 +2544,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_FLAG"
+						"_t": "_ref",
+						"name": "CLFS_FLAG",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2616,7 +2565,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2624,13 +2573,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshal",

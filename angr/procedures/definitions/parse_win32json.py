@@ -68,21 +68,27 @@ def get_angr_type_from_name(name):
     sys.exit(-1)
 
 
-def get_typeref_from_struct_type(t: angr.types.SimType) -> angr.types.SimType:
+def get_typeref_if_available(t: angr.types.SimType) -> angr.types.SimType:
     if isinstance(t, angr.types.SimStruct) and t.name and not is_anonymous_struct(t.name):
         # replace it with a SimTypeRef to avoid duplicate definition
         t = angr.types.SimTypeRef(t.name, angr.types.SimStruct)
+    if t.label is not None and t.label in typelib:
+        t = angr.types.SimTypeRef(t.label, t.__class__)
     return t
 
 
 def handle_json_type(t, create_missing: bool = False):
+    if t["Kind"] == "NativeTypedef":
+        ty = handle_json_type(t["Def"], create_missing=create_missing)
+        ty.label = t["Name"]
+        return ty
     if t["Kind"] == "Native":
         return get_angr_type_from_name(t["Name"])
     if t["Kind"] == "PointerTo":
-        pts_to = get_typeref_from_struct_type(handle_json_type(t["Child"], create_missing=create_missing))
+        pts_to = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
         return angr.types.SimTypePointer(pts_to)
     if t["Kind"] == "Array":
-        elem = get_typeref_from_struct_type(handle_json_type(t["Child"], create_missing=create_missing))
+        elem = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
         if t["Shape"]:
             return angr.types.SimTypeFixedSizeArray(elem, length=int(t["Shape"]["Size"]))
         return angr.types.SimTypePointer(elem)
@@ -93,24 +99,24 @@ def handle_json_type(t, create_missing: bool = False):
             if t["Name"] in known_struct_names:
                 return angr.types.SimTypeRef(t["Name"], angr.types.SimStruct)
             raise
-        return get_typeref_from_struct_type(named_type)
+        return get_typeref_if_available(named_type)
     if t["Kind"] == "Struct":
         for nested_type in t["NestedTypes"]:
             typelib.add(nested_type["Name"], handle_json_type(nested_type, create_missing=create_missing))
         fields = OrderedDict()
         for field in t["Fields"]:
-            child_type = get_typeref_from_struct_type(handle_json_type(field["Type"], create_missing=create_missing))
+            child_type = get_typeref_if_available(handle_json_type(field["Type"], create_missing=create_missing))
             fields[field["Name"]] = child_type
         return angr.types.SimStruct(fields, name=t["Name"])
     if t["Kind"] == "LPArray":
-        pts_to = get_typeref_from_struct_type(handle_json_type(t["Child"], create_missing=create_missing))
+        pts_to = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
         return angr.types.SimTypePointer(pts_to, label="LPArray")
     if t["Kind"] == "Union":
         for nested_type in t["NestedTypes"]:
             typelib.add(nested_type["Name"], handle_json_type(nested_type, create_missing=create_missing))
         members = {}
         for field in t["Fields"]:
-            child_type = get_typeref_from_struct_type(handle_json_type(field["Type"], create_missing=create_missing))
+            child_type = get_typeref_if_available(handle_json_type(field["Type"], create_missing=create_missing))
             members[field["Name"]] = child_type
         return angr.types.SimUnion(members)
     if t["Kind"] == "MissingClrType":
@@ -121,7 +127,7 @@ def handle_json_type(t, create_missing: bool = False):
 
 def create_angr_type_from_json(t):
     if t["Kind"] == "NativeTypedef":
-        new_typedef = handle_json_type(t["Def"])
+        new_typedef = handle_json_type(t)
         typelib.add(t["Name"], new_typedef)
     elif t["Kind"] == "Enum":
         # TODO: Handle Enums
@@ -2437,6 +2443,7 @@ def do_it(in_dir, out_file):
                     break
             if exists:
                 logging.warning("Declaration for function %s in %s.%s already exists. Skipping...", func, lib, suffix)
+                continue
 
             parsed_cprotos[(prefix, lib, suffix)].append((func, proto, ""))
 
@@ -2446,6 +2453,7 @@ def do_it(in_dir, out_file):
         os.makedirs(prefix, exist_ok=True)
         logging.debug("Writing to file %s...", filename)
         d = {
+            "_t": "lib",
             "type_collection_names": ["win32"],
             "library_names": [libname if not suffix else f"{libname}.{suffix}"],
             "default_cc": {"X86": "SimCCStdcall", "AMD64": "SimCCMicrosoftAMD64"},
@@ -2458,27 +2466,10 @@ def do_it(in_dir, out_file):
         with open(os.path.join(prefix, filename), "w") as f:
             f.write(json.dumps(d, indent="\t"))
 
-    # Dump the type collection
-    with open("types_win32.py", "w") as f:
-        f.write(
-            """# pylint:disable=line-too-long
-from collections import OrderedDict
-
-from angr.procedures.definitions import SimTypeCollection
-from angr.sim_type import SimTypeFunction, \
-    SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat, \
-    SimTypePointer, \
-    SimTypeChar, \
-    SimStruct, \
-    SimTypeArray, \
-    SimTypeBottom, \
-    SimUnion, \
-    SimTypeBool, \
-    SimTypeRef
-
-"""
-        )
-        f.write(typelib.init_str())
+    # Dump the type collection to a JSON file
+    with open("win32/_types_win32.json", "w") as f:
+        logging.debug("Writing to file win32/win32_types.json...")
+        f.write(json.dumps(typelib.to_json(), indent="\t"))
 
 
 def main():

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_DIGITSUBSTITUTE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -27,7 +28,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_CONTROL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -35,13 +36,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psds",
@@ -84,7 +86,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_VISATTR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -101,7 +103,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -109,7 +111,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ABC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -122,8 +124,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"piDx",
@@ -160,7 +163,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -168,14 +171,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_LOGATTR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcChars",
@@ -194,8 +198,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -219,7 +224,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_VISATTR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -236,7 +241,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -248,8 +253,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"iCP",
@@ -269,12 +275,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -295,8 +298,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -321,8 +325,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psc"
@@ -334,12 +339,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -380,8 +382,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -398,12 +401,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -420,7 +420,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -465,8 +465,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -487,12 +488,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -509,7 +507,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -544,8 +542,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -564,12 +563,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -586,7 +582,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -616,8 +612,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -635,12 +632,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -657,13 +651,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_FONTPROPERTIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -677,12 +672,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -699,7 +691,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -724,8 +716,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -742,12 +735,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -769,13 +759,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ABC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -794,7 +785,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -827,7 +818,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_VISATTR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -841,8 +832,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -868,7 +860,7 @@
 								"pts_to": {
 									"_t": "_ref",
 									"name": "SCRIPT_PROPERTIES",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							}
 						}
@@ -882,8 +874,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppSp",
@@ -909,14 +902,15 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SCRIPT_IS_COMPLEX_FLAGS"
+						"_t": "_ref",
+						"name": "SCRIPT_IS_COMPLEX_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcInChars",
@@ -951,7 +945,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_CONTROL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -959,7 +953,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -967,7 +961,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ITEM",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -980,8 +974,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcInChars",
@@ -1020,7 +1015,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_CONTROL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1028,7 +1023,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1036,7 +1031,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ITEM",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1058,8 +1053,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pwcInChars",
@@ -1082,7 +1078,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_VISATTR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1116,8 +1112,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psva",
@@ -1164,8 +1161,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cRuns",
@@ -1180,12 +1178,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1215,7 +1210,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_VISATTR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1224,7 +1219,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1240,7 +1235,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "GOFFSET",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1249,13 +1244,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ABC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -1275,12 +1271,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1297,7 +1290,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1325,7 +1318,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "TEXTRANGE_PROPERTIES",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -1357,7 +1350,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_CHARPROP",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1379,7 +1372,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_GLYPHPROP",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1400,7 +1393,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "GOFFSET",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1409,13 +1402,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ABC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -1444,12 +1438,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1466,7 +1457,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1500,7 +1491,7 @@
 					{
 						"_t": "_ref",
 						"name": "GOFFSET",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -1514,13 +1505,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "GOFFSET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -1552,13 +1544,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_DIGITSUBSTITUTE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Locale",
@@ -1571,12 +1564,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1610,7 +1600,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1636,7 +1626,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_VISATTR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1649,8 +1639,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -1671,12 +1662,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1693,7 +1681,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1721,7 +1709,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "TEXTRANGE_PROPERTIES",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -1761,7 +1749,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_CHARPROP",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1779,7 +1767,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_GLYPHPROP",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1792,8 +1780,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -1820,12 +1809,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1860,7 +1846,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_CONTROL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1868,7 +1854,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1884,7 +1870,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_TABDEF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1907,8 +1893,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -1943,8 +1930,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1955,8 +1943,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ssa",
@@ -1982,8 +1971,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pssa"
@@ -2010,8 +2000,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ssa",
@@ -2040,8 +2031,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ssa",
@@ -2069,16 +2061,16 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ETO_OPTIONS"
+						"_t": "_ref",
+						"name": "ETO_OPTIONS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2090,13 +2082,15 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ssa",
@@ -2123,8 +2117,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ssa"
@@ -2162,8 +2157,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ssa",
@@ -2190,7 +2186,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SCRIPT_LOGATTR",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2215,7 +2211,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SIZE",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2252,12 +2248,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2274,7 +2267,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2311,8 +2304,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -2332,12 +2326,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2367,7 +2358,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2375,16 +2366,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2424,14 +2412,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "GOFFSET",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hdc",
@@ -2481,7 +2470,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_VISATTR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2498,7 +2487,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SCRIPT_ANALYSIS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2517,8 +2506,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"iX",

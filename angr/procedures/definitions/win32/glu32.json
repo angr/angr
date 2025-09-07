@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -17,12 +18,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -42,12 +40,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -67,12 +62,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -92,12 +84,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -220,12 +209,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -267,12 +253,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -292,12 +275,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -317,12 +297,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -342,12 +319,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -385,12 +359,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -410,12 +381,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -435,12 +403,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -460,12 +425,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -512,12 +474,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"errCode"
@@ -531,12 +490,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -592,12 +548,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -630,12 +583,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -726,12 +676,9 @@
 				"returnty": {
 					"_t": "ptr",
 					"pts_to": {
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "GLUnurbs",
+						"ot": "_ref"
 					}
 				},
 				"arg_names": []
@@ -744,12 +691,9 @@
 				"returnty": {
 					"_t": "ptr",
 					"pts_to": {
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "GLUquadric",
+						"ot": "_ref"
 					}
 				},
 				"arg_names": []
@@ -762,12 +706,9 @@
 				"returnty": {
 					"_t": "ptr",
 					"pts_to": {
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "GLUtesselator",
+						"ot": "_ref"
 					}
 				},
 				"arg_names": []
@@ -780,12 +721,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -811,12 +749,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -851,12 +786,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -911,12 +843,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -946,12 +875,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1057,12 +983,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1242,12 +1165,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUnurbs",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1290,12 +1210,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1330,12 +1247,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1361,12 +1275,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1392,12 +1303,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1423,12 +1331,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1521,12 +1426,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUquadric",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1560,12 +1462,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1585,12 +1484,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1618,12 +1514,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1658,12 +1551,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1683,12 +1573,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1708,12 +1595,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1745,12 +1629,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1780,12 +1661,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "GLUtesselator",
+							"ot": "_ref"
 						}
 					},
 					{

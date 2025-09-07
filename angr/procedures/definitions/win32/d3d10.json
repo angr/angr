@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -31,24 +32,22 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D_SHADER_MACRO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "ID3DInclude"
+						"_t": "_ref",
+						"name": "ID3DInclude",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -63,21 +62,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pData",
@@ -97,12 +99,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -114,40 +113,32 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D_SHADER_MACRO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "ID3DInclude"
+						"_t": "_ref",
+						"name": "ID3DInclude",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -157,21 +148,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcData",
@@ -203,14 +197,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NumBytes",
@@ -223,26 +219,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDXGIAdapter"
+						"_t": "_ref",
+						"name": "IDXGIAdapter",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D10_DRIVER_TYPE"
+						"_t": "_ref",
+						"name": "D3D10_DRIVER_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
+						"_t": "_ref",
+						"name": "HMODULE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -250,16 +239,23 @@
 						"label": "UInt32"
 					},
 					{
+						"_t": "int",
+						"signed": false,
+						"label": "UInt32"
+					},
+					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D10Device"
+							"_t": "_ref",
+							"name": "ID3D10Device",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAdapter",
@@ -276,21 +272,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDXGIAdapter"
+						"_t": "_ref",
+						"name": "IDXGIAdapter",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D10_DRIVER_TYPE"
+						"_t": "_ref",
+						"name": "D3D10_DRIVER_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMODULE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -307,27 +301,30 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DXGI_SWAP_CHAIN_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDXGISwapChain"
+							"_t": "_ref",
+							"name": "IDXGISwapChain",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D10Device"
+							"_t": "_ref",
+							"name": "ID3D10Device",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAdapter",
@@ -367,24 +364,28 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "ID3D10Device"
+						"_t": "_ref",
+						"name": "ID3D10Device",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "ID3D10EffectPool"
+						"_t": "_ref",
+						"name": "ID3D10EffectPool",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D10Effect"
+							"_t": "_ref",
+							"name": "ID3D10Effect",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pData",
@@ -422,20 +423,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "ID3D10Device"
+						"_t": "_ref",
+						"name": "ID3D10Device",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D10EffectPool"
+							"_t": "_ref",
+							"name": "ID3D10EffectPool",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pData",
@@ -451,28 +455,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ID3D10Device"
+						"_t": "_ref",
+						"name": "ID3D10Device",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D10StateBlock"
+							"_t": "_ref",
+							"name": "ID3D10StateBlock",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDevice",
@@ -486,24 +493,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ID3D10Effect"
+						"_t": "_ref",
+						"name": "ID3D10Effect",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pEffect",
@@ -533,28 +544,28 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pShader",
@@ -570,17 +581,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ID3D10Device"
+						"_t": "_ref",
+						"name": "ID3D10Device",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pDevice"
@@ -610,14 +619,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pShaderBytecode",
@@ -649,14 +660,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pShaderBytecode",
@@ -688,14 +701,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pShaderBytecode",
@@ -709,17 +724,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ID3D10Device"
+						"_t": "_ref",
+						"name": "ID3D10Device",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pDevice"
@@ -749,14 +762,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pShaderBytecode",
@@ -770,17 +785,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ID3D10Device"
+						"_t": "_ref",
+						"name": "ID3D10Device",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pDevice"
@@ -792,12 +805,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -809,43 +819,44 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D_SHADER_MACRO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "ID3DInclude"
+						"_t": "_ref",
+						"name": "ID3DInclude",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3DBlob"
+							"_t": "_ref",
+							"name": "ID3DBlob",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pSrcData",
@@ -881,14 +892,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D10ShaderReflection"
+							"_t": "_ref",
+							"name": "ID3D10ShaderReflection",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pShaderBytecode",
@@ -906,7 +919,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -914,7 +927,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -922,13 +935,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pA",
@@ -946,13 +960,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMask"
@@ -968,13 +983,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D10_DEVICE_STATE_TYPES"
+						"_t": "_ref",
+						"name": "D3D10_DEVICE_STATE_TYPES",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -988,8 +1003,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMask",
@@ -1008,13 +1024,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMask"
@@ -1030,13 +1047,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D10_DEVICE_STATE_TYPES"
+						"_t": "_ref",
+						"name": "D3D10_DEVICE_STATE_TYPES",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1050,8 +1067,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMask",
@@ -1070,13 +1088,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D10_DEVICE_STATE_TYPES"
+						"_t": "_ref",
+						"name": "D3D10_DEVICE_STATE_TYPES",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1085,8 +1103,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pMask",
@@ -1104,7 +1123,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1112,7 +1131,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1120,13 +1139,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pA",
@@ -1144,7 +1164,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1152,7 +1172,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1160,13 +1180,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "D3D10_STATE_BLOCK_MASK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pA",

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,19 +16,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "NETISO_ERROR_TYPE"
+							"_t": "_ref",
+							"name": "NETISO_ERROR_TYPE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -66,7 +64,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "INET_FIREWALL_APP_CONTAINER",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -92,7 +90,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "INET_FIREWALL_APP_CONTAINER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -125,7 +123,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SID_AND_ATTRIBUTES",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -167,7 +165,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "INET_FIREWALL_AC_CHANGE",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -191,12 +189,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -227,7 +222,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SID_AND_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
@@ -248,49 +243,36 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "int",
-						"label": "Int32"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -301,8 +283,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"applicationContainerSid",
@@ -320,12 +303,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {

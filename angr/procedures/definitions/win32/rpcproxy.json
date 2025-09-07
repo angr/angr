@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,13 +20,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HSE_VERSION_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVer"
@@ -41,13 +43,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_FILTER_VERSION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVer"
@@ -63,7 +66,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EXTENSION_CONTROL_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -86,7 +89,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "HTTP_FILTER_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{

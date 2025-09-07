@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -36,7 +37,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_PARTIAL_MEDIATYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -49,20 +50,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_PARTIAL_MEDIATYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IEnumDMO"
+							"_t": "_ref",
+							"name": "IEnumDMO",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guidCategory",
@@ -97,8 +100,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidDMO",
@@ -135,7 +139,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_PARTIAL_MEDIATYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -156,13 +160,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_PARTIAL_MEDIATYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidDMO",
@@ -180,12 +185,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -216,7 +218,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_PARTIAL_MEDIATYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -229,13 +231,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_PARTIAL_MEDIATYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szName",
@@ -269,8 +272,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsidDMO",
@@ -287,7 +291,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_MEDIA_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -295,13 +299,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_MEDIA_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmtDest",
@@ -320,7 +325,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DMO_MEDIA_TYPE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -331,8 +336,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppmt",
@@ -349,13 +355,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_MEDIA_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmt"
@@ -373,7 +380,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DMO_MEDIA_TYPE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -382,13 +389,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_MEDIA_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppmtDest",
@@ -405,13 +413,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_MEDIA_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmt"
@@ -427,7 +436,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DMO_MEDIA_TYPE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -437,8 +446,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pmt",

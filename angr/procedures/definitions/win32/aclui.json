@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,17 +16,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ISecurityInformation"
+						"_t": "_ref",
+						"name": "ISecurityInformation",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HPROPSHEETPAGE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"psi"
@@ -37,21 +36,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "ISecurityInformation"
+						"_t": "_ref",
+						"name": "ISecurityInformation",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -64,26 +62,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "ISecurityInformation"
+						"_t": "_ref",
+						"name": "ISecurityInformation",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SI_PAGE_TYPE"
+						"_t": "_ref",
+						"name": "SI_PAGE_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",

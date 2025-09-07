@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -25,12 +26,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -59,12 +57,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -101,12 +96,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -148,12 +140,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -192,12 +181,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -233,12 +219,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -277,12 +260,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -324,12 +304,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -357,24 +334,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -391,7 +366,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CUSTDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -413,7 +388,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "INTERFACEDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -424,14 +399,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ITypeInfo"
+							"_t": "_ref",
+							"name": "ITypeInfo",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pidata",
@@ -447,14 +424,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ICreateErrorInfo"
+							"_t": "_ref",
+							"name": "ICreateErrorInfo",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pperrinfo"
@@ -466,8 +445,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -477,20 +457,23 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "ITypeInfo"
+						"_t": "_ref",
+						"name": "ITypeInfo",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punkOuter",
@@ -505,29 +488,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SYSKIND"
+						"_t": "_ref",
+						"name": "SYSKIND",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "ICreateTypeLib"
+							"_t": "_ref",
+							"name": "ICreateTypeLib",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"syskind",
@@ -541,29 +523,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SYSKIND"
+						"_t": "_ref",
+						"name": "SYSKIND",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "ICreateTypeLib2"
+							"_t": "_ref",
+							"name": "ICreateTypeLib2",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"syskind",
@@ -593,14 +574,14 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CALLCONV"
+						"_t": "_ref",
+						"name": "CALLCONV",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -623,7 +604,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "VARIANT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -633,13 +614,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvInstance",
@@ -658,18 +640,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ITypeInfo"
+						"_t": "_ref",
+						"name": "ITypeInfo",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -688,8 +668,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ptinfo",
@@ -708,7 +689,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DISPPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -717,16 +698,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -739,8 +720,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispparams",
@@ -763,8 +745,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "ITypeInfo"
+						"_t": "_ref",
+						"name": "ITypeInfo",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -780,7 +763,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DISPPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -788,7 +771,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -796,7 +779,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EXCEPINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -809,8 +792,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"_this",
@@ -877,14 +861,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rclsid",
@@ -907,19 +893,17 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "char",
-									"signed": true,
-									"label": "Char"
-								}
+								"_t": "_ref",
+								"name": "PWSTR",
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lcid",
@@ -939,14 +923,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IErrorInfo"
+							"_t": "_ref",
+							"name": "IErrorInfo",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwReserved",
@@ -990,14 +976,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IRecordInfo"
+							"_t": "_ref",
+							"name": "IRecordInfo",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rGuidTypeLib",
@@ -1014,20 +1002,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ITypeInfo"
+						"_t": "_ref",
+						"name": "ITypeInfo",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IRecordInfo"
+							"_t": "_ref",
+							"name": "IRecordInfo",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pTypeInfo",
@@ -1040,9 +1031,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SYSKIND"
+						"_t": "_ref",
+						"name": "SYSKIND",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1050,12 +1041,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1075,9 +1063,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SYSKIND"
+						"_t": "_ref",
+						"name": "SYSKIND",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1085,12 +1073,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1124,7 +1109,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1158,7 +1143,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1200,7 +1185,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1247,7 +1232,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1291,7 +1276,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1332,7 +1317,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1376,7 +1361,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1423,7 +1408,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1472,14 +1457,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ITypeLib"
+							"_t": "_ref",
+							"name": "ITypeLib",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rguid",
@@ -1495,24 +1482,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ITypeLib"
+							"_t": "_ref",
+							"name": "ITypeLib",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szFile",
@@ -1525,29 +1511,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "REGKIND"
+						"_t": "_ref",
+						"name": "REGKIND",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ITypeLib"
+							"_t": "_ref",
+							"name": "ITypeLib",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szFile",
@@ -1588,7 +1573,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FONTDESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1610,8 +1595,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpFontDesc",
@@ -1629,7 +1615,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PICTDESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1640,8 +1626,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1655,8 +1642,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpPictDesc",
@@ -1671,12 +1659,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1689,12 +1674,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1704,8 +1686,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1739,8 +1722,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndOwner",
@@ -1766,13 +1750,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OCPFIPARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpParams"
@@ -1784,29 +1769,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HICON",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HCURSOR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hinstExe",
@@ -1819,16 +1795,18 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1849,8 +1827,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpstream",
@@ -1866,16 +1845,18 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1895,9 +1876,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "LOAD_PICTURE_FLAGS"
+						"_t": "_ref",
+						"name": "LOAD_PICTURE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1911,8 +1892,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpstream",
@@ -1933,19 +1915,21 @@
 					{
 						"_t": "_ref",
 						"name": "VARIANT",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDispatch"
+							"_t": "_ref",
+							"name": "IDispatch",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varFileName",
@@ -1960,7 +1944,7 @@
 					{
 						"_t": "_ref",
 						"name": "VARIANT",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -1973,21 +1957,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "LOAD_PICTURE_FLAGS"
+						"_t": "_ref",
+						"name": "LOAD_PICTURE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDispatch"
+							"_t": "_ref",
+							"name": "IDispatch",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varFileName",
@@ -2003,16 +1989,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -2043,8 +2027,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"szURLorPath",
@@ -2061,21 +2046,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpdispPicture",
@@ -2093,25 +2077,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HPALETTE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt32"
+							"_t": "_ref",
+							"name": "COLORREF",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clr",
@@ -2149,18 +2131,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guid",
@@ -2176,8 +2156,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2187,9 +2168,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ACTIVEOBJECT_FLAGS"
+						"_t": "_ref",
+						"name": "ACTIVEOBJECT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2201,8 +2182,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punk",
@@ -2217,29 +2199,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ITypeLib"
+						"_t": "_ref",
+						"name": "ITypeLib",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ptlib",
@@ -2253,29 +2231,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ITypeLib"
+						"_t": "_ref",
+						"name": "ITypeLib",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ptlib",
@@ -2302,8 +2276,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwRegister",
@@ -2320,7 +2295,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2335,8 +2310,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -2353,7 +2329,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2368,8 +2344,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -2386,13 +2363,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa"
@@ -2415,14 +2393,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cDims",
@@ -2435,9 +2414,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2451,14 +2430,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"vt",
@@ -2476,7 +2456,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2486,14 +2466,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -2510,7 +2491,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2518,13 +2499,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psaSource",
@@ -2537,9 +2519,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2551,7 +2533,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAYBOUND",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2560,7 +2542,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SAFEARRAY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2575,9 +2557,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2589,7 +2571,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAYBOUND",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2605,7 +2587,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SAFEARRAY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2621,9 +2603,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2640,7 +2622,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SAFEARRAY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2655,9 +2637,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2681,7 +2663,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SAFEARRAY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2701,13 +2683,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa"
@@ -2723,13 +2706,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa"
@@ -2745,13 +2729,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa"
@@ -2767,7 +2752,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2790,7 +2775,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2809,8 +2794,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -2828,7 +2814,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2851,7 +2837,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2863,8 +2849,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -2881,7 +2868,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2898,8 +2885,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -2917,20 +2905,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IRecordInfo"
+							"_t": "_ref",
+							"name": "IRecordInfo",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -2947,7 +2937,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2964,8 +2954,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -2983,21 +2974,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "VARENUM"
+							"_t": "_ref",
+							"name": "VARENUM",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -3014,13 +3006,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa"
@@ -3036,7 +3029,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3058,8 +3051,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -3077,7 +3071,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3096,8 +3090,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -3115,7 +3110,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3123,13 +3118,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAYBOUND",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -3167,7 +3163,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3189,7 +3185,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3201,8 +3197,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -3219,17 +3216,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IRecordInfo"
+						"_t": "_ref",
+						"name": "IRecordInfo",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa",
@@ -3246,13 +3245,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa"
@@ -3268,13 +3268,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SAFEARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psa"
@@ -3291,13 +3292,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IErrorInfo"
+						"_t": "_ref",
+						"name": "IErrorInfo",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwReserved",
@@ -3310,17 +3313,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bstrString"
@@ -3332,21 +3333,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "BSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"psz"
@@ -3373,12 +3368,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "BSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"psz",
@@ -3406,12 +3398,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "BSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"strIn",
@@ -3424,12 +3413,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3448,21 +3434,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3482,21 +3462,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3520,12 +3494,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3542,12 +3513,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3565,12 +3533,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3592,7 +3557,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SYSTEMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3639,14 +3604,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SYSKIND"
+						"_t": "_ref",
+						"name": "SYSKIND",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"libID",
@@ -3684,14 +3650,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SYSKIND"
+						"_t": "_ref",
+						"name": "SYSKIND",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"libID",
@@ -3719,7 +3686,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3750,7 +3717,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3789,7 +3756,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3833,7 +3800,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3874,7 +3841,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3912,7 +3879,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3953,7 +3920,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3997,7 +3964,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4025,7 +3992,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4033,13 +4000,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -4056,7 +4024,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4064,7 +4032,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4072,13 +4040,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -4096,7 +4065,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4104,7 +4073,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4112,13 +4081,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -4148,8 +4118,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -4162,14 +4130,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -4187,14 +4157,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -4211,20 +4183,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -4237,8 +4211,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -4248,14 +4223,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -4269,21 +4246,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -4302,14 +4281,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -4328,14 +4309,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -4354,14 +4337,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -4379,14 +4364,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -4404,14 +4391,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -4424,12 +4413,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4444,14 +4430,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -4473,14 +4461,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -4500,14 +4490,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -4527,14 +4519,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -4554,14 +4548,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "short",
-							"label": "Int16"
+							"_t": "_ref",
+							"name": "VARIANT_BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -4574,36 +4570,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bstrLeft",
@@ -4617,20 +4605,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4644,8 +4626,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bstrLeft",
@@ -4660,8 +4643,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "int",
@@ -4676,18 +4660,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -4718,8 +4700,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -4742,18 +4722,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -4783,18 +4761,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -4813,7 +4789,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4829,18 +4805,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -4855,8 +4829,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -4871,18 +4846,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -4897,9 +4870,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "int",
@@ -4914,18 +4887,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -4956,18 +4927,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"iVal",
@@ -4998,18 +4967,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -5040,18 +5007,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -5081,18 +5046,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -5122,18 +5085,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -5165,18 +5126,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bVal",
@@ -5208,18 +5167,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -5251,18 +5208,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -5294,18 +5249,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -5324,7 +5277,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5332,7 +5285,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5340,13 +5293,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -5364,7 +5318,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5372,7 +5326,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5387,9 +5341,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "VARCMP"
+					"_t": "_ref",
+					"name": "VARCMP",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -5420,8 +5374,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -5450,8 +5402,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -5464,8 +5414,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -5494,8 +5445,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -5522,8 +5471,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -5552,8 +5499,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -5566,8 +5511,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyLeft",
@@ -5597,8 +5543,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -5625,8 +5569,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -5638,9 +5580,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "VARCMP"
+					"_t": "_ref",
+					"name": "VARCMP",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyLeft",
@@ -5669,8 +5611,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -5685,9 +5625,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "VARCMP"
+					"_t": "_ref",
+					"name": "VARCMP",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyLeft",
@@ -5716,8 +5656,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -5746,8 +5684,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -5760,8 +5696,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -5774,8 +5711,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -5796,8 +5734,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -5810,8 +5746,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -5845,8 +5782,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -5859,8 +5794,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -5877,7 +5813,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5899,8 +5835,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -5913,8 +5847,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -5927,8 +5862,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -5954,8 +5890,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -5968,8 +5902,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -5983,9 +5918,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -6006,8 +5941,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6020,8 +5953,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -6056,8 +5990,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6070,8 +6002,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -6106,8 +6039,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6120,8 +6051,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -6156,8 +6088,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6170,8 +6100,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -6205,8 +6136,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6219,8 +6148,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -6254,8 +6184,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6268,8 +6196,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -6282,12 +6211,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6318,8 +6244,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6332,8 +6256,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -6371,8 +6296,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6385,8 +6308,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -6422,8 +6346,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6436,8 +6358,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -6473,8 +6396,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6487,8 +6408,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -6524,8 +6446,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6538,8 +6458,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -6568,8 +6489,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -6598,8 +6517,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6612,8 +6529,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -6642,8 +6560,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -6670,8 +6586,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -6700,8 +6614,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6714,8 +6626,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyLeft",
@@ -6745,8 +6658,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -6779,8 +6690,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6793,8 +6702,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyLeft",
@@ -6824,8 +6734,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -6858,8 +6766,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6872,8 +6778,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyLeft",
@@ -6903,8 +6810,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -6933,8 +6838,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -6947,8 +6850,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -6977,8 +6881,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -7011,8 +6913,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -7025,8 +6925,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -7056,8 +6957,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -7084,8 +6983,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -7114,8 +7011,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								},
 								"int64": {
@@ -7128,8 +7023,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyLeft",
@@ -7143,8 +7039,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -7154,8 +7051,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -7184,8 +7082,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -7203,8 +7099,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -7221,7 +7118,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7232,8 +7129,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -7246,8 +7144,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -7262,8 +7161,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -7277,9 +7177,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -7289,8 +7189,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -7314,8 +7215,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -7339,8 +7241,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -7364,8 +7267,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -7388,8 +7292,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -7412,8 +7317,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -7426,12 +7332,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7451,8 +7354,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -7479,8 +7383,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -7505,8 +7410,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -7531,8 +7437,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -7557,8 +7464,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -7575,7 +7483,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UDATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7591,8 +7499,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pudateIn",
@@ -7610,7 +7519,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UDATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7631,8 +7540,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pudateIn",
@@ -7651,7 +7561,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7659,13 +7569,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -7682,7 +7593,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7690,7 +7601,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7698,13 +7609,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecLeft",
@@ -7722,7 +7634,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7730,14 +7642,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "VARCMP"
+					"_t": "_ref",
+					"name": "VARCMP",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecLeft",
@@ -7754,7 +7666,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7762,9 +7674,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "VARCMP"
+					"_t": "_ref",
+					"name": "VARCMP",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecLeft",
@@ -7781,7 +7693,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7789,7 +7701,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7797,13 +7709,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecLeft",
@@ -7821,7 +7734,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7829,13 +7742,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -7848,21 +7762,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -7891,8 +7807,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -7907,13 +7821,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -7933,13 +7848,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -7952,8 +7868,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -7965,13 +7882,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -7985,22 +7903,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -8021,13 +7940,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -8048,13 +7968,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -8075,13 +7996,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -8101,13 +8023,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -8127,13 +8050,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -8146,12 +8070,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8168,13 +8089,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -8198,13 +8120,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -8226,13 +8149,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -8254,13 +8178,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -8282,13 +8207,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -8305,7 +8231,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8313,13 +8239,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -8336,7 +8263,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8344,7 +8271,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8352,13 +8279,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecLeft",
@@ -8376,7 +8304,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8384,13 +8312,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -8407,7 +8336,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8419,13 +8348,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -8443,7 +8373,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8451,7 +8381,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8459,13 +8389,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecLeft",
@@ -8483,7 +8414,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8491,7 +8422,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8499,13 +8430,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -8523,7 +8455,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8531,7 +8463,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8539,13 +8471,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -8563,7 +8496,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8571,13 +8504,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -8594,26 +8528,23 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_FIRST_DAY"
+						"_t": "_ref",
+						"name": "VARFORMAT_FIRST_DAY",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_FIRST_WEEK"
+						"_t": "_ref",
+						"name": "VARFORMAT_FIRST_WEEK",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8623,18 +8554,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -8655,7 +8584,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8682,18 +8611,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -8715,13 +8642,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_NAMED_FORMAT"
+						"_t": "_ref",
+						"name": "VARFORMAT_NAMED_FORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8731,18 +8658,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -8761,16 +8686,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8788,12 +8710,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8803,8 +8722,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -8825,7 +8745,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8833,19 +8753,19 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_LEADING_DIGIT"
+						"_t": "_ref",
+						"name": "VARFORMAT_LEADING_DIGIT",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_PARENTHESES"
+						"_t": "_ref",
+						"name": "VARFORMAT_PARENTHESES",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_GROUP"
+						"_t": "_ref",
+						"name": "VARFORMAT_GROUP",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8855,18 +8775,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -8888,7 +8806,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8896,19 +8814,19 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_LEADING_DIGIT"
+						"_t": "_ref",
+						"name": "VARFORMAT_LEADING_DIGIT",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_PARENTHESES"
+						"_t": "_ref",
+						"name": "VARFORMAT_PARENTHESES",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_GROUP"
+						"_t": "_ref",
+						"name": "VARFORMAT_GROUP",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8918,18 +8836,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -8947,21 +8863,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -8990,8 +8905,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -9002,17 +8915,15 @@
 						"name": "<anon>"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -9028,17 +8939,15 @@
 						"_t": "float"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -9055,21 +8964,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -9082,8 +8989,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -9091,17 +8999,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -9119,17 +9025,15 @@
 						"label": "Int16"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -9146,17 +9050,15 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -9173,17 +9075,15 @@
 						"label": "Int64"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -9199,17 +9099,15 @@
 						"_t": "float"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -9225,17 +9123,15 @@
 						"_t": "float"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -9248,12 +9144,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9266,17 +9159,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -9296,17 +9187,15 @@
 						"label": "Byte"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -9324,17 +9213,15 @@
 						"label": "UInt16"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -9352,17 +9239,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -9380,17 +9265,15 @@
 						"label": "UInt64"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -9403,8 +9286,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -9415,8 +9299,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -9445,8 +9330,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -9465,8 +9348,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -9490,8 +9374,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -9508,7 +9393,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9520,8 +9405,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -9534,8 +9420,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -9551,8 +9438,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -9566,9 +9454,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -9579,8 +9467,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -9605,8 +9494,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -9631,8 +9521,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -9656,8 +9547,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -9681,8 +9573,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -9695,12 +9588,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9721,8 +9611,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -9750,8 +9641,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -9777,8 +9669,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -9804,8 +9697,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -9831,8 +9725,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -9845,8 +9740,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -9857,8 +9753,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -9887,8 +9784,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -9907,8 +9802,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -9932,8 +9828,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -9950,7 +9847,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9962,8 +9859,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -9976,8 +9874,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -9993,8 +9892,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -10008,9 +9908,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -10021,8 +9921,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -10047,8 +9948,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -10073,8 +9975,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -10098,8 +10001,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -10123,8 +10027,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -10137,12 +10042,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10163,8 +10065,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -10192,8 +10095,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -10219,8 +10123,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -10246,8 +10151,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -10273,8 +10179,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -10287,8 +10194,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -10299,8 +10207,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -10329,8 +10238,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -10349,8 +10256,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -10374,8 +10282,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -10392,7 +10301,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10404,8 +10313,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -10418,8 +10328,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -10435,8 +10346,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -10450,9 +10362,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -10463,8 +10375,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -10489,8 +10402,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -10514,8 +10428,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -10539,8 +10454,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -10553,12 +10469,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -10579,8 +10492,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -10608,8 +10522,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -10635,8 +10550,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -10662,8 +10578,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -10689,8 +10606,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -10707,7 +10625,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10715,7 +10633,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10723,13 +10641,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -10747,7 +10666,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10755,7 +10674,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10763,13 +10682,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -10787,7 +10707,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10795,13 +10715,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -10818,7 +10739,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10826,7 +10747,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10834,13 +10755,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -10869,18 +10791,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"iMonth",
@@ -10899,7 +10819,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10907,7 +10827,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10915,13 +10835,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -10939,7 +10860,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10947,13 +10868,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -10970,7 +10892,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10978,13 +10900,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -11001,7 +10924,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NUMPARSE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11022,13 +10945,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pnumprs",
@@ -11047,7 +10971,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11055,7 +10979,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11063,13 +10987,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -11083,12 +11008,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11105,7 +11027,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NUMPARSE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11118,8 +11040,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -11139,7 +11062,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11147,7 +11070,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11155,13 +11078,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -11182,9 +11106,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "VARCMP"
+					"_t": "_ref",
+					"name": "VARCMP",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltLeft",
@@ -11197,8 +11121,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -11208,8 +11133,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -11238,8 +11164,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -11257,8 +11181,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -11281,8 +11206,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -11299,7 +11225,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11310,8 +11236,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -11324,8 +11251,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -11340,8 +11268,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -11355,9 +11284,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -11367,8 +11296,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -11392,8 +11322,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -11417,8 +11348,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -11442,8 +11374,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -11466,8 +11399,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -11480,12 +11414,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11505,8 +11436,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -11533,8 +11465,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -11559,8 +11492,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -11585,8 +11519,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -11611,8 +11546,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -11625,8 +11561,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -11636,8 +11573,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -11666,8 +11604,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -11685,8 +11621,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -11709,8 +11646,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -11727,7 +11665,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11738,8 +11676,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -11752,8 +11691,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -11768,8 +11708,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -11783,9 +11724,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -11795,8 +11736,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -11820,8 +11762,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -11845,8 +11788,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -11870,8 +11814,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -11894,8 +11839,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -11908,12 +11854,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -11933,8 +11876,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -11961,8 +11905,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -11987,8 +11932,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -12013,8 +11959,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -12039,8 +11986,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -12066,8 +12014,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblLeft",
@@ -12095,8 +12044,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -12114,7 +12064,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12126,13 +12076,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarIn",
@@ -12150,7 +12101,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12158,7 +12109,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12166,13 +12117,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -12186,12 +12138,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -12207,14 +12156,14 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_FIRST_DAY"
+						"_t": "_ref",
+						"name": "VARFORMAT_FIRST_DAY",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARFORMAT_FIRST_WEEK"
+						"_t": "_ref",
+						"name": "VARFORMAT_FIRST_WEEK",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -12230,8 +12179,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstrFormat",
@@ -12249,8 +12199,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -12262,8 +12213,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -12292,8 +12244,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -12313,8 +12263,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -12339,8 +12290,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -12357,7 +12309,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12370,8 +12322,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -12384,8 +12337,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -12402,8 +12356,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -12417,9 +12372,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -12431,8 +12386,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -12458,8 +12414,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -12485,8 +12442,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -12512,8 +12470,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -12538,8 +12497,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -12564,8 +12524,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -12578,12 +12539,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -12605,8 +12563,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -12635,8 +12594,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -12663,8 +12623,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -12691,8 +12652,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -12705,8 +12667,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -12718,8 +12681,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -12748,8 +12712,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -12769,8 +12731,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -12795,8 +12758,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -12813,7 +12777,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12826,8 +12790,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -12840,8 +12805,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -12858,8 +12824,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -12873,9 +12840,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -12887,8 +12854,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -12914,8 +12882,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -12941,8 +12910,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -12968,8 +12938,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -12994,8 +12965,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -13020,8 +12992,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -13034,12 +13007,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -13061,8 +13031,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -13091,8 +13062,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -13119,8 +13091,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -13147,8 +13120,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -13161,8 +13135,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -13174,8 +13149,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -13204,8 +13180,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -13225,8 +13199,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -13251,8 +13226,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -13269,7 +13245,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -13282,8 +13258,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -13296,8 +13273,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -13314,8 +13292,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -13329,9 +13308,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -13343,8 +13322,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -13370,8 +13350,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -13397,8 +13378,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lIn",
@@ -13424,8 +13406,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"i64In",
@@ -13450,8 +13433,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -13476,8 +13460,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -13490,12 +13475,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -13517,8 +13499,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -13547,8 +13530,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -13575,8 +13559,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -13603,8 +13588,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -13617,8 +13603,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "short",
-						"label": "Int16"
+						"_t": "_ref",
+						"name": "VARIANT_BOOL",
+						"ot": "short"
 					},
 					{
 						"_t": "ptr",
@@ -13630,8 +13617,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"boolIn",
@@ -13660,8 +13648,6 @@
 									}
 								},
 								"name": "_Anonymous_e__Struct",
-								"pack": false,
-								"align": null,
 								"anonymous": true
 							},
 							"int64": {
@@ -13681,8 +13667,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cyIn",
@@ -13707,8 +13694,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -13725,7 +13713,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DECIMAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -13738,8 +13726,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdecIn",
@@ -13752,8 +13741,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDispatch"
+						"_t": "_ref",
+						"name": "IDispatch",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -13770,8 +13760,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pdispIn",
@@ -13785,9 +13776,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "char",
-						"signed": true,
-						"label": "SByte"
+						"_t": "_ref",
+						"name": "CHAR",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -13799,8 +13790,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cIn",
@@ -13826,8 +13818,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"sIn",
@@ -13853,8 +13846,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ui64In",
@@ -13879,8 +13873,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltIn",
@@ -13905,8 +13900,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dblIn",
@@ -13919,12 +13915,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -13946,8 +13939,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"strIn",
@@ -13976,8 +13970,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bIn",
@@ -14004,8 +13999,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"uiIn",
@@ -14032,8 +14028,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulIn",
@@ -14058,13 +14055,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UDATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateIn",
@@ -14097,18 +14095,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"iWeekday",
@@ -14128,7 +14124,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -14136,7 +14132,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -14144,13 +14140,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarLeft",
@@ -14168,7 +14165,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -14176,23 +14173,24 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VAR_CHANGE_FLAGS"
+						"_t": "_ref",
+						"name": "VAR_CHANGE_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvargDest",
@@ -14211,7 +14209,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -14219,7 +14217,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -14228,19 +14226,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VAR_CHANGE_FLAGS"
+						"_t": "_ref",
+						"name": "VAR_CHANGE_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvargDest",
@@ -14260,13 +14259,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarg"
@@ -14282,7 +14282,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -14290,13 +14290,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvargDest",
@@ -14313,7 +14314,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -14321,13 +14322,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvarDest",
@@ -14344,7 +14346,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -14404,7 +14406,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SYSTEMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -14423,12 +14425,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -14437,14 +14436,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SAFEARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"bstr",

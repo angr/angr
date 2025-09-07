@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -85,12 +86,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -129,25 +127,22 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCPCAPI_CLASSID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCPCAPI_PARAMS_ARRAY",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -201,30 +196,27 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCPCAPI_CLASSID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCPCAPI_PARAMS_ARRAY",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCPCAPI_PARAMS_ARRAY",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -243,12 +235,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -286,20 +275,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -359,15 +342,16 @@
 						"label": "UInt16"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_SCOPE_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -410,7 +394,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_CLIENT_UID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -438,7 +422,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_CLIENT_UID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -446,7 +430,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_LEASE_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -476,7 +460,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_CLIENT_UID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -484,7 +468,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_LEASE_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -492,7 +476,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_LEASE_RESPONSE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -523,7 +507,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_CLIENT_UID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -531,7 +515,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_SCOPE_CTX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -539,7 +523,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_LEASE_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -547,7 +531,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MCAST_LEASE_RESPONSE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

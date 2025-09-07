@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,13 +20,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECPKG_ATTR"
+						"_t": "_ref",
+						"name": "SECPKG_ATTR",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -41,8 +42,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -61,13 +63,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECPKG_ATTR"
+						"_t": "_ref",
+						"name": "SECPKG_ATTR",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -83,8 +85,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -103,7 +106,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -125,8 +128,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -145,7 +149,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -167,8 +171,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -196,8 +201,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Options",
@@ -223,8 +229,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Options",
@@ -241,7 +248,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecPkgContext_Bindings",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -251,8 +258,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pBindings",

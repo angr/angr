@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,9 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEV_OBJECT_TYPE"
+						"_t": "_ref",
+						"name": "DEV_OBJECT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -34,7 +35,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPCOMPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -48,7 +49,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROP_FILTER_EXPRESSION",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -62,7 +63,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEV_QUERY_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -72,12 +73,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HDEVQUERY",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -91,7 +89,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "DEV_QUERY_RESULT_ACTION_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -116,18 +114,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDEVQUERY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectType",
@@ -149,17 +145,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEV_OBJECT_TYPE"
+						"_t": "_ref",
+						"name": "DEV_OBJECT_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -176,7 +169,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPCOMPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -190,7 +183,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROP_FILTER_EXPRESSION",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -204,7 +197,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEV_QUERY_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -214,12 +207,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HDEVQUERY",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -233,7 +223,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "DEV_QUERY_RESULT_ACTION_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -258,18 +248,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDEVQUERY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectType",
@@ -292,17 +280,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEV_OBJECT_TYPE"
+						"_t": "_ref",
+						"name": "DEV_OBJECT_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -319,7 +304,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPCOMPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -333,7 +318,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROP_FILTER_EXPRESSION",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -347,7 +332,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEV_QUERY_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -357,12 +342,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HDEVQUERY",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -376,7 +358,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "DEV_QUERY_RESULT_ACTION_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -401,18 +383,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HDEVQUERY",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectType",
@@ -435,17 +415,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEV_OBJECT_TYPE"
+						"_t": "_ref",
+						"name": "DEV_OBJECT_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -462,7 +439,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPCOMPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -476,7 +453,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEV_QUERY_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -495,14 +472,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DEVPROPERTY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectType",
@@ -522,9 +500,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DEV_OBJECT_TYPE"
+						"_t": "_ref",
+						"name": "DEV_OBJECT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -541,7 +519,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROPCOMPKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -555,7 +533,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVPROP_FILTER_EXPRESSION",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -569,7 +547,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEV_QUERY_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -588,14 +566,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DEV_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectType",

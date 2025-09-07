@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -35,13 +36,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -59,7 +61,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -80,14 +82,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -113,7 +116,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -123,8 +126,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -166,8 +170,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -203,8 +208,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -222,13 +228,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog"
@@ -244,13 +251,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog"
@@ -268,7 +276,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FILE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -277,7 +285,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -291,11 +299,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -331,8 +337,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pplfoLog",
@@ -358,13 +365,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "POOL_TYPE"
+						"_t": "_ref",
+						"name": "POOL_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -420,8 +427,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -444,13 +452,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "POOL_TYPE"
+						"_t": "_ref",
+						"name": "POOL_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -516,8 +524,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -542,7 +551,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -565,13 +574,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_SCAN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -591,13 +601,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog"
@@ -613,7 +624,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -642,8 +653,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"puszLogFileName",
@@ -667,8 +679,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext"
@@ -684,14 +697,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
 					"_t": "_ref",
 					"name": "CLS_LSN",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"plsn"
@@ -722,8 +735,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext"
@@ -746,7 +760,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -754,13 +768,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -795,8 +810,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -814,7 +830,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -827,7 +843,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -840,8 +856,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -860,7 +877,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -876,9 +893,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_IOSTATS_CLASS"
+						"_t": "_ref",
+						"name": "CLFS_IOSTATS_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -890,8 +907,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -911,7 +929,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -919,7 +937,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -932,8 +950,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -947,8 +966,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -962,14 +982,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
 					"_t": "_ref",
 					"name": "CLS_LSN",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"plsn"
@@ -985,7 +1005,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1008,7 +1028,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1045,7 +1065,7 @@
 				"returnty": {
 					"_t": "_ref",
 					"name": "CLS_LSN",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"cidContainer",
@@ -1063,7 +1083,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1071,7 +1091,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1093,8 +1113,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plsnStart",
@@ -1114,7 +1135,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1122,14 +1143,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn1",
@@ -1146,7 +1167,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1154,14 +1175,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn1",
@@ -1178,14 +1199,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn"
@@ -1201,7 +1222,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1209,14 +1230,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn1",
@@ -1233,14 +1254,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"plsn"
@@ -1256,7 +1277,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1283,8 +1304,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ClientCookie"
@@ -1304,8 +1326,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Client"
@@ -1321,7 +1344,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1329,7 +1352,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLFS_MGMT_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1339,8 +1362,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogFile",
@@ -1358,20 +1382,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_MGMT_POLICY_TYPE"
+						"_t": "_ref",
+						"name": "CLFS_MGMT_POLICY_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLFS_MGMT_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1384,8 +1408,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogFile",
@@ -1404,7 +1429,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1412,7 +1437,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLFS_MGMT_CLIENT_REGISTRATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1427,8 +1452,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogFile",
@@ -1446,18 +1472,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_MGMT_POLICY_TYPE"
+						"_t": "_ref",
+						"name": "CLFS_MGMT_POLICY_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogFile",
@@ -1474,7 +1501,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1503,12 +1530,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FILE_OBJECT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "NTSTATUS",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -1538,8 +1566,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogFile",
@@ -1559,7 +1588,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1598,12 +1627,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FILE_OBJECT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "NTSTATUS",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -1633,8 +1663,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogFile",
@@ -1658,13 +1689,15 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "NTSTATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Client",
@@ -1681,13 +1714,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLS_LOG_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "CLS_LOG_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1718,8 +1751,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -1747,13 +1781,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLFS_CONTEXT_MODE"
+						"_t": "_ref",
+						"name": "CLFS_CONTEXT_MODE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1786,7 +1820,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1794,7 +1828,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1809,8 +1843,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -1867,7 +1902,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1875,7 +1910,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1883,7 +1918,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1891,13 +1926,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvReadContext",
@@ -1945,13 +1981,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvReadContext",
@@ -1995,7 +2032,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2010,8 +2047,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -2031,7 +2069,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2039,18 +2077,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -2068,7 +2107,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2081,19 +2120,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -2119,7 +2159,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_WRITE_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2133,7 +2173,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2141,7 +2181,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2167,13 +2207,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -2204,7 +2245,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_WRITE_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2223,7 +2264,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2231,7 +2272,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2257,13 +2298,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",
@@ -2288,7 +2330,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_SCAN_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2298,8 +2340,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pcxScan",
@@ -2316,7 +2359,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2324,13 +2367,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -2347,7 +2391,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2355,13 +2399,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -2378,13 +2423,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CLS_LOG_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "CLS_LOG_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2400,8 +2445,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"plfoLog",
@@ -2424,8 +2470,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvCursorContext"
@@ -2460,7 +2507,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2481,13 +2528,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CLS_LSN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvMarshalContext",

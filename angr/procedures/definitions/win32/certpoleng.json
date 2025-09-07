@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,13 +20,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCert"
@@ -41,7 +43,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -49,7 +51,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecPkgContext_IssuerListInfoEx",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -59,14 +61,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CERT_CHAIN_CONTEXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCert",
@@ -84,7 +87,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -97,13 +100,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SELECT_CRITERIA",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -122,15 +126,16 @@
 								"pts_to": {
 									"_t": "_ref",
 									"name": "CERT_CHAIN_CONTEXT",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pTargetName",
@@ -151,7 +156,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -164,7 +169,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SELECT_CRITERIA",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -175,14 +180,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgContext_IssuerListInfoEx",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pTargetName",
@@ -201,7 +207,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -214,7 +220,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_SELECT_CRITERIA",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -223,7 +229,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -233,14 +239,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgContext_IssuerListInfoEx",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pTargetName",
@@ -260,7 +267,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -268,13 +275,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCertContext",
@@ -291,15 +299,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "LSA_TOKEN_INFORMATION_TYPE"
+							"_t": "_ref",
+							"name": "LSA_TOKEN_INFORMATION_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -314,8 +322,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCert",
@@ -333,29 +342,28 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_USAGE_MATCH",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "HCERTSTORE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -363,7 +371,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CERT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -375,8 +383,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pTargetName",

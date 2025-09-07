@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -17,12 +18,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_PROXY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -33,18 +31,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceProxy",
@@ -60,40 +56,32 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -109,29 +97,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -146,29 +129,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"listener",
@@ -183,29 +161,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_HOST",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceHost",
@@ -220,29 +193,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_PROXY",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceProxy",
@@ -257,23 +225,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -281,24 +243,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"listener",
@@ -315,12 +275,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -328,13 +285,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ELEMENT_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -356,18 +313,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -387,12 +342,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -400,13 +352,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -421,12 +374,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -434,18 +384,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_TYPE"
+						"_t": "_ref",
+						"name": "WS_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -462,18 +412,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -493,12 +441,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -506,24 +451,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ENDPOINT_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -539,12 +482,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -569,18 +509,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"heap",
@@ -599,7 +537,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -608,13 +546,14 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "HRESULT",
+									"ot": "int"
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "WS_CALLBACK_MODEL"
+									"_t": "_ref",
+									"name": "WS_CALLBACK_MODEL",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -628,7 +567,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WS_ASYNC_OPERATION",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -636,24 +575,22 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WS_ASYNC_CONTEXT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "WS_ERROR",
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"hr",
@@ -666,9 +603,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CALLBACK_MODEL"
+						"_t": "_ref",
+						"name": "WS_CALLBACK_MODEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -682,24 +619,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"asyncState",
@@ -718,12 +653,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_PROXY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -731,7 +663,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_OPERATION_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -747,12 +679,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -760,7 +689,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_CALL_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -774,24 +703,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceProxy",
@@ -812,29 +739,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -849,12 +771,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -862,24 +781,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -895,12 +812,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -908,24 +822,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"listener",
@@ -941,12 +853,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_HOST",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -954,24 +863,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceHost",
@@ -987,12 +894,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_PROXY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1000,24 +904,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceProxy",
@@ -1035,7 +937,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1043,7 +945,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1054,12 +956,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1067,24 +966,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"baseUrl",
@@ -1103,29 +1000,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"source",
@@ -1140,40 +1032,32 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -1187,21 +1071,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_TYPE"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_BINDING"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_BINDING",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_CHANNEL_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1215,7 +1099,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_SECURITY_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1223,30 +1107,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_CHANNEL",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channelType",
@@ -1266,12 +1145,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1279,7 +1155,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_CHANNEL_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1293,30 +1169,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_CHANNEL",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"listener",
@@ -1336,7 +1207,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ERROR_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1350,19 +1221,17 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_ERROR",
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"properties",
@@ -1378,32 +1247,27 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_FAULT_DISCLOSURE"
+						"_t": "_ref",
+						"name": "WS_FAULT_DISCLOSURE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1411,13 +1275,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_FAULT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -1455,7 +1320,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_HEAP_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1468,30 +1333,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_HEAP",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"maxSize",
@@ -1508,21 +1368,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_TYPE"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_BINDING"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_BINDING",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_LISTENER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1536,7 +1396,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_SECURITY_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1544,30 +1404,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_LISTENER",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channelType",
@@ -1585,21 +1440,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_ENVELOPE_VERSION"
+						"_t": "_ref",
+						"name": "WS_ENVELOPE_VERSION",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_ADDRESSING_VERSION"
+						"_t": "_ref",
+						"name": "WS_ADDRESSING_VERSION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_MESSAGE_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1613,30 +1468,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_MESSAGE",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"envelopeVersion",
@@ -1655,12 +1505,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1668,7 +1515,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_MESSAGE_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1682,30 +1529,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_MESSAGE",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -1725,7 +1567,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_METADATA_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1739,30 +1581,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_METADATA",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"properties",
@@ -1781,7 +1618,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_READER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1795,30 +1632,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_XML_READER",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"properties",
@@ -1833,16 +1665,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_TYPE"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_SERVICE_ENDPOINT_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1856,7 +1688,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1864,7 +1696,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_SERVICE_CONTRACT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1875,36 +1707,32 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "WS_OPERATION_CONTEXT",
+										"ot": "_ref"
 									}
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"label": "Int32"
+										"_t": "_ref",
+										"name": "BOOL",
+										"ot": "_ref"
 									}
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "WS_ERROR",
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"context",
@@ -1916,18 +1744,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_BINDING_TEMPLATE_TYPE"
+						"_t": "_ref",
+						"name": "WS_BINDING_TEMPLATE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1960,25 +1785,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_SERVICE_ENDPOINT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channelType",
@@ -2009,7 +1832,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_SERVICE_ENDPOINT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -2024,7 +1847,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_SERVICE_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2038,30 +1861,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_SERVICE_HOST",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"endpoints",
@@ -2078,21 +1896,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_TYPE"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_BINDING"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_BINDING",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_SECURITY_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2100,7 +1918,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_PROXY_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2114,7 +1932,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_CHANNEL_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2128,30 +1946,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_SERVICE_PROXY",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channelType",
@@ -2171,16 +1984,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_TYPE"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_PROXY_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2190,9 +2003,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_BINDING_TEMPLATE_TYPE"
+						"_t": "_ref",
+						"name": "WS_BINDING_TEMPLATE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2223,30 +2036,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_SERVICE_PROXY",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channelType",
@@ -2271,7 +2079,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_WRITER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2285,30 +2093,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_XML_WRITER",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"properties",
@@ -2325,12 +2128,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2338,7 +2138,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_BUFFER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2352,30 +2152,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_XML_BUFFER",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"heap",
@@ -2393,12 +2188,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_BUFFER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2406,7 +2198,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_SECURITY_KEY_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2414,7 +2206,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_SECURITY_TOKEN_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2428,30 +2220,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_SECURITY_TOKEN",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"tokenXml",
@@ -2472,7 +2259,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_DATETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2480,24 +2267,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dateTime",
@@ -2515,7 +2300,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2526,12 +2311,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2541,25 +2323,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_URL",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"url",
@@ -2579,7 +2359,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_URL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2590,12 +2370,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2603,24 +2380,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"url",
@@ -2638,29 +2413,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -2675,29 +2445,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -2714,7 +2479,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2722,24 +2487,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_DATETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fileTime",
@@ -2755,12 +2518,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2773,24 +2533,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -2807,12 +2565,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2825,24 +2580,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -2859,12 +2612,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2872,7 +2622,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2880,12 +2630,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2898,18 +2649,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -2928,12 +2677,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2946,24 +2692,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -2980,12 +2724,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2998,24 +2739,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -3032,12 +2771,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3057,12 +2793,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3082,12 +2815,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3107,12 +2837,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3132,12 +2859,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3157,12 +2881,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_METADATA",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3182,12 +2903,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3207,12 +2925,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SECURITY_TOKEN",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3232,12 +2947,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_HOST",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3257,12 +2969,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_PROXY",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3282,12 +2991,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3307,18 +3013,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3335,18 +3038,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -3364,12 +3065,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3377,13 +3075,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ELEMENT_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_REPEATING_HEADER_OPTION"
+						"_t": "_ref",
+						"name": "WS_REPEATING_HEADER_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3391,19 +3089,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3429,18 +3124,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -3461,9 +3154,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_ENCODING"
+						"_t": "_ref",
+						"name": "WS_ENCODING",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3472,25 +3165,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_XML_DICTIONARY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"encoding",
@@ -3506,18 +3197,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_ERROR_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_ERROR_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3533,8 +3221,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -3551,12 +3240,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3569,13 +3255,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -3591,12 +3278,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3604,23 +3288,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_FAULT_DETAIL_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3637,8 +3318,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -3657,18 +3339,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_FAULT_ERROR_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_FAULT_ERROR_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3684,8 +3363,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -3702,38 +3382,32 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_HEADER_TYPE"
+						"_t": "_ref",
+						"name": "WS_HEADER_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_TYPE"
+						"_t": "_ref",
+						"name": "WS_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3751,18 +3425,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -3783,23 +3455,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3813,18 +3479,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -3841,18 +3505,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_HEAP_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_HEAP_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3869,18 +3530,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"heap",
@@ -3898,18 +3557,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_LISTENER_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_LISTENER_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3926,18 +3582,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"listener",
@@ -3955,12 +3609,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3968,13 +3619,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_REPEATING_HEADER_OPTION"
+						"_t": "_ref",
+						"name": "WS_REPEATING_HEADER_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3982,24 +3633,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_TYPE"
+						"_t": "_ref",
+						"name": "WS_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4017,18 +3665,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -4051,18 +3697,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_MESSAGE_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_MESSAGE_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4079,18 +3722,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -4108,12 +3749,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_METADATA",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4121,24 +3759,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_METADATA_ENDPOINTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"metadata",
@@ -4154,18 +3790,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_METADATA",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_METADATA_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_METADATA_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4182,18 +3815,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"metadata",
@@ -4211,12 +3842,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_METADATA",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4226,25 +3854,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_ENDPOINT_ADDRESS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"metadata",
@@ -4260,12 +3886,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4273,12 +3896,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4287,25 +3911,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_XML_STRING",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -4323,18 +3945,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_OPERATION_CONTEXT",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_OPERATION_CONTEXT_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_OPERATION_CONTEXT_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4351,18 +3970,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"context",
@@ -4380,12 +3997,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_POLICY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4399,18 +4013,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"policy",
@@ -4426,18 +4038,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_POLICY",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_POLICY_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_POLICY_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4454,18 +4063,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"policy",
@@ -4483,12 +4090,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4496,12 +4100,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4510,25 +4115,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_XML_STRING",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -4546,12 +4149,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4561,25 +4161,23 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_XML_NODE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"xmlReader",
@@ -4595,12 +4193,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4608,24 +4203,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_NODE_POSITION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -4641,18 +4234,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_XML_READER_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_XML_READER_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4669,18 +4259,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -4698,18 +4286,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SECURITY_CONTEXT",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_SECURITY_CONTEXT_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_SECURITY_CONTEXT_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4726,18 +4311,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"securityContext",
@@ -4755,18 +4338,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SECURITY_TOKEN",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_SECURITY_TOKEN_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_SECURITY_TOKEN_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4783,29 +4363,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"securityToken",
@@ -4824,18 +4399,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_HOST",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_SERVICE_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_SERVICE_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4852,18 +4424,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceHost",
@@ -4881,18 +4451,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_PROXY",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_PROXY_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_PROXY_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4909,18 +4476,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceProxy",
@@ -4938,12 +4503,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4951,24 +4513,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_NODE_POSITION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -4984,18 +4544,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_XML_WRITER_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_XML_WRITER_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5012,18 +4569,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -5041,12 +4596,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5054,18 +4606,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5090,18 +4639,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -5120,45 +4667,37 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_MESSAGE_INITIALIZATION"
+						"_t": "_ref",
+						"name": "WS_MESSAGE_INITIALIZATION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -5175,12 +4714,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5188,24 +4724,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_NODE_POSITION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -5221,12 +4755,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_POLICY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5239,39 +4770,35 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_POLICY_CONSTRAINTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"policy",
@@ -5290,41 +4817,37 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_MOVE_TO"
+						"_t": "_ref",
+						"name": "WS_MOVE_TO",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -5341,41 +4864,37 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_MOVE_TO"
+						"_t": "_ref",
+						"name": "WS_MOVE_TO",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -5392,12 +4911,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5405,7 +4921,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ENDPOINT_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5413,24 +4929,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -5447,12 +4961,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5460,7 +4971,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5468,24 +4979,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"listener",
@@ -5502,12 +5011,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_HOST",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5515,24 +5021,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceHost",
@@ -5548,12 +5052,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_PROXY",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5561,7 +5062,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ENDPOINT_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5569,24 +5070,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceProxy",
@@ -5603,12 +5102,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5648,24 +5144,22 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WS_ASYNC_CONTEXT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "WS_ERROR",
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"callbackState",
@@ -5687,18 +5181,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -5715,12 +5207,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5752,7 +5241,7 @@
 												"pts_to": {
 													"_t": "_ref",
 													"name": "WS_BYTES",
-													"ot": "struct"
+													"ot": "_ref"
 												},
 												"label": "LPArray"
 											},
@@ -5766,24 +5255,22 @@
 												"pts_to": {
 													"_t": "_ref",
 													"name": "WS_ASYNC_CONTEXT",
-													"ot": "struct"
+													"ot": "_ref"
 												}
 											},
 											{
 												"_t": "ptr",
 												"pts_to": {
-													"_t": "ptr",
-													"pts_to": {
-														"_t": "int",
-														"label": "Int"
-													},
-													"label": "IntPtr"
+													"_t": "_ref",
+													"name": "WS_ERROR",
+													"ot": "_ref"
 												}
 											}
 										],
 										"returnty": {
-											"_t": "int",
-											"label": "Int32"
+											"_t": "_ref",
+											"name": "HRESULT",
+											"ot": "int"
 										},
 										"arg_names": [
 											"callbackState",
@@ -5806,24 +5293,22 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WS_ASYNC_CONTEXT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "WS_ERROR",
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"callbackState",
@@ -5844,18 +5329,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -5872,12 +5355,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5885,7 +5365,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5893,13 +5373,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_VALUE_TYPE"
+						"_t": "_ref",
+						"name": "WS_VALUE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5934,18 +5414,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -5968,12 +5446,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5981,23 +5456,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ATTRIBUTE_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6015,18 +5487,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6046,12 +5516,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6059,23 +5526,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ELEMENT_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6093,18 +5557,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -6124,12 +5586,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6155,18 +5614,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6184,12 +5641,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6217,18 +5671,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6246,12 +5698,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6279,18 +5728,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6308,12 +5755,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6321,23 +5765,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ELEMENT_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6355,18 +5796,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6386,29 +5825,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6423,29 +5857,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6460,12 +5889,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6473,28 +5899,25 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ENDPOINT_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_ENDPOINT_ADDRESS_EXTENSION_TYPE"
+						"_t": "_ref",
+						"name": "WS_ENDPOINT_ADDRESS_EXTENSION_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6512,18 +5935,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6544,29 +5965,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -6581,23 +5997,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6632,18 +6042,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -6661,23 +6069,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6685,24 +6087,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -6719,23 +6119,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6743,24 +6137,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -6777,23 +6169,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_METADATA",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6801,24 +6187,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"metadata",
@@ -6835,29 +6219,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6872,23 +6251,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6896,7 +6269,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6904,7 +6277,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6912,24 +6285,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6948,12 +6319,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6964,18 +6332,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -6991,29 +6357,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -7028,12 +6389,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7041,7 +6399,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7049,31 +6407,30 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -7091,23 +6448,20 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_TYPE_MAPPING"
+						"_t": "_ref",
+						"name": "WS_TYPE_MAPPING",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_TYPE"
+						"_t": "_ref",
+						"name": "WS_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -7117,19 +6471,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7147,18 +6498,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -7180,18 +6529,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_VALUE_TYPE"
+						"_t": "_ref",
+						"name": "WS_VALUE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -7208,18 +6554,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -7237,12 +6581,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
+						}
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7250,41 +6599,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_XML_BUFFER",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -7301,12 +6634,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7314,7 +6644,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_READER_ENCODING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7322,7 +6652,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_READER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -7346,12 +6676,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7359,30 +6686,25 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_XML_BUFFER",
+								"ot": "_ref"
 							}
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -7404,23 +6726,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7430,7 +6746,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WS_MESSAGE_DESCRIPTION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						},
 						"label": "LPArray"
@@ -7441,24 +6757,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_RECEIVE_OPTION"
+						"_t": "_ref",
+						"name": "WS_RECEIVE_OPTION",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7486,24 +6799,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -7528,12 +6839,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_OPERATION_CONTEXT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7542,9 +6850,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "WS_SERVICE_CANCEL_REASON"
+									"_t": "_ref",
+									"name": "WS_SERVICE_CANCEL_REASON",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -7596,18 +6904,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"context",
@@ -7625,12 +6931,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7638,7 +6941,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7646,24 +6949,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -7680,34 +6981,29 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_HEADER_TYPE"
+						"_t": "_ref",
+						"name": "WS_HEADER_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -7723,12 +7019,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7736,24 +7029,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -7771,24 +7062,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_NODE_POSITION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"nodePosition",
@@ -7803,23 +7092,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7827,13 +7110,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_MESSAGE_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -7850,12 +7133,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7863,23 +7143,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_MESSAGE_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_READ_OPTION"
+						"_t": "_ref",
+						"name": "WS_READ_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7899,24 +7176,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -7943,12 +7218,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7956,7 +7228,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_REQUEST_SECURITY_TOKEN_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -7970,12 +7242,9 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "WS_SECURITY_TOKEN",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7984,24 +7253,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -8020,29 +7287,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -8057,18 +7319,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error"
@@ -8082,29 +7342,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"heap",
@@ -8119,29 +7374,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"listener",
@@ -8156,29 +7406,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -8193,29 +7438,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_METADATA",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"metadata",
@@ -8230,29 +7470,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_HOST",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceHost",
@@ -8267,29 +7502,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SERVICE_PROXY",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"serviceProxy",
@@ -8304,29 +7534,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_SECURITY_CONTEXT",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"securityContext",
@@ -8341,54 +7566,43 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_FAULT_DISCLOSURE"
+						"_t": "_ref",
+						"name": "WS_FAULT_DISCLOSURE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8396,24 +7610,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -8434,23 +7646,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8458,13 +7664,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_MESSAGE_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8483,24 +7689,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -8521,23 +7725,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8545,13 +7743,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_MESSAGE_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8568,12 +7766,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8581,24 +7776,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -8620,18 +7813,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_CHANNEL_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_CHANNEL_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8648,18 +7838,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -8677,18 +7865,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_ERROR_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_ERROR_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8704,8 +7889,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -8722,12 +7908,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8735,13 +7918,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_FAULT_DETAIL_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8757,8 +7940,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -8776,18 +7960,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_FAULT_ERROR_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_FAULT_ERROR_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8803,8 +7984,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"error",
@@ -8821,28 +8003,25 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_HEADER_TYPE"
+						"_t": "_ref",
+						"name": "WS_HEADER_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_TYPE"
+						"_t": "_ref",
+						"name": "WS_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -8859,18 +8038,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -8890,12 +8067,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8903,7 +8077,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_READER_ENCODING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8911,7 +8085,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_READER_INPUT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8919,7 +8093,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_READER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -8931,18 +8105,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -8961,23 +8133,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_BUFFER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8985,7 +8151,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_READER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -8997,18 +8163,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -9026,18 +8190,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_LISTENER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_LISTENER_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_LISTENER_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9054,18 +8215,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"listener",
@@ -9083,18 +8242,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_MESSAGE_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "WS_MESSAGE_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9111,18 +8267,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -9140,12 +8294,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9153,7 +8304,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_WRITER_ENCODING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9161,7 +8312,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_WRITER_OUTPUT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9169,7 +8320,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_WRITER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -9181,18 +8332,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -9211,23 +8360,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_BUFFER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9235,7 +8378,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_WRITER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -9247,18 +8390,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -9276,12 +8417,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9289,24 +8427,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_NODE_POSITION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -9322,12 +8458,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9335,24 +8468,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_NODE_POSITION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -9368,12 +8499,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9381,24 +8509,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -9414,29 +8540,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -9451,12 +8572,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_READER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9476,7 +8594,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WS_BYTES",
-										"ot": "struct"
+										"ot": "_ref"
 									},
 									"label": "LPArray"
 								},
@@ -9490,24 +8608,22 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WS_ASYNC_CONTEXT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "WS_ERROR",
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"callbackState",
@@ -9530,7 +8646,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_CANONICALIZATION_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -9542,18 +8658,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"reader",
@@ -9572,12 +8686,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9597,7 +8708,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WS_BYTES",
-										"ot": "struct"
+										"ot": "_ref"
 									},
 									"label": "LPArray"
 								},
@@ -9611,24 +8722,22 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WS_ASYNC_CONTEXT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "WS_ERROR",
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"callbackState",
@@ -9651,7 +8760,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_CANONICALIZATION_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -9663,18 +8772,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -9726,18 +8833,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"chars",
@@ -9769,18 +8874,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ncNameChars",
@@ -9796,12 +8899,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9809,7 +8909,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9817,13 +8917,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_VALUE_TYPE"
+						"_t": "_ref",
+						"name": "WS_VALUE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9850,18 +8950,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -9883,12 +8981,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9896,13 +8991,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ATTRIBUTE_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9919,18 +9014,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -9949,12 +9042,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9962,13 +9052,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ELEMENT_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9985,18 +9075,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -10015,12 +9103,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10038,18 +9123,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10066,12 +9149,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10091,18 +9171,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10119,12 +9197,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10144,18 +9219,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10172,12 +9245,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10185,13 +9255,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ELEMENT_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10208,18 +9278,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10238,29 +9306,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10275,29 +9338,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10312,29 +9370,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10349,29 +9402,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10386,29 +9434,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -10423,23 +9466,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10474,18 +9511,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"message",
@@ -10503,23 +9538,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10527,24 +9556,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -10561,23 +9588,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_CHANNEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_MESSAGE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10585,24 +9606,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_ASYNC_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"channel",
@@ -10619,12 +9638,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10632,24 +9648,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_NODE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10665,12 +9679,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10678,7 +9689,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10686,7 +9697,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10694,24 +9705,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10729,12 +9738,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10742,7 +9748,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10750,7 +9756,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10758,28 +9764,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10798,29 +9803,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10835,12 +9835,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10848,7 +9845,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10856,7 +9853,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10864,24 +9861,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10899,12 +9894,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10912,24 +9904,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_TEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -10945,23 +9935,20 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_TYPE_MAPPING"
+						"_t": "_ref",
+						"name": "WS_TYPE_MAPPING",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_TYPE"
+						"_t": "_ref",
+						"name": "WS_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10971,9 +9958,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_WRITE_OPTION"
+						"_t": "_ref",
+						"name": "WS_WRITE_OPTION",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -10990,18 +9977,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -11022,18 +10007,15 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WS_VALUE_TYPE"
+						"_t": "_ref",
+						"name": "WS_VALUE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -11050,18 +10032,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -11079,40 +10059,32 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_BUFFER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -11128,23 +10100,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_BUFFER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11152,7 +10118,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_WRITER_ENCODING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11160,7 +10126,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_WRITER_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -11172,12 +10138,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_HEAP",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11201,18 +10164,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -11234,12 +10195,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_XML_WRITER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11247,7 +10205,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11255,28 +10213,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"writer",
@@ -11296,7 +10253,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11304,24 +10261,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WS_XML_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "WS_ERROR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"string1",

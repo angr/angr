@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,37 +16,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDRVR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hDriver",
@@ -68,12 +57,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDRVR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -81,29 +67,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"dwDriverIdentifier",
@@ -133,12 +110,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDRVR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -174,8 +148,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwCallback",
@@ -193,21 +168,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDRVR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HMODULE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hDriver"
@@ -219,21 +188,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDRVR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HMODULE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hDriver"
@@ -245,37 +208,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HDRVR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"szDriverName",
@@ -289,30 +240,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMODULE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SND_FLAGS"
+						"_t": "_ref",
+						"name": "SND_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszSound",
@@ -326,30 +272,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMODULE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SND_FLAGS"
+						"_t": "_ref",
+						"name": "SND_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszSound",
@@ -363,12 +304,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDRVR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -376,29 +314,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hDriver",
@@ -426,7 +355,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUXCAPSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -465,7 +394,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "AUXCAPSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -637,7 +566,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JOYCAPSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -676,7 +605,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JOYCAPSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -723,7 +652,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JOYINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -752,7 +681,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "JOYINFOEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -821,12 +750,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -839,8 +765,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -887,12 +814,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -906,8 +830,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hwndCallback",
@@ -947,8 +872,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"wTable"
@@ -966,12 +892,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HTASK",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"mciId"
@@ -983,12 +906,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1011,12 +931,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1040,12 +957,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1064,12 +978,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1131,8 +1042,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"mcierr",
@@ -1166,8 +1078,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"mcierr",
@@ -1232,20 +1145,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1362,12 +1269,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1384,12 +1288,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1410,12 +1311,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1432,12 +1330,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1473,8 +1368,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"wDeviceID",
@@ -1525,8 +1421,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"mciId",
@@ -1540,20 +1437,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDI",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1580,20 +1471,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDI",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1620,19 +1505,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1658,12 +1540,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1694,7 +1573,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIINCAPSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1733,7 +1612,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIINCAPSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1831,12 +1710,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1875,12 +1751,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1926,12 +1799,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMIDIIN",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1958,9 +1828,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MIDI_WAVE_OPEN_TYPE"
+						"_t": "_ref",
+						"name": "MIDI_WAVE_OPEN_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1982,19 +1852,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2020,12 +1887,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2043,12 +1907,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2066,12 +1927,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2089,19 +1947,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2127,12 +1982,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2172,12 +2024,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2217,12 +2066,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2253,7 +2099,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIOUTCAPSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2292,7 +2138,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIOUTCAPSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2390,12 +2236,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2434,12 +2277,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2466,19 +2306,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2504,12 +2341,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2555,12 +2389,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMIDIOUT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2587,9 +2418,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MIDI_WAVE_OPEN_TYPE"
+						"_t": "_ref",
+						"name": "MIDI_WAVE_OPEN_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2611,19 +2442,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2649,12 +2477,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2672,12 +2497,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2701,12 +2523,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2730,19 +2549,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDIOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2768,12 +2584,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDISTRM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2793,12 +2606,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMIDISTRM",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2859,19 +2669,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDISTRM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIDIHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2897,12 +2704,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDISTRM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2920,19 +2724,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDISTRM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2958,12 +2759,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDISTRM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2996,12 +2794,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDISTRM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3019,12 +2814,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIDISTRM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3042,12 +2834,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXER",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3065,19 +2854,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXEROBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERCONTROLDETAILS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3103,19 +2889,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXEROBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERCONTROLDETAILS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3154,7 +2937,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERCAPSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3193,7 +2976,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERCAPSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3219,12 +3002,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXEROBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3257,19 +3037,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXEROBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERLINECONTROLSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3295,19 +3072,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXEROBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERLINECONTROLSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3333,19 +3107,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXEROBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERLINEA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3371,19 +3142,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXEROBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERLINEW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3421,12 +3189,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3472,12 +3237,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HMIXER",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3528,19 +3290,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMIXEROBJ",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIXERCONTROLDETAILS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3566,20 +3325,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDRVR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3719,12 +3472,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3760,8 +3510,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"h"
@@ -3784,19 +3535,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMIOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3822,19 +3570,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMCKINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3860,12 +3605,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3889,19 +3631,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMCKINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3927,19 +3666,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMCKINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3947,7 +3683,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMCKINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3974,12 +3710,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4003,19 +3736,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMIOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4051,12 +3781,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -4064,29 +3791,20 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "LRESULT",
+								"ot": "ptr"
 							},
 							"arg_names": [
 								"lpmmioinfo",
@@ -4108,12 +3826,9 @@
 						"_t": "func",
 						"args": [
 							{
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "char",
-									"signed": false,
-									"label": "Byte"
-								}
+								"_t": "_ref",
+								"name": "PSTR",
+								"ot": "ptr"
 							},
 							{
 								"_t": "int",
@@ -4121,29 +3836,20 @@
 								"label": "UInt32"
 							},
 							{
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "LPARAM",
+								"ot": "ptr"
 							},
 							{
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "LPARAM",
+								"ot": "ptr"
 							}
 						],
 						"returnty": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "LRESULT",
+							"ot": "ptr"
 						},
 						"arg_names": [
 							"lpmmioinfo",
@@ -4175,12 +3881,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -4188,29 +3891,20 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "LRESULT",
+								"ot": "ptr"
 							},
 							"arg_names": [
 								"lpmmioinfo",
@@ -4232,12 +3926,9 @@
 						"_t": "func",
 						"args": [
 							{
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "char",
-									"signed": false,
-									"label": "Byte"
-								}
+								"_t": "_ref",
+								"name": "PSTR",
+								"ot": "ptr"
 							},
 							{
 								"_t": "int",
@@ -4245,29 +3936,20 @@
 								"label": "UInt32"
 							},
 							{
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "LPARAM",
+								"ot": "ptr"
 							},
 							{
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "LPARAM",
+								"ot": "ptr"
 							}
 						],
 						"returnty": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "LRESULT",
+							"ot": "ptr"
 						},
 						"arg_names": [
 							"lpmmioinfo",
@@ -4302,7 +3984,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMIOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4312,12 +3994,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HMMIO",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pszFileName",
@@ -4344,7 +4023,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMIOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4354,12 +4033,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HMMIO",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"pszFileName",
@@ -4373,12 +4049,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4409,27 +4082,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMIOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4456,27 +4123,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMIOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4503,12 +4164,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4535,12 +4193,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4548,29 +4203,20 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "LRESULT",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hmmio",
@@ -4585,12 +4231,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4629,19 +4272,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMIOINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4667,12 +4307,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4696,12 +4333,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4725,20 +4359,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMMIO",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4761,12 +4389,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4775,8 +4400,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszSound",
@@ -4789,12 +4415,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4803,8 +4426,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszSound",
@@ -4861,7 +4485,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMECAPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4890,7 +4514,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5046,19 +4670,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5084,12 +4705,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5120,7 +4738,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEINCAPSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5159,7 +4777,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEINCAPSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5257,12 +4875,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5301,19 +4916,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5339,12 +4951,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5390,12 +4999,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWAVEIN",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5408,7 +5014,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFORMATEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5430,9 +5036,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MIDI_WAVE_OPEN_TYPE"
+						"_t": "_ref",
+						"name": "MIDI_WAVE_OPEN_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -5455,19 +5061,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5493,12 +5096,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5516,12 +5116,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5539,12 +5136,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5562,19 +5156,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEIN",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5600,12 +5191,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5623,12 +5211,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5659,7 +5244,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEOUTCAPSA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5698,7 +5283,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEOUTCAPSW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5796,12 +5381,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5840,12 +5422,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5872,12 +5451,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5904,19 +5480,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MMTIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5942,12 +5515,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5974,12 +5544,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6025,12 +5592,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HWAVEOUT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6043,7 +5607,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEFORMATEX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6065,9 +5629,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MIDI_WAVE_OPEN_TYPE"
+						"_t": "_ref",
+						"name": "MIDI_WAVE_OPEN_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -6090,12 +5654,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6113,19 +5674,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6151,12 +5709,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6174,12 +5729,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6197,12 +5749,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6226,12 +5775,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6255,12 +5801,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6284,19 +5827,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6322,19 +5862,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWAVEOUT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WAVEHDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{

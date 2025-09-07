@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,17 +16,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "COMPRESSOR_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompressorHandle"
@@ -46,8 +45,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DecompressorHandle"
@@ -59,12 +59,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "COMPRESSOR_HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -112,8 +109,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompressorHandle",
@@ -130,33 +128,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COMPRESS_ALGORITHM"
+						"_t": "_ref",
+						"name": "COMPRESS_ALGORITHM",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPRESS_ALLOCATION_ROUTINES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "COMPRESSOR_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Algorithm",
@@ -170,16 +166,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COMPRESS_ALGORITHM"
+						"_t": "_ref",
+						"name": "COMPRESS_ALGORITHM",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "COMPRESS_ALLOCATION_ROUTINES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -195,8 +191,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Algorithm",
@@ -263,8 +260,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DecompressorHandle",
@@ -288,24 +286,19 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -317,7 +310,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CCAB",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -334,8 +327,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pccab",
@@ -390,12 +384,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -461,8 +452,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hfci",
@@ -485,7 +477,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ERF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -498,24 +490,22 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CCAB",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
 									"label": "Int32"
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "BOOL",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -589,12 +579,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -838,12 +825,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -877,12 +861,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -897,8 +878,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pszTempName",
@@ -912,7 +894,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CCAB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -960,8 +942,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hfci"
@@ -980,8 +963,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -993,7 +977,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CCAB",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1010,8 +994,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pccab",
@@ -1062,8 +1047,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hfci",
@@ -1094,7 +1080,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CCAB",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1111,8 +1097,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pccab",
@@ -1163,8 +1150,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hfci",
@@ -1185,20 +1173,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1210,16 +1192,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "FDINOTIFICATIONTYPE"
+									"_t": "_ref",
+									"name": "FDINOTIFICATIONTYPE",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FDINOTIFICATION",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -1247,7 +1229,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FDIDECRYPT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -1269,8 +1251,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hfdi",
@@ -1338,12 +1321,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "char",
-										"signed": false,
-										"label": "Byte"
-									}
+									"_t": "_ref",
+									"name": "PSTR",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -1502,16 +1482,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FDICREATE_CPU_TYPE"
+						"_t": "_ref",
+						"name": "FDICREATE_CPU_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ERF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1548,8 +1528,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hfdi"
@@ -1580,13 +1561,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FDICABINETINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hfdi",
@@ -1607,12 +1589,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -1621,8 +1600,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hfdi",
@@ -1636,17 +1616,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "COMPRESSOR_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COMPRESS_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "COMPRESS_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1666,8 +1643,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompressorHandle",
@@ -1690,9 +1668,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COMPRESS_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "COMPRESS_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1712,8 +1690,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DecompressorHandle",
@@ -1728,17 +1707,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "COMPRESSOR_HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompressorHandle"
@@ -1759,8 +1736,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DecompressorHandle"
@@ -1772,17 +1750,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "COMPRESSOR_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COMPRESS_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "COMPRESS_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1802,8 +1777,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CompressorHandle",
@@ -1826,9 +1802,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "COMPRESS_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "COMPRESS_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1848,8 +1824,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DecompressorHandle",

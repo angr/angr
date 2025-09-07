@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,9 +16,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "DEVELOPER_DRIVE_ENABLEMENT_STATE"
+					"_t": "_ref",
+					"name": "DEVELOPER_DRIVE_ENABLEMENT_STATE",
+					"ot": "int"
 				},
 				"arg_names": []
 			}

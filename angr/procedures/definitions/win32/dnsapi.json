@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -29,12 +30,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -68,12 +66,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -97,7 +92,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_QUERY_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -119,7 +114,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_QUERY_RAW_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -137,9 +132,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CONNECTION_POLICY_TAG"
+						"_t": "_ref",
+						"name": "DNS_CONNECTION_POLICY_TAG",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -157,17 +152,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CONNECTION_PROXY_TYPE"
+						"_t": "_ref",
+						"name": "DNS_CONNECTION_PROXY_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -190,7 +182,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_NAME_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -212,7 +204,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -234,7 +226,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_PROXY_INFO_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -256,7 +248,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_PROXY_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -278,7 +270,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_NAME_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -297,24 +289,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CONNECTION_PROXY_TYPE"
+						"_t": "_ref",
+						"name": "DNS_CONNECTION_PROXY_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -335,12 +324,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -366,7 +352,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_PROXY_INFO_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -389,12 +375,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -416,19 +399,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_PROXY_INFO_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -452,19 +432,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_PROXY_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -484,16 +461,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CONNECTION_POLICY_TAG"
+						"_t": "_ref",
+						"name": "DNS_CONNECTION_POLICY_TAG",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_POLICY_ENTRY_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -513,24 +490,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CONNECTION_PROXY_TYPE"
+						"_t": "_ref",
+						"name": "DNS_CONNECTION_PROXY_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_PROXY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -555,7 +529,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CONNECTION_IFINDEX_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -578,7 +552,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_MESSAGE_BUFFER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -593,7 +567,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_RECORDA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -618,7 +592,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_MESSAGE_BUFFER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -633,7 +607,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_RECORDA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -661,9 +635,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_FREE_TYPE"
+						"_t": "_ref",
+						"name": "DNS_FREE_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -695,7 +669,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_CUSTOM_SERVER",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -715,12 +689,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -751,7 +722,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_CUSTOM_SERVER",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -760,7 +731,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_APPLICATION_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -781,11 +752,16 @@
 				"_t": "func",
 				"args": [
 					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
+							"_t": "_ref",
+							"name": "DNS_PROXY_INFORMATION",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -793,15 +769,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_PROXY_INFORMATION",
-							"ot": "struct"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "_ref",
-							"name": "DNS_PROXY_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -862,7 +830,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -870,7 +838,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -879,12 +847,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -924,7 +889,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -932,7 +897,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -941,12 +906,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -986,7 +948,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -994,7 +956,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1003,12 +965,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1044,25 +1003,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pName1",
@@ -1075,25 +1029,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pName1",
@@ -1106,9 +1055,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CONFIG_TYPE"
+						"_t": "_ref",
+						"name": "DNS_CONFIG_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1116,12 +1065,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1169,7 +1115,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_QUERY_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1177,7 +1123,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_QUERY_RESULT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1185,7 +1131,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_QUERY_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1209,7 +1155,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_QUERY_RAW_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1217,7 +1163,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_QUERY_RAW_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1240,7 +1186,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_QUERY_RAW_RESULT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1258,22 +1204,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_TYPE"
+						"_t": "_ref",
+						"name": "DNS_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_QUERY_OPTIONS"
+						"_t": "_ref",
+						"name": "DNS_QUERY_OPTIONS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1289,7 +1232,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_RECORDA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1305,9 +1248,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszName",
@@ -1324,22 +1267,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_TYPE"
+						"_t": "_ref",
+						"name": "DNS_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_QUERY_OPTIONS"
+						"_t": "_ref",
+						"name": "DNS_QUERY_OPTIONS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1355,7 +1295,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_RECORDA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1371,9 +1311,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszName",
@@ -1390,22 +1330,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_TYPE"
+						"_t": "_ref",
+						"name": "DNS_TYPE",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_QUERY_OPTIONS"
+						"_t": "_ref",
+						"name": "DNS_QUERY_OPTIONS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1421,7 +1358,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_RECORDA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1437,9 +1374,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WIN32_ERROR"
+					"_t": "_ref",
+					"name": "WIN32_ERROR",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszName",
@@ -1460,7 +1397,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1468,13 +1405,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pRecord1",
@@ -1491,18 +1429,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CHARSET"
+						"_t": "_ref",
+						"name": "DNS_CHARSET",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CHARSET"
+						"_t": "_ref",
+						"name": "DNS_CHARSET",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1510,7 +1448,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "DNS_RECORDA",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1529,7 +1467,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1537,7 +1475,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1547,7 +1485,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_RECORDA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1558,14 +1496,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DNS_RECORDA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pRR1",
@@ -1584,18 +1523,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CHARSET"
+						"_t": "_ref",
+						"name": "DNS_CHARSET",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_CHARSET"
+						"_t": "_ref",
+						"name": "DNS_CHARSET",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1603,7 +1542,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "DNS_RECORDA",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1622,7 +1561,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1631,7 +1570,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "DNS_RECORDA",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1644,12 +1583,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1670,7 +1606,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1679,12 +1615,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1723,7 +1656,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1732,12 +1665,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1776,7 +1706,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_RECORDA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1785,12 +1715,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1829,7 +1756,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_BROWSE_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1837,7 +1764,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1860,7 +1787,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1878,20 +1805,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1960,24 +1881,18 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
@@ -1987,7 +1902,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "DNS_SERVICE_INSTANCE",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2013,7 +1928,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_INSTANCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2022,7 +1937,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "DNS_SERVICE_INSTANCE",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -2039,7 +1954,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_REGISTER_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2047,7 +1962,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2071,7 +1986,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_INSTANCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2093,7 +2008,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_REGISTER_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2101,7 +2016,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2125,7 +2040,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2148,7 +2063,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_RESOLVE_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2156,7 +2071,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2179,7 +2094,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_SERVICE_CANCEL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2206,7 +2121,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_CUSTOM_SERVER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -2215,7 +2130,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_APPLICATION_SETTINGS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2240,7 +2155,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDNS_QUERY_REQUEST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2248,7 +2163,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDNS_QUERY_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2271,7 +2186,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDNS_QUERY_HANDLE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2289,17 +2204,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "DNS_NAME_FORMAT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2317,17 +2229,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "DNS_NAME_FORMAT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2345,17 +2254,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DNS_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "DNS_NAME_FORMAT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2377,7 +2283,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_MESSAGE_BUFFER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2389,12 +2295,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -2407,13 +2310,15 @@
 						"label": "UInt16"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDnsBuffer",
@@ -2434,7 +2339,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DNS_MESSAGE_BUFFER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2446,12 +2351,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -2464,13 +2366,15 @@
 						"label": "UInt16"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDnsBuffer",

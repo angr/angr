@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,24 +16,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_FILTER_ADD_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -52,12 +51,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -91,7 +87,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCPDS_SERVER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -128,12 +124,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -145,7 +138,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_ELEMENT_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -166,12 +159,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -183,7 +173,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_ELEMENT_DATA_V4",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -204,12 +194,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -221,7 +208,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_ELEMENT_DATA_V5",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -242,24 +229,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_ELEMENT_DATA_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -280,12 +264,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -295,12 +276,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -348,12 +326,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -361,12 +336,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -404,12 +376,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -421,7 +390,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLASS_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -442,12 +411,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -459,7 +425,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLASS_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -480,19 +446,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -512,19 +475,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO_V4",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -544,19 +504,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO_VQ",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -576,12 +533,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -593,7 +547,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -614,12 +568,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -632,27 +583,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -676,12 +621,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -694,27 +636,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -738,12 +674,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -755,7 +688,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -776,24 +709,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -814,12 +744,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -831,7 +758,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_INFO_VQ",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -852,12 +779,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -865,12 +789,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -890,12 +811,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -903,12 +821,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -928,19 +843,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -960,19 +872,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -992,19 +901,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_ADDR_PATTERN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1040,7 +946,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCPDS_SERVER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1077,12 +983,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1090,9 +993,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_FORCE_FLAG"
+						"_t": "_ref",
+						"name": "DHCP_FORCE_FLAG",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1112,22 +1015,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_FORCE_FLAG"
+						"_t": "_ref",
+						"name": "DHCP_FORCE_FLAG",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1147,20 +1047,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1202,12 +1096,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1234,7 +1125,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLASS_INFO_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1276,12 +1167,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1308,7 +1196,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLASS_INFO_ARRAY_V6",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1350,19 +1238,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_ADDR_PATTERN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1371,9 +1256,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_FILTER_LIST_TYPE"
+						"_t": "_ref",
+						"name": "DHCP_FILTER_LIST_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1382,7 +1267,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_FILTER_ENUM_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1424,19 +1309,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1459,7 +1341,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_VALUE_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1501,12 +1383,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1514,27 +1393,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1557,7 +1430,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_VALUE_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1602,12 +1475,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1615,27 +1485,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1658,7 +1522,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_VALUE_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1703,12 +1567,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1730,7 +1591,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1771,12 +1632,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1784,20 +1642,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1819,7 +1671,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1863,12 +1715,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1876,20 +1725,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1911,7 +1754,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1973,7 +1816,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCPDS_SERVERS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2011,12 +1854,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2043,7 +1883,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2085,12 +1925,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2117,7 +1954,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_FILTER_STATUS_INFO_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2159,12 +1996,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2191,7 +2025,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_ARRAY_V4",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2233,12 +2067,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2265,7 +2096,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_ARRAY_V5",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2307,24 +2138,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_IPV6_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2339,7 +2167,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_ARRAY_V6",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2381,12 +2209,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2413,7 +2238,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_ARRAY_VQ",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2455,12 +2280,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2468,9 +2290,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_SUBNET_ELEMENT_TYPE"
+						"_t": "_ref",
+						"name": "DHCP_SUBNET_ELEMENT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2492,7 +2314,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SUBNET_ELEMENT_INFO_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2535,12 +2357,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2548,9 +2367,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_SUBNET_ELEMENT_TYPE"
+						"_t": "_ref",
+						"name": "DHCP_SUBNET_ELEMENT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2572,7 +2391,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SUBNET_ELEMENT_INFO_ARRAY_V4",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2615,12 +2434,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2628,9 +2444,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_SUBNET_ELEMENT_TYPE"
+						"_t": "_ref",
+						"name": "DHCP_SUBNET_ELEMENT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2652,7 +2468,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SUBNET_ELEMENT_INFO_ARRAY_V5",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2695,22 +2511,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_SUBNET_ELEMENT_TYPE_V6"
+						"_t": "_ref",
+						"name": "DHCP_SUBNET_ELEMENT_TYPE_V6",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2732,7 +2545,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SUBNET_ELEMENT_INFO_ARRAY_V6",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2775,12 +2588,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2802,7 +2612,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_IP_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2843,12 +2653,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2870,7 +2677,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCPV6_IP_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2911,12 +2718,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2928,7 +2732,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2938,7 +2742,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_ALL_OPTION_VALUES",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -2961,12 +2765,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2978,7 +2779,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2988,7 +2789,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_ALL_OPTION_VALUES",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3011,12 +2812,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3030,7 +2828,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_ALL_OPTIONS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3052,12 +2850,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3071,7 +2866,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_ALL_OPTIONS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3093,12 +2888,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3110,7 +2902,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLASS_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3120,7 +2912,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLASS_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3143,19 +2935,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3165,7 +2954,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3187,19 +2976,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3209,7 +2995,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_V4",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3231,19 +3017,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3253,7 +3036,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_V6",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3275,19 +3058,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3297,7 +3077,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_VQ",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3319,12 +3099,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3343,7 +3120,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_LIST",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3366,19 +3143,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_FILTER_GLOBAL_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3398,12 +3172,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3412,7 +3183,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_MIB_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3433,12 +3204,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3447,7 +3215,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_MIB_INFO_V5",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3468,12 +3236,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3482,7 +3247,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_MIB_INFO_V6",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3503,12 +3268,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3522,7 +3284,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3544,12 +3306,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3562,20 +3321,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3584,7 +3337,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3609,12 +3362,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3627,20 +3377,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3649,7 +3393,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3674,12 +3418,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3691,7 +3432,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3701,7 +3442,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_VALUE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3724,12 +3465,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3742,27 +3480,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3772,7 +3504,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_VALUE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3798,12 +3530,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3816,27 +3545,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3846,7 +3569,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_VALUE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3872,12 +3595,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3891,7 +3611,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_BIND_ELEMENT_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3913,12 +3633,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3932,7 +3649,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCPV6_BIND_ELEMENT_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3954,12 +3671,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3968,7 +3682,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SERVER_SPECIFIC_STRINGS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3989,12 +3703,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4027,12 +3738,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4046,7 +3754,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SUBNET_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -4068,17 +3776,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -4087,7 +3792,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SUBNET_INFO_V6",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -4109,12 +3814,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4128,7 +3830,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SUBNET_INFO_VQ",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -4150,12 +3852,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4164,7 +3863,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SUPER_SCOPE_TABLE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -4216,12 +3915,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4261,7 +3957,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4270,9 +3966,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_POL_ATTR_TYPE"
+						"_t": "_ref",
+						"name": "DHCP_POL_ATTR_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -4285,17 +3981,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_POL_COMPARATOR"
+						"_t": "_ref",
+						"name": "DHCP_POL_COMPARATOR",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4347,7 +4040,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4356,9 +4049,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_POL_LOGIC_OPER"
+						"_t": "_ref",
+						"name": "DHCP_POL_LOGIC_OPER",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4391,7 +4084,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4399,7 +4092,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_IP_RANGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4419,21 +4112,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -4443,19 +4129,22 @@
 					{
 						"_t": "int",
 						"signed": false,
-						"label": "DHCP_POL_LOGIC_OPER"
+						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "DHCP_POL_LOGIC_OPER",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4464,7 +4153,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_POLICY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -4491,21 +4180,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -4515,19 +4197,22 @@
 					{
 						"_t": "int",
 						"signed": false,
-						"label": "DHCP_POL_LOGIC_OPER"
+						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "DHCP_POL_LOGIC_OPER",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4536,7 +4221,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_POLICY_EX",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -4567,18 +4252,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_PROPERTY_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "DHCP_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_PROPERTY_TYPE"
+						"_t": "_ref",
+						"name": "DHCP_PROPERTY_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -4586,7 +4271,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "DHCP_PROPERTY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -4605,7 +4290,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4627,7 +4312,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_PROPERTY_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4649,7 +4334,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4671,7 +4356,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4693,7 +4378,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4715,7 +4400,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY_EX_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4737,13 +4422,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Policy"
@@ -4759,7 +4445,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4782,13 +4468,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPolicy"
@@ -4804,13 +4491,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_POL_LOGIC_OPER"
+						"_t": "_ref",
+						"name": "DHCP_POL_LOGIC_OPER",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -4833,7 +4520,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4852,12 +4539,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4869,7 +4553,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLASS_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4890,12 +4574,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4907,7 +4588,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLASS_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4928,12 +4609,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4957,12 +4635,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4975,20 +4650,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5010,12 +4679,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5028,20 +4694,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5063,12 +4723,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5080,7 +4737,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5101,12 +4758,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5119,27 +4773,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5163,12 +4811,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5181,27 +4826,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5225,12 +4864,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5242,13 +4878,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_ELEMENT_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_FORCE_FLAG"
+						"_t": "_ref",
+						"name": "DHCP_FORCE_FLAG",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -5269,12 +4905,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5286,13 +4919,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_ELEMENT_DATA_V4",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_FORCE_FLAG"
+						"_t": "_ref",
+						"name": "DHCP_FORCE_FLAG",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -5313,12 +4946,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5330,13 +4960,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_ELEMENT_DATA_V5",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_FORCE_FLAG"
+						"_t": "_ref",
+						"name": "DHCP_FORCE_FLAG",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -5357,30 +4987,27 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_ELEMENT_DATA_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DHCP_FORCE_FLAG"
+						"_t": "_ref",
+						"name": "DHCP_FORCE_FLAG",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -5422,12 +5049,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5446,7 +5070,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SCAN_LIST",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5473,7 +5097,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SERVER_CONFIG_INFO_VQ",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5491,20 +5115,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5523,12 +5141,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5537,7 +5152,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SERVER_CONFIG_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5558,12 +5173,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5572,7 +5184,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SERVER_CONFIG_INFO_V4",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5593,19 +5205,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5615,7 +5224,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SERVER_CONFIG_INFO_V6",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5637,12 +5246,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5651,7 +5257,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_SERVER_CONFIG_INFO_VQ",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5672,12 +5278,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5696,7 +5299,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_ATTRIB",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5719,12 +5322,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5751,7 +5351,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_ATTRIB_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -5775,12 +5375,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5830,12 +5427,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5859,20 +5453,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5891,12 +5479,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5908,7 +5493,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SERVER_CONFIG_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5929,12 +5514,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5946,7 +5528,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SERVER_CONFIG_INFO_V4",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5967,19 +5549,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5992,7 +5571,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SERVER_CONFIG_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6014,12 +5593,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6031,7 +5607,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SERVER_CONFIG_INFO_VQ",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6052,36 +5628,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6102,36 +5666,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6152,19 +5704,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6184,19 +5733,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO_V4",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6216,19 +5762,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6248,19 +5791,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO_VQ",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6280,19 +5820,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_FILTER_GLOBAL_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6312,12 +5849,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6329,7 +5863,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6350,12 +5884,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6368,27 +5899,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6412,12 +5937,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6430,27 +5952,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6474,12 +5990,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6491,7 +6004,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6499,7 +6012,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6521,12 +6034,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6539,27 +6049,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6567,7 +6071,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6592,12 +6096,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6610,27 +6111,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6638,7 +6133,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6663,19 +6158,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6683,7 +6175,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_VALUE_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6704,12 +6196,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6717,27 +6206,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6745,7 +6228,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_VALUE_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6769,12 +6252,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6786,7 +6266,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_BIND_ELEMENT_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6807,12 +6287,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6824,7 +6301,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCPV6_BIND_ELEMENT_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6845,12 +6322,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6880,12 +6354,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6897,7 +6368,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6918,24 +6389,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6956,12 +6424,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6973,7 +6438,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SUBNET_INFO_VQ",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6994,12 +6459,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7007,16 +6469,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -7065,12 +6525,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7078,19 +6535,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_IP_RANGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7112,19 +6566,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO_PB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7144,19 +6595,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7176,19 +6624,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7208,19 +6653,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7240,16 +6682,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7257,12 +6697,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -7283,12 +6720,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7304,8 +6738,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7319,7 +6754,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_POLICY_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7362,12 +6797,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7383,8 +6815,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7398,7 +6831,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_POLICY_EX_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7441,12 +6874,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7473,7 +6903,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_PB_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7515,12 +6945,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7547,7 +6974,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_EX_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7589,12 +7016,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7621,7 +7045,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_RESERVATION_INFO_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7663,19 +7087,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_FAILOVER_RELATIONSHIP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7695,19 +7116,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_FAILOVER_RELATIONSHIP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7727,20 +7145,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -7759,19 +7171,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_FAILOVER_RELATIONSHIP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7791,12 +7200,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7818,7 +7224,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_FAILOVER_RELATIONSHIP_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7859,12 +7265,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7897,19 +7300,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7919,7 +7319,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCPV4_FAILOVER_CLIENT_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -7941,20 +7341,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7963,7 +7357,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_FAILOVER_RELATIONSHIP",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -7985,12 +7379,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8004,7 +7395,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_FAILOVER_RELATIONSHIP",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8026,12 +7417,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8045,7 +7433,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_FAILOVER_STATISTICS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8067,12 +7455,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8108,12 +7493,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8125,7 +7507,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_FAILOVER_RELATIONSHIP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8146,20 +7528,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -8178,12 +7554,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8195,7 +7568,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8205,7 +7578,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_ALL_OPTION_VALUES_PB",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8228,19 +7601,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8250,7 +7620,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_PB",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8272,19 +7642,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_SEARCH_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8294,7 +7661,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_CLIENT_INFO_EX",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8316,12 +7683,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8350,7 +7714,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_IP_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8375,12 +7739,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8393,27 +7754,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8423,7 +7778,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_OPTION_VALUE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8449,16 +7804,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8466,12 +7819,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8480,7 +7830,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_POLICY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8504,16 +7854,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8521,12 +7869,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8535,7 +7880,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCP_POLICY_EX",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -8559,16 +7904,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8578,8 +7921,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8601,12 +7945,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8619,27 +7960,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8663,12 +7998,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8676,19 +8008,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_IP_RANGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8710,12 +8039,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8728,27 +8054,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8756,7 +8076,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8781,12 +8101,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8794,27 +8111,21 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_SCOPE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8822,7 +8133,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_OPTION_VALUE_ARRAY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8846,12 +8157,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8859,8 +8167,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8868,19 +8177,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8904,16 +8210,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8921,8 +8225,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -8943,12 +8248,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -8956,8 +8258,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8965,19 +8268,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_POLICY_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9001,19 +8301,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCP_CLIENT_INFO_V6",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9033,27 +8330,24 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -9067,7 +8361,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCPV6_IP_ARRAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -9092,12 +8386,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9106,7 +8397,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCPV6_STATELESS_STATS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -9127,21 +8418,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -9150,7 +8439,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DHCPV6_STATELESS_PARAMS",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -9173,21 +8462,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "_ref",
 						"name": "DHCP_IPV6_ADDRESS",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -9199,7 +8486,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DHCPV6_STATELESS_PARAMS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

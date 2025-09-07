@@ -866,7 +866,7 @@ class SimTypePointer(SimTypeReg):
         return d
 
     def __repr__(self):
-        return f"{self.pts_to}*"
+        return f"{self.pts_to}*" if not self.label else self.label
 
     def c_repr(
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
@@ -1594,6 +1594,16 @@ class SimStruct(NamedTypeMixin, SimType):
 
         return offsets
 
+    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+        d = super().to_json(fields=fields)
+        if d["pack"] is False:
+            d.pop("pack")
+        if d["align"] is None:
+            d.pop("align")
+        if d["anonymous"] is False:
+            d.pop("anonymous")
+        return d
+
     def extract(self, state, addr, concrete=False) -> SimStructValue:
         values = {}
         for name, offset in self.offsets.items():
@@ -2157,7 +2167,7 @@ class SimTypeRef(SimType):
     _args = ("name", "original_type")
     _ident = "_ref"
 
-    def __init__(self, name, original_type: type[SimStruct]):
+    def __init__(self, name, original_type: type[SimType]):
         super().__init__(label=name)
         self.original_type = original_type
 
@@ -2167,6 +2177,12 @@ class SimTypeRef(SimType):
 
     def set_size(self, v: int):
         self._size = v
+
+    def __repr__(self):
+        if self.label:
+            return self.label
+        prefix = "struct " if self.original_type is SimStruct else ""
+        return f"{prefix}{self.name}"
 
     def c_repr(
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True

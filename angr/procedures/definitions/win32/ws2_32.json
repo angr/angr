@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADDRINFOEXA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -41,7 +42,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADDRINFOEXW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -63,7 +64,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADDRINFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -81,20 +82,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -113,7 +108,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADDRINFOEXA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -123,7 +118,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "ADDRINFOEXA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -132,7 +127,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMEVAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -140,7 +135,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -163,7 +158,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -181,12 +176,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -215,12 +207,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -242,7 +231,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -260,20 +249,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -292,7 +275,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADDRINFOEXW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -302,7 +285,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "ADDRINFOEXW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -311,7 +294,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMEVAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -319,7 +302,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -342,7 +325,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -360,12 +343,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -392,27 +372,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADDRINFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -422,7 +396,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "ADDRINFOW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -476,12 +450,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "socklen_t",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -566,12 +541,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"Family",
@@ -590,12 +562,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -621,12 +590,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -638,7 +604,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCK_NOTIFY_REGISTRATION",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -657,7 +623,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -691,27 +657,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -724,7 +684,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -749,7 +709,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMEVAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -757,7 +717,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -780,7 +740,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -798,12 +758,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -832,27 +789,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -865,7 +816,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -890,7 +841,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMEVAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -898,7 +849,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -921,7 +872,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -939,12 +890,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -973,20 +921,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1025,20 +969,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1058,7 +998,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WSABUF",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1066,7 +1006,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WSABUF",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1074,7 +1014,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "QOS",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1082,7 +1022,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "QOS",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1090,7 +1030,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WSABUF",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1098,7 +1038,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "WSABUF",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1146,13 +1086,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"signed": false,
-						"label": "UInt"
-					},
-					"label": "UIntPtr"
+					"_t": "_ref",
+					"name": "SOCKET",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"s",
@@ -1172,7 +1108,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1185,7 +1121,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1228,7 +1164,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1241,7 +1177,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1291,7 +1227,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NSPV2_ROUTINE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1310,12 +1246,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1323,12 +1256,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1339,12 +1269,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1352,12 +1279,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hWnd",
@@ -1375,12 +1299,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1388,20 +1309,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1409,12 +1324,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hWnd",
@@ -1430,12 +1342,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1443,20 +1352,14 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1464,12 +1367,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hWnd",
@@ -1485,12 +1385,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1502,12 +1399,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1515,12 +1409,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hWnd",
@@ -1536,12 +1427,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1549,28 +1437,19 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1578,12 +1457,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hWnd",
@@ -1600,12 +1476,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1617,20 +1490,14 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1638,12 +1505,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hWnd",
@@ -1660,21 +1524,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1703,12 +1560,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1747,17 +1601,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hEvent"
@@ -1769,20 +1621,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1794,7 +1642,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1802,7 +1650,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1810,7 +1658,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1818,7 +1666,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1842,20 +1690,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKET_ADDRESS_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1871,7 +1715,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1887,7 +1731,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1895,7 +1739,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMEVAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1903,13 +1747,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"s",
@@ -1928,28 +1773,34 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
+							"_t": "int",
 							"signed": false,
-							"label": "Byte"
+							"label": "UInt32"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "SOCKADDR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1965,23 +1816,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt32"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "_ref",
-							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1989,7 +1824,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMEVAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1997,13 +1832,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"s",
@@ -2023,28 +1859,34 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
+							"_t": "int",
+							"signed": false,
+							"label": "UInt32"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
+							"_t": "_ref",
+							"name": "SOCKADDR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2060,23 +1902,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt32"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "_ref",
-							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2084,7 +1910,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMEVAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2092,13 +1918,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"s",
@@ -2118,12 +1945,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": []
 			}
@@ -2133,13 +1957,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2151,7 +1971,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2171,13 +1991,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2189,7 +2005,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2221,7 +2037,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSANAMESPACE_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2252,7 +2068,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSANAMESPACE_INFOEXA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2283,7 +2099,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSANAMESPACE_INFOEXW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2314,7 +2130,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSANAMESPACE_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2333,28 +2149,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSANETWORKEVENTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2385,7 +2194,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2424,7 +2233,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2452,21 +2261,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2489,9 +2291,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WSA_ERROR"
+					"_t": "_ref",
+					"name": "WSA_ERROR",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -2501,20 +2303,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2526,8 +2324,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2539,8 +2338,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"s",
@@ -2556,20 +2356,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2577,13 +2373,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"s",
@@ -2623,7 +2420,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSASERVICECLASSINFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2670,7 +2467,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSASERVICECLASSINFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2698,12 +2495,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2737,12 +2531,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2769,13 +2560,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2807,13 +2594,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -2849,7 +2632,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSASERVICECLASSINFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2871,7 +2654,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSASERVICECLASSINFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2889,13 +2672,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2939,7 +2718,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2962,7 +2741,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3006,8 +2785,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -3017,20 +2797,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3042,7 +2818,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3050,7 +2826,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3058,7 +2834,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3066,7 +2842,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "QOS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3076,13 +2852,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"signed": false,
-						"label": "UInt"
-					},
-					"label": "UIntPtr"
+					"_t": "_ref",
+					"name": "SOCKET",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"s",
@@ -3105,7 +2877,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAQUERYSETA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3116,12 +2888,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3145,7 +2914,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAQUERYSETW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3156,12 +2925,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3181,12 +2947,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3203,12 +2966,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3228,7 +2988,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAQUERYSETA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3249,12 +3009,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3274,7 +3031,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAQUERYSETW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3295,12 +3052,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3344,7 +3098,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSACOMPLETION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3369,13 +3123,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3407,13 +3157,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -3449,7 +3195,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPOLLFD",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3478,12 +3224,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3507,12 +3250,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3520,7 +3260,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3543,7 +3283,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3581,20 +3321,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3624,7 +3360,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3647,7 +3383,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3689,20 +3425,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3721,20 +3453,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3764,7 +3492,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3779,7 +3507,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3802,7 +3530,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3867,17 +3595,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hEvent"
@@ -3889,20 +3615,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -3929,7 +3651,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3952,7 +3674,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3994,20 +3716,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4026,20 +3744,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAMSG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4060,7 +3774,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4083,7 +3797,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -4124,20 +3838,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSABUF",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4164,7 +3874,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4176,7 +3886,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OVERLAPPED",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4199,7 +3909,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "OVERLAPPED",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -4285,17 +3995,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hEvent"
@@ -4329,13 +4037,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAQUERYSETA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WSAESETSERVICEOP"
+						"_t": "_ref",
+						"name": "WSAESETSERVICEOP",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -4363,13 +4071,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAQUERYSETW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WSAESETSERVICEOP"
+						"_t": "_ref",
+						"name": "WSAESETSERVICEOP",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -4409,7 +4117,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4424,13 +4132,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"signed": false,
-						"label": "UInt"
-					},
-					"label": "UIntPtr"
+					"_t": "_ref",
+					"name": "SOCKET",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"af",
@@ -4463,7 +4167,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4478,13 +4182,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"signed": false,
-						"label": "UInt"
-					},
-					"label": "UIntPtr"
+					"_t": "_ref",
+					"name": "SOCKET",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"af",
@@ -4510,7 +4210,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSADATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4529,12 +4229,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4545,7 +4242,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4553,7 +4250,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4582,12 +4279,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4598,7 +4292,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4606,7 +4300,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4674,18 +4368,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -4693,14 +4385,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "WAIT_EVENT"
+					"_t": "_ref",
+					"name": "WAIT_EVENT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cEvents",
@@ -4781,8 +4474,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -4807,8 +4501,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -4838,7 +4533,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSANAMESPACE_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4869,7 +4564,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSANAMESPACE_INFOEXW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4899,7 +4594,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4946,7 +4641,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5051,9 +4746,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WSC_PROVIDER_INFO_TYPE"
+						"_t": "_ref",
+						"name": "WSC_PROVIDER_INFO_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5114,9 +4809,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WSC_PROVIDER_INFO_TYPE"
+						"_t": "_ref",
+						"name": "WSC_PROVIDER_INFO_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5264,20 +4959,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5315,20 +5004,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5366,20 +5049,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5403,7 +5080,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5426,20 +5103,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5463,7 +5134,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5493,19 +5164,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -5547,19 +5215,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -5601,28 +5266,19 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5634,7 +5290,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -5756,9 +5412,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WSC_PROVIDER_INFO_TYPE"
+						"_t": "_ref",
+						"name": "WSC_PROVIDER_INFO_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5816,9 +5472,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WSC_PROVIDER_INFO_TYPE"
+						"_t": "_ref",
+						"name": "WSC_PROVIDER_INFO_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5918,19 +5574,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -5972,19 +5625,16 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WSAPROTOCOL_INFOW",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -6129,20 +5779,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FD_SET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6161,20 +5807,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6186,13 +5828,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"signed": false,
-						"label": "UInt"
-					},
-					"label": "UIntPtr"
+					"_t": "_ref",
+					"name": "SOCKET",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"s",
@@ -6206,20 +5844,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6243,13 +5877,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6266,20 +5896,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6307,7 +5933,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADDRINFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6325,27 +5951,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADDRINFOA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6355,7 +5975,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "ADDRINFOA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -6377,12 +5997,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6398,7 +6015,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "HOSTENT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -6413,12 +6030,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6426,7 +6040,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "HOSTENT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -6439,12 +6053,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6470,12 +6081,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "socklen_t",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -6530,20 +6142,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6570,12 +6178,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6583,7 +6188,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "PROTOENT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -6605,7 +6210,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "PROTOENT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -6618,20 +6223,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6639,7 +6238,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SERVENT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -6657,12 +6256,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6670,7 +6266,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SERVENT",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -6684,20 +6280,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6724,13 +6316,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6741,12 +6329,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6814,12 +6399,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6839,16 +6421,13 @@
 					{
 						"_t": "_ref",
 						"name": "IN_ADDR",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"in"
@@ -6890,12 +6469,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"Family",
@@ -6914,12 +6490,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -6945,13 +6518,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -6982,13 +6551,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7050,30 +6615,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SEND_RECV_FLAGS"
+						"_t": "_ref",
+						"name": "SEND_RECV_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -7093,21 +6651,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7122,7 +6673,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7160,7 +6711,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FD_SET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7168,7 +6719,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FD_SET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7176,7 +6727,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FD_SET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7184,7 +6735,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TIMEVAL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7206,30 +6757,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SEND_RECV_FLAGS"
+						"_t": "_ref",
+						"name": "SEND_RECV_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -7249,21 +6793,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7278,7 +6815,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SOCKADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7305,13 +6842,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7322,12 +6855,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -7352,18 +6882,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "SOCKET",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINSOCK_SHUTDOWN_HOW"
+						"_t": "_ref",
+						"name": "WINSOCK_SHUTDOWN_HOW",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -7385,9 +6911,9 @@
 						"label": "Int32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WINSOCK_SOCKET_TYPE"
+						"_t": "_ref",
+						"name": "WINSOCK_SOCKET_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -7395,13 +6921,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"signed": false,
-						"label": "UInt"
-					},
-					"label": "UIntPtr"
+					"_t": "_ref",
+					"name": "SOCKET",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"af",

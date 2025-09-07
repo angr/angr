@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -48,7 +49,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -75,8 +76,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -90,13 +92,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgf",
@@ -126,13 +129,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pv",
@@ -157,13 +161,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"clsid",
@@ -192,13 +197,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -216,7 +222,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -224,13 +230,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pftIn",
@@ -247,7 +254,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -261,13 +268,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgft",
@@ -292,13 +300,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guid",
@@ -328,13 +337,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -365,13 +375,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -402,13 +413,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -426,7 +438,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -439,13 +451,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -459,12 +472,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -476,13 +486,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hinst",
@@ -500,7 +511,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRRET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -508,7 +519,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ITEMIDLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -516,13 +527,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstrret",
@@ -536,25 +548,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psz",
@@ -569,12 +579,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -588,13 +595,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgsz",
@@ -626,13 +634,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -664,13 +673,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -702,13 +712,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -726,7 +737,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -734,13 +745,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarSingle",
@@ -755,8 +767,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -770,13 +783,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgf",
@@ -806,13 +820,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pv",
@@ -842,13 +857,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -866,7 +882,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -874,13 +890,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pft",
@@ -897,7 +914,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -911,13 +928,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgft",
@@ -942,13 +960,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"guid",
@@ -978,13 +997,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -1015,13 +1035,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -1052,13 +1073,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -1072,12 +1094,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1089,13 +1108,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hinst",
@@ -1113,7 +1133,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRRET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1121,7 +1141,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ITEMIDLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1129,13 +1149,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pstrret",
@@ -1151,12 +1172,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1170,13 +1188,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgsz",
@@ -1208,13 +1227,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -1246,13 +1266,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -1284,13 +1305,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgn",
@@ -1308,7 +1330,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1321,13 +1343,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -1345,7 +1368,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1353,13 +1376,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"key",
@@ -1372,8 +1396,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyStore"
+						"_t": "_ref",
+						"name": "IPropertyStore",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1394,8 +1419,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pps",
@@ -1409,13 +1435,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "GETPROPERTYSTOREFLAGS"
+						"_t": "_ref",
+						"name": "GETPROPERTYSTOREFLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "bot",
-						"label": "IDelayedPropertyStoreFactory"
+						"_t": "_ref",
+						"name": "IDelayedPropertyStoreFactory",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1450,8 +1477,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"flags",
@@ -1486,8 +1514,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -1502,8 +1531,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1531,8 +1561,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"prgpunkStores",
@@ -1551,16 +1582,16 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "PKA_FLAGS"
+							"_t": "_ref",
+							"name": "PKA_FLAGS",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1569,7 +1600,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1597,8 +1628,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"rgpropkey",
@@ -1615,8 +1647,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1642,8 +1675,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punk",
@@ -1658,8 +1692,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertySetStorage"
+						"_t": "_ref",
+						"name": "IPropertySetStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1685,8 +1720,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppss",
@@ -1701,16 +1737,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PKA_FLAGS"
+						"_t": "_ref",
+						"name": "PKA_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1718,7 +1754,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1740,8 +1776,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"flags",
@@ -1757,9 +1794,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PROPDESC_ENUMFILTER"
+						"_t": "_ref",
+						"name": "PROPDESC_ENUMFILTER",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1780,8 +1817,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"filterOn",
@@ -1799,7 +1837,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1807,13 +1845,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PROPDESC_FORMAT_FLAGS"
+						"_t": "_ref",
+						"name": "PROPDESC_FORMAT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1831,8 +1869,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propkey",
@@ -1852,7 +1891,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1860,29 +1899,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PROPDESC_FORMAT_FLAGS"
+						"_t": "_ref",
+						"name": "PROPDESC_FORMAT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"key",
@@ -1897,33 +1934,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyStore"
+						"_t": "_ref",
+						"name": "IPropertyStore",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IPropertyDescription"
+						"_t": "_ref",
+						"name": "IPropertyDescription",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PROPDESC_FORMAT_FLAGS"
+						"_t": "_ref",
+						"name": "PROPDESC_FORMAT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pps",
@@ -1942,7 +1979,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1950,24 +1987,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propkey",
@@ -1981,12 +2016,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2007,8 +2044,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punkItem",
@@ -2023,16 +2061,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -2053,8 +2094,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punkItem",
@@ -2074,24 +2116,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propkey",
@@ -2104,12 +2144,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PCUSERIALIZEDPROPSTORAGE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2117,25 +2154,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psps",
@@ -2154,7 +2189,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2176,8 +2211,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propkey",
@@ -2191,12 +2227,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2217,8 +2250,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszCanonicalName",
@@ -2232,12 +2266,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2258,8 +2289,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPropList",
@@ -2273,12 +2305,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PCUSERIALIZEDPROPSTORAGE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2290,7 +2319,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2298,13 +2327,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"psps",
@@ -2319,25 +2349,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszName",
@@ -2368,8 +2396,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"riid",
@@ -2382,25 +2411,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyStore"
+						"_t": "_ref",
+						"name": "IPropertyStore",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IPropertyDescription"
+						"_t": "_ref",
+						"name": "IPropertyDescription",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pps",
@@ -2414,12 +2446,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2430,8 +2459,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszFilePath",
@@ -2444,21 +2474,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2471,28 +2500,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2506,32 +2535,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2545,16 +2570,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2566,8 +2589,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2581,16 +2605,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2601,8 +2623,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2616,16 +2639,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2636,8 +2657,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2651,16 +2673,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2671,8 +2691,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2686,29 +2707,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "POINTL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2722,29 +2742,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "POINTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2758,29 +2777,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2794,29 +2812,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECTL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2830,16 +2847,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2850,8 +2865,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2865,16 +2881,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2891,8 +2905,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2907,32 +2922,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2946,28 +2957,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
+					},
+					{
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "IStream"
+							"_t": "_ref",
+							"name": "IStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -2981,34 +2992,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3023,16 +3033,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3044,8 +3052,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3059,16 +3068,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3089,8 +3096,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3105,25 +3113,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3137,29 +3145,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "BSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3173,16 +3177,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3191,8 +3193,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3206,16 +3209,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3226,8 +3227,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3241,16 +3243,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3258,8 +3258,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3273,16 +3274,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3290,8 +3289,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3305,29 +3305,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "POINTL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3341,29 +3340,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "POINTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3377,29 +3375,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3413,29 +3410,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECTL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3449,16 +3445,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -3466,8 +3460,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3481,29 +3476,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3517,25 +3508,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3549,16 +3540,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "llong",
@@ -3567,8 +3556,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3582,25 +3572,25 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyBag"
+						"_t": "_ref",
+						"name": "IPropertyBag",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propBag",
@@ -3614,25 +3604,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszString",
@@ -3645,8 +3633,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": []
 			}
@@ -3656,17 +3645,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPath"
@@ -3678,25 +3665,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IPropertyStore"
+						"_t": "_ref",
+						"name": "IPropertyStore",
+						"ot": "bot"
 					},
 					{
-						"_t": "bot",
-						"label": "IPropertyDescription"
+						"_t": "_ref",
+						"name": "IPropertyDescription",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pps",
@@ -3714,7 +3704,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3733,8 +3723,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pkey",
@@ -3748,17 +3739,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPath"
@@ -3774,7 +3763,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3782,23 +3771,24 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PROPVAR_CHANGE_FLAGS"
+						"_t": "_ref",
+						"name": "PROPVAR_CHANGE_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VARENUM"
+						"_t": "_ref",
+						"name": "VARENUM",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppropvarDest",
@@ -3817,7 +3807,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3825,18 +3815,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PROPVAR_COMPARE_UNIT"
+						"_t": "_ref",
+						"name": "PROPVAR_COMPARE_UNIT",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PROPVAR_COMPARE_FLAGS"
+						"_t": "_ref",
+						"name": "PROPVAR_COMPARE_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -3860,7 +3850,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3871,14 +3861,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -3896,7 +3888,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3912,8 +3904,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -3931,7 +3924,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3954,7 +3947,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3967,13 +3960,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -3991,7 +3985,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4008,8 +4002,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4027,7 +4022,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4044,8 +4039,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4063,7 +4059,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4080,8 +4076,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4099,7 +4096,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4110,18 +4107,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4139,7 +4134,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4157,8 +4152,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4176,7 +4172,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4194,8 +4190,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4213,7 +4210,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4231,8 +4228,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4250,24 +4248,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "BSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4284,20 +4280,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -4314,14 +4312,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4340,8 +4339,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4360,7 +4360,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4368,8 +4368,9 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4383,8 +4384,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4402,17 +4404,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -4429,7 +4433,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4446,8 +4450,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4465,7 +4470,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4476,8 +4481,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -4494,7 +4500,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4519,8 +4525,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4539,7 +4546,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4561,8 +4568,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4580,7 +4588,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4605,26 +4613,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PSTIME_FLAGS"
+						"_t": "_ref",
+						"name": "PSTIME_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4642,7 +4651,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4650,7 +4659,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4669,8 +4678,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4689,7 +4699,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4699,7 +4709,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FILETIME",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4713,8 +4723,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4732,7 +4743,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4744,8 +4755,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4762,7 +4774,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4774,8 +4786,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -4792,7 +4805,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4818,8 +4831,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4838,7 +4852,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4861,8 +4875,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4880,7 +4895,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4907,7 +4922,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4919,8 +4934,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -4937,7 +4953,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4963,8 +4979,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -4983,7 +5000,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5006,8 +5023,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5025,7 +5043,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5052,7 +5070,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5064,8 +5082,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -5082,7 +5101,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5108,8 +5127,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5128,7 +5148,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5151,8 +5171,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5170,7 +5191,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5197,7 +5218,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5205,13 +5226,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRRET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5228,7 +5250,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5247,8 +5269,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5266,24 +5289,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5300,18 +5321,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -5330,8 +5348,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5350,7 +5369,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5358,12 +5377,9 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "char",
-									"signed": true,
-									"label": "Char"
-								}
+								"_t": "_ref",
+								"name": "PWSTR",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -5377,8 +5393,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5396,25 +5413,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -5431,7 +5442,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5444,8 +5455,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -5462,7 +5474,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5489,8 +5501,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5509,7 +5522,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5533,8 +5546,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5552,7 +5566,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5581,7 +5595,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5594,8 +5608,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -5612,7 +5627,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5639,8 +5654,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5659,7 +5675,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5683,8 +5699,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5702,7 +5719,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5731,7 +5748,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5744,8 +5761,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvarIn",
@@ -5762,7 +5780,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5789,8 +5807,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5809,7 +5828,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5833,8 +5852,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5852,7 +5872,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5881,7 +5901,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5889,13 +5909,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pPropVar",
@@ -5912,7 +5933,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5934,8 +5955,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"propvar",
@@ -5953,7 +5975,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SERIALIZEDPROPERTYVALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5966,13 +5988,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pprop",
@@ -5990,7 +6013,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6000,7 +6023,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SERIALIZEDPROPERTYVALUE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -6014,8 +6037,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppropvar",
@@ -6033,7 +6057,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6041,7 +6065,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6064,7 +6088,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6075,14 +6099,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6100,7 +6126,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6116,8 +6142,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6135,7 +6162,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6158,7 +6185,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6175,8 +6202,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6194,7 +6222,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6211,8 +6239,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6230,7 +6259,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6247,8 +6276,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6266,7 +6296,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6277,18 +6307,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6306,7 +6334,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6324,8 +6352,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6343,7 +6372,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6361,8 +6390,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6380,7 +6410,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6398,8 +6428,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6417,20 +6448,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -6447,14 +6480,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -6473,8 +6507,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6493,7 +6528,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6501,8 +6536,9 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -6516,8 +6552,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6535,17 +6572,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -6562,7 +6601,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6579,8 +6618,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -6598,7 +6638,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6619,8 +6659,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -6638,7 +6679,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6649,8 +6690,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -6667,7 +6709,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6692,8 +6734,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6712,7 +6755,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6734,8 +6777,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6753,7 +6797,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6778,26 +6822,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "PSTIME_FLAGS"
+						"_t": "_ref",
+						"name": "PSTIME_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -6815,7 +6860,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6827,8 +6872,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -6845,7 +6891,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6857,8 +6903,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -6875,7 +6922,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6901,8 +6948,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6921,7 +6969,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6944,8 +6992,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -6963,7 +7012,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6990,7 +7039,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7002,8 +7051,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -7020,7 +7070,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7046,8 +7096,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7066,7 +7117,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7089,8 +7140,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7108,7 +7160,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7135,7 +7187,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7147,8 +7199,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -7165,7 +7218,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7191,8 +7244,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7211,7 +7265,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7234,8 +7288,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7253,7 +7308,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7280,7 +7335,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7288,13 +7343,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pVar",
@@ -7311,7 +7367,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7319,13 +7375,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRRET",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -7342,7 +7399,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7361,8 +7418,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -7380,24 +7438,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -7414,18 +7470,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -7444,8 +7497,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7464,7 +7518,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7472,12 +7526,9 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "char",
-									"signed": true,
-									"label": "Char"
-								}
+								"_t": "_ref",
+								"name": "PWSTR",
+								"ot": "_ref"
 							}
 						}
 					},
@@ -7491,8 +7542,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7510,25 +7562,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"varIn",
@@ -7545,7 +7591,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7558,8 +7604,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -7576,7 +7623,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7603,8 +7650,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7623,7 +7671,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7647,8 +7695,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7666,7 +7715,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7695,7 +7744,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7708,8 +7757,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -7726,7 +7776,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7753,8 +7803,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7773,7 +7824,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7797,8 +7848,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7816,7 +7868,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7845,7 +7897,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7858,8 +7910,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"varIn",
@@ -7876,7 +7929,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7903,8 +7956,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7923,7 +7977,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7947,8 +8001,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"var",
@@ -7966,7 +8021,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7991,21 +8046,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"punkPropertyValue",

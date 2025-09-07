@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,13 +16,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ID3D12Device"
+						"_t": "_ref",
+						"name": "ID3D12Device",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DML_CREATE_DEVICE_FLAGS"
+						"_t": "_ref",
+						"name": "DML_CREATE_DEVICE_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -42,8 +44,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"d3d12Device",
@@ -58,18 +61,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "ID3D12Device"
+						"_t": "_ref",
+						"name": "ID3D12Device",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DML_CREATE_DEVICE_FLAGS"
+						"_t": "_ref",
+						"name": "DML_CREATE_DEVICE_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DML_FEATURE_LEVEL"
+						"_t": "_ref",
+						"name": "DML_FEATURE_LEVEL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -90,8 +94,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"d3d12Device",

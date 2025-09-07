@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -24,8 +25,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Object"
@@ -37,12 +39,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -51,8 +50,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SubscriptionName",
@@ -96,8 +96,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SubscriptionEnum",
@@ -120,9 +121,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EC_SUBSCRIPTION_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "EC_SUBSCRIPTION_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -144,7 +145,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EC_VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -157,8 +158,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectArray",
@@ -193,8 +195,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectArray",
@@ -215,9 +218,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EC_SUBSCRIPTION_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "EC_SUBSCRIPTION_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -234,7 +237,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EC_VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -247,8 +250,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Subscription",
@@ -265,25 +269,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EC_SUBSCRIPTION_RUNTIME_STATUS_INFO_ID"
+						"_t": "_ref",
+						"name": "EC_SUBSCRIPTION_RUNTIME_STATUS_INFO_ID",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -300,7 +298,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EC_VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -313,8 +311,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SubscriptionName",
@@ -346,8 +345,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectArray",
@@ -360,12 +360,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -435,8 +432,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectArray",
@@ -449,20 +447,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -471,8 +463,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SubscriptionName",
@@ -500,8 +493,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Subscription",
@@ -522,9 +516,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EC_SUBSCRIPTION_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "EC_SUBSCRIPTION_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -541,13 +535,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EC_VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ObjectArray",
@@ -571,9 +566,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EC_SUBSCRIPTION_PROPERTY_ID"
+						"_t": "_ref",
+						"name": "EC_SUBSCRIPTION_PROPERTY_ID",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -585,13 +580,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "EC_VARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Subscription",

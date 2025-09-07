@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,33 +16,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDXGIAdapter"
+						"_t": "_ref",
+						"name": "IDXGIAdapter",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D_DRIVER_TYPE"
+						"_t": "_ref",
+						"name": "D3D_DRIVER_TYPE",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "HMODULE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "D3D11_CREATE_DEVICE_FLAG",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D11_CREATE_DEVICE_FLAG"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "D3D_FEATURE_LEVEL"
+							"_t": "_ref",
+							"name": "D3D_FEATURE_LEVEL",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -58,29 +57,32 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D11Device"
+							"_t": "_ref",
+							"name": "ID3D11Device",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "D3D_FEATURE_LEVEL"
+							"_t": "_ref",
+							"name": "D3D_FEATURE_LEVEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D11DeviceContext"
+							"_t": "_ref",
+							"name": "ID3D11DeviceContext",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAdapter",
@@ -101,33 +103,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDXGIAdapter"
+						"_t": "_ref",
+						"name": "IDXGIAdapter",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D_DRIVER_TYPE"
+						"_t": "_ref",
+						"name": "D3D_DRIVER_TYPE",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "HMODULE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "D3D11_CREATE_DEVICE_FLAG",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "D3D11_CREATE_DEVICE_FLAG"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "D3D_FEATURE_LEVEL"
+							"_t": "_ref",
+							"name": "D3D_FEATURE_LEVEL",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -146,42 +146,46 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DXGI_SWAP_CHAIN_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDXGISwapChain"
+							"_t": "_ref",
+							"name": "IDXGISwapChain",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D11Device"
+							"_t": "_ref",
+							"name": "ID3D11Device",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "D3D_FEATURE_LEVEL"
+							"_t": "_ref",
+							"name": "D3D_FEATURE_LEVEL",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D11DeviceContext"
+							"_t": "_ref",
+							"name": "ID3D11DeviceContext",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAdapter",
@@ -204,8 +208,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -215,9 +220,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "D3D_FEATURE_LEVEL"
+							"_t": "_ref",
+							"name": "D3D_FEATURE_LEVEL",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -229,8 +234,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IUnknown"
+							"_t": "_ref",
+							"name": "IUnknown",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -247,29 +253,32 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D11Device"
+							"_t": "_ref",
+							"name": "ID3D11Device",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ID3D11DeviceContext"
+							"_t": "_ref",
+							"name": "ID3D11DeviceContext",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "D3D_FEATURE_LEVEL"
+							"_t": "_ref",
+							"name": "D3D_FEATURE_LEVEL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDevice",

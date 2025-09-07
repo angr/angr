@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,20 +20,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_RW_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOCK_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -92,15 +93,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_TIMER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -135,12 +136,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -293,7 +291,7 @@
 					{
 						"_t": "_ref",
 						"name": "UNICODE_STRING",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "ptr",
@@ -334,12 +332,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -368,12 +363,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -420,12 +412,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -462,7 +451,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CO_SAP",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -544,12 +533,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -588,12 +574,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -758,12 +741,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -792,12 +772,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -949,12 +926,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -989,12 +963,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1093,7 +1064,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1101,7 +1072,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1201,7 +1172,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "VAR_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1238,7 +1209,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1252,9 +1223,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
@@ -1289,7 +1260,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MDL",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -1459,7 +1430,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1544,7 +1515,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1619,7 +1590,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1650,7 +1621,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_EVENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1672,7 +1643,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_RW_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1694,7 +1665,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1725,7 +1696,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_TIMER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1776,9 +1747,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -1828,9 +1799,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -1861,15 +1832,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_MINIPORT_TIMER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1918,12 +1889,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2043,18 +2011,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CO_ADDRESS_FAMILY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "NDIS_CALL_MANAGER_CHARACTERISTICS",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2093,12 +2058,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "CO_CALL_PARAMETERS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2277,9 +2239,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -2324,7 +2286,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DEVICE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2335,7 +2297,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DEVICE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2346,7 +2308,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DEVICE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2357,7 +2319,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CM_RESOURCE_LIST",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2368,7 +2330,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CM_RESOURCE_LIST",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -2418,7 +2380,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_MINIPORT_TIMER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2512,7 +2474,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2582,16 +2544,16 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_DMA_DESCRIPTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2688,7 +2650,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_MINIPORT_TIMER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2864,7 +2826,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2914,7 +2876,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2974,7 +2936,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3004,7 +2966,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3034,7 +2996,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3094,7 +3056,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "NDIS_CONFIGURATION_PARAMETER",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -3110,13 +3072,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "NDIS_PARAMETER_TYPE"
+						"_t": "_ref",
+						"name": "NDIS_PARAMETER_TYPE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -3195,24 +3157,22 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "UNICODE_STRING",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "ptr",
-										"pts_to": {
-											"_t": "int",
-											"label": "Int"
-										},
-										"label": "IntPtr"
+										"_t": "_ref",
+										"name": "HANDLE",
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "NTSTATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"DeviceName",
@@ -3230,7 +3190,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "UNICODE_STRING",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3238,7 +3198,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "UNICODE_STRING",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3246,7 +3206,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "UNICODE_STRING",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3268,8 +3228,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "NTSTATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"UpperComponent",
@@ -3301,7 +3262,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_RW_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3309,7 +3270,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LOCK_STATE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3332,7 +3293,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_EVENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3354,7 +3315,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_EVENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3376,7 +3337,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_TIMER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3404,7 +3365,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_TIMER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3432,7 +3393,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_TIMER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3482,7 +3443,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3496,9 +3457,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
@@ -3597,7 +3558,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_EVENT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3607,9 +3568,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Event",
@@ -3640,7 +3601,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3648,7 +3609,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NDIS_CONFIGURATION_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

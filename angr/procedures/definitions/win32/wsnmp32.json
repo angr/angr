@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -102,7 +103,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOCTETS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -153,9 +154,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SNMP_PDU_TYPE"
+						"_t": "_ref",
+						"name": "SNMP_PDU_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -201,12 +202,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -227,12 +225,9 @@
 									"label": "IntPtr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HWND",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -240,21 +235,14 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"signed": false,
-										"label": "UInt"
-									},
-									"label": "UIntPtr"
+									"_t": "_ref",
+									"name": "WPARAM",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -320,7 +308,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -328,7 +316,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiVALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -408,7 +396,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOCTETS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -575,7 +563,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOCTETS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -670,7 +658,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOCTETS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -792,9 +780,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SNMP_PDU_TYPE"
+							"_t": "_ref",
+							"name": "SNMP_PDU_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -807,9 +795,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SNMP_ERROR"
+							"_t": "_ref",
+							"name": "SNMP_ERROR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -853,9 +841,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SNMP_STATUS"
+							"_t": "_ref",
+							"name": "SNMP_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -958,9 +946,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SNMP_API_TRANSLATE_MODE"
+							"_t": "_ref",
+							"name": "SNMP_API_TRANSLATE_MODE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -996,7 +984,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1004,7 +992,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiVALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1030,7 +1018,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiVENDORINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1057,9 +1045,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SNMP_STATUS"
+						"_t": "_ref",
+						"name": "SNMP_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1117,7 +1105,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1125,7 +1113,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1163,7 +1151,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1171,7 +1159,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1195,7 +1183,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1230,12 +1218,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1369,13 +1354,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SNMP_STATUS"
+						"_t": "_ref",
+						"name": "SNMP_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1553,9 +1538,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SNMP_STATUS"
+						"_t": "_ref",
+						"name": "SNMP_STATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1631,9 +1616,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SNMP_API_TRANSLATE_MODE"
+						"_t": "_ref",
+						"name": "SNMP_API_TRANSLATE_MODE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1668,7 +1653,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1676,7 +1661,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiVALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1724,17 +1709,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SNMP_API_TRANSLATE_MODE"
+							"_t": "_ref",
+							"name": "SNMP_API_TRANSLATE_MODE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SNMP_STATUS"
+							"_t": "_ref",
+							"name": "SNMP_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1783,17 +1768,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SNMP_API_TRANSLATE_MODE"
+							"_t": "_ref",
+							"name": "SNMP_API_TRANSLATE_MODE",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "SNMP_STATUS"
+							"_t": "_ref",
+							"name": "SNMP_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1828,7 +1813,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOCTETS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1859,12 +1844,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1886,19 +1868,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "smiOID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

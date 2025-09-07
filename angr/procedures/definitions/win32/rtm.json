@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -136,14 +137,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropTagArray",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ITableData"
+							"_t": "_ref",
+							"name": "ITableData",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -169,12 +171,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -234,12 +233,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -257,12 +253,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -414,7 +407,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPMCAST_MFE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -455,7 +448,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPMCAST_MFE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -502,7 +495,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPMCAST_MFE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -552,7 +545,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MIB_IPMCAST_MFE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -648,12 +641,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -671,12 +661,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -721,27 +708,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MGM_ENUM_TYPES"
+						"_t": "_ref",
+						"name": "MGM_ENUM_TYPES",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -766,7 +747,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ROUTING_PROTOCOL_CONFIG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -782,12 +763,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -809,12 +787,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -844,12 +819,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -891,7 +863,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NEXTHOP_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -955,7 +927,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -963,7 +935,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ROUTE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1032,12 +1004,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "char",
@@ -1072,13 +1041,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "_ref",
 						"name": "IN6_ADDR",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "int",
@@ -1113,7 +1082,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1121,7 +1090,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1178,7 +1147,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1235,7 +1204,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1298,7 +1267,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1311,7 +1280,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ROUTE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1485,7 +1454,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NEXTHOP_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1646,7 +1615,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NEXTHOP_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1667,7 +1636,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RTM_NEXTHOP_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -1716,8 +1685,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1767,7 +1737,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1819,7 +1789,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1862,7 +1832,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ENTITY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1934,7 +1904,7 @@
 										"pts_to": {
 											"_t": "_ref",
 											"name": "RTM_ENTITY_METHOD_INPUT",
-											"ot": "struct"
+											"ot": "_ref"
 										}
 									},
 									{
@@ -1942,7 +1912,7 @@
 										"pts_to": {
 											"_t": "_ref",
 											"name": "RTM_ENTITY_METHOD_OUTPUT",
-											"ot": "struct"
+											"ot": "_ref"
 										}
 									}
 								],
@@ -2006,7 +1976,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2146,7 +2116,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2164,7 +2134,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2199,7 +2169,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2212,7 +2182,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ROUTE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2288,7 +2258,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2377,7 +2347,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2395,7 +2365,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2438,7 +2408,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NEXTHOP_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2481,7 +2451,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RTM_NEXTHOP_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -2577,7 +2547,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ENTITY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2619,7 +2589,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ROUTE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2627,7 +2597,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NET_ADDRESS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2671,7 +2641,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RTM_ROUTE_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -2857,7 +2827,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ENTITY_METHOD_INPUT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2873,7 +2843,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ENTITY_METHOD_OUTPUT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2963,8 +2933,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3002,12 +2973,14 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -3044,12 +3017,14 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3058,7 +3033,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RTM_NEXTHOP_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3098,12 +3073,14 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3112,7 +3089,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "RTM_ROUTE_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -3160,8 +3137,9 @@
 						"label": "IntPtr"
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -3197,12 +3175,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3227,7 +3202,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ENTITY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3235,7 +3210,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ENTITY_EXPORT_METHODS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3252,9 +3227,9 @@
 									"label": "IntPtr"
 								},
 								{
-									"_t": "int",
-									"signed": false,
-									"label": "RTM_EVENT_TYPE"
+									"_t": "_ref",
+									"name": "RTM_EVENT_TYPE",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -3285,15 +3260,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_REGN_PROFILE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3408,7 +3384,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3442,7 +3418,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3479,7 +3455,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_DEST_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3553,7 +3529,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ENTITY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3585,7 +3561,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_NEXTHOP_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -3658,7 +3634,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RTM_ROUTE_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,12 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -165,7 +163,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ERESOURCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -187,7 +185,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ERESOURCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -205,19 +203,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -225,13 +220,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPEN_REPARSE_LIST_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -245,33 +241,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceInstance",
@@ -285,19 +276,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -307,14 +295,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FLT_CALLBACK_DATA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -328,19 +317,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -355,14 +341,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FLT_CALLBACK_DATA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -377,12 +364,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "short",
@@ -399,24 +383,23 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "POOL_TYPE"
+						"_t": "_ref",
+						"name": "POOL_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -432,12 +415,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "PFLT_DEFERRED_IO_WORKITEM",
+					"ot": "ptr"
 				},
 				"arg_names": []
 			}
@@ -447,12 +427,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -518,8 +495,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -537,12 +515,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -610,8 +585,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -629,12 +605,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -646,19 +619,17 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "ECP_LIST",
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -688,13 +659,14 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "NTSTATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"Context",
@@ -719,7 +691,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FILE_LOCK_INFO",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -739,7 +711,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "FILE_LOCK",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -753,12 +725,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "PFLT_GENERIC_WORKITEM",
+					"ot": "ptr"
 				},
 				"arg_names": []
 			}
@@ -768,17 +737,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "POOL_TYPE"
+						"_t": "_ref",
+						"name": "POOL_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -819,7 +785,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_PRIORITY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -827,21 +793,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_PRIORITY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PETHREAD",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InputPriorityInfo",
@@ -855,44 +819,36 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_INSTANCE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -907,27 +863,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -935,24 +885,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_INSTANCE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -970,11 +918,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PSECURITY_DESCRIPTOR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -984,8 +930,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SecurityDescriptor",
@@ -998,19 +945,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1033,14 +977,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -1068,9 +1012,9 @@
 						"label": "LPArray"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WAIT_TYPE"
+						"_t": "_ref",
+						"name": "WAIT_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1084,7 +1028,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "KWAIT_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1092,13 +1036,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Count",
@@ -1133,13 +1078,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Object",
@@ -1157,7 +1103,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA_QUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1179,7 +1125,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA_QUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1197,19 +1143,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA_QUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1222,7 +1165,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA_QUEUE",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1230,7 +1173,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1242,8 +1185,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "NTSTATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"Cbdq",
@@ -1262,7 +1206,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA_QUEUE",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1270,7 +1214,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -1294,7 +1238,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA_QUEUE",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1302,7 +1246,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1318,7 +1262,7 @@
 								"pts_to": {
 									"_t": "_ref",
 									"name": "FLT_CALLBACK_DATA",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							},
 							"arg_names": [
@@ -1338,7 +1282,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA_QUEUE",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1370,7 +1314,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA_QUEUE",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1399,7 +1343,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA_QUEUE",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1407,7 +1351,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -1423,8 +1367,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -1447,7 +1392,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA_QUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1455,7 +1400,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1463,7 +1408,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_CSQ_IRP_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1475,8 +1420,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Cbdq",
@@ -1495,7 +1441,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA_QUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1503,7 +1449,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_CSQ_IRP_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1512,7 +1458,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "FLT_CALLBACK_DATA",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1530,7 +1476,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA_QUEUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1546,7 +1492,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "FLT_CALLBACK_DATA",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1564,7 +1510,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_NAME_CONTROL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1574,8 +1520,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"NameCtrl",
@@ -1592,7 +1539,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1600,14 +1547,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"FileLock",
@@ -1624,7 +1571,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1632,14 +1579,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"FileLock",
@@ -1666,7 +1613,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1686,7 +1633,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1717,7 +1664,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1740,9 +1687,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FLT_PREOP_CALLBACK_STATUS"
+					"_t": "_ref",
+					"name": "FLT_PREOP_CALLBACK_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Oplock",
@@ -1772,7 +1719,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1797,7 +1744,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1828,7 +1775,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -1851,9 +1798,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FLT_PREOP_CALLBACK_STATUS"
+					"_t": "_ref",
+					"name": "FLT_PREOP_CALLBACK_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Oplock",
@@ -1874,7 +1821,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1896,13 +1843,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -1914,17 +1862,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileHandle"
@@ -1936,22 +1882,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_PORT",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1970,12 +1910,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_PORT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1992,16 +1929,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SectionContext"
@@ -2013,35 +1949,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -2055,35 +1984,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -2097,20 +2019,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -2132,7 +2048,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2154,13 +2070,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FLT_PREOP_CALLBACK_STATUS"
+						"_t": "_ref",
+						"name": "FLT_PREOP_CALLBACK_STATUS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2186,36 +2102,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ECP_LIST",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -2229,22 +2140,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_PORT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2252,7 +2157,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2268,12 +2173,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "PFLT_PORT",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -2306,8 +2208,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "NTSTATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"ClientPort",
@@ -2386,8 +2289,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "NTSTATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"PortCookie",
@@ -2405,8 +2309,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -2425,30 +2330,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2461,7 +2357,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2469,7 +2365,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2518,8 +2414,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -2544,30 +2441,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2577,7 +2465,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FILE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2591,7 +2479,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2599,7 +2487,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2648,8 +2536,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -2675,30 +2564,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2708,7 +2588,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FILE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2722,7 +2602,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2730,7 +2610,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2782,13 +2662,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_DRIVER_CREATE_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -2815,30 +2696,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2848,7 +2720,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FILE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2862,7 +2734,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2870,7 +2742,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2900,13 +2772,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_DRIVER_CREATE_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -2929,30 +2802,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2962,7 +2826,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FILE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -2976,7 +2840,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2984,7 +2848,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3044,13 +2908,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_DRIVER_CREATE_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -3079,27 +2944,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3111,7 +2971,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3139,12 +2999,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3166,8 +3023,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -3190,17 +3048,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance"
@@ -3223,9 +3079,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Oplock"
@@ -3248,9 +3104,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Oplock"
@@ -3273,9 +3129,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Oplock"
@@ -3291,7 +3147,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3303,7 +3159,7 @@
 								"pts_to": {
 									"_t": "_ref",
 									"name": "MDL",
-									"ot": "struct"
+									"ot": "_ref"
 								}
 							}
 						}
@@ -3335,15 +3191,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "LOCK_OPERATION"
+							"_t": "_ref",
+							"name": "LOCK_OPERATION",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -3359,11 +3216,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -3380,12 +3235,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3416,35 +3268,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -3458,27 +3306,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -3517,35 +3361,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -3559,35 +3399,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -3601,38 +3437,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -3646,35 +3475,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -3688,33 +3510,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -3728,19 +3545,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3782,8 +3596,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -3806,7 +3621,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3814,7 +3629,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_RELATED_OBJECTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3839,7 +3654,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3847,7 +3662,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_RELATED_OBJECTS",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -3864,9 +3679,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"signed": false,
-								"label": "FLT_POSTOP_CALLBACK_STATUS"
+								"_t": "_ref",
+								"name": "FLT_POSTOP_CALLBACK_STATUS",
+								"ot": "int"
 							},
 							"arg_names": [
 								"Data",
@@ -3879,16 +3694,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "FLT_POSTOP_CALLBACK_STATUS"
+							"_t": "_ref",
+							"name": "FLT_POSTOP_CALLBACK_STATUS",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Data",
@@ -3905,30 +3720,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -3937,8 +3744,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -3958,9 +3766,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILTER_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILTER_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3984,8 +3792,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Index",
@@ -4003,12 +3812,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_FILTER",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4027,8 +3833,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FilterList",
@@ -4046,7 +3853,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVICE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4055,9 +3862,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "INSTANCE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "INSTANCE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4081,8 +3888,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DeviceObject",
@@ -4099,12 +3907,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4112,9 +3917,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "INSTANCE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "INSTANCE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4138,8 +3943,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -4156,12 +3962,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4169,9 +3972,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "INSTANCE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "INSTANCE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4195,8 +3998,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -4217,7 +4021,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4226,9 +4030,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "INSTANCE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "INSTANCE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4252,8 +4056,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"VolumeName",
@@ -4270,30 +4075,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_INSTANCE",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4312,8 +4108,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -4329,12 +4126,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -4342,9 +4136,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILTER_VOLUME_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILTER_VOLUME_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4368,8 +4162,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -4386,22 +4181,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_VOLUME",
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -4420,8 +4209,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -4436,19 +4226,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4475,7 +4262,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MDL",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4484,14 +4271,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -4509,19 +4296,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4529,14 +4313,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -4550,19 +4334,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4577,14 +4358,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -4599,19 +4380,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4638,7 +4416,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "MDL",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -4647,14 +4425,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -4672,22 +4450,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ECP_LIST",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4717,8 +4489,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -4734,25 +4507,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -4765,19 +4536,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4790,13 +4558,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -4815,7 +4584,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4833,12 +4602,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_DEFERRED_IO_WORKITEM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -4855,12 +4621,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -4885,22 +4648,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ECP_LIST",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4923,7 +4680,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4941,12 +4698,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_GENERIC_WORKITEM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -4963,22 +4717,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ECP_LIST",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -4997,12 +4745,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5033,11 +4778,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -5054,19 +4797,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5108,8 +4848,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -5132,7 +4873,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5144,8 +4885,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -5158,28 +4900,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_INSTANCE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -5196,7 +4933,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_RELATED_OBJECTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5209,7 +4946,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_RELATED_CONTEXTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5233,7 +4970,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_RELATED_OBJECTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5255,13 +4992,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_RELATED_CONTEXTS_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FltObjects",
@@ -5276,36 +5014,27 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5324,14 +5053,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FLT_FILE_NAME_INFORMATION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -5349,12 +5079,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5363,14 +5090,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DEVICE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -5383,12 +5111,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -5397,14 +5122,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DEVICE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -5417,19 +5143,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5437,19 +5160,17 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "ptr",
-								"pts_to": {
-									"_t": "int",
-									"label": "Int"
-								},
-								"label": "IntPtr"
+								"_t": "_ref",
+								"name": "ECP_LIST",
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -5463,35 +5184,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -5509,7 +5226,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5524,14 +5241,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FLT_FILE_NAME_INFORMATION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -5549,16 +5267,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -5572,14 +5287,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FLT_FILE_NAME_INFORMATION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileObject",
@@ -5603,15 +5319,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "FLT_FILESYSTEM_TYPE"
+							"_t": "_ref",
+							"name": "FLT_FILESYSTEM_TYPE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FltObject",
@@ -5624,28 +5341,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_FILTER",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -5662,24 +5374,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_FILTER",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FilterName",
@@ -5692,17 +5402,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILTER_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILTER_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5726,8 +5433,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -5747,7 +5455,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -5760,8 +5468,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data",
@@ -5774,27 +5483,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -5807,17 +5512,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "INSTANCE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "INSTANCE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -5841,8 +5543,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -5862,7 +5565,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -5887,14 +5590,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "IO_PRIORITY_HINT"
+					"_t": "_ref",
+					"name": "IO_PRIORITY_HINT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data"
@@ -5910,14 +5613,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "IO_PRIORITY_HINT"
+					"_t": "_ref",
+					"name": "IO_PRIORITY_HINT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data"
@@ -5933,14 +5636,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "IO_PRIORITY_HINT"
+					"_t": "_ref",
+					"name": "IO_PRIORITY_HINT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileObject"
@@ -5952,18 +5655,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PETHREAD",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "IO_PRIORITY_HINT"
+					"_t": "_ref",
+					"name": "IO_PRIORITY_HINT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Thread"
@@ -5981,12 +5681,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"IrpMajorCode"
@@ -5998,28 +5695,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_INSTANCE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CurrentInstance",
@@ -6036,7 +5728,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6057,22 +5749,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ECP_LIST",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6109,8 +5795,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -6131,17 +5818,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "PEPROCESS",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -6157,7 +5841,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6180,17 +5864,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HANDLE",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -6206,7 +5887,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6219,8 +5900,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -6233,12 +5915,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -6258,35 +5937,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -6300,35 +5975,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -6342,35 +6013,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -6388,7 +6055,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -6397,7 +6064,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "MDL",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -6410,28 +6077,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_INSTANCE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -6444,38 +6106,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -6493,7 +6148,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6501,7 +6156,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_FILE_NAME_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6511,14 +6166,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FLT_FILE_NAME_INFORMATION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -6532,28 +6188,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_INSTANCE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CurrentInstance",
@@ -6566,35 +6217,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -6608,36 +6252,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVICE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_VOLUME",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -6651,36 +6290,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_VOLUME",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -6694,28 +6328,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_VOLUME",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -6728,36 +6357,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_VOLUME",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -6771,19 +6395,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6796,8 +6417,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -6811,17 +6433,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILTER_VOLUME_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILTER_VOLUME_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -6845,8 +6464,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -6862,44 +6482,36 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_INSTANCE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -6914,19 +6526,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6939,8 +6548,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -6954,19 +6564,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_VOLUME_PROPERTIES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -6984,8 +6591,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -7000,12 +6608,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7056,7 +6661,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -7124,22 +6729,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ECP_LIST",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7151,8 +6750,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -7170,14 +6770,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -7193,14 +6793,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Data"
@@ -7216,29 +6816,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileObject",
@@ -7252,12 +6850,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7268,9 +6863,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Filter",
@@ -7283,12 +6878,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -7299,9 +6891,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Filter",
@@ -7318,14 +6910,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DEVICE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"DeviceObject"
@@ -7341,14 +6933,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -7360,33 +6952,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceInstance",
@@ -7404,37 +6991,35 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
+						}
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
+					},
+					{
+						"_t": "ptr",
+						"pts_to": {
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data",
@@ -7453,14 +7038,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -7481,15 +7066,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FltObject",
@@ -7511,15 +7097,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FltObject",
@@ -7536,13 +7123,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FilterName"
@@ -7558,13 +7146,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -7576,19 +7165,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PNOTIFY_SYNC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LIST_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7603,18 +7189,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "int",
@@ -7626,7 +7212,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7653,14 +7239,14 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "SECURITY_SUBJECT_CONTEXT",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
 							"returnty": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
+								"_t": "_ref",
+								"name": "BOOLEAN",
+								"ot": "char"
 							},
 							"arg_names": [
 								"NotifyContext",
@@ -7674,7 +7260,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SECURITY_SUBJECT_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7698,9 +7284,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
+								"_t": "_ref",
+								"name": "BOOLEAN",
+								"ot": "char"
 							},
 							"arg_names": [
 								"NotifyContext",
@@ -7762,8 +7348,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FltObject"
@@ -7775,22 +7362,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7800,14 +7381,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "FILE_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -7835,7 +7417,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7860,7 +7442,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -7891,7 +7473,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -7914,9 +7496,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FLT_PREOP_CALLBACK_STATUS"
+					"_t": "_ref",
+					"name": "FLT_PREOP_CALLBACK_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Oplock",
@@ -7947,7 +7529,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -7967,7 +7549,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -7998,7 +7580,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -8021,9 +7603,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FLT_PREOP_CALLBACK_STATUS"
+					"_t": "_ref",
+					"name": "FLT_PREOP_CALLBACK_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Oplock",
@@ -8053,7 +7635,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8078,7 +7660,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -8109,7 +7691,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -8132,9 +7714,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FLT_PREOP_CALLBACK_STATUS"
+					"_t": "_ref",
+					"name": "FLT_PREOP_CALLBACK_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Oplock",
@@ -8165,7 +7747,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8175,9 +7757,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FLT_PREOP_CALLBACK_STATUS"
+					"_t": "_ref",
+					"name": "FLT_PREOP_CALLBACK_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Oplock",
@@ -8205,7 +7787,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8220,9 +7802,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FLT_PREOP_CALLBACK_STATUS"
+					"_t": "_ref",
+					"name": "FLT_PREOP_CALLBACK_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Oplock",
@@ -8248,9 +7830,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Oplock"
@@ -8266,14 +7848,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"CallbackData"
@@ -8289,7 +7871,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8297,14 +7879,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Fo1",
@@ -8321,7 +7903,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8329,7 +7911,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8337,7 +7919,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8345,13 +7927,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileName",
@@ -8370,13 +7953,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_FILE_NAME_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileNameInformation"
@@ -8392,7 +7976,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8405,15 +7989,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "bot",
-										"label": "Void"
-									}
+									"_t": "_ref",
+									"name": "PFLT_CONTEXT",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -8435,8 +8017,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -8454,7 +8037,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -8472,35 +8055,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -8514,35 +8090,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -8556,12 +8125,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -8590,7 +8156,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8598,7 +8164,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8610,9 +8176,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "FLT_PREOP_CALLBACK_STATUS"
+					"_t": "_ref",
+					"name": "FLT_PREOP_CALLBACK_STATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileLock",
@@ -8630,7 +8196,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8652,8 +8218,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -8671,7 +8238,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8679,7 +8246,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8689,8 +8256,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceData",
@@ -8704,25 +8272,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -8735,19 +8301,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8763,27 +8326,27 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -8795,8 +8358,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -8816,19 +8380,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8844,9 +8405,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -8858,7 +8419,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8871,8 +8432,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -8891,19 +8453,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -8919,9 +8478,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -8944,9 +8503,9 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -8958,8 +8517,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -8980,27 +8540,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OBJECT_ATTRIBUTES",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9008,7 +8562,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9024,22 +8578,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_DRIVER_CREATE_CONTEXT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -9058,19 +8613,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9086,9 +8638,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILE_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9100,8 +8652,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -9118,19 +8671,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9138,7 +8688,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9154,9 +8704,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -9179,9 +8729,9 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
@@ -9193,8 +8743,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -9216,19 +8767,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9237,11 +8785,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -9258,8 +8804,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -9276,19 +8823,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9304,14 +8848,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FS_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FS_INFORMATION_CLASS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -9327,19 +8872,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9355,9 +8897,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FS_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FS_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9369,8 +8911,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -9387,19 +8930,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_DEFERRED_IO_WORKITEM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9408,19 +8948,16 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "PFLT_DEFERRED_IO_WORKITEM",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -9443,9 +8980,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WORK_QUEUE_TYPE"
+						"_t": "_ref",
+						"name": "WORK_QUEUE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9456,8 +8993,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FltWorkItem",
@@ -9473,12 +9011,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_GENERIC_WORKITEM",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -9493,12 +9028,9 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "PFLT_GENERIC_WORKITEM",
+									"ot": "ptr"
 								},
 								{
 									"_t": "ptr",
@@ -9527,9 +9059,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "WORK_QUEUE_TYPE"
+						"_t": "_ref",
+						"name": "WORK_QUEUE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -9540,8 +9072,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FltWorkItem",
@@ -9557,19 +9090,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9614,15 +9144,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "bot",
-										"label": "Void"
-									}
+									"_t": "_ref",
+									"name": "PFLT_CONTEXT",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -9644,8 +9172,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -9665,19 +9194,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9722,15 +9248,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "bot",
-										"label": "Void"
-									}
+									"_t": "_ref",
+									"name": "PFLT_CONTEXT",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -9763,13 +9287,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -9791,11 +9316,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -9816,7 +9339,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_FILE_NAME_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9838,7 +9361,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DRIVER_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -9846,24 +9369,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_REGISTRATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_FILTER",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Driver",
@@ -9877,17 +9398,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance"
@@ -9899,19 +9418,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9930,11 +9446,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -9955,7 +9469,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_RELATED_CONTEXTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -9986,7 +9500,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_RELATED_CONTEXTS_EX",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10009,7 +9523,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_FILE_NAME_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10089,7 +9603,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ERESOURCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10107,22 +9621,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ECP_LIST",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10152,8 +9660,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -10169,19 +9678,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10189,7 +9695,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OPEN_REPARSE_LIST_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10209,19 +9715,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10231,8 +9734,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -10250,7 +9754,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10263,7 +9767,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_RELATED_OBJECTS",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -10271,12 +9775,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_IO_PARAMETER_BLOCK",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "int",
-									"label": "Int32"
+									"_t": "_ref",
+									"name": "NTSTATUS",
+									"ot": "int"
 								},
 								{
 									"_t": "ptr",
@@ -10307,8 +9812,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data",
@@ -10326,7 +9832,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10344,19 +9850,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10393,19 +9896,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10433,8 +9933,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -10454,7 +9955,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10462,29 +9963,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PETHREAD",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_PRIORITY_INFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data",
@@ -10503,7 +10002,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10521,35 +10020,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -10563,35 +10055,28 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -10605,22 +10090,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "PFLT_PORT",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10659,8 +10138,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -10682,7 +10162,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10694,8 +10174,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -10712,7 +10193,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -10734,7 +10215,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10747,7 +10228,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -10762,8 +10243,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -10776,19 +10258,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10805,8 +10284,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -10821,36 +10301,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "ECP_LIST",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter",
@@ -10864,47 +10339,41 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FLT_SET_CONTEXT_OPERATION"
+						"_t": "_ref",
+						"name": "FLT_SET_CONTEXT_OPERATION",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -10924,7 +10393,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10934,8 +10403,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data",
@@ -10952,13 +10422,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data"
@@ -10970,19 +10441,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -10998,14 +10466,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FILE_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FILE_INFORMATION_CLASS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -11021,39 +10490,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FLT_SET_CONTEXT_OPERATION"
+						"_t": "_ref",
+						"name": "FLT_SET_CONTEXT_OPERATION",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -11072,18 +10535,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "IO_PRIORITY_HINT"
+						"_t": "_ref",
+						"name": "IO_PRIORITY_HINT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Data",
@@ -11100,18 +10564,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "IO_PRIORITY_HINT"
+						"_t": "_ref",
+						"name": "IO_PRIORITY_HINT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FileObject",
@@ -11124,22 +10589,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PETHREAD",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "IO_PRIORITY_HINT"
+						"_t": "_ref",
+						"name": "IO_PRIORITY_HINT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Thread",
@@ -11152,19 +10615,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11181,8 +10641,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -11197,19 +10658,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11218,16 +10676,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSECURITY_DESCRIPTOR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -11242,47 +10699,41 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FLT_SET_CONTEXT_OPERATION"
+						"_t": "_ref",
+						"name": "FLT_SET_CONTEXT_OPERATION",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -11298,47 +10749,41 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FLT_SET_CONTEXT_OPERATION"
+						"_t": "_ref",
+						"name": "FLT_SET_CONTEXT_OPERATION",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -11354,50 +10799,41 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "KTRANSACTION",
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FLT_SET_CONTEXT_OPERATION"
+						"_t": "_ref",
+						"name": "FLT_SET_CONTEXT_OPERATION",
+						"ot": "int"
+					},
+					{
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -11413,39 +10849,33 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_VOLUME",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FLT_SET_CONTEXT_OPERATION"
+						"_t": "_ref",
+						"name": "FLT_SET_CONTEXT_OPERATION",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PFLT_CONTEXT",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PFLT_CONTEXT",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Volume",
@@ -11460,19 +10890,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IO_STATUS_BLOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11488,14 +10915,15 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "FS_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "FS_INFORMATION_CLASS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Instance",
@@ -11511,17 +10939,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Filter"
@@ -11537,14 +10963,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"FileObject"
@@ -11560,22 +10986,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"FileObject",
@@ -11592,14 +11015,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"FileObject"
@@ -11615,14 +11038,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"FileObject"
@@ -11634,19 +11057,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11675,8 +11095,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -11693,19 +11114,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11751,8 +11169,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -11776,7 +11195,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_LOCK",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -11822,13 +11241,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"FilterName"
@@ -11840,12 +11260,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_FILTER",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -11862,19 +11279,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11891,8 +11305,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -11911,7 +11326,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -11919,25 +11334,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_RELATED_OBJECTS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "NTSTATUS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"CallbackData",
@@ -11952,19 +11369,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12009,15 +11423,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "bot",
-										"label": "Void"
-									}
+									"_t": "_ref",
+									"name": "PFLT_CONTEXT",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -12039,8 +11451,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -12060,19 +11473,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "PFLT_INSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12117,15 +11527,13 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "FLT_CALLBACK_DATA",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "bot",
-										"label": "Void"
-									}
+									"_t": "_ref",
+									"name": "PFLT_CONTEXT",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -12158,13 +11566,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MDL",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InitiatingInstance",
@@ -12190,7 +11599,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILE_OBJECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -12198,13 +11607,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FLT_CALLBACK_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"OriginatingFileObject",

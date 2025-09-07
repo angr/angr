@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,12 +16,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -63,14 +61,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDirect3DDeviceManager9"
+							"_t": "_ref",
+							"name": "IDirect3DDeviceManager9",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pResetToken",
@@ -83,8 +83,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDirect3DDevice9"
+						"_t": "_ref",
+						"name": "IDirect3DDevice9",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -105,8 +106,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDD",
@@ -120,21 +122,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDirect3DDevice9Ex"
+						"_t": "_ref",
+						"name": "IDirect3DDevice9Ex",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DXVAHD_CONTENT_DESC",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "DXVAHD_DEVICE_USAGE"
+						"_t": "_ref",
+						"name": "DXVAHD_DEVICE_USAGE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -155,8 +158,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"Size",
@@ -167,14 +171,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IDXVAHD_Device"
+							"_t": "_ref",
+							"name": "IDXVAHD_Device",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pD3DDevice",
@@ -190,12 +196,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -212,17 +215,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hMonitor"
@@ -243,14 +244,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHYSICAL_MONITOR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwPhysicalMonitorArraySize",
@@ -263,12 +265,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -294,12 +293,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -343,12 +339,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -383,19 +376,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "MC_COLOR_TEMPERATURE"
+							"_t": "_ref",
+							"name": "MC_COLOR_TEMPERATURE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -414,12 +404,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -463,17 +450,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_POSITION_TYPE"
+						"_t": "_ref",
+						"name": "MC_POSITION_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -518,17 +502,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_SIZE_TYPE"
+						"_t": "_ref",
+						"name": "MC_SIZE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -573,17 +554,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_DRIVE_TYPE"
+						"_t": "_ref",
+						"name": "MC_DRIVE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -628,17 +606,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_GAIN_TYPE"
+						"_t": "_ref",
+						"name": "MC_GAIN_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -683,19 +658,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "MC_DISPLAY_TECHNOLOGY_TYPE"
+							"_t": "_ref",
+							"name": "MC_DISPLAY_TECHNOLOGY_TYPE",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -714,12 +686,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMONITOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -731,8 +700,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hMonitor",
@@ -745,8 +715,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDirect3DDevice9"
+						"_t": "_ref",
+						"name": "IDirect3DDevice9",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -758,8 +729,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDirect3DDevice9",
@@ -772,12 +744,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMONITOR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -789,14 +758,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHYSICAL_MONITOR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hMonitor",
@@ -810,8 +780,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDirect3DDevice9"
+						"_t": "_ref",
+						"name": "IDirect3DDevice9",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -823,14 +794,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PHYSICAL_MONITOR",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDirect3DDevice9",
@@ -844,19 +816,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MC_TIMING_REPORT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -875,12 +844,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "char",
@@ -890,9 +856,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "MC_VCP_CODE_TYPE"
+							"_t": "_ref",
+							"name": "MC_VCP_CODE_TYPE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -934,7 +900,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -943,21 +909,23 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OPM_VIDEO_OUTPUT_SEMANTICS"
+						"_t": "_ref",
+						"name": "OPM_VIDEO_OUTPUT_SEMANTICS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IOPMVideoOutput"
+							"_t": "_ref",
+							"name": "IOPMVideoOutput",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAdapterLuid",
@@ -972,17 +940,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HMONITOR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OPM_VIDEO_OUTPUT_SEMANTICS"
+						"_t": "_ref",
+						"name": "OPM_VIDEO_OUTPUT_SEMANTICS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -997,15 +962,17 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "bot",
-								"label": "IOPMVideoOutput"
+								"_t": "_ref",
+								"name": "IOPMVideoOutput",
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hMonitor",
@@ -1020,13 +987,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IDirect3DDevice9"
+						"_t": "_ref",
+						"name": "IDirect3DDevice9",
+						"ot": "bot"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "OPM_VIDEO_OUTPUT_SEMANTICS"
+						"_t": "_ref",
+						"name": "OPM_VIDEO_OUTPUT_SEMANTICS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1041,15 +1009,17 @@
 						"pts_to": {
 							"_t": "ptr",
 							"pts_to": {
-								"_t": "bot",
-								"label": "IOPMVideoOutput"
+								"_t": "_ref",
+								"name": "IOPMVideoOutput",
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pDirect3DDevice9",
@@ -1064,12 +1034,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1086,12 +1053,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1108,12 +1072,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1130,12 +1091,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1152,12 +1110,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1180,17 +1135,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_COLOR_TEMPERATURE"
+						"_t": "_ref",
+						"name": "MC_COLOR_TEMPERATURE",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -1208,12 +1160,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1236,17 +1185,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_POSITION_TYPE"
+						"_t": "_ref",
+						"name": "MC_POSITION_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1270,17 +1216,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_SIZE_TYPE"
+						"_t": "_ref",
+						"name": "MC_SIZE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1304,17 +1247,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_DRIVE_TYPE"
+						"_t": "_ref",
+						"name": "MC_DRIVE_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1338,17 +1278,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "MC_GAIN_TYPE"
+						"_t": "_ref",
+						"name": "MC_GAIN_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1372,12 +1309,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "char",

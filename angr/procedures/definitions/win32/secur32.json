@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -27,7 +28,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -35,13 +36,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ASC_REQ_FLAGS"
+						"_t": "_ref",
+						"name": "ASC_REQ_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -53,7 +54,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -61,7 +62,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -81,8 +82,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -102,25 +104,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECPKG_CRED"
+						"_t": "_ref",
+						"name": "SECPKG_CRED",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -173,8 +169,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"label": "Int32"
+										"_t": "_ref",
+										"name": "HRESULT",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -203,7 +200,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -215,8 +212,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPrincipal",
@@ -236,25 +234,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECPKG_CRED"
+						"_t": "_ref",
+						"name": "SECPKG_CRED",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -307,8 +299,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"label": "Int32"
+										"_t": "_ref",
+										"name": "HRESULT",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -337,7 +330,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -349,8 +342,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPrincipal",
@@ -374,24 +368,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -442,8 +430,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"label": "Int32"
+										"_t": "_ref",
+										"name": "HRESULT",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -476,8 +465,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCredentials",
@@ -500,24 +490,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -568,8 +552,9 @@
 								{
 									"_t": "ptr",
 									"pts_to": {
-										"_t": "int",
-										"label": "Int32"
+										"_t": "_ref",
+										"name": "HRESULT",
+										"ot": "_ref"
 									}
 								}
 							],
@@ -602,8 +587,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCredentials",
@@ -622,25 +608,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SECURITY_PACKAGE_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackageName",
@@ -653,25 +637,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SECURITY_PACKAGE_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackageName",
@@ -688,7 +670,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -696,13 +678,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -755,9 +738,9 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "int",
@@ -769,13 +752,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackageName",
@@ -834,9 +818,9 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "int",
@@ -848,13 +832,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackageName",
@@ -877,7 +862,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -885,13 +870,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -908,7 +894,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CREDENTIAL_TARGET_INFORMATIONW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -932,8 +918,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InTargetInfo",
@@ -966,7 +953,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CREDENTIAL_TARGET_INFORMATIONW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					},
@@ -980,8 +967,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Buffer",
@@ -1000,7 +988,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1008,7 +996,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1026,8 +1014,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -1046,13 +1035,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext"
@@ -1064,17 +1054,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackageName"
@@ -1086,17 +1074,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackageName"
@@ -1112,7 +1098,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1125,7 +1111,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1135,8 +1121,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -1165,14 +1152,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgInfoA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pcPackages",
@@ -1199,14 +1187,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgInfoW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pcPackages",
@@ -1223,20 +1212,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXPORT_SECURITY_CONTEXT_FLAGS"
+						"_t": "_ref",
+						"name": "EXPORT_SECURITY_CONTEXT_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBuffer",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1251,8 +1240,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -1275,8 +1265,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pvContextBuffer"
@@ -1292,13 +1283,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential"
@@ -1310,9 +1302,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXTENDED_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "EXTENDED_NAME_FORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1333,9 +1325,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"NameFormat",
@@ -1349,9 +1341,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXTENDED_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "EXTENDED_NAME_FORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1372,9 +1364,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"NameFormat",
@@ -1388,9 +1380,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXTENDED_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "EXTENDED_NAME_FORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1411,9 +1403,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"NameFormat",
@@ -1427,9 +1419,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXTENDED_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "EXTENDED_NAME_FORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -1450,9 +1442,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"NameFormat",
@@ -1470,13 +1462,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext"
@@ -1488,19 +1481,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBuffer",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1515,13 +1505,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackage",
@@ -1536,19 +1527,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBuffer",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1563,13 +1551,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackage",
@@ -1588,7 +1577,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SecurityFunctionTableA",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": []
@@ -1603,7 +1592,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SecurityFunctionTableW",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": []
@@ -1618,7 +1607,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1626,7 +1615,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1638,9 +1627,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ISC_REQ_FLAGS"
+						"_t": "_ref",
+						"name": "ISC_REQ_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1657,7 +1646,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1670,7 +1659,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1678,7 +1667,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1698,8 +1687,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -1726,7 +1716,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1734,7 +1724,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1746,9 +1736,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ISC_REQ_FLAGS"
+						"_t": "_ref",
+						"name": "ISC_REQ_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -1765,7 +1755,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1778,7 +1768,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1786,7 +1776,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1806,8 +1796,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -1830,12 +1821,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -1881,8 +1869,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LsaHandle",
@@ -1902,18 +1891,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LsaHandle"
@@ -1925,17 +1912,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LsaHandle"
@@ -1961,14 +1946,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "LUID",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogonSessionCount",
@@ -1989,8 +1975,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Buffer"
@@ -2006,7 +1993,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2016,14 +2003,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SECURITY_LOGON_SESSION_DATA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogonId",
@@ -2036,25 +2024,22 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LSA_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECURITY_LOGON_TYPE"
+						"_t": "_ref",
+						"name": "SECURITY_LOGON_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2078,7 +2063,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TOKEN_GROUPS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2086,7 +2071,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "TOKEN_SOURCE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2112,18 +2097,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LUID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2131,7 +2113,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "QUOTA_LIMITS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2143,8 +2125,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LsaHandle",
@@ -2169,19 +2152,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LSA_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2194,8 +2174,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LsaHandle",
@@ -2213,18 +2194,15 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "LSA_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "HANDLE",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2237,8 +2215,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LogonProcessName",
@@ -2252,22 +2231,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "POLICY_NOTIFICATION_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "POLICY_NOTIFICATION_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InformationClass",
@@ -2280,22 +2257,20 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "POLICY_NOTIFICATION_INFORMATION_CLASS"
+						"_t": "_ref",
+						"name": "POLICY_NOTIFICATION_INFORMATION_CLASS",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"InformationClass",
@@ -2312,7 +2287,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2325,7 +2300,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2335,8 +2310,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -2355,13 +2331,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECPKG_ATTR"
+						"_t": "_ref",
+						"name": "SECPKG_ATTR",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2372,8 +2348,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -2391,13 +2368,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECPKG_ATTR"
+						"_t": "_ref",
+						"name": "SECPKG_ATTR",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -2408,8 +2385,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -2427,7 +2405,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2444,8 +2422,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -2463,7 +2442,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2480,8 +2459,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -2499,7 +2479,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2514,8 +2494,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -2528,12 +2509,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2542,14 +2520,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgInfoA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackageName",
@@ -2562,12 +2541,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2576,14 +2552,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgInfoW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszPackageName",
@@ -2600,13 +2577,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext"
@@ -2622,7 +2600,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2630,7 +2608,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2638,13 +2616,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ASC_REQ_FLAGS"
+						"_t": "_ref",
+						"name": "ASC_REQ_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -2656,7 +2634,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2664,7 +2642,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2684,8 +2662,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -2707,12 +2686,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2725,8 +2701,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileList",
@@ -2741,12 +2718,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2759,8 +2733,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileList",
@@ -2777,7 +2752,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2807,8 +2782,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ContextHandle",
@@ -2824,12 +2800,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2838,14 +2811,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgInfoA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileName",
@@ -2858,12 +2832,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2872,14 +2843,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgInfoW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ProfileName",
@@ -2896,7 +2868,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2906,14 +2878,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgInfoA",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pInput",
@@ -2930,7 +2903,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2940,14 +2913,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SecPkgInfoW",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pInput",
@@ -2964,7 +2938,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2972,21 +2946,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ISC_REQ_FLAGS"
+						"_t": "_ref",
+						"name": "ISC_REQ_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3003,7 +2974,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3016,7 +2987,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3024,7 +2995,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3044,8 +3015,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -3072,7 +3044,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3080,21 +3052,18 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "ISC_REQ_FLAGS"
+						"_t": "_ref",
+						"name": "ISC_REQ_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -3111,7 +3080,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3124,7 +3093,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3132,7 +3101,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3152,8 +3121,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -3180,7 +3150,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3202,8 +3172,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ContextHandle",
@@ -3222,13 +3193,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECPKG_ATTR"
+						"_t": "_ref",
+						"name": "SECPKG_ATTR",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3244,8 +3215,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -3264,13 +3236,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "SECPKG_ATTR"
+						"_t": "_ref",
+						"name": "SECPKG_ATTR",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -3286,8 +3258,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",
@@ -3306,7 +3279,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3328,8 +3301,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -3348,7 +3322,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3370,8 +3344,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phCredential",
@@ -3402,23 +3377,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthIdentity1",
@@ -3451,8 +3427,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthData",
@@ -3473,8 +3450,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"EncryptedAuthData"
@@ -3495,40 +3473,32 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pAuthIdentity",
@@ -3543,28 +3513,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3578,8 +3539,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszUserName",
@@ -3602,8 +3564,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthData"
@@ -3622,12 +3585,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3641,8 +3601,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthIdentity",
@@ -3677,28 +3638,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pszTargetName",
@@ -3719,9 +3675,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"EncryptedAuthData"
@@ -3781,8 +3737,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthIdentity",
@@ -3803,12 +3760,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3821,18 +3775,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthIdentity",
@@ -3854,12 +3806,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3872,23 +3821,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -3912,8 +3855,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthIdentity",
@@ -3936,12 +3880,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -3955,8 +3896,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthIdentityLength",
@@ -3978,8 +3920,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"AuthData"
@@ -4012,22 +3955,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXTENDED_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "EXTENDED_NAME_FORMAT",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXTENDED_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "EXTENDED_NAME_FORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4048,9 +3988,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"lpAccountName",
@@ -4066,22 +4006,19 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXTENDED_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "EXTENDED_NAME_FORMAT",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "EXTENDED_NAME_FORMAT"
+						"_t": "_ref",
+						"name": "EXTENDED_NAME_FORMAT",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -4102,9 +4039,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"lpAccountName",
@@ -4124,7 +4061,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecHandle",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4132,7 +4069,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SecBufferDesc",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -4150,8 +4087,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"phContext",

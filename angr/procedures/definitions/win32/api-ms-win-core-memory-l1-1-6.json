@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,20 +16,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -52,9 +47,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VIRTUAL_ALLOCATION_TYPE"
+						"_t": "_ref",
+						"name": "VIRTUAL_ALLOCATION_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -66,7 +61,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MEM_EXTENDED_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -79,7 +74,7 @@
 				"returnty": {
 					"_t": "_ref",
 					"name": "MEMORY_MAPPED_VIEW_ADDRESS",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"FileMapping",
@@ -99,20 +94,14 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -136,9 +125,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VIRTUAL_ALLOCATION_TYPE"
+						"_t": "_ref",
+						"name": "VIRTUAL_ALLOCATION_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -150,7 +139,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MEM_EXTENDED_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -163,7 +152,7 @@
 				"returnty": {
 					"_t": "_ref",
 					"name": "MEMORY_MAPPED_VIEW_ADDRESS",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"FileMapping",
@@ -183,12 +172,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -207,9 +193,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VIRTUAL_ALLOCATION_TYPE"
+						"_t": "_ref",
+						"name": "VIRTUAL_ALLOCATION_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -221,7 +207,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MEM_EXTENDED_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -254,12 +240,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HANDLE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -278,9 +261,9 @@
 						"label": "UIntPtr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "VIRTUAL_ALLOCATION_TYPE"
+						"_t": "_ref",
+						"name": "VIRTUAL_ALLOCATION_TYPE",
+						"ot": "int"
 					},
 					{
 						"_t": "int",
@@ -292,7 +275,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MEM_EXTENDED_PARAMETER",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},

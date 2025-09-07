@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -15,27 +16,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_CLIENT_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -43,7 +38,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -53,14 +48,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WEBAUTHN_ASSERTION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hWnd",
@@ -76,19 +72,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_RP_ENTITY_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -96,7 +89,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_USER_ENTITY_INFORMATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -104,7 +97,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_COSE_CREDENTIAL_PARAMETERS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -112,7 +105,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_CLIENT_DATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -120,7 +113,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -130,14 +123,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WEBAUTHN_CREDENTIAL_ATTESTATION",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hWnd",
@@ -163,8 +157,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCancellationId"
@@ -190,8 +185,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"cbCredentialId",
@@ -208,7 +204,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_ASSERTION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -230,7 +226,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_CREDENTIAL_ATTESTATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -252,7 +248,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_CREDENTIAL_DETAILS_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -290,8 +286,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pCancellationId"
@@ -303,17 +300,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hr"
@@ -329,7 +324,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "WEBAUTHN_GET_CREDENTIALS_OPTIONS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -339,14 +334,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "WEBAUTHN_CREDENTIAL_DETAILS_LIST",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pGetCredentialsOptions",
@@ -359,13 +355,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "HRESULT",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hr"
@@ -379,14 +377,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pbIsUserVerifyingPlatformAuthenticatorAvailable"

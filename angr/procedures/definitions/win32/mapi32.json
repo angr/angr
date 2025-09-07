@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -108,16 +109,14 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IMalloc"
+						"_t": "_ref",
+						"name": "IMalloc",
+						"ot": "bot"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HINSTANCE",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -129,7 +128,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DTPAGE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -140,21 +139,24 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMAPITable"
+							"_t": "_ref",
+							"name": "IMAPITable",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ITableData"
+							"_t": "_ref",
+							"name": "ITableData",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpAllocateBuffer",
@@ -195,8 +197,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0"
@@ -250,12 +253,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPMSGSESS",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -381,8 +381,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IPropData"
+							"_t": "_ref",
+							"name": "IPropData",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -444,8 +445,9 @@
 						}
 					},
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "BOOL",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -467,7 +469,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MAPINAMEID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -475,13 +477,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "MAPINAMEID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpName1",
@@ -498,7 +501,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -511,13 +514,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpSPropValue1",
@@ -535,7 +539,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -543,7 +547,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -553,8 +557,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpSPropValueDst",
@@ -568,8 +573,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMAPIProp"
+						"_t": "_ref",
+						"name": "IMAPIProp",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -578,8 +584,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpMapiProp",
@@ -596,7 +603,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ADRLIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -618,7 +625,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SRowSet",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -638,18 +645,18 @@
 					{
 						"_t": "_ref",
 						"name": "FILETIME",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "_ref",
 						"name": "FILETIME",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				],
 				"returnty": {
 					"_t": "_ref",
 					"name": "FILETIME",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"ftAddend1",
@@ -669,13 +676,13 @@
 					{
 						"_t": "_ref",
 						"name": "FILETIME",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				],
 				"returnty": {
 					"_t": "_ref",
 					"name": "FILETIME",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"ftMultiplier",
@@ -701,7 +708,7 @@
 				"returnty": {
 					"_t": "_ref",
 					"name": "FILETIME",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"ftMultiplicand",
@@ -716,13 +723,13 @@
 					{
 						"_t": "_ref",
 						"name": "FILETIME",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				],
 				"returnty": {
 					"_t": "_ref",
 					"name": "FILETIME",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"ft"
@@ -736,18 +743,18 @@
 					{
 						"_t": "_ref",
 						"name": "FILETIME",
-						"ot": "struct"
+						"ot": "_ref"
 					},
 					{
 						"_t": "_ref",
 						"name": "FILETIME",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				],
 				"returnty": {
 					"_t": "_ref",
 					"name": "FILETIME",
-					"ot": "struct"
+					"ot": "_ref"
 				},
 				"arg_names": [
 					"ftMinuend",
@@ -773,8 +780,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"param0"
@@ -835,7 +843,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropTagArray",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -845,14 +853,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SPropAttrArray",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpObject",
@@ -866,8 +875,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -887,8 +897,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpStream",
@@ -902,15 +913,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMAPITable"
+						"_t": "_ref",
+						"name": "IMAPITable",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropTagArray",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -969,8 +981,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lptbl",
@@ -985,15 +998,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMAPITable"
+						"_t": "_ref",
+						"name": "IMAPITable",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropTagArray",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1060,8 +1074,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lptbl",
@@ -1098,7 +1113,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "NOTIFICATION",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								}
 							],
@@ -1123,14 +1138,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMAPIAdviseSink"
+							"_t": "_ref",
+							"name": "IMAPIAdviseSink",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpfnCallback",
@@ -1150,8 +1167,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulFlags"
@@ -1163,8 +1181,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMAPIProp"
+						"_t": "_ref",
+						"name": "IMAPIProp",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1178,14 +1197,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SPropValue",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpMapiProp",
@@ -1199,8 +1219,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IUnknown"
+						"_t": "_ref",
+						"name": "IUnknown",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1217,14 +1238,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStorage"
+							"_t": "_ref",
+							"name": "IStorage",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpUnkIn",
@@ -1239,15 +1262,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMAPITable"
+						"_t": "_ref",
+						"name": "IMAPITable",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropTagArray",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1255,7 +1279,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SRestriction",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1263,7 +1287,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SSortOrderSet",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1277,14 +1301,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SRowSet",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpTable",
@@ -1301,21 +1326,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMAPIProp"
+						"_t": "_ref",
+						"name": "IMAPIProp",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpMapiProp",
@@ -1328,20 +1355,23 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMAPIAdviseSink"
+						"_t": "_ref",
+						"name": "IMAPIAdviseSink",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMAPIAdviseSink"
+							"_t": "_ref",
+							"name": "IMAPIAdviseSink",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpAdviseSink",
@@ -1358,7 +1388,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1366,7 +1396,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1399,7 +1429,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1408,7 +1438,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SPropValue",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1456,8 +1486,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "bot",
-					"label": "IMalloc"
+					"_t": "_ref",
+					"name": "IMalloc",
+					"ot": "bot"
 				},
 				"arg_names": []
 			}
@@ -1506,12 +1537,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPMSGSESS",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -1607,8 +1635,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IMalloc"
+						"_t": "_ref",
+						"name": "IMalloc",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1618,8 +1647,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IStorage"
+						"_t": "_ref",
+						"name": "IStorage",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1634,8 +1664,9 @@
 										"label": "UInt32"
 									},
 									{
-										"_t": "bot",
-										"label": "IMessage"
+										"_t": "_ref",
+										"name": "IMessage",
+										"ot": "bot"
 									}
 								],
 								"returnty": {
@@ -1662,8 +1693,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IMessage"
+							"_t": "_ref",
+							"name": "IMessage",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1691,8 +1723,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMalloc"
+						"_t": "_ref",
+						"name": "IMalloc",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -1702,12 +1735,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "int",
-								"label": "Int"
-							},
-							"label": "IntPtr"
+							"_t": "_ref",
+							"name": "LPMSGSESS",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1804,14 +1834,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStream"
+							"_t": "_ref",
+							"name": "IStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpAllocateBuffer",
@@ -1835,8 +1867,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1852,8 +1885,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMessage"
+						"_t": "_ref",
+						"name": "IMessage",
+						"ot": "bot"
 					},
 					{
 						"_t": "short",
@@ -1863,14 +1897,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ITnef"
+							"_t": "_ref",
+							"name": "ITnef",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpvSupport",
@@ -1895,8 +1931,9 @@
 						}
 					},
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
@@ -1912,8 +1949,9 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "bot",
-						"label": "IMessage"
+						"_t": "_ref",
+						"name": "IMessage",
+						"ot": "bot"
 					},
 					{
 						"_t": "short",
@@ -1921,20 +1959,23 @@
 						"label": "UInt16"
 					},
 					{
-						"_t": "bot",
-						"label": "IAddrBook"
+						"_t": "_ref",
+						"name": "IAddrBook",
+						"ot": "bot"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "ITnef"
+							"_t": "_ref",
+							"name": "ITnef",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpvSupport",
@@ -1957,7 +1998,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1976,7 +2017,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SPropValue",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1995,7 +2036,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2003,7 +2044,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2070,8 +2111,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IMessage"
+						"_t": "_ref",
+						"name": "IMessage",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -2081,14 +2123,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpMessage",
@@ -2110,7 +2154,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2154,7 +2198,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2198,7 +2242,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2234,7 +2278,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2319,7 +2363,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2360,7 +2404,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SPropValue",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -2401,12 +2445,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2447,7 +2488,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NOTIFICATION",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2499,7 +2540,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2543,12 +2584,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -2592,7 +2630,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropTagArray",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2600,7 +2638,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropAttrArray",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2610,14 +2648,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "SPropProblemArray",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpObject",
@@ -2780,7 +2819,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SPropValue",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2821,8 +2860,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "bot",
-						"label": "IStream"
+						"_t": "_ref",
+						"name": "IStream",
+						"ot": "bot"
 					},
 					{
 						"_t": "int",
@@ -2832,14 +2872,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "bot",
-							"label": "IStream"
+							"_t": "_ref",
+							"name": "IStream",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"lpCompressedRTFStream",
@@ -2875,7 +2917,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "ENTRYID",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2893,14 +2935,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "ENTRYID",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ulFlags",

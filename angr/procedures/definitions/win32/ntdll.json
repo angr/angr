@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -29,7 +30,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IMAGE_RUNTIME_FUNCTION_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -86,7 +87,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -94,18 +95,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DestinationString",
@@ -141,8 +143,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"String",
@@ -172,20 +175,14 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -210,25 +207,24 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "PSID",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"UnicodeString",
@@ -399,8 +395,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												}
 											},
@@ -423,8 +417,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -442,12 +434,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"Addr",
@@ -498,8 +487,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												}
 											},
@@ -522,8 +509,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -541,12 +526,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"Addr",
@@ -559,22 +541,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -616,8 +592,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												}
 											},
@@ -640,8 +614,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -665,22 +637,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -722,8 +688,6 @@
 														}
 													},
 													"name": "_Anonymous_e__Struct",
-													"pack": false,
-													"align": null,
 													"anonymous": true
 												}
 											},
@@ -746,8 +710,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -775,7 +737,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CORRELATION_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -861,7 +823,7 @@
 										"Next": {
 											"_t": "_ref",
 											"name": "SINGLE_LIST_ENTRY",
-											"ot": "struct"
+											"ot": "_ref"
 										},
 										"Depth": {
 											"_t": "short",
@@ -875,8 +837,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -889,7 +849,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SLIST_ENTRY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -959,7 +919,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "NV_MEMORY_RANGE",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -1000,7 +960,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1044,7 +1004,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1066,7 +1026,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1094,17 +1054,17 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVICEFAMILYINFOENUM"
+							"_t": "_ref",
+							"name": "DEVICEFAMILYINFOENUM",
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVICEFAMILYDEVICEFORM"
+							"_t": "_ref",
+							"name": "DEVICEFAMILYDEVICEFORM",
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1196,9 +1156,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"OSMajorVersion",
@@ -1261,7 +1221,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CORRELATION_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1284,7 +1244,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1315,7 +1275,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1328,8 +1288,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DestinationString",
@@ -1346,7 +1307,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1377,7 +1338,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1390,8 +1351,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DestinationString",
@@ -1408,16 +1370,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -1439,7 +1398,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CORRELATION_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1486,7 +1445,7 @@
 										"Next": {
 											"_t": "_ref",
 											"name": "SINGLE_LIST_ENTRY",
-											"ot": "struct"
+											"ot": "_ref"
 										},
 										"Depth": {
 											"_t": "short",
@@ -1500,8 +1459,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -1538,7 +1495,7 @@
 										"Next": {
 											"_t": "_ref",
 											"name": "SINGLE_LIST_ENTRY",
-											"ot": "struct"
+											"ot": "_ref"
 										},
 										"Depth": {
 											"_t": "short",
@@ -1552,8 +1509,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -1566,7 +1521,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SLIST_ENTRY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1594,7 +1549,7 @@
 										"Next": {
 											"_t": "_ref",
 											"name": "SINGLE_LIST_ENTRY",
-											"ot": "struct"
+											"ot": "_ref"
 										},
 										"Depth": {
 											"_t": "short",
@@ -1608,8 +1563,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -1622,7 +1575,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SLIST_ENTRY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1650,7 +1603,7 @@
 										"Next": {
 											"_t": "_ref",
 											"name": "SINGLE_LIST_ENTRY",
-											"ot": "struct"
+											"ot": "_ref"
 										},
 										"Depth": {
 											"_t": "short",
@@ -1664,8 +1617,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -1677,7 +1628,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SLIST_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1686,7 +1637,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SLIST_ENTRY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1715,7 +1666,7 @@
 										"Next": {
 											"_t": "_ref",
 											"name": "SINGLE_LIST_ENTRY",
-											"ot": "struct"
+											"ot": "_ref"
 										},
 										"Depth": {
 											"_t": "short",
@@ -1729,8 +1680,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -1742,7 +1691,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SLIST_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1750,7 +1699,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SLIST_ENTRY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1764,7 +1713,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "SLIST_ENTRY",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -1784,7 +1733,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1798,12 +1747,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"Addr",
@@ -1820,7 +1766,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1867,7 +1813,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1914,7 +1860,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1928,12 +1874,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"Addr",
@@ -1946,27 +1889,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1974,7 +1911,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -1995,24 +1932,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2041,24 +1975,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2087,27 +2018,21 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2115,7 +2040,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2140,7 +2065,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2154,12 +2079,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
-					}
+					"_t": "_ref",
+					"name": "PSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"Addr",
@@ -2176,7 +2098,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2229,7 +2151,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2282,7 +2204,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2296,12 +2218,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					}
+					"_t": "_ref",
+					"name": "PWSTR",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"Addr",
@@ -2314,22 +2233,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": false,
-								"label": "Byte"
-							}
+							"_t": "_ref",
+							"name": "PSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2337,7 +2250,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2357,19 +2270,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
-						}
+						"_t": "_ref",
+						"name": "PSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2406,19 +2316,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2455,22 +2362,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "char",
-								"signed": true,
-								"label": "Char"
-							}
+							"_t": "_ref",
+							"name": "PWSTR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2478,7 +2379,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "IN6_ADDR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2502,7 +2403,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2510,22 +2411,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "char",
-							"signed": false,
-							"label": "Byte"
+							"_t": "_ref",
+							"name": "BOOLEAN",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Name",
@@ -2556,9 +2457,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Buffer",
@@ -2586,8 +2487,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"LocalTime",
@@ -2602,11 +2504,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PSECURITY_DESCRIPTOR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2617,11 +2517,9 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "PSECURITY_DESCRIPTOR",
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2633,15 +2531,15 @@
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"SecurityDescriptor",
@@ -2657,8 +2555,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"label": "Int32"
+						"_t": "_ref",
+						"name": "NTSTATUS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
@@ -2682,9 +2581,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "OS_DEPLOYEMENT_STATE_VALUES"
+					"_t": "_ref",
+					"name": "OS_DEPLOYEMENT_STATE_VALUES",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Flags"
@@ -2711,7 +2610,7 @@
 										"Next": {
 											"_t": "_ref",
 											"name": "SINGLE_LIST_ENTRY",
-											"ot": "struct"
+											"ot": "_ref"
 										},
 										"Depth": {
 											"_t": "short",
@@ -2725,8 +2624,6 @@
 										}
 									},
 									"name": "_Anonymous_e__Struct",
-									"pack": false,
-									"align": null,
 									"anonymous": true
 								}
 							},
@@ -2753,7 +2650,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -2776,7 +2673,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "OSVERSIONINFOEXW",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2823,9 +2720,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"Time",
@@ -2842,7 +2739,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2850,18 +2747,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DestinationString",
@@ -2879,7 +2777,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -2887,18 +2785,19 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "UNICODE_STRING",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"DestinationString",
@@ -2920,12 +2819,9 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -2934,8 +2830,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"BytesInMultiByteString",
@@ -2976,7 +2873,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CORRELATION_VECTOR",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],

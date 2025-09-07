@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -43,8 +44,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceCollection",
@@ -62,7 +64,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -70,13 +72,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Target",
@@ -106,13 +109,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceBufferSizeInBytes",
@@ -150,7 +154,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -173,7 +177,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -196,7 +200,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -219,13 +223,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Target"
@@ -241,7 +246,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -259,8 +264,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SourceCollection",
@@ -278,7 +284,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -286,13 +292,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"thresholds",
@@ -309,13 +316,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Collection"
@@ -331,7 +339,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -339,7 +347,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -347,14 +355,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"newSample",
@@ -377,8 +385,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"TimeMs"
@@ -407,13 +416,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"members",
@@ -434,13 +444,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"fltVal",
@@ -457,7 +468,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -465,14 +476,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"ListA",
@@ -506,9 +517,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"guidArray",
@@ -526,7 +537,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -534,14 +545,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"pList",
@@ -558,7 +569,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_PROPERTY_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -566,14 +577,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"pList",
@@ -590,7 +601,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -599,9 +610,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
+					"_t": "_ref",
+					"name": "BOOLEAN",
+					"ot": "char"
 				},
 				"arg_names": [
 					"subscriptionList",
@@ -618,7 +629,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -626,20 +637,22 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"label": "Int32"
+							"_t": "_ref",
+							"name": "BOOL",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -657,7 +670,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -665,7 +678,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -676,8 +689,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -695,7 +709,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -703,7 +717,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -711,13 +725,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "FILETIME",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -735,7 +750,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -743,7 +758,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -754,8 +769,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -773,7 +789,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -781,7 +797,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -793,8 +809,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -812,7 +829,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -820,7 +837,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -832,8 +849,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -851,7 +869,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -859,7 +877,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -871,8 +889,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -890,7 +909,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -898,7 +917,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -915,8 +934,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -935,7 +955,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -943,7 +963,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -961,8 +981,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -981,7 +1002,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -989,7 +1010,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1007,8 +1028,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -1027,7 +1049,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1035,26 +1057,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -1073,7 +1096,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1081,7 +1104,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1094,8 +1117,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -1113,7 +1137,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1121,7 +1145,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1134,8 +1158,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -1153,7 +1178,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1161,26 +1186,27 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "char",
-						"signed": false,
-						"label": "Byte"
+						"_t": "_ref",
+						"name": "BOOLEAN",
+						"ot": "char"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pList",
@@ -1199,7 +1225,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1231,15 +1257,16 @@
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "DEVPROPTYPE"
+							"_t": "_ref",
+							"name": "DEVPROPTYPE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"PropVariantValue",
@@ -1259,7 +1286,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_PROPERTY_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1267,13 +1294,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_PROPERTY_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Target",
@@ -1315,7 +1343,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "SENSOR_COLLECTION_LIST",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1323,7 +1351,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPERTYKEY",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -1331,13 +1359,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "PROPVARIANT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"Index",
@@ -1369,8 +1398,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "NTSTATUS",
+					"ot": "int"
 				},
 				"arg_names": [
 					"SizeInBytes",

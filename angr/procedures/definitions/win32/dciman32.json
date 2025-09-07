@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -19,7 +20,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DCISURFACEINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -57,12 +58,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -79,12 +77,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -133,7 +128,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DCIOFFSCREEN",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -161,12 +156,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -182,7 +174,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DCIOVERLAY",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -203,12 +195,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -217,7 +206,7 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "DCISURFACEINFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
@@ -241,7 +230,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DCISURFACEINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -263,7 +252,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DCIOFFSCREEN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -285,7 +274,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DCISURFACEINFO",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -303,19 +292,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -323,7 +309,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -359,12 +345,9 @@
 				"_t": "func",
 				"args": [],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HDC",
+					"ot": "ptr"
 				},
 				"arg_names": []
 			}
@@ -378,7 +361,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DCIOFFSCREEN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -386,7 +369,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RGNDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -409,7 +392,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DCIOFFSCREEN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -417,7 +400,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -425,7 +408,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -449,7 +432,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "DCIOFFSCREEN",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -457,7 +440,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -465,7 +448,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -473,7 +456,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RGNDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -494,12 +477,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HDC",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -511,7 +491,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RGNDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -532,12 +512,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					},
 					{
 						"_t": "int",
@@ -549,7 +526,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RGNDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -570,12 +547,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWINWATCH",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
@@ -592,17 +566,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWINWATCH",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hWW"
@@ -614,19 +586,16 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWINWATCH",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RECT",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -639,7 +608,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "RGNDATA",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
@@ -661,12 +630,9 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWINWATCH",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
@@ -674,20 +640,14 @@
 							"_t": "func",
 							"args": [
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HWINWATCH",
+									"ot": "ptr"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "HWND",
+									"ot": "ptr"
 								},
 								{
 									"_t": "int",
@@ -695,12 +655,9 @@
 									"label": "UInt32"
 								},
 								{
-									"_t": "ptr",
-									"pts_to": {
-										"_t": "int",
-										"label": "Int"
-									},
-									"label": "IntPtr"
+									"_t": "_ref",
+									"name": "LPARAM",
+									"ot": "ptr"
 								}
 							],
 							"returnty": {
@@ -716,17 +673,15 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "LPARAM",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "BOOL",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hWW",
@@ -740,21 +695,15 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"label": "Int"
-						},
-						"label": "IntPtr"
+						"_t": "_ref",
+						"name": "HWND",
+						"ot": "ptr"
 					}
 				],
 				"returnty": {
-					"_t": "ptr",
-					"pts_to": {
-						"_t": "int",
-						"label": "Int"
-					},
-					"label": "IntPtr"
+					"_t": "_ref",
+					"name": "HWINWATCH",
+					"ot": "ptr"
 				},
 				"arg_names": [
 					"hwnd"

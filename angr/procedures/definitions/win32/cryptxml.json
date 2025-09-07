@@ -1,4 +1,5 @@
 {
+	"_t": "lib",
 	"type_collection_names": [
 		"win32"
 	],
@@ -31,7 +32,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -45,7 +46,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -55,14 +56,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRYPT_XML_OBJECT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSignatureOrObject",
@@ -87,8 +89,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptXml"
@@ -112,35 +115,26 @@
 						"label": "UInt32"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_ALGORITHM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -153,7 +147,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_ALGORITHM",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -169,8 +163,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptXml",
@@ -206,13 +201,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_DATA_PROVIDER",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hReference",
@@ -233,16 +229,16 @@
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_XML_CHARSET"
+						"_t": "_ref",
+						"name": "CRYPT_XML_CHARSET",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -285,8 +281,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "HRESULT",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pvCallbackState",
@@ -297,8 +294,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptXml",
@@ -341,7 +339,7 @@
 									"pts_to": {
 										"_t": "_ref",
 										"name": "CRYPT_XML_ALGORITHM_INFO",
-										"ot": "struct"
+										"ot": "_ref"
 									}
 								},
 								{
@@ -353,8 +351,9 @@
 								}
 							],
 							"returnty": {
-								"_t": "int",
-								"label": "Int32"
+								"_t": "_ref",
+								"name": "BOOL",
+								"ot": "int"
 							},
 							"arg_names": [
 								"pInfo",
@@ -364,8 +363,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwGroupId",
@@ -407,7 +407,7 @@
 					"pts_to": {
 						"_t": "_ref",
 						"name": "CRYPT_XML_ALGORITHM_INFO",
-						"ot": "struct"
+						"ot": "_ref"
 					}
 				},
 				"arg_names": [
@@ -427,13 +427,13 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_ALGORITHM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_XML_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_XML_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -442,14 +442,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRYPT_XML_ALGORITHM_INFO",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pXmlAlgorithm",
@@ -476,14 +477,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRYPT_XML_DOC_CTXT",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptXml",
@@ -509,14 +511,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRYPT_XML_REFERENCE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptXml",
@@ -542,14 +545,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRYPT_XML_SIGNATURE",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptXml",
@@ -573,13 +577,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_STATUS",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hCryptXml",
@@ -598,14 +603,15 @@
 							"pts_to": {
 								"_t": "_ref",
 								"name": "CRYPT_XML_TRANSFORM_CHAIN_CONFIG",
-								"ot": "struct"
+								"ot": "_ref"
 							}
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"ppConfig"
@@ -617,32 +623,31 @@
 				"_t": "func",
 				"args": [
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_XML_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_XML_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_KEY_VALUE",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
+							"_t": "_ref",
+							"name": "BCRYPT_KEY_HANDLE",
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"dwFlags",
@@ -660,20 +665,20 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_TRANSFORM_CHAIN_CONFIG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_XML_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_XML_FLAGS",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -687,7 +692,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -702,8 +707,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pConfig",
@@ -724,28 +730,25 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_TRANSFORM_CHAIN_CONFIG",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_XML_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_XML_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "char",
-							"signed": true,
-							"label": "Char"
-						}
+						"_t": "_ref",
+						"name": "PWSTR",
+						"ot": "ptr"
 					},
 					{
 						"_t": "ptr",
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_PROPERTY",
-							"ot": "struct"
+							"ot": "_ref"
 						},
 						"label": "LPArray"
 					},
@@ -759,7 +762,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_BLOB",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -774,8 +777,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"pConfig",
@@ -814,8 +818,9 @@
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSignature",
@@ -836,28 +841,24 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt"
-						},
-						"label": "UIntPtr"
+						"_t": "_ref",
+						"name": "HCRYPTPROV_OR_NCRYPT_KEY_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CERT_KEY_SPEC"
+						"_t": "_ref",
+						"name": "CERT_KEY_SPEC",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_XML_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_XML_FLAGS",
+						"ot": "int"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_XML_KEYINFO_SPEC"
+						"_t": "_ref",
+						"name": "CRYPT_XML_KEYINFO_SPEC",
+						"ot": "int"
 					},
 					{
 						"_t": "ptr",
@@ -871,7 +872,7 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_ALGORITHM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					},
 					{
@@ -879,13 +880,14 @@
 						"pts_to": {
 							"_t": "_ref",
 							"name": "CRYPT_XML_ALGORITHM",
-							"ot": "struct"
+							"ot": "_ref"
 						}
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSignature",
@@ -911,21 +913,20 @@
 						}
 					},
 					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
+						"_t": "_ref",
+						"name": "BCRYPT_KEY_HANDLE",
+						"ot": "ptr"
 					},
 					{
-						"_t": "int",
-						"signed": false,
-						"label": "CRYPT_XML_FLAGS"
+						"_t": "_ref",
+						"name": "CRYPT_XML_FLAGS",
+						"ot": "int"
 					}
 				],
 				"returnty": {
-					"_t": "int",
-					"label": "Int32"
+					"_t": "_ref",
+					"name": "HRESULT",
+					"ot": "int"
 				},
 				"arg_names": [
 					"hSignature",

@@ -12,17 +12,15 @@ import pydemumble
 import archinfo
 
 from angr.errors import AngrMissingTypeError
-from angr.sim_type import parse_cpp_file, SimTypeFunction, SimTypeBottom
+from angr.sim_type import parse_cpp_file, parse_file, SimTypeFunction, SimTypeBottom, SimType
 from angr.calling_conventions import DEFAULT_CC, CC_NAMES
 from angr.misc import autoimport
 from angr.misc.ux import once
-from angr.sim_type import parse_file
 from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
 from angr.procedures.stubs.syscall_stub import syscall as stub_syscall
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCCSyscall
-    from angr.sim_type import SimType
 
 
 l = logging.getLogger(name=__name__)
@@ -38,6 +36,10 @@ class SimTypeCollection:
     def __init__(self):
         self.names: list[str] | None = None
         self.types: dict[str, SimType] = {}
+        self.types_json: dict[str, Any] = {}
+
+    def __contains__(self, name: str) -> bool:
+        return name in self.types or name in self.types_json
 
     def set_names(self, *names: str):
         self.names = list(names)
@@ -62,10 +64,13 @@ class SimTypeCollection:
         :param bottom_on_missing:    Return a SimTypeBottom object if the required type does not exist.
         :return:        The SimType object.
         """
-        if bottom_on_missing and name not in self.types:
+        if bottom_on_missing and name not in self:
             return SimTypeBottom(label=name)
-        if name not in self.types:
+        if name not in self:
             raise AngrMissingTypeError(f"Type {name} is missing")
+        if name not in self.types and name in self.types_json:
+            t = SimType.from_json(self.types_json[name])
+            self.types[name] = t
         return self.types[name]
 
     def init_str(self) -> str:
@@ -81,8 +86,28 @@ class SimTypeCollection:
 
         return "\n".join(lines)
 
+    def to_json(self) -> dict[str, Any]:
+        d = {"_t": "types", "names": [*self.names] if self.names else [], "types": {}}
+        for name in sorted(self.types):
+            t = self.types[name]
+            d["types"][name] = t.to_json()
+        return d
+
+    @classmethod
+    def from_json(cls, d: dict[str, Any]) -> SimTypeCollection:
+        typelib = SimTypeCollection()
+        if d.get("_t", "") != "types":
+            raise TypeError("Not a SimTypeCollection JSON object")
+        if "names" in d:
+            typelib.set_names(*d["names"])
+        if "types" in d:
+            for name, t_d in d["types"].items():
+                typelib.types_json[name] = t_d
+        return typelib
+
     def __repr__(self):
-        return f"<SimTypeCollection with {len(self.types)} types>"
+        keys = set(self.types) | set(self.types_json)
+        return f"<SimTypeCollection with {len(keys)} types>"
 
 
 _ARCH_NAME_CACHE: dict[str, str] = {}
@@ -115,6 +140,8 @@ class SimLibrary:
     @staticmethod
     def from_json(d: dict[str, Any]) -> SimLibrary:
         lib = SimLibrary()
+        if d.get("_t", "") != "lib":
+            raise TypeError("Not a SimLibrary JSON object")
         if "type_collection_names" in d:
             lib.type_collection_names = d["type_collection_names"]
         if "default_cc" in d:
@@ -718,26 +745,51 @@ _DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
 _EXTERNAL_DEFINITIONS_DIRS: list[str] | None = None
 
 
-def load_type_collections(skip=None) -> None:
+def load_type_collections(only=None, skip=None) -> None:
     if skip is None:
         skip = set()
 
+    # recursively list and load all _types.json files
+    types_json_files = []
+    for root, _, files in os.walk(_DEFINITIONS_BASEDIR):
+        for filename in files:
+            if filename.endswith(".json") and filename.startswith("_types_"):
+                module_name = filename[7:-5]
+                if only is not None and module_name not in only:
+                    continue
+                if module_name in skip:
+                    continue
+                types_json_files.append(os.path.join(root, filename))
+
+    for f in types_json_files:
+        with open(f, "rb") as fp:
+            data = fp.read()
+            d = msgspec.json.decode(data)
+            if not isinstance(d, dict) or d.get("_t", "") != "types":
+                l.warning("Invalid type collection JSON file: %s", f)
+                continue
+            if "names" in d and isinstance(d["names"], list) and any(libname in SIM_TYPE_COLLECTIONS for libname in d["names"]):
+                # the type collection is already loaded
+                continue
+            try:
+                SimTypeCollection.from_json(d)
+            except TypeError:
+                l.warning("Failed to load type collection from %s", f, exc_info=True)
+
+    # supporting legacy type collections defined as Python files
     for _ in autoimport.auto_import_modules(
         "angr.procedures.definitions",
         _DEFINITIONS_BASEDIR,
-        filter_func=lambda module_name: module_name.startswith("types_") and module_name not in skip,
+        filter_func=lambda module_name: module_name.startswith("types_")
+        and (only is None or (only is not None and module_name[6:] in only))
+        and module_name[6:] not in skip,
     ):
         pass
 
 
 def load_win32_type_collections() -> None:
     if once("load_win32_type_collections"):
-        for _ in autoimport.auto_import_modules(
-            "angr.procedures.definitions",
-            _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name == "types_win32",
-        ):
-            pass
+        load_type_collections(only={"win32"})
 
 
 def load_external_definitions():
@@ -811,11 +863,19 @@ def load_win32api_definitions():
 
         for api_base_dir in api_base_dirs:
             base_dir = os.path.join(_DEFINITIONS_BASEDIR, api_base_dir)
+            if not os.path.isdir(base_dir):
+                continue
             for f in os.listdir(base_dir):
-                if f.endswith(".json"):
+                if f.endswith(".json") and not f.startswith("_types_"):
                     with open(os.path.join(base_dir, f), "rb") as f:
                         d = msgspec.json.decode(f.read())
-                        SimLibrary.from_json(d)
+                        if not (isinstance(d, dict) and d.get("_t", "") == "lib"):
+                            l.warning("Invalid SimLibrary JSON file: %s", f)
+                            continue
+                        try:
+                            SimLibrary.from_json(d)
+                        except (TypeError, KeyError):
+                            l.warning("Failed to load SimLibrary from %s", f, exc_info=True)
 
         if "kernel32.dll" in SIM_LIBRARIES:
             _update_libkernel32(SIM_LIBRARIES["kernel32.dll"][0])
@@ -849,7 +909,7 @@ COMMON_LIBRARIES = {
 
 
 # Load common types
-load_type_collections(skip={"types_win32"})
+load_type_collections(skip={"win32"})
 
 
 # Load common definitions
