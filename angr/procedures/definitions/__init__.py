@@ -768,7 +768,11 @@ def load_type_collections(only=None, skip=None) -> None:
             if not isinstance(d, dict) or d.get("_t", "") != "types":
                 l.warning("Invalid type collection JSON file: %s", f)
                 continue
-            if "names" in d and isinstance(d["names"], list) and any(libname in SIM_TYPE_COLLECTIONS for libname in d["names"]):
+            if (
+                "names" in d
+                and isinstance(d["names"], list)
+                and any(libname in SIM_TYPE_COLLECTIONS for libname in d["names"])
+            ):
                 # the type collection is already loaded
                 continue
             try:
