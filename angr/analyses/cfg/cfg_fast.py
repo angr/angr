@@ -1265,7 +1265,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
             is_xfg_hash = (
                 self.project.arch.name in {"X86", "AMD64"}
-                and (not (self.project.simos is not None and self.project.simos.name in {"Linux", "MacOS"}))
+                and (not (self.project.simos is not None and self.project.simos.name == "Linux"))
                 and self._scan_for_win_xfg_hash(start_addr)
             )
             if is_xfg_hash:
