@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import codecs
 import sys
 import os
 import logging
@@ -12,7 +11,6 @@ from pathlib import Path
 
 import angr
 from angr.sim_type import SimTypeFunction, SimTypeLong, SimTypeInt, SimTypeBottom
-from angr.utils.library import parsedcprotos2py
 from angr.procedures.definitions import SimTypeCollection
 from angr.errors import AngrMissingTypeError
 
@@ -161,7 +159,7 @@ def create_angr_type_from_json(t):
         print(f"Found unknown type kind: {t['Kind']}")
 
 
-def do_it(in_dir, out_file):
+def do_it(in_dir):
     p = Path(in_dir)
 
     files = p.glob("*.json")
@@ -176,8 +174,7 @@ def do_it(in_dir, out_file):
     while True:
         nosuchtype = 0
         missing_types = set()
-        for namespace in api_namespaces:
-            metadata = api_namespaces[namespace]
+        for metadata in api_namespaces.values():
             types = metadata["Types"]
             for t in types:
                 try:
@@ -200,9 +197,8 @@ def do_it(in_dir, out_file):
     i = 1
     func_count = 0
     parsed_cprotos = defaultdict(list)
-    for namespace in api_namespaces:
-        metadata = api_namespaces[namespace]
-        logging.debug(f"+++ {i}/{len(api_namespaces)}: Processing namespace {namespace}")
+    for namespace, metadata in api_namespaces.items():
+        logging.debug("+++ %d/%d: Processing namespace %s", i, len(api_namespaces), namespace)
         i += 1
         funcs = metadata["Functions"]
         if namespace.startswith("Windows.Win32"):
@@ -2467,7 +2463,7 @@ def do_it(in_dir, out_file):
             f.write(json.dumps(d, indent="\t"))
 
     # Dump the type collection to a JSON file
-    with open("win32/_types_win32.json", "w") as f:
+    with open("win32/_types_win32.json", "w", encoding="utf-8") as f:
         logging.debug("Writing to file win32/win32_types.json...")
         f.write(json.dumps(typelib.to_json(types_as_string=True), indent="\t"))
 
@@ -2479,7 +2475,7 @@ def main():
     args = _args.parse_args()
     if args.v is not None:
         logging.root.setLevel(level=max(30 - (args.v * 10), 0))
-    do_it(args.win32json_api_directory, None)
+    do_it(args.win32json_api_directory)
 
 
 if __name__ == "__main__":

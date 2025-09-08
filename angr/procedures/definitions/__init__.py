@@ -3,12 +3,12 @@ from __future__ import annotations
 import copy
 import os
 import logging
+import json
 import inspect
 from collections import defaultdict
 from typing import Any, TYPE_CHECKING
 
 import msgspec
-import json
 import pydemumble
 import archinfo
 
@@ -879,7 +879,7 @@ def load_external_definitions():
 
 
 def _update_libkernel32(lib: SimLibrary):
-    from angr import SIM_PROCEDURES as P
+    from angr import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win32"])
     lib.add_alias("EncodePointer", "DecodePointer")
@@ -895,7 +895,7 @@ def _update_libkernel32(lib: SimLibrary):
 
 
 def _update_libntdll(lib: SimLibrary):
-    from angr import SIM_PROCEDURES as P
+    from angr import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add("RtlEncodePointer", P["win32"]["EncodePointer"])
     lib.add("RtlDecodePointer", P["win32"]["EncodePointer"])
@@ -903,15 +903,15 @@ def _update_libntdll(lib: SimLibrary):
 
 
 def _update_libuser32(lib: SimLibrary):
-    from angr import SIM_PROCEDURES as P
-    from angr.calling_conventions import SimCCCdecl
+    from angr import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+    from angr.calling_conventions import SimCCCdecl  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win_user32"])
     lib.add("wsprintfA", P["libc"]["sprintf"], cc=SimCCCdecl(archinfo.ArchX86()))
 
 
 def _update_libntoskrnl(lib: SimLibrary):
-    from angr import SIM_PROCEDURES as P
+    from angr import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win32_kernel"])
 
