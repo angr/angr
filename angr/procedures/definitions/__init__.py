@@ -819,6 +819,37 @@ def load_win32_type_collections() -> None:
         load_type_collections(only={"win32"})
 
 
+def _load_definitions(base_dir: str, only: set[str] | None = None, skip: set[str] | None = None):
+    if skip is None:
+        skip = set()
+
+    for f in os.listdir(base_dir):
+        if f.endswith(".json") and not f.startswith("_types_"):
+            module_name = f[:-5]
+            if only is not None and module_name not in only:
+                continue
+            if module_name in skip:
+                continue
+            with open(os.path.join(base_dir, f), "rb") as f:
+                d = msgspec.json.decode(f.read())
+                if not (isinstance(d, dict) and d.get("_t", "") == "lib"):
+                    l.warning("Invalid SimLibrary JSON file: %s", f)
+                    continue
+                try:
+                    SimLibrary.from_json(d)
+                except (TypeError, KeyError):
+                    l.warning("Failed to load SimLibrary from %s", f, exc_info=True)
+
+    # support for loading legacy prototype definitions defined as Python modules
+    for _ in autoimport.auto_import_modules(
+        "angr.procedures.definitions",
+        base_dir,
+        filter_func=lambda module_name: (only is None or (only is not None and module_name in only))
+        and module_name not in skip,
+    ):
+        pass
+
+
 def load_external_definitions():
     """
     Load library definitions from specific directories. By default it parses ANGR_EXTERNAL_DEFINITIONS_DIRS as a
@@ -841,8 +872,7 @@ def load_external_definitions():
         load_all_definitions()
 
         for d in _EXTERNAL_DEFINITIONS_DIRS:
-            for _ in autoimport.auto_import_source_files(d):
-                pass
+            _load_definitions(d)
 
 
 def _update_libkernel32(lib: SimLibrary):
@@ -887,22 +917,11 @@ def load_win32api_definitions():
     load_win32_type_collections()
     if once("load_win32api_definitions"):
         api_base_dirs = ["win32", "wdk"]
-
         for api_base_dir in api_base_dirs:
             base_dir = os.path.join(_DEFINITIONS_BASEDIR, api_base_dir)
             if not os.path.isdir(base_dir):
                 continue
-            for f in os.listdir(base_dir):
-                if f.endswith(".json") and not f.startswith("_types_"):
-                    with open(os.path.join(base_dir, f), "rb") as f:
-                        d = msgspec.json.decode(f.read())
-                        if not (isinstance(d, dict) and d.get("_t", "") == "lib"):
-                            l.warning("Invalid SimLibrary JSON file: %s", f)
-                            continue
-                        try:
-                            SimLibrary.from_json(d)
-                        except (TypeError, KeyError):
-                            l.warning("Failed to load SimLibrary from %s", f, exc_info=True)
+            _load_definitions(base_dir)
 
         if "kernel32.dll" in SIM_LIBRARIES:
             _update_libkernel32(SIM_LIBRARIES["kernel32.dll"][0])
@@ -917,8 +936,7 @@ def load_win32api_definitions():
 def load_all_definitions():
     load_type_collections(skip=set())
     if once("load_all_definitions"):
-        for _ in autoimport.auto_import_modules("angr.procedures.definitions", _DEFINITIONS_BASEDIR):
-            pass
+        _load_definitions(_DEFINITIONS_BASEDIR)
 
 
 COMMON_LIBRARIES = {
@@ -940,9 +958,4 @@ load_type_collections(skip={"win32"})
 
 
 # Load common definitions
-for _ in autoimport.auto_import_modules(
-    "angr.procedures.definitions",
-    _DEFINITIONS_BASEDIR,
-    filter_func=lambda module_name: module_name in COMMON_LIBRARIES,
-):
-    pass
+_load_definitions(_DEFINITIONS_BASEDIR, only=COMMON_LIBRARIES)
