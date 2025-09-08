@@ -1184,6 +1184,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         :return:            True if a potential XFG hash is found, False otherwise.
         """
         ptr = self._fast_memory_load_pointer(start_addr, size=8)
+        if ptr is None:
+            return False
         return ((ptr & 0x8000_0600_1050_0070) == 0x8000_0600_1050_0070) and (
             (ptr & ~0xFFFD_BFFF_7EDF_FB70) & 0xFFFF_FFFF_FFFF_FFFE
         ) == 0
@@ -1261,7 +1263,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     self.model.memory_data[start_addr] = MemoryData(start_addr, cc_length, MemoryDataSort.Alignment)
                     start_addr += cc_length
 
-            is_xfg_hash = self._scan_for_win_xfg_hash(start_addr)
+            is_xfg_hash = (
+                self.project.arch.name in {"X86", "AMD64"}
+                and (not (self.project.simos is not None and self.project.simos.name in {"Linux", "MacOS"}))
+                and self._scan_for_win_xfg_hash(start_addr)
+            )
             if is_xfg_hash:
                 matched_something = True
                 self._seg_list.occupy(start_addr, 8, "alignment")
