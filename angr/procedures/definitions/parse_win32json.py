@@ -168,7 +168,7 @@ def do_it(in_dir, out_file):
 
     for file in files:
         logging.info("Found file %s", file)
-        with codecs.open(file, "r", "utf-8-sig") as f:
+        with open(file, encoding="utf-8-sig") as f:
             api_namespaces[file.stem] = json.load(f)
 
     logging.info("Making a bunch of types...")
