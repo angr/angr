@@ -12,16 +12,7 @@
 	},
 	"functions": {
 		"GdiEntry13": {
-			"proto": {
-				"_t": "func",
-				"args": [],
-				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "UInt32"
-				},
-				"arg_names": []
-			}
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
 		}
 	}
 }

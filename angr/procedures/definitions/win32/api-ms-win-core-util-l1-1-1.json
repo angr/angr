@@ -12,82 +12,10 @@
 	},
 	"functions": {
 		"DecodeRemotePointer": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "_ref",
-						"name": "HANDLE",
-						"ot": "ptr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
-						}
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HRESULT",
-					"ot": "int"
-				},
-				"arg_names": [
-					"ProcessHandle",
-					"Ptr",
-					"DecodedPtr"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ProcessHandle', 'Ptr', 'DecodedPtr']}"
 		},
 		"EncodeRemotePointer": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "_ref",
-						"name": "HANDLE",
-						"ot": "ptr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "ptr",
-							"pts_to": {
-								"_t": "bot",
-								"label": "Void"
-							}
-						}
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HRESULT",
-					"ot": "int"
-				},
-				"arg_names": [
-					"ProcessHandle",
-					"Ptr",
-					"EncodedPtr"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ProcessHandle', 'Ptr', 'EncodedPtr']}"
 		}
 	}
 }

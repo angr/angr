@@ -12,40 +12,13 @@
 	},
 	"functions": {
 		"GetCurrentProcessToken": {
-			"proto": {
-				"_t": "func",
-				"args": [],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HANDLE",
-					"ot": "ptr"
-				},
-				"arg_names": []
-			}
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': []}"
 		},
 		"GetCurrentThreadEffectiveToken": {
-			"proto": {
-				"_t": "func",
-				"args": [],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HANDLE",
-					"ot": "ptr"
-				},
-				"arg_names": []
-			}
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': []}"
 		},
 		"GetCurrentThreadToken": {
-			"proto": {
-				"_t": "func",
-				"args": [],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HANDLE",
-					"ot": "ptr"
-				},
-				"arg_names": []
-			}
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': []}"
 		}
 	}
 }

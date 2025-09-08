@@ -12,67 +12,7 @@
 	},
 	"functions": {
 		"WlanUIEditProfile": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
-					},
-					{
-						"_t": "_ref",
-						"name": "PWSTR",
-						"ot": "ptr"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Guid"
-						}
-					},
-					{
-						"_t": "_ref",
-						"name": "HWND",
-						"ot": "ptr"
-					},
-					{
-						"_t": "_ref",
-						"name": "WL_DISPLAY_PAGES",
-						"ot": "int"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Void"
-						}
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt32"
-						}
-					}
-				],
-				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "UInt32"
-				},
-				"arg_names": [
-					"dwClientVersion",
-					"wstrProfileName",
-					"pInterfaceGuid",
-					"hWnd",
-					"wlStartPage",
-					"pReserved",
-					"pWlanReasonCode"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WL_DISPLAY_PAGES', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwClientVersion', 'wstrProfileName', 'pInterfaceGuid', 'hWnd', 'wlStartPage', 'pReserved', 'pWlanReasonCode']}"
 		}
 	}
 }

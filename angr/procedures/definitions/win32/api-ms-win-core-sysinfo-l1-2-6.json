@@ -12,16 +12,7 @@
 	},
 	"functions": {
 		"GetDeveloperDriveEnablementState": {
-			"proto": {
-				"_t": "func",
-				"args": [],
-				"returnty": {
-					"_t": "_ref",
-					"name": "DEVELOPER_DRIVE_ENABLEMENT_STATE",
-					"ot": "int"
-				},
-				"arg_names": []
-			}
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'DEVELOPER_DRIVE_ENABLEMENT_STATE', 'ot': 'int'}, 'arg_names': []}"
 		}
 	}
 }

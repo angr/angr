@@ -12,36 +12,7 @@
 	},
 	"functions": {
 		"OpenCommPort": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
-					},
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HANDLE",
-					"ot": "ptr"
-				},
-				"arg_names": [
-					"uPortNumber",
-					"dwDesiredAccess",
-					"dwFlagsAndAttributes"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['uPortNumber', 'dwDesiredAccess', 'dwFlagsAndAttributes']}"
 		}
 	}
 }

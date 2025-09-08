@@ -12,41 +12,7 @@
 	},
 	"functions": {
 		"ApphelpCheckShellObject": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "bot",
-							"label": "Guid"
-						}
-					},
-					{
-						"_t": "_ref",
-						"name": "BOOL",
-						"ot": "int"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "llong",
-							"signed": false,
-							"label": "UInt64"
-						}
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "BOOL",
-					"ot": "int"
-				},
-				"arg_names": [
-					"ObjectCLSID",
-					"bShimIfNecessary",
-					"pullFlags"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ObjectCLSID', 'bShimIfNecessary', 'pullFlags']}"
 		}
 	}
 }

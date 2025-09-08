@@ -12,24 +12,7 @@
 	},
 	"functions": {
 		"SetSocketMediaStreamingMode": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "_ref",
-						"name": "BOOL",
-						"ot": "int"
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HRESULT",
-					"ot": "int"
-				},
-				"arg_names": [
-					"value"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['value']}"
 		}
 	}
 }

@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import Any, TYPE_CHECKING
 
 import msgspec
+import json
 import pydemumble
 import archinfo
 
@@ -69,7 +70,17 @@ class SimTypeCollection:
         if name not in self:
             raise AngrMissingTypeError(f"Type {name} is missing")
         if name not in self.types and name in self.types_json:
-            t = SimType.from_json(self.types_json[name])
+            d = self.types_json[name]
+            if isinstance(d, str):
+                d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
+            try:
+                t = SimType.from_json(d)
+            except (TypeError, ValueError) as ex:
+                l.warning("Failed to load type %s from JSON", name, exc_info=True)
+                # the type is missing
+                if bottom_on_missing:
+                    return SimTypeBottom(label=name)
+                raise AngrMissingTypeError(f"Type {name} is missing") from ex
             self.types[name] = t
         return self.types[name]
 
@@ -86,11 +97,11 @@ class SimTypeCollection:
 
         return "\n".join(lines)
 
-    def to_json(self) -> dict[str, Any]:
+    def to_json(self, types_as_string: bool = False) -> dict[str, Any]:
         d = {"_t": "types", "names": [*self.names] if self.names else [], "types": {}}
         for name in sorted(self.types):
             t = self.types[name]
-            d["types"][name] = t.to_json()
+            d["types"][name] = json.dumps(t.to_json()).replace('"', "'") if types_as_string else t.to_json()
         return d
 
     @classmethod
@@ -101,8 +112,8 @@ class SimTypeCollection:
         if "names" in d:
             typelib.set_names(*d["names"])
         if "types" in d:
-            for name, t_d in d["types"].items():
-                typelib.types_json[name] = t_d
+            for name, t_value in d["types"].items():
+                typelib.types_json[name] = t_value
         return typelib
 
     def __repr__(self):
@@ -359,8 +370,20 @@ class SimLibrary:
         :return:        Prototype of the function, or None if the prototype does not exist.
         """
         if name not in self.prototypes and name in self.prototypes_json:
-            proto = SimTypeFunction.from_json(self.prototypes_json[name])
-            self.prototypes[name] = proto
+            d = self.prototypes_json[name]
+            if isinstance(d, str):
+                d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
+            if not isinstance(d, dict):
+                l.warning("Failed to load prototype %s from JSON", name)
+                proto = None
+            else:
+                try:
+                    proto = SimTypeFunction.from_json(d)
+                except (TypeError, ValueError):
+                    l.warning("Failed to load prototype %s from JSON", name, exc_info=True)
+                    proto = None
+            if proto is not None:
+                self.prototypes[name] = proto
         else:
             proto = self.prototypes.get(name, None)
         if proto is None:

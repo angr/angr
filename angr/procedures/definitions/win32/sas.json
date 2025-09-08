@@ -12,23 +12,7 @@
 	},
 	"functions": {
 		"SendSAS": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "_ref",
-						"name": "BOOL",
-						"ot": "int"
-					}
-				],
-				"returnty": {
-					"_t": "bot",
-					"label": "Void"
-				},
-				"arg_names": [
-					"AsUser"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['AsUser']}"
 		}
 	}
 }

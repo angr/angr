@@ -12,48 +12,10 @@
 	},
 	"functions": {
 		"GetIntegratedDisplaySize": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "float"
-						}
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HRESULT",
-					"ot": "int"
-				},
-				"arg_names": [
-					"sizeInInches"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sizeInInches']}"
 		},
 		"GetOsManufacturingMode": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "_ref",
-							"name": "BOOL",
-							"ot": "_ref"
-						}
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "BOOL",
-					"ot": "int"
-				},
-				"arg_names": [
-					"pbEnabled"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pbEnabled']}"
 		}
 	}
 }

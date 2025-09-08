@@ -12,63 +12,10 @@
 	},
 	"functions": {
 		"GetDistanceOfClosestLanguageInList": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "_ref",
-						"name": "PWSTR",
-						"ot": "ptr"
-					},
-					{
-						"_t": "_ref",
-						"name": "PWSTR",
-						"ot": "ptr"
-					},
-					{
-						"_t": "char",
-						"signed": true,
-						"label": "Char"
-					},
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "float"
-						}
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "HRESULT",
-					"ot": "int"
-				},
-				"arg_names": [
-					"pszLanguage",
-					"pszLanguagesList",
-					"wchListDelimiter",
-					"pClosestDistance"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'char', 'signed': true, 'label': 'Char'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszLanguage', 'pszLanguagesList', 'wchListDelimiter', 'pClosestDistance']}"
 		},
 		"IsWellFormedTag": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "_ref",
-						"name": "PWSTR",
-						"ot": "ptr"
-					}
-				],
-				"returnty": {
-					"_t": "char",
-					"signed": false,
-					"label": "Byte"
-				},
-				"arg_names": [
-					"pszTag"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['pszTag']}"
 		}
 	}
 }

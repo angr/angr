@@ -12,24 +12,7 @@
 	},
 	"functions": {
 		"SRRemoveRestorePoint": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "int",
-						"signed": false,
-						"label": "UInt32"
-					}
-				],
-				"returnty": {
-					"_t": "int",
-					"signed": false,
-					"label": "UInt32"
-				},
-				"arg_names": [
-					"dwRPNum"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwRPNum']}"
 		}
 	}
 }

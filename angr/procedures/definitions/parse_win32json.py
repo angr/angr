@@ -2460,7 +2460,7 @@ def do_it(in_dir, out_file):
             "functions": OrderedDict(),
         }
         for func, cproto, doc in sorted(parsed_cprotos_per_lib, key=lambda x: x[0]):
-            d["functions"][func] = {"proto": cproto.to_json()}
+            d["functions"][func] = {"proto": json.dumps(cproto.to_json()).replace('"', "'")}
             if doc:
                 d["functions"][func]["doc"] = doc
         with open(os.path.join(prefix, filename), "w") as f:
@@ -2469,7 +2469,7 @@ def do_it(in_dir, out_file):
     # Dump the type collection to a JSON file
     with open("win32/_types_win32.json", "w") as f:
         logging.debug("Writing to file win32/win32_types.json...")
-        f.write(json.dumps(typelib.to_json(), indent="\t"))
+        f.write(json.dumps(typelib.to_json(types_as_string=True), indent="\t"))
 
 
 def main():

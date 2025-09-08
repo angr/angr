@@ -12,27 +12,7 @@
 	},
 	"functions": {
 		"GetOsSafeBootMode": {
-			"proto": {
-				"_t": "func",
-				"args": [
-					{
-						"_t": "ptr",
-						"pts_to": {
-							"_t": "int",
-							"signed": false,
-							"label": "UInt32"
-						}
-					}
-				],
-				"returnty": {
-					"_t": "_ref",
-					"name": "BOOL",
-					"ot": "int"
-				},
-				"arg_names": [
-					"Flags"
-				]
-			}
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags']}"
 		}
 	}
 }
