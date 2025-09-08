@@ -14,7 +14,7 @@ from angr.engines.light import SimEngineNostmtVEX
 from angr.knowledge_plugins import Function
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.analyses.typehoon import typevars, typeconsts
-from angr.sim_type import SimTypeBottom
+from angr.sim_type import SimTypeBottom, SimTypeRef
 from .engine_base import SimEngineVRBase, RichR
 from .irsb_scanner import VEXIRSBScanner
 
@@ -241,7 +241,8 @@ class SimEngineVRVEX(
             if cc is None:
                 cc = default_cc(self.arch.name, platform=self.project.simos.name)(self.arch)
 
-            if proto is not None and not isinstance(proto.returnty, SimTypeBottom):
+            if proto is not None and not isinstance(proto.returnty, (SimTypeBottom, SimTypeRef)):
+                # we don't translate the prototype using type libraries for better performance
                 ret_reg = cc.return_val(proto.returnty)
             else:
                 ret_reg = cc.RETURN_VAL
