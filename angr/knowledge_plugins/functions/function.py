@@ -1577,12 +1577,13 @@ class Function(Serializable):
 
                 # update self.calling_convention if necessary
                 if self.calling_convention is None:
-                    if self.project.arch.name in library.default_ccs:
+                    if self.project.arch.name in library.default_ccs and self.is_syscall is False:
                         self.calling_convention = library.default_ccs[self.project.arch.name](self.project.arch)
                     elif self.project.arch.name in DEFAULT_CC:
                         self.calling_convention = default_cc(
                             self.project.arch.name,
                             platform=self.project.simos.name if self.project.simos is not None else None,
+                            syscall=self.is_syscall,
                         )(self.project.arch)
 
                 return True
