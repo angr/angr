@@ -1174,6 +1174,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             return ctr
         return 0
 
+    def _scan_for_win_xfg_hash(self, start_addr: int) -> bool:
+        """
+        Test 8 bytes at a given address to see if they look like a Windows eXtended Flow Guard (XFG) hash.
+
+        Ref: https://blog.quarkslab.com/how-the-msvc-compiler-generates-xfg-function-prototype-hashes.html
+
+        :param start_addr:  The address to start testing at.
+        :return:            True if a potential XFG hash is found, False otherwise.
+        """
+        ptr = self._fast_memory_load_pointer(start_addr, size=8)
+        return ((ptr & 0x8000_0600_1050_0070) == 0x8000_0600_1050_0070) and (
+            (ptr & ~0xFFFD_BFFF_7EDF_FB70) & 0xFFFF_FFFF_FFFF_FFFE
+        ) == 0
+
     def _next_code_addr_core(self):
         """
         Call _next_unscanned_addr() first to get the next address that is not scanned. Then check if data locates at
@@ -1246,6 +1260,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     self._seg_list.occupy(start_addr, cc_length, "alignment")
                     self.model.memory_data[start_addr] = MemoryData(start_addr, cc_length, MemoryDataSort.Alignment)
                     start_addr += cc_length
+
+            is_xfg_hash = self._scan_for_win_xfg_hash(start_addr)
+            if is_xfg_hash:
+                matched_something = True
+                self._seg_list.occupy(start_addr, 8, "alignment")
+                self.model.memory_data[start_addr] = MemoryData(start_addr, 8, MemoryDataSort.Alignment)
+                start_addr += 8
+                # an xfg hash always has a function right after
+                break
 
             zeros_length = self._scan_for_repeating_bytes(start_addr, 0x00)
             if zeros_length:
