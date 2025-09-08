@@ -383,6 +383,7 @@ class SimLibrary:
                     l.warning("Failed to load prototype %s from JSON", name, exc_info=True)
                     proto = None
             if proto is not None:
+                assert isinstance(proto, SimTypeFunction)
                 self.prototypes[name] = proto
         else:
             proto = self.prototypes.get(name, None)
@@ -620,7 +621,8 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.default_cc_mapping[abi] = cc_cls
 
-    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:  # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ
+    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:  # type:ignore
         """
         Set the prototype of a function in the form of a SimTypeFunction containing argument and return types
 
@@ -630,7 +632,8 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.syscall_prototypes[abi][name] = proto
 
-    def set_prototypes(self, abi: str, protos: dict[str, SimTypeFunction]) -> None:  # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ
+    def set_prototypes(self, abi: str, protos: dict[str, SimTypeFunction]) -> None:  # type:ignore
         """
         Set the prototypes of many syscalls.
 
@@ -663,7 +666,7 @@ class SimSyscallLibrary(SimLibrary):
             proc.prototype = self.syscall_prototypes[abi][name].with_arch(arch)
 
     # pylint: disable=arguments-differ
-    def get(self, number, arch, abi_list=()):
+    def get(self, number, arch, abi_list=()):  # type:ignore
         """
         The get() function for SimSyscallLibrary looks a little different from its original version.
 
@@ -685,7 +688,7 @@ class SimSyscallLibrary(SimLibrary):
         self._apply_numerical_metadata(proc, number, arch, abi)
         return proc
 
-    def get_stub(self, number, arch, abi_list=()):
+    def get_stub(self, number, arch, abi_list=()):  # type:ignore
         """
         Pretty much the intersection of SimLibrary.get_stub() and SimSyscallLibrary.get().
 
@@ -700,7 +703,7 @@ class SimSyscallLibrary(SimLibrary):
         l.debug("unsupported syscall: %s", number)
         return proc
 
-    def get_prototype(self, abi: str, name: str, arch=None) -> SimTypeFunction | None:
+    def get_prototype(self, abi: str, name: str, arch=None) -> SimTypeFunction | None:  # type:ignore
         """
         Get a prototype of the given syscall name and its ABI, optionally specialize the prototype to a given
         architecture.
@@ -717,7 +720,7 @@ class SimSyscallLibrary(SimLibrary):
             return None
         return proto.with_arch(arch=arch)
 
-    def has_metadata(self, number, arch, abi_list=()):
+    def has_metadata(self, number, arch, abi_list=()):  # type:ignore
         """
         Pretty much the intersection of SimLibrary.has_metadata() and SimSyscallLibrary.get().
 
@@ -729,7 +732,7 @@ class SimSyscallLibrary(SimLibrary):
         name, _, _ = self._canonicalize(number, arch, abi_list)
         return super().has_metadata(name)
 
-    def has_implementation(self, number, arch, abi_list=()):
+    def has_implementation(self, number, arch, abi_list=()):  # type:ignore
         """
         Pretty much the intersection of SimLibrary.has_implementation() and SimSyscallLibrary.get().
 
@@ -741,7 +744,7 @@ class SimSyscallLibrary(SimLibrary):
         name, _, _ = self._canonicalize(number, arch, abi_list)
         return super().has_implementation(name)
 
-    def has_prototype(self, abi: str, name: str) -> bool:
+    def has_prototype(self, abi: str, name: str) -> bool:  # type:ignore
         """
         Check if a function has a prototype associated with it. Demangle the function name if it is a mangled C++ name.
 

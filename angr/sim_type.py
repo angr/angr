@@ -1826,7 +1826,10 @@ class SimUnion(NamedTypeMixin, SimType):
     def size(self):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
-        member_sizes: list[int] = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
+        all_member_sizes: list[int | None] = [
+            ty.size for ty in self.members.values() if not isinstance(ty, (SimTypeBottom, SimTypeRef))
+        ]
+        member_sizes: list[int] = [s for s in all_member_sizes if s is not None]
         # fall back to word size in case all members are SimTypeBottom
         return max(member_sizes) if member_sizes else self._arch.bytes
 
