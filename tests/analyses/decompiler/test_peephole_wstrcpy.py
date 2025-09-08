@@ -24,6 +24,13 @@ class TestPeepholeWstrcpy(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+
+        # since we are computing the CFG here, let's also ensure XFG hashes are not marked as code
+        assert cfg._seg_list.is_occupied(0x18000A798) is True
+        assert cfg._seg_list.occupied_by_sort(0x18000A798) == "alignment"
+        assert cfg._seg_list.is_occupied(0x18000A79F) is True
+        assert cfg._seg_list.occupied_by_sort(0x18000A79F) == "alignment"
+
         func = cfg.functions[0x18003CA70]
         assert func is not None
         dec = proj.analyses.Decompiler(func, cfg=cfg)

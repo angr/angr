@@ -903,7 +903,7 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _fast_memory_load_pointer(self, addr, size=None):
+    def _fast_memory_load_pointer(self, addr, size=None) -> int | None:
         """
         Perform a fast memory loading of a pointer.
 
