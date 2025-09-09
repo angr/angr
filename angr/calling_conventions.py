@@ -34,6 +34,7 @@ from .sim_type import (
     SimTypeBottom,
     parse_signature,
     SimTypeReference,
+    SimTypeRef,
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -1430,7 +1431,7 @@ class SimCCMicrosoftAMD64(SimCC):
         return SimReferenceArgument(int_loc, referenced_loc)
 
     def return_in_implicit_outparam(self, ty):
-        if isinstance(ty, SimTypeBottom):
+        if isinstance(ty, (SimTypeBottom, SimTypeRef)):
             return False
         return not isinstance(ty, SimTypeFloat) and ty.size > self.STRUCT_RETURN_THRESHOLD
 
